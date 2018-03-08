@@ -1,0 +1,9 @@
+zone cloud.com. {
+        primary 127.0.0.1;
+        key rndc-key;
+}
+
+zone 0.0.11.in-addr.arpa. {
+        primary 127.0.0.1;
+        key rndc-key;
+}
