@@ -1,5 +1,5 @@
 # kubernetes
-Useful links:
+Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/
 https://medium.com/@TarunChinmai/installing-kubernetes-f0c8dec1487c
 https://medium.com/@felipedutratine/kubernetes-on-local-with-minikube-tutorial-413475d587e6
