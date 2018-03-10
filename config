@@ -1,0 +1,15 @@
+MOUNT_PATH=/home/sumit
+INSTALL_PATH=$MOUNT_PATH/kubernetes/install_scripts
+ETCDSERVERS=http://11.0.0.2:2379
+CLUSTERIPRANGE=11.0.0.0/24
+HAPROXY=11.0.0.1
+REPOSITORY=http://192.168.1.5
+HOSTINTERFACE=eth0
+WORKDIR=/tmp
+FLANNEL_NET=172.17.0.0/16
+HOSTIP="$(ifconfig ${HOSTINTERFACE} 2>/dev/null|awk '/inet addr:/ {print $2}'|sed 's/addr://')"
+MASTER_1_IP=11.0.0.2
+ADVERTISE_IP=$MASTER_1_IP
+ETCD_1_IP=${MASTER_1_IP}
+ETCD_1_NAME=node01
+CERTIFICATE=$MOUNT_PATH/kubecertificate

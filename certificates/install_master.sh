@@ -1,7 +1,10 @@
 #!/bin/bash
+
 [[ "TRACE" ]] && set -x
 
-HAPROXY="$(ifconfig eth0 2>/dev/null|awk '/inet addr:/ {print $2}'|sed 's/addr://')"
+: ${INSTALL_PATH:=/home/sumit/kubernetes/install_scripts}
+
+source $INSTALL_PATH/../config
 
 : ${COUNTRY:=IN}
 : ${STATE:=UP}
@@ -11,11 +14,8 @@ HAPROXY="$(ifconfig eth0 2>/dev/null|awk '/inet addr:/ {print $2}'|sed 's/addr:/
 : ${EMAIL:=cloudinc.gmail.com}
 : ${COMMONNAME:=kube-system}
 
-mkdir -p ./certs
-pushd certs
-
-openssl req -new -x509 -nodes -keyout ca.key -out ca.crt -days 3650 -passin pass:sumit \
--subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$COMMONNAME/emailAddress=$EMAIL"
+mkdir -p $CERTIFICATE/certs
+pushd $CERTIFICATE/certs
 
 cat <<EOF | sudo tee server-openssl.cnf
 [req]
