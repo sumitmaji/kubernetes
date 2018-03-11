@@ -1,5 +1,5 @@
 MOUNT_PATH=/home/sumit
-INSTALL_PATH=$MOUNT_PATH/kubernetes/install_scripts
+INSTALL_PATH=$MOUNT_PATH/kubecopy/kubernetes/install_scripts
 ETCDSERVERS=http://11.0.0.2:2379
 CLUSTERIPRANGE=11.0.0.0/24
 HAPROXY=11.0.0.1
@@ -13,5 +13,5 @@ ADVERTISE_IP=$MASTER_1_IP
 ETCD_1_IP=${MASTER_1_IP}
 ETCD_1_NAME=node01
 CERTIFICATE=$MOUNT_PATH/kubecertificate
-DNS_IP=11.0.0.4
+DNS_IP=10.100.0.5
 YOUR_DOMAIN=cloud.uat
