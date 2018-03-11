@@ -24,6 +24,8 @@ ExecStart=/opt/kubernetes/server/bin/kubelet \
 --hostname-override=$(hostname -s) \
 --api-servers=http://$HAPROXY:8080 \
 --logtostderr=true
+--cluster-dns=${DNS_IP}
+--cluster-domain=${YOUR_DOMAIN}
 Restart=on-failure
 KillMode=process
 [Install]
