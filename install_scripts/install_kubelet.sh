@@ -14,6 +14,9 @@ then
  tar -xf kubernetes-server-linux-amd64.tar.gz -C /opt/
 fi
 
+mkdir -p /etc/kubernetes/manifests/
+cp $INSTALL_PATH/../kube_service/cadvisor/cadvisor.manifest /etc/kubernetes/manifests/
+
 cat <<EOF | sudo tee /etc/systemd/system/kubelet.service
 [Unit]
 Description=Kubernetes Kubelet
@@ -26,6 +29,7 @@ ExecStart=/opt/kubernetes/server/bin/kubelet \
 --logtostderr=true
 --cluster-dns=${DNS_IP}
 --cluster-domain=${YOUR_DOMAIN}
+--config=/etc/kubernetes/manifests/
 Restart=on-failure
 KillMode=process
 [Install]
