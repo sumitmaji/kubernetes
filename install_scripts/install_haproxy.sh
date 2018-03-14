@@ -5,6 +5,9 @@
 : ${INSTALL_PATH:=/home/sumit/kubernetes/install_scripts}
 source $INSTALL_PATH/../config
 
+docker stop master-proxy
+docker rm master-proxy
+
 cat <<EOF > /opt/haproxy.cfg
 global
         log 127.0.0.1 local0
