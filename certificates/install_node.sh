@@ -2,7 +2,7 @@
 
 [[ "TRACE" ]] && set -x
 
-: ${INSTALL_PATH:=/home/sumit/kubernetes/install_scripts}
+: ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_scripts}
 NODE_IP=$2
 source $INSTALL_PATH/../config
 HOSTNAME=$1

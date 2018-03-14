@@ -36,10 +36,13 @@ fi
 
 apt-get install -y nfs-common
 
+mkdir /export
+
 mount master:/root /root
 
 mount master:/home /home
 
+mount master:/export /export
 
 ############################################
 ############################################
@@ -66,11 +69,14 @@ if [ -z "$STATUS" ]
 then
 `sed -i '$a\master:/root    /root   nfs     nfsvers=3,nolock        0 0' /etc/fstab`
 `sed -i '$a\master:/home    /home   nfs     nfsvers=3.nolock        0 0' /etc/fstab`
+`sed -i '$a\master:/export    /export   nfs     nfsvers=3.nolock        0 0' /etc/fstab`
 fi
 
 mount /root
 
 mount /home
+
+mount /export
 
 
 ########################################
@@ -115,3 +121,5 @@ then
 fi
 
 service nscd restart
+
+echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc

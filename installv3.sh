@@ -164,7 +164,7 @@ exportfs -va
 
 service nfs-kernel-server start
 
-mount 11.0.0.1:/root /export
+#mount 11.0.0.1:/root /export
 
 #umount /export
 
@@ -247,5 +247,7 @@ if [ -z "$STATUS" ]
 then
 `sed -i '/%admin ALL=(ALL) ALL/a\%admins ALL=(ALL) ALL' /etc/sudoers`
 fi
+
+echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
 
 rm -rf rndc-key
