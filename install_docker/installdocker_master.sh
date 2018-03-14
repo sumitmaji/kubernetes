@@ -8,7 +8,10 @@
 : ${ORGU:=IT}
 : ${EMAIL:=cloudinc.gmail.com}
 : ${COMMONNAME:=master.cloud.com}
-: ${EXPORTDIR:=/home/sumit}
+: ${MOUNT_PATH:=/export}
+
+EXPORTDIR=$MOUNT_PATH
+
 mkdir -p "$EXPORTDIR"/certs
 mkdir -p /mnt/registry
 
@@ -29,7 +32,7 @@ docker rm registry
 docker run -d \
   --restart=always \
   --name registry \
-  -v `pwd`/certs:/root/certs \
+  -v $EXPORTDIR/certs:/root/certs \
   -e REGISTRY_HTTP_ADDR=0.0.0.0:5000 \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/domain.crt \
   -e REGISTRY_HTTP_TLS_KEY=/root/certs/domain.key \
