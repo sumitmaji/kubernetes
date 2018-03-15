@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: ${INSTALL_PATH:=/home/sumit/kubernetes/install_scripts}
+: ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_scripts}
 source $INSTALL_PATH/../config
 if [ -d ./workspace ]
 then

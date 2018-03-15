@@ -59,7 +59,7 @@ popd
 ln -s /opt/etcd/bin/etcd /usr/local/bin/etcd
 ln -s /opt/etcd/bin/etcdctl /usr/local/bin/etcdctl
 
-sleep 10
+sleep 20
 
 #Set FLANNEL_NET to etcd
 /opt/etcd/bin/etcdctl set /coreos.com/network/config '{"Network":"'${FLANNEL_NET}'","Backend": {"Type": "vxlan"}}'
