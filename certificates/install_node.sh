@@ -32,9 +32,16 @@ subjectAltName = @alt_names
 IP.1 = $NODE_IP
 EOF
 
+#Create a private key
 openssl genrsa -out $HOSTNAME.key 2048
+
+#Create CSR for the node
 openssl req -new -key $HOSTNAME.key -subj "/CN=$NODE_IP" -out $HOSTNAME.csr -config "$HOSTNAME"-openssl.cnf
+
+#Create a self signed certificate
 openssl x509 -req -in $HOSTNAME.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out $HOSTNAME.crt -days 10000 -extensions v3_req -extfile "$HOSTNAME"-openssl.cnf
+
+#Verify a Private Key Matches a Certificate
 openssl x509 -noout -text -in $HOSTNAME.crt
 
 cat <<EOF | sudo tee kubeconfig

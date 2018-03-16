@@ -31,15 +31,19 @@ IP.1 = 127.0.0.1
 IP.2 = $HAPROXY
 EOF
 
+#Create a private key
 openssl genrsa -out server.key 2048
 
+#Create CSR for the server
 openssl req -new -key server.key \
 -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$HAPROXY/emailAddress=$EMAIL" \
 -out server.csr -config server-openssl.cnf
 
+#Create a self signed certificate
 openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt \
 -days 10000 -extensions v3_req -extfile server-openssl.cnf
 
+#Verify a Private Key Matches a Certificate
 openssl x509 -noout -text -in server.crt
 
 popd
