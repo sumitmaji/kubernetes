@@ -3,9 +3,39 @@
 [[ "TRACE" ]] && set -x
 
 : ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_scripts}
-NODE_IP=$2
+#NODE_IP=$2
 source $INSTALL_PATH/../config
-HOSTNAME=$1
+#HOSTNAME=$1
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+case $key in
+ -i|--ip)
+ NODE_IP="$2"
+ shift
+ shift
+ ;;
+ -h|--host)
+ HOSTNAME="$2"
+ shift
+ shift
+ ;;
+esac
+done
+
+if [ -z "$NODE_IP" ]
+then
+	echo "Please provide node ip"
+	exit 0
+fi
+if [ -z "$HOSTNAME" ]
+then
+        echo "Please provide node hostname"
+        exit 0
+fi
+
+
 
 : ${COUNTRY:=IN}
 : ${STATE:=UP}
@@ -44,7 +74,7 @@ openssl x509 -req -in $HOSTNAME.csr -CA ca.crt -CAkey ca.key -CAcreateserial -ou
 #Verify a Private Key Matches a Certificate
 openssl x509 -noout -text -in $HOSTNAME.crt
 
-cat <<EOF | sudo tee kubeconfig
+cat <<EOF | sudo tee "$HOSTNAME"-kubeconfig
 apiVersion: v1
 kind: Config
 clusters:

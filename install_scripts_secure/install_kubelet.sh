@@ -24,6 +24,9 @@ ExecStart=/opt/kubernetes/server/bin/kubelet \
 --hostname-override=$(hostname -s) \
 --api-servers=$APISERVER_HOST \
 --logtostderr=true
+--tls-cert-file=$CERTIFICATE_MOUNT_PATH/$(hostname -s).crt \
+--tls-private-key-file=$CERTIFICATE_MOUNT_PATH/$(hostname -s).key \
+--kubeconfig=$CERTIFICATE_MOUNT_PATH/$(hostname -s)-kubeconfig
 Restart=on-failure
 KillMode=process
 [Install]

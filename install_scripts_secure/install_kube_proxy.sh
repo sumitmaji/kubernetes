@@ -23,6 +23,7 @@ ExecStart=/opt/kubernetes/server/bin/kube-proxy \
 --hostname-override=$(hostname -s) \
 --master=$APISERVER_HOST \
 --logtostderr=true
+--kubeconfig=$CERTIFICATE_MOUNT_PATH/$(hostname -s)-kubeconfig \
 Restart=on-failure
 [Install]
 WantedBy=multi-user.target
