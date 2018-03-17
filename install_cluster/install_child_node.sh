@@ -64,12 +64,12 @@ fi
 
 service ntp start
 
-STATUS=`grep "master:/root    /root   nfs     nfsvers=3,nolock        0 0" /etc/fstab`
+STATUS=`grep "master:/root    /root   nfs     _netdev,x-systemd.automount        0 0" /etc/fstab`
 if [ -z "$STATUS" ]
 then
-`sed -i '$a\master:/root    /root   nfs     nfsvers=3,nolock        0 0' /etc/fstab`
-`sed -i '$a\master:/home    /home   nfs     nfsvers=3.nolock        0 0' /etc/fstab`
-`sed -i '$a\master:/export    /export   nfs     nfsvers=3.nolock        0 0' /etc/fstab`
+`sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/export    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
 fi
 
 mount /root
