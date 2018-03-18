@@ -34,3 +34,5 @@ systemctl daemon-reload
 systemctl enable kubelet
 systemctl restart kubelet
 systemctl status kubelet
+
+popd

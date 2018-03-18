@@ -1,8 +1,10 @@
 #!/bin/bash
 
-systemctl daemon-reload
+[[ "TRACE" ]] && set -x
+
+systemctl stop kube-apiserver
 systemctl enable kube-apiserver
-systemctl start kube-apiserver
+systemctl daemon-reload
 
 rm -rf /etc/systemd/system/kube-apiserver.service
 

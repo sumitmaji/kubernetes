@@ -1,5 +1,7 @@
 #!/bin/bash
 
+[[ "TRACE" ]] && set -x
+
 systemctl stop kubelet
 systemctl stop kube-proxy
 systemctl disable kubelet
