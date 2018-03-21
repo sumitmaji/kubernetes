@@ -19,6 +19,8 @@ spec:
           containerPort: 389
         - name: ssh-port
           containerPort: 22
+        - name: ssh-port2
+          containerPort: 2122
         - name: x-port
           containerPort: 636
         env:
@@ -52,6 +54,11 @@ spec:
     targetPort: 22
     protocol: TCP
     name: ssh-port
+  - port: 2122
+    targetPort: 2122
+    protocol: TCP
+    name: ssh-port2
+
   - port: 636
     targetPort: 636
     protocol: TCP
