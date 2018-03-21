@@ -49,7 +49,7 @@ mkdir -p $CERTIFICATE/certs
 pushd $CERTIFICATE/certs
 
 
-cat <<EOF | sudo tee "$HOSTNAME"-openssl.cnf
+cat <<EOF | sudo tee node-openssl.cnf
 [req]
 req_extensions = v3_req
 distinguished_name = req_distinguished_name
@@ -63,18 +63,18 @@ IP.1 = $NODE_IP
 EOF
 
 #Create a private key
-openssl genrsa -out $HOSTNAME.key 2048
+openssl genrsa -out node.key 2048
 
 #Create CSR for the node
-openssl req -new -key $HOSTNAME.key -subj "/CN=$NODE_IP" -out $HOSTNAME.csr -config "$HOSTNAME"-openssl.cnf
+openssl req -new -key node.key -subj "/CN=$NODE_IP" -out node.csr -config node-openssl.cnf
 
 #Create a self signed certificate
-openssl x509 -req -in $HOSTNAME.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out $HOSTNAME.crt -days 10000 -extensions v3_req -extfile "$HOSTNAME"-openssl.cnf
+openssl x509 -req -in node.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out node.crt -days 10000 -extensions v3_req -extfile node-openssl.cnf
 
 #Verify a Private Key Matches a Certificate
-openssl x509 -noout -text -in $HOSTNAME.crt
+openssl x509 -noout -text -in node.crt
 
-cat <<EOF | sudo tee "$HOSTNAME"-kubeconfig
+cat <<EOF | sudo tee kubeconfig
 apiVersion: v1
 kind: Config
 clusters:
@@ -84,8 +84,8 @@ clusters:
 users:
 - name: kube-node
   user:
-    client-certificate: $CERTIFICATE/certs/$HOSTNAME.crt
-    client-key: $CERTIFICATE/certs/$HOSTNAME.key
+    client-certificate: $CERTIFICATE/certs/node.crt
+    client-key: $CERTIFICATE/certs/node.key
 contexts:
 - context:
     cluster: local

@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: ldap-client-container
-        image: master.cloud.com:5000/ldap
+        image: master.cloud.com:5000/ldap-client
         ports:
         - name: ldap-port
           containerPort: 8181
