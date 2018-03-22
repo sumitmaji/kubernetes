@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: ldap-client-deployment
 spec:
-  replicas: 1
+  replicas: 2
   template:
     metadata:
       labels:
@@ -21,7 +21,7 @@ spec:
           containerPort: 22
         - name: ssh-port2
           containerPort: 2122
-        - name: x-port
+        - name: ssl-ldap
           containerPort: 636
         env:
         - name: LDAP_PASSWORD
@@ -58,11 +58,10 @@ spec:
     targetPort: 2122
     protocol: TCP
     name: ssh-port2
-
   - port: 636
     targetPort: 636
     protocol: TCP
-    name: x-port
+    name: ssl-ldap
   selector:
-    app: ldap
+    app: ldap-client
 

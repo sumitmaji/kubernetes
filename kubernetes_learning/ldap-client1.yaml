@@ -1,24 +1,22 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: kerberos-deployment
+  name: ldap-client1-deployment
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: kerberos
+        app: ldap-client1
     spec:
       containers:
-      - name: kerberos-container
-        image: master.cloud.com:5000/kerberos
+      - name: ldap-client-container
+        image: master.cloud.com:5000/ldap-client
         ports:
-        - name: krb1
-          containerPort: 88
-        - name: krb2
-          containerPort: 749
-        - name: krb3
-          containerPort: 750
+        - name: ldap-port
+          containerPort: 8181
+        - name: search-port
+          containerPort: 389
         - name: ssh-port
           containerPort: 22
         - name: ssh-port2
@@ -36,39 +34,22 @@ spec:
             secretKeyRef:
               name: krbsecret
               key: password
-        - name: KDC_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: krbsecret
-              key: kdcpassword
-        - name: ADM_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: krbsecret
-              key: admpassword
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: kerberos
+  name: ldap-client1
 spec:
   type: NodePort
   ports:
-  - port: 88
-    nodePort: 30342
-    targetPort: 88
-    protocol: UDP
-    name: krb1
-  - port: 749
-    nodePort: 30343
-    targetPort: 749
+  - port: 8181
+    targetPort: 8181
     protocol: TCP
-    name: krb2
-  - port: 750
-    nodePort: 30344
-    targetPort: 750
+    name: ldap
+  - port: 389
+    targetPort: 389
     protocol: TCP
-    name: krb3
+    name: search
   - port: 22
     targetPort: 22
     protocol: TCP
@@ -82,5 +63,5 @@ spec:
     protocol: TCP
     name: ssl-ldap
   selector:
-    app: kerberos
+    app: ldap-client1
 

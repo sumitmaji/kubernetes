@@ -17,6 +17,8 @@ spec:
           containerPort: 8181
         - name: search-port
           containerPort: 389
+        - name: ssl-port
+          containerPort: 636
         - name: ssh-port
           containerPort: 22
         - name: ssh-port2
@@ -58,6 +60,14 @@ spec:
     targetPort: 2122
     protocol: TCP
     name: ssh-port2
+  - port: 636
+    targetPort: 636
+    protocol: TCP
+    name: ssl-tcp
+  - port: 636
+    targetPort: 636
+    protocol: UDP
+    name: ssl-udp
   selector:
     app: ldap
 
