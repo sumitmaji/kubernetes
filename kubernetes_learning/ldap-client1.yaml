@@ -9,6 +9,7 @@ spec:
       labels:
         app: ldap-client1
     spec:
+      hostname: ldap-client1
       containers:
       - name: ldap-client-container
         image: master.cloud.com:5000/ldap-client

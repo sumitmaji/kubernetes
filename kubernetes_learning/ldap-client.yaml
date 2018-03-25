@@ -3,15 +3,18 @@ kind: Deployment
 metadata:
   name: ldap-client-deployment
 spec:
-  replicas: 2
+  replicas: 1
   template:
     metadata:
       labels:
         app: ldap-client
     spec:
+      hostname: ldap-client
       containers:
       - name: ldap-client-container
         image: master.cloud.com:5000/ldap-client
+        command: ["/utility/ldap/bootstrap.sh"]
+        args: ["-d"] 
         ports:
         - name: ldap-port
           containerPort: 8181

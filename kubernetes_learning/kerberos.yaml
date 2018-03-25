@@ -9,6 +9,7 @@ spec:
       labels:
         app: kerberos
     spec:
+      hostname: kerberos
       containers:
       - name: kerberos-container
         image: master.cloud.com:5000/kerberos
