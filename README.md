@@ -14,3 +14,4 @@ http://network-insight.net/2016/06/kubernetes-networking-101/<br>
 http://blog.oddbit.com/2014/08/11/four-ways-to-connect-a-docker/<br>
 https://blog.laputa.io/kubernetes-flannel-networking-6a1cb1f8ec7c<br>
 https://ahmet.im/blog/kubernetes-network-policy/<br>
+https://icicimov.github.io/blog/kubernetes/Kubernetes-cluster-step-by-step/ <br>
