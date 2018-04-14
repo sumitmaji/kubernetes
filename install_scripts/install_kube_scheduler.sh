@@ -14,7 +14,10 @@ Documentation=https://github.com/kubernetes/kubernetes
 User=root
 ExecStart=/opt/kubernetes/server/bin/kube-scheduler \
 --logtostderr=true \
---master=127.0.0.1:8080
+--master=127.0.0.1:8080 \
+--leader-elect=true \
+--v=2 \
+--kubeconfig=/var/lib/kube-scheduler/kubeconfig
 Restart=on-failure
 LimitNOFILE=65536
 [Install]

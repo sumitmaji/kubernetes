@@ -17,3 +17,6 @@ kubectl delete service hdfs-master
 
 kubectl delete deployment hadoop-slave01-deployment
 kubectl delete service slave01
+
+kubectl delete deployment hive-deployment
+kubectl delete service hive

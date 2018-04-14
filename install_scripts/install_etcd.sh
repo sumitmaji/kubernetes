@@ -11,8 +11,8 @@ pushd workspace
 
 #Install ectd
 pushd etcd
-tar -xzvf etcd-v3.0.7-linux-amd64.tar.gz
-pushd etcd-v3.0.7-linux-amd64
+tar -xzvf $ETCD_VERSION.tar.gz
+pushd $ETCD_VERSION
 mkdir -p /opt/etcd/bin
 mkdir -p /opt/etcd/config/
 cp etcd* /opt/etcd/bin/
@@ -20,13 +20,32 @@ mkdir -p /var/lib/etcd/
 
 cat <<EOF | sudo tee /opt/etcd/config/etcd.conf
 ETCD_DATA_DIR=/var/lib/etcd
-ETCD_NAME=$(hostname -s)
+ETCD_NAME=$(hostname -f)
 ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
-ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379,http://0.0.0.0:4001
 ETCD_INITIAL_CLUSTER_STATE=new
-ETCD_INITIAL_CLUSTER=${ETCD_1_NAME}=http://${ETCD_1_IP}:2380
+`#Install etcd nodes
+IFS=','
+counter=0
+cluster=""
+for worker in $ETCD_CLUSTERS; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ if [ -z "$cluster" ]
+ then
+  cluster="$node=http://$ip:2380"
+ else
+  cluster="$cluster,$node=http://$ip:2380"
+ fi
+ counter=$((counter+1))
+ IFS=$oifs
+done
+unset IFS
+echo "ETCD_INITIAL_CLUSTER=$cluster"
+`
 ETCD_INITIAL_ADVERTISE_PEER_URLS=http://${HOSTIP}:2380
-ETCD_ADVERTISE_CLIENT_URLS=http://${HOSTIP}:2379
+ETCD_ADVERTISE_CLIENT_URLS=http://${HOSTIP}:2379,http://${HOSTIP}:4001
 ETCD_HEARTBEAT_INTERVAL=6000
 ETCD_ELECTION_TIMEOUT=30000
 GOMAXPROCS=$(nproc)
@@ -51,7 +70,6 @@ EOF
 
 systemctl daemon-reload && systemctl enable etcd && systemctl start etcd
 
-popd
 popd
 popd
 popd

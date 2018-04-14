@@ -57,4 +57,50 @@ openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out s
 #Verify a Private Key Matches a Certificate
 openssl x509 -noout -text -in server.crt
 
+
+for user in admin kube-proxy kubelet kube-controller-manager kube-scheduler
+do
+    openssl genrsa -out ${user}.key 2048
+    openssl req -new -key ${user}.key -out ${user}.csr -subj "/CN=${user}"
+    openssl x509 -req -in ${user}.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out ${user}.crt -days 7200
+done
+
+#Install worker nodes
+IFS=','
+for worker in $WORKERS; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ echo "The node $node"
+ $INSTALL_PATH/../certificates/install_node.sh -i $ip -h $node 
+ IFS=$oifs 
+done
+unset IFS
+
+echo "admin,admin,admin" > basic_auth.csv
+
+#Install worker nodes
+IFS=','
+for worker in $ETCD_CLUSTERS_CERTS; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ echo "The node $node"
+ $INSTALL_PATH/../certificates/install_peercert.sh -i $ip -h $node -t server -f etcd
+ IFS=$oifs
+done
+unset IFS
+
+#Install worker nodes
+IFS=','
+for worker in $NODES; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ echo "The node $node"
+ $INSTALL_PATH/../certificates/install_peercert.sh -i $ip -h $node -t client -f etcd
+ IFS=$oifs
+done
+unset IFS
+
 popd

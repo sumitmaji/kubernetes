@@ -1,20 +1,20 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: hadoop-slave01-deployment
+  name: hadoop-deployment
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: slave01
+        app: hdfs-master
     spec:
-      hostname: slave01
+      hostname: hdfs-master
       containers:
-      - name: hadoop-slave01-container
+      - name: hadoop-container
         image: master.cloud.com:5000/hadoop
         command: ["/utility/hadoop/bootstrap.sh"]
-        args: ["-d","slave"]
+        args: ["-d","master"]
         securityContext:
           capabilities:
             add:
@@ -117,144 +117,144 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: slave01
+  name: hdfs-master
 spec:
-  clusterIP: None
+  type: NodePort
   ports:
   - port: 8181
-    
+    targetPort: 8181
     protocol: TCP
     name: ldap
   - port: 389
-    
+    targetPort: 389
     protocol: TCP
     name: search
   - port: 22
-    
+    targetPort: 22
     protocol: TCP
     name: ssh-port
   - port: 2122
-    
+    targetPort: 2122
     protocol: TCP
     name: ssh-port2
   - port: 636
-    
+    targetPort: 636
     protocol: TCP
     name: ssl-ldap
   - port: 50010
-    
+    targetPort: 50010
     protocol: TCP
     name: hdfs1
   - port: 50020
-    
+    targetPort: 50020
     protocol: TCP
     name: hdfs2
   - port: 50070
-    
+    targetPort: 50070
     protocol: TCP
     name: hdfs3
   - port: 50075
-    
+    targetPort: 50075
     protocol: TCP
     name: hdfs5
   - port: 50090
-    
+    targetPort: 50090
     protocol: TCP
     name: hdfs6
   - port: 8020
-    
+    targetPort: 8020
     protocol: TCP
     name: hdfs7
   - port: 9000
-    
+    targetPort: 9000
     protocol: TCP
     name: hdfs8
   - port: 54310
-    
+    targetPort: 54310
     protocol: TCP
     name: hdfs9
   - port: 50470
-    
+    targetPort: 50470
     protocol: TCP
     name: hdfs10
   - port: 50475
-    
+    targetPort: 50475
     protocol: TCP
     name: hdfs11
   - port: 1006
-    
+    targetPort: 1006
     protocol: TCP
     name: hdfs12
   - port: 1019
-    
+    targetPort: 1019
     protocol: TCP
     name: hdfs13
   - port: 14000
-    
+    targetPort: 14000
     protocol: TCP
     name: httpfs
   - port: 10020
-    
+    targetPort: 10020
     protocol: TCP
     name: mapred1
   - port: 19888
-    
+    targetPort: 19888
     protocol: TCP
     name: mapred2
   - port: 10033
-    
+    targetPort: 10033
     protocol: TCP
     name: mapred3
   - port: 54311
-    
+    targetPort: 54311
     protocol: TCP
     name: mapred4
   - port: 8030
-    
+    targetPort: 8030
     protocol: TCP
     name: yarn1
   - port: 8031
-    
+    targetPort: 8031
     protocol: TCP
     name: yarn2
   - port: 8032
-    
+    targetPort: 8032
     protocol: TCP
     name: yarn3
   - port: 8033
-    
+    targetPort: 8033
     protocol: TCP
     name: yarn4
   - port: 8040
-    
+    targetPort: 8040
     protocol: TCP
     name: yarn5
   - port: 8042
-    
+    targetPort: 8042
     protocol: TCP
     name: yarn6
   - port: 8088
-    
+    targetPort: 8088
     protocol: TCP
     name: yarn7
   - port: 8025
-    
+    targetPort: 8025
     protocol: TCP
     name: yarn8
   - port: 8039
-    
+    targetPort: 8039
     protocol: TCP
     name: yarn9
   - port: 49707
-    
+    targetPort: 49707
     protocol: TCP
     name: other1
   - port: 50490
-    
+    targetPort: 50490
     protocol: TCP
     name: sec1
   - port: 8010
-    
+    targetPort: 8010
     protocol: TCP
     name: data1
   selector:

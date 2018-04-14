@@ -7,9 +7,9 @@
 source $INSTALL_PATH/../config
 pushd $WORKDIR
 $INSTALL_PATH/setup.sh
-pushd workspace/flannel
+pushd workspace
 mkdir -p /opt/flannel
-tar xzf flannel.tar.gz -C /opt/flannel
+tar xzf $FLANNEL_VERSION.tar.gz -C /opt/flannel
 
 cat <<EOF | sudo tee /etc/systemd/system/flanneld.service
 [Unit]
@@ -20,7 +20,25 @@ Before=docker.service
 [Service]
 User=root
 ExecStart=/opt/flannel/flanneld \
---etcd-endpoints="http://${ETCD_1_IP}:2379" \
+`#Install etcd nodes
+IFS=','
+counter=0
+cluster=""
+for worker in $ETCD_CLUSTERS; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ if [ -z "$cluster" ]
+ then
+  cluster="http://$ip:4001"
+ else
+  cluster="$cluster,http://$ip:4001"
+ fi
+ counter=$((counter+1))
+ IFS=$oifs
+done
+unset IFS
+echo "--etcd-endpoints=${cluster}"` \
 --iface=$HOSTINTERFACE \
 --ip-masq
 ExecStartPost=/bin/bash /opt/flannel/update_docker.sh

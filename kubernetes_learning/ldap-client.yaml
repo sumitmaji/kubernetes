@@ -43,26 +43,21 @@ kind: Service
 metadata:
   name: ldap-client
 spec:
-  type: NodePort
+  clusterIP: None
   ports:
   - port: 8181
-    targetPort: 8181
     protocol: TCP
     name: ldap
   - port: 389
-    targetPort: 389
     protocol: TCP
     name: search
   - port: 22
-    targetPort: 22
     protocol: TCP
     name: ssh-port
   - port: 2122
-    targetPort: 2122
     protocol: TCP
     name: ssh-port2
   - port: 636
-    targetPort: 636
     protocol: TCP
     name: ssl-ldap
   selector:

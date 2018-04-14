@@ -15,6 +15,10 @@ spec:
         image: master.cloud.com:5000/hadoop
         command: ["/utility/hadoop/bootstrap.sh"]
         args: ["-d","slave"]
+        securityContext:
+          capabilities:
+            add:
+              - ALL
         ports:
         - name: ldap-port
           containerPort: 8181
@@ -46,6 +50,10 @@ spec:
           containerPort: 50470
         - name: hdfs10
           containerPort: 50475
+        - name: hdfs11
+          containerPort: 1006
+        - name: hdfs12
+          containerPort: 1019
         - name: httpfs
           containerPort: 14000
         - name: mapred1
@@ -76,6 +84,10 @@ spec:
           containerPort: 8039
         - name: other1
           containerPort: 49707
+        - name: sec1
+          containerPort: 50490
+        - name: data1
+          containerPort: 8010
         env:
         - name: LDAP_PASSWORD
           valueFrom:
@@ -87,6 +99,20 @@ spec:
             secretKeyRef:
               name: krbsecret
               key: password
+        - name: DOMAIN_NAME
+          value: default.svc.cloud.uat
+        - name: MASTER
+          value: hdfs-master
+        - name: HADOOP_INSTALL
+          value: /usr/local/hadoop
+        - name: KEY_PWD
+          value: sumit@1234
+        - name: ENABLE_HADOOP_SSL
+          value: 'false'
+        - name: ENABLE_KERBEROS
+          value: 'true'
+        - name: ENABLE_KUBERNETES
+          value: 'true'
 ---
 apiVersion: v1
 kind: Service
@@ -155,6 +181,14 @@ spec:
     targetPort: 50475
     protocol: TCP
     name: hdfs11
+  - port: 1006
+    targetPort: 1006
+    protocol: TCP
+    name: hdfs12
+  - port: 1019
+    targetPort: 1019
+    protocol: TCP
+    name: hdfs13
   - port: 14000
     targetPort: 14000
     protocol: TCP
@@ -215,6 +249,14 @@ spec:
     targetPort: 49707
     protocol: TCP
     name: other1
+  - port: 50490
+    targetPort: 50490
+    protocol: TCP
+    name: sec1
+  - port: 8010
+    targetPort: 8010
+    protocol: TCP
+    name: data1
   selector:
-    app: slave01
+    app: hdfs-master
 

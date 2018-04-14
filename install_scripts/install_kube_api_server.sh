@@ -7,7 +7,7 @@
 source $INSTALL_PATH/../config
 pushd $WORKDIR
 $INSTALL_PATH/setup.sh
-pushd workspace/kubernetes/kubernetes/server/
+pushd workspace/
 if [ ! -d /opt/kubernetes ]
 then
  tar -xf kubernetes-server-linux-amd64.tar.gz -C /opt/
@@ -21,12 +21,37 @@ After=etcd.service
 Wants=etcd.service
 [Service]
 User=root
+EnvironmentFile=-/var/lib/flanneld/subnet.env
 ExecStart=/opt/kubernetes/server/bin/kube-apiserver \
---insecure-bind-address=0.0.0.0 \
+--bind-address=0.0.0.0 \
 --insecure-port=8080 \
---etcd-servers=http://${ETCD_1_IP}:2379 \
+--secure-port=6443 \
+`#Install etcd nodes
+IFS=','
+counter=0
+cluster=""
+for worker in $ETCD_CLUSTERS; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ if [ -z "$cluster" ]
+ then
+  cluster="http://$ip:4001"
+ else
+  cluster="$cluster,http://$ip:4001"
+ fi
+ counter=$((counter+1))
+ IFS=$oifs
+done
+unset IFS
+echo "--etcd-servers=${cluster}"` \
 --logtostderr=true \
---allow-privileged=false \
+--allow-privileged=true \
+--anonymous-auth=false \
+--authorization-mode=RBAC,AlwaysAllow \
+--authorization-rbac-super-user=admin \
+--basic-auth-file=$CERTIFICATE/certs/basic_auth.csv \
+--admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota \
 --service-cluster-ip-range=$CLUSTERIPRANGE \
 --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,SecurityContextDeny,ResourceQuota \
 --service-node-port-range=30000-32767 \
@@ -34,7 +59,9 @@ ExecStart=/opt/kubernetes/server/bin/kube-apiserver \
 --client-ca-file=$CERTIFICATE/certs/ca.crt \
 --tls-cert-file=$CERTIFICATE/certs/server.crt \
 --tls-private-key-file=$CERTIFICATE/certs/server.key \
---portal_net=10.100.0.0/26
+--token-auth-file=$CERTIFICATE/certs/known_tokens.csv \
+--service-account-key-file=$CERTIFICATE/certs/server.key \
+--v=6
 Restart=on-failure
 Type=notify
 LimitNOFILE=65536
@@ -42,6 +69,9 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 EOF
 
+#--portal_net=10.100.0.0/26
+
+#--portal-net=$FLANNEL_NETWORK \
 systemctl daemon-reload
 systemctl enable kube-apiserver
 systemctl start kube-apiserver

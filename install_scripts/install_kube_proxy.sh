@@ -7,7 +7,7 @@
 source $INSTALL_PATH/../config
 pushd $WORKDIR
 $INSTALL_PATH/setup.sh
-pushd workspace/kubernetes/kubernetes/server
+pushd workspace/
 
 if [ ! -d /opt/kubernetes ]
 then
@@ -22,6 +22,8 @@ After=network.target
 ExecStart=/opt/kubernetes/server/bin/kube-proxy \
 --hostname-override=$(hostname -s) \
 --master=$APISERVER_HOST \
+--cluster-cidr=$FLANNEL_NET \
+--kubeconfig=/var/lib/kube-proxy/kubeconfig \
 --logtostderr=true
 Restart=on-failure
 [Install]

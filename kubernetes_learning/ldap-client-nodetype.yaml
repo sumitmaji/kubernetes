@@ -1,29 +1,31 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: ldap-deployment
+  name: ldap-client-deployment
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: ldap
+        app: ldap-client
     spec:
-      hostname: ldap
+      hostname: ldap-client
       containers:
-      - name: ldap-container
-        image: master.cloud.com:5000/ldap
+      - name: ldap-client-container
+        image: master.cloud.com:5000/ldap-client
+        command: ["/utility/ldap/bootstrap.sh"]
+        args: ["-d"] 
         ports:
         - name: ldap-port
           containerPort: 8181
         - name: search-port
           containerPort: 389
-        - name: ssl-port
-          containerPort: 636
         - name: ssh-port
           containerPort: 22
         - name: ssh-port2
           containerPort: 2122
+        - name: ssl-ldap
+          containerPort: 636
         env:
         - name: LDAP_PASSWORD
           valueFrom:
@@ -39,28 +41,30 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ldap
+  name: ldap-client
 spec:
-  clusterIP: None
+  type: NodePort
   ports:
   - port: 8181
+    targetPort: 8181
     protocol: TCP
     name: ldap
   - port: 389
+    targetPort: 389
     protocol: TCP
     name: search
   - port: 22
+    targetPort: 22
     protocol: TCP
     name: ssh-port
   - port: 2122
+    targetPort: 2122
     protocol: TCP
     name: ssh-port2
   - port: 636
+    targetPort: 636
     protocol: TCP
-    name: ssl-tcp
-  - port: 636
-    protocol: UDP
-    name: ssl-udp
+    name: ssl-ldap
   selector:
-    app: ldap
+    app: ldap-client
 

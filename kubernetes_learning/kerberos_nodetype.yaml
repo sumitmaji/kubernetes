@@ -53,24 +53,33 @@ kind: Service
 metadata:
   name: kerberos
 spec:
-  clusterIP: None
+  type: NodePort
   ports:
   - port: 88
+    nodePort: 30342
+    targetPort: 88
     protocol: UDP
     name: krb1
   - port: 749
+    nodePort: 30343
+    targetPort: 749
     protocol: TCP
     name: krb2
   - port: 750
+    nodePort: 30344
+    targetPort: 750
     protocol: TCP
     name: krb3
   - port: 22
+    targetPort: 22
     protocol: TCP
     name: ssh-port
   - port: 2122
+    targetPort: 2122
     protocol: TCP
     name: ssh-port2
   - port: 636
+    targetPort: 636
     protocol: TCP
     name: ssl-ldap
   selector:
