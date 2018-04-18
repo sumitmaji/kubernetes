@@ -71,6 +71,7 @@ pushd $CERTIFICATE/certs
 if [ $TYPE == 'server' ]
 then
  keyUsage='extendedKeyUsage = clientAuth,serverAuth'
+ HOSTNAME="${HOSTNAME}-${FILENAME}"
 else
  keyUsage='extendedKeyUsage = clientAuth'
  FILENAME="${FILENAME}-client"

@@ -25,6 +25,9 @@ CLUSTER_NON_MASQUEARADE_CIDR=172.17.0.0/15
 API_SERVERS=https://master.cloud.com
 APISERVER_HOST=https://master.cloud.com
 ETCD_CLUSTERS_CERTS=11.0.0.2:node01.cloud.com
+DOMAIN=cloud.com
+ENABLE_ETCD_SSL=true
+ENABLE_KUBE_SSL=true
 
 ETCDSERVERS=http://11.0.0.2:2379
 MASTER_1_IP=11.0.0.2
