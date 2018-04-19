@@ -30,6 +30,9 @@ defaults
         frontend default_frontend
         bind *:443
         default_backend master-cluster
+        stats enable
+        stats auth user:admin
+        stats uri /haproxyStats
 backend master-cluster
 `#Install master nodes
 IFS=','

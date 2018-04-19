@@ -56,7 +56,7 @@ spec:
           # If not specified, Dashboard will attempt to auto discover the API server and connect
           # to it. Uncomment only if the default does not work.
           - --apiserver-host=$APISERVER_HOST 
-          #- --kubeconfig=/srv/kubernetes/kubeconfig
+          - --kubeconfig=$KUBECONFIG
         livenessProbe:
           httpGet:
             path: /
@@ -67,10 +67,16 @@ spec:
           - mountPath: $CERTIFICATE_MOUNT_PATH
             name: certs
             readOnly: true
+          - mountPath: /var/lib/kubelet/
+            name: kubeletcert
+            readOnly: true
       volumes:
       - hostPath: 
           path: $CERTIFICATE_MOUNT_PATH
         name: certs
+      - hostPath:
+          path: /var/lib/kubelet/
+        name: kubeletcert
 
 ---
 kind: Service

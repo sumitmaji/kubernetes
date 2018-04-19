@@ -3,6 +3,7 @@
 [[ "TRACE" ]] && set -x
 
 : ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_scripts}
+
 source $INSTALL_PATH/../config
 
 docker stop master-proxy
@@ -27,10 +28,29 @@ defaults
         timeout client 50000
         timeout server 50000
         frontend default_frontend
-        bind *:6443
+        bind *:443
         default_backend master-cluster
 backend master-cluster
-        server master $MASTER_1_IP
+`#Install master nodes
+IFS=','
+counter=0
+cluster=""
+for worker in $SERVERS; do
+ oifs=$IFS
+ IFS=':'
+ read -r ip node <<< "$worker"
+ if [ -z "$cluster" ]
+ then
+  cluster="$ip:6443"
+ else
+  cluster="$cluster,http://$ip:4001"
+ fi
+ counter=$((counter+1))
+ IFS=$oifs
+ echo "        server master-$counter ${cluster} check"
+ cluster=""
+done
+unset IFS`
 EOF
 
 docker run -d --name master-proxy \
