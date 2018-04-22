@@ -75,6 +75,10 @@ $ETCD_SERVERS \
 then
  echo "--anonymous-auth=false --authorization-mode=RBAC,AlwaysAllow --authorization-rbac-super-user=admin --basic-auth-file=$CERTIFICATE/certs/basic_auth.csv --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota --token-auth-file=$CERTIFICATE/certs/known_tokens.csv --service-account-key-file=$CERTIFICATE/certs/server.key"
 fi` \
+`if [ $ENABLE_OIDC == 'true' ]
+then
+ echo "--oidc-issuer-url=https://skmaji.auth0.com/ --oidc-client-id=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO --oidc-username-claim=email --oidc-groups-claim=groups "
+fi` \
 --allow-privileged=true \
 --service-cluster-ip-range=$CLUSTERIPRANGE \
 --service-node-port-range=30000-32767 \
