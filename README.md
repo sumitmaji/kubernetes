@@ -16,3 +16,5 @@ https://blog.laputa.io/kubernetes-flannel-networking-6a1cb1f8ec7c<br>
 https://ahmet.im/blog/kubernetes-network-policy/<br>
 https://icicimov.github.io/blog/kubernetes/Kubernetes-cluster-step-by-step/ <br>
 https://developer.epages.com/blog/tech-stories/how-to-setup-a-ha-kubernetes-cluster-worker-components-and-skydns/ <br>
+https://github.com/trondhindenes/Kubernetes-Auth0 <br>
+https://github.com/wardviaene/advanced-kubernetes-course <br>
