@@ -32,8 +32,8 @@ spec:
             - /nginx-ingress-controller
             - --default-backend-service=$(POD_NAMESPACE)/default-backend
             - --configmap=$(POD_NAMESPACE)/nginx-ingress-controller-conf
-            - --apiserver-host=https://master.cloud.com
-            - --kubeconfig=/var/lib/kubelet/kubeconfig
+            - --apiserver-host=$APISERVER_HOST
+            - --kubeconfig=$KUBECONFIG
             - --v=2
           env:
             - name: POD_NAME
@@ -48,7 +48,7 @@ spec:
             - containerPort: 80
             - containerPort: 18080
           volumeMounts:
-            - mountPath: /export/kubecertificate/certs/
+            - mountPath: $CERTIFICATE_MOUNT_PATH
               name: certs
               readOnly: true
             - mountPath: /var/lib/kubelet/
@@ -56,7 +56,7 @@ spec:
               readOnly: true
       volumes:
       - hostPath:
-          path: /export/kubecertificate/certs/
+          path: $CERTIFICATE_MOUNT_PATH
         name: certs
       - hostPath:
           path: /var/lib/kubelet/

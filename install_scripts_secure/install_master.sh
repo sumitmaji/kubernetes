@@ -33,6 +33,13 @@ then
  /bin/bash $INSTALL_PATH/install_skydns.sh
 fi
 
+if [[ $INSTALL_INGRESS == 'true' ]]
+then
+ /bin/bash $INSTALL_PATH/install_ingress.sh
+fi
+
+
+
 
 if [[ $INSTALL_HEAPSTER == 'true' ]]
 then
