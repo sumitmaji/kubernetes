@@ -58,7 +58,7 @@ openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out s
 openssl x509 -noout -text -in server.crt
 
 
-for user in admin kube-proxy kubelet kube-controller-manager kube-scheduler
+for user in admin kube-proxy kubelet kube-controller-manager kube-scheduler master.cloud.com
 do
     openssl genrsa -out ${user}.key 2048
     openssl req -new -key ${user}.key -out ${user}.csr -subj "/CN=${user}"
