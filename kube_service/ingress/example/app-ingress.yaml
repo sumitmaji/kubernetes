@@ -6,7 +6,7 @@ metadata:
   name: app-ingress
 spec:
   rules:
-  - host: master.cloud.com
+  - host: $INGRESS_HOST
     http:
       paths:
       - backend:
@@ -17,3 +17,7 @@ spec:
           serviceName: appsvc2
           servicePort: 80
         path: /app2
+  tls:
+  - hosts:
+    - $INGRESS_HOST
+    secretName: ingress-certificate

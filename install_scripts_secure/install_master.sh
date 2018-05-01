@@ -23,6 +23,8 @@ fi
 
 ln -s /opt/kubernetes/server/bin/kubectl /usr/bin/kubectl
 
+kubectl create -f $INSTALL_PATH/admin.yaml
+
 if [[ $INSTALL_DASHBOARD == 'true' ]]
 then
  /bin/bash $INSTALL_PATH/install_dashboard.sh

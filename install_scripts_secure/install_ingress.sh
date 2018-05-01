@@ -17,7 +17,7 @@ CERTIFICATE_MOUNT_PATH="$(echo $CERTIFICATE_MOUNT_PATH | sed 's/\//\\\//g')"
 
 if [ $ENABLE_KUBE_SSL == 'true' ]
 then
-  KUBECONFIG="$(echo '/var/lib/kubelet/kubeconfig' | sed 's/\//\\\//g')"
+  KUBECONFIG="$(echo '/var/lib/'"$INGRESS_HOST"'/kubeconfig' | sed 's/\//\\\//g')"
   sed -i "s/\$KUBECONFIG/$KUBECONFIG/" nginx-ingress-controller-deployment.yaml
 else
   sed -i "/\$KUBECONFIG/ s/^/#/" nginx-ingress-controller-deployment.yaml
@@ -28,9 +28,14 @@ sed -i "s/\$APISERVER_HOST/$APISERVER_HOST/" nginx-ingress-controller-deployment
 sed -i "s/\$CERTIFICATE_MOUNT_PATH/$CERTIFICATE_MOUNT_PATH/" nginx-ingress-controller-deployment.yaml
 
 sed -i "s/\$INGRESS_HOST/$INGRESS_HOST/" nginx-ingress.yaml
+sed -i "s/\$INGRESS_HOST/$INGRESS_HOST/" nginx-ingress-controller-deployment.yaml
+sed -i "s/\$INGRESS_HOST/$INGRESS_HOST/" example/app-ingress.yaml
 
 kubectl create namespace ingress
 kubectl create -f default-backend-deployment.yaml -f default-backend-service.yaml -n=ingress
+kubectl create secret tls ingress-certificate --key /export/kubecertificate/certs/${INGRESS_HOST}.key --cert /export/kubecertificate/certs/${INGRESS_HOST}.crt -n ingress
+kubectl create secret tls ingress-certificate --key /export/kubecertificate/certs/${INGRESS_HOST}.key --cert /export/kubecertificate/certs/${INGRESS_HOST}.crt -n default
+kubectl create -f ssl-dh-param.yaml
 kubectl create -f nginx-ingress-controller-config-map.yaml -n=ingress
 kubectl create -f nginx-ingress-controller-roles.yaml -n=ingress
 kubectl create -f nginx-ingress-controller-deployment.yaml -n=ingress

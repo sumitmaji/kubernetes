@@ -34,6 +34,7 @@ spec:
             - --configmap=$(POD_NAMESPACE)/nginx-ingress-controller-conf
             - --apiserver-host=$APISERVER_HOST
             - --kubeconfig=$KUBECONFIG
+            - --default-ssl-certificate=$(POD_NAMESPACE)/ingress-certificate
             - --v=2
           env:
             - name: POD_NAME
@@ -47,17 +48,18 @@ spec:
           ports:
             - containerPort: 80
             - containerPort: 18080
+            - containerPort: 443
           volumeMounts:
             - mountPath: $CERTIFICATE_MOUNT_PATH
               name: certs
               readOnly: true
-            - mountPath: /var/lib/kubelet/
-              name: kubeletcert
+            - mountPath: /var/lib/$INGRESS_HOST/
+              name: ingresscert
               readOnly: true
       volumes:
       - hostPath:
           path: $CERTIFICATE_MOUNT_PATH
         name: certs
       - hostPath:
-          path: /var/lib/kubelet/
-        name: kubeletcert 
+          path: /var/lib/$INGRESS_HOST/
+        name: ingresscert

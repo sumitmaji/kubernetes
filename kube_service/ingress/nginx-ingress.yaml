@@ -11,3 +11,7 @@ spec:
           serviceName: nginx-ingress
           servicePort: 18080
         path: /nginx_status
+  tls:
+  - hosts:
+    - $INGRESS_HOST
+    secretName: ingress-certificate

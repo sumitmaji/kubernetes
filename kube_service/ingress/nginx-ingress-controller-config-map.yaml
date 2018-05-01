@@ -6,3 +6,4 @@ metadata:
     app: nginx-ingress-lb
 data:
   enable-vts-status: 'true'
+  ssl-dh-param: "ingress/lb-dhparam"
