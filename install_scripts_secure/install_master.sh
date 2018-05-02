@@ -9,6 +9,7 @@ then
  [[ "TRACE" ]] && set -x
 fi
 
+
 /bin/bash $INSTALL_PATH/install_binaries.sh
 /bin/bash $INSTALL_PATH/install_kubeconfig.sh
 /bin/bash $INSTALL_PATH/install_etcd.sh
