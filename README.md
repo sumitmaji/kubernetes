@@ -2,6 +2,26 @@
 
 Installation of kubernetes cluster in private cloud.
 
+## Download
+
+- Kubernetes server - v1.10.0 - [url](https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG-1.10.md#v1100)
+
+```console
+wget https://dl.k8s.io/v1.10.0/kubernetes-server-linux-amd64.tar.gz
+```
+
+- Etcd server - v3.2.18 - [url](https://github.com/coreos/etcd/releases/tag/v3.2.18)
+
+```console
+wget https://github.com/coreos/etcd/releases/download/v3.2.18/etcd-v3.2.18-linux-amd64.tar.gz
+```
+
+- Flanneld server - v0.10.0 - [url](https://github.com/coreos/flannel/releases/tag/v0.10.0)
+
+```console
+wget https://github.com/coreos/flannel/releases/download/v0.10.0/flannel-v0.10.0-linux-amd64.tar.gz
+```
+
 ## Configuration
 
 The following table lists the configurable parameters of the kubernetes cluster install and their default values.
