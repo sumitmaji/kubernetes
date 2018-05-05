@@ -1,4 +1,24 @@
 # kubernetes
+
+Installation of kubernetes cluster in private cloud.
+
+## Configuration
+
+The following table lists the configurable parameters of the drone charts and their default values.
+
+| Parameter           | Description                                                                                           | Default                     |
+|---------------------|-------------------------------------------------------------------------------------------------------|-----------------------------|
+| `ENABLE_DEBUG`      | To enable debug mode for the scripts.                                                                 | `true`                      |
+| `MOUNT_PATH`        | The mount path where kubernetes scripts and certificates are available.                               | `/export`                   |
+| `INSTALL_PATH`      | The directory where kubernetes installation scripts are available.                                    | `$MOUNT_PATH/kubernetes/install_scripts_secure` |
+| `REPOSITORY`        | The url where kubernetes binaries are present.                                                        | `http://192.168.1.5`        |
+| `HOSTINTERFACE`     | The host interface name of node                                                                       | `eth0`                      |
+| `HOSTIP`            | IP Address of the host.                                                                               | `Retrieved via script`      |
+| `WORKDIR`           | The temporary installation path for kubernetes components.                                            | `/export/tmp`               |
+| `SERVER_DNS`        | The comma separated dns names where kubernetes master would be running, this also includes name of the kubernetes api service dns names, the dns name where ha proxy is running | `master.cloud.com,node01.cloud.com,kubernetes.default.svc,kubernetes.default,kubernetes,kubernetes.default.svc.cloud,kubernetes.default.svc.cloud.uat,localhost,master,node01` |
+
+
+
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
 https://medium.com/@TarunChinmai/installing-kubernetes-f0c8dec1487c<br>
