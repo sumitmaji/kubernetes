@@ -28,6 +28,26 @@ The following table lists the configurable parameters of the drone charts and th
 | `CLIENT_KEY`        | The client key file to access cluster.                                                                | `${CERTIFICATE_MOUNT_PATH}/admin.key` |
 | `ETCD_CLUSTERS`     | The comma separated list of etcd servers.                                                             | `11.0.0.2:node01`           |
 | `HAPROXY`           | IP Address of haproxy                                                                                 | `11.0.0.1`                  | 
+| `FLANNEL_NET`       | IP range used for flannel overlay network.                                                            | `172.17.0.0/16`             |
+| `CLUSTERIPRANGE`    | IP range of kubernetes service.                                                                       | `172.18.0.0/24`             |
+| `APISERVER_HOST`    | The url of kubernetes  api server                                                                     | `https://master.cloud.com`  |
+| `ETCD_CLUSTERS_CERTS` | A comma separated list of etcd hosts for creating certificates.                                     | `11.0.0.2:node01.cloud.com` |
+| `DOMAIN`            | The domain on which vms are hosted.                                                                   | `cloud.com`                 |
+| `ENABLE_ETCD_SSL`   | To enable ssl for etcd                                                                                | `true`                      |
+| `ENABLE_KUBE_SSL`   | To enable SSL and RBAC for kubernetes cluster.                                                        | `true`                      |
+| `ENABLE_OIDC`       | To enable openid connect for authentication.                                                          | `true`                      |
+| `INGRESS_HOST`      | Host name for the ingress.                                                                            | `master.cloud.com`          |
+| `INSTALL_INGRESS`   | To enable ingress installation.                                                                       | `true`                      |
+| `DNS_IP`            | Cluster IP of kube-dns.                                                                               | `172.18.0.2`                |
+| `YOUR_DOMAIN`       | Kubernetes clsuter domain.                                                                            | `cloud.uat`                 |
+| `INSTALL_KUBELET_ON_MASTER` | To install kubelet on master nodes.                                                           | `true`                      |
+| `INSTALL_DASHBOARD` | To install kubernetes dashboard.                                                                      | `true`                      |
+| `INSTALL_SKYDNS`    | To install kube-dns.                                                                                  | `true`                      |
+| `SKYDNS_DOMAIN_NAME` | Kubernetes clsuter domain.                                                                           | `cloud.uat`                 |
+| `ETCD_VERSION`      | The version of etcd to install.                                                                       | `etcd-v3.2.18-linux-amd64`  |
+| `FLANNEL_VERSION`   | The version of flannel to install.                                                                    | `flannel-v0.10.0-linux-amd64` |    
+| `INSTALL_SKYDNS`    | To n
+
 
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
