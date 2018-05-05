@@ -10,7 +10,7 @@ The following table lists the configurable parameters of the drone charts and th
 |---------------------|-------------------------------------------------------------------------------------------------------|-----------------------------|
 | `ENABLE_DEBUG`      | To enable debug mode for the scripts.                                                                 | `true`                      |
 | `MOUNT_PATH`        | The mount path where kubernetes scripts and certificates are available.                               | `/export`                   |
-| `INSTALL_PATH`      | The directory where kubernetes installation scripts are available.                                    | `$MOUNT_PATH/kubernetes/install_scripts_secure` |
+| `INSTALL_PATH`      | The directory where kubernetes installation scripts are available.                                    | `$MOUNT_PATH/kubernet...`   |
 | `REPOSITORY`        | The url where kubernetes binaries are present.                                                        | `http://192.168.1.5`        |
 | `HOSTINTERFACE`     | The host interface name of node                                                                       | `eth0`                      |
 | `HOSTIP`            | IP Address of the host.                                                                               | `Retrieved via script`      |
