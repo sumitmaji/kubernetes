@@ -76,6 +76,20 @@ The following table lists the configurable parameters of the kubernetes cluster 
   /export/kubernetes/install_scripts_secure/install_nodes.sh
   ```
 
+# Useful commands:
+
+- To chnage namespace
+
+```console
+alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
+kcd name_space
+```
+
+- To enable verbose(logging) of kubectl command
+
+```console
+kubectl get pods --v 6
+```
 
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
