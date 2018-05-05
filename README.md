@@ -15,7 +15,7 @@ The following table lists the configurable parameters of the drone charts and th
 | `HOSTINTERFACE`     | The host interface name of node                                                                       | `eth0`                      |
 | `HOSTIP`            | IP Address of the host.                                                                               | `Retrieved via script`      |
 | `WORKDIR`           | The temporary installation path for kubernetes components.                                            | `/export/tmp`               |
-
+| `SERVER_DNS`        | The comma separated dns names where kubernetes master would be running, this also includes name of the kubernetes api service dns names, the dns name where ha proxy is running | `master.cloud.com..` |
 
 
 Useful links:<br>
