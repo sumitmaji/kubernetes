@@ -91,6 +91,21 @@ kcd name_space
 kubectl get pods --v 6
 ```
 
+# Setup required to use ingress
+
+- Enable port forwarding to ingress service ports from master vm
+
+```console
+iptables -t nat -A PREROUTING -p tcp --dport 30000 -j DNAT --to-destination 11.0.0.2:30000
+iptables -t nat -A PREROUTING -p tcp --dport 32000 -j DNAT --to-destination 11.0.0.2:32000
+iptables -t nat -A PREROUTING -p tcp --dport 31000 -j DNAT --to-destination 11.0.0.2:31000
+```
+
+- Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
+
+- Add `ip_address master.cloud.com` to windows host file located in C:\Windows\System32\drivers\etc. e.g. `192.168.1.5 master.cloud.com` >> host file.
+
+
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
 https://medium.com/@TarunChinmai/installing-kubernetes-f0c8dec1487c<br>
