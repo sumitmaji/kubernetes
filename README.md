@@ -46,7 +46,6 @@ The following table lists the configurable parameters of the drone charts and th
 | `SKYDNS_DOMAIN_NAME` | Kubernetes clsuter domain.                                                                           | `cloud.uat`                 |
 | `ETCD_VERSION`      | The version of etcd to install.                                                                       | `etcd-v3.2.18-linux-amd64`  |
 | `FLANNEL_VERSION`   | The version of flannel to install.                                                                    | `flannel-v0.10.0-linux-amd64` |    
-| `INSTALL_SKYDNS`    | To n
 
 
 Useful links:<br>
