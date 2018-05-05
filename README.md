@@ -18,7 +18,7 @@ The following table lists the configurable parameters of the drone charts and th
 | `SERVER_DNS`        | The comma separated dns names where kubernetes master would be running, this also includes name of the kubernetes api service dns names, the dns name where ha proxy is running | `master.cloud.com..` |
 | `SERVER_IP`         | The comma separated list of all the ip addresses where master and ha proxy would be running (actual & virtual). This should also include the ip addess of kubernetes cluster api service ip. | `11.0.0.1....` |
 | `SERVERS`           | A comma separated list where kubernetes masters are running                                           | `11.0.0.2:node01.cloud.com` |
-| 'WORKERS'           | A comma separated list of nodes where kubernetes workers nodes would be running.                      | `11.0.0.2:node01.cloud.com` |
+| `WORKERS`           | A comma separated list of nodes where kubernetes workers nodes would be running.                      | `11.0.0.2:node01.cloud.com` |
 | `NODES`             | A comma separated list of nodes for which client certificates need to be generated.                   | `11.0.0.2:node01.cloud.com` |
 | `CLUSTER`           | Kubernetes cluster name                                                                               | `cloud.com`                 |
 | `CERTIFICATE_MOUNT_PATH` | Location where kubernetes certificates are located.                                              | `${CERTIFICATE}/certs/`     |
