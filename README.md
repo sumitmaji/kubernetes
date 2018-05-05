@@ -4,7 +4,7 @@ Installation of kubernetes cluster in private cloud.
 
 ## Configuration
 
-The following table lists the configurable parameters of the drone charts and their default values.
+The following table lists the configurable parameters of the kubernetes cluster install and their default values.
 
 | Parameter           | Description                                                                                           | Default                     |
 |---------------------|-------------------------------------------------------------------------------------------------------|-----------------------------|
