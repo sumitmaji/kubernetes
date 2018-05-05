@@ -48,6 +48,35 @@ The following table lists the configurable parameters of the kubernetes cluster 
 | `FLANNEL_VERSION`   | The version of flannel to install.                                                                    | `flannel-v0.10.0-linux-amd64` |    
 
 
+# Installation steps:
+
+- Create CA certifiacates
+
+```console
+/export/kubernetes/certificates/install_ca.sh
+```
+
+- Install other certificates
+
+```console
+/export/kubernetes/certificates/install_certificates.sh
+```
+
+- Install kubernetes:
+
+  - Master:
+
+  ```console
+  /export/kubernetes/install_scripts_secure/install_master.sh
+  ```
+
+  - Worker:
+
+  ```console
+  /export/kubernetes/install_scripts_secure/install_nodes.sh
+  ```
+
+
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
 https://medium.com/@TarunChinmai/installing-kubernetes-f0c8dec1487c<br>
