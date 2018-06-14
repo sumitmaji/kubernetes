@@ -6,8 +6,8 @@
 
 source $INSTALL_PATH/../config
 
-#/bin/bash $INSTALL_PATH/../certificates/install_ca.sh
-#/bin/bash $INSTALL_PATH/../certificates/install_master.sh
+/bin/bash $INSTALL_PATH/../certificates/install_ca.sh
+/bin/bash $INSTALL_PATH/../certificates/install_master.sh
 /bin/bash $INSTALL_PATH/install_etcd.sh
 /bin/bash $INSTALL_PATH/install_kube_api_server.sh
 /bin/bash $INSTALL_PATH/install_kube_controller_manager.sh
