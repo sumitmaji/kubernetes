@@ -47,7 +47,7 @@ The following table lists the configurable parameters of the kubernetes cluster 
 | `CLIENT_CERTIFICATE` | The client crt file to access cluster.                                                               | `${CERTIFICATE_MOUNT_PATH}/admin.crt` |
 | `CLIENT_KEY`        | The client key file to access cluster.                                                                | `${CERTIFICATE_MOUNT_PATH}/admin.key` |
 | `ETCD_CLUSTERS`     | The comma separated list of etcd servers.                                                             | `11.0.0.2:node01`           |
-| `HAPROXY`           | IP Address of haproxy                                                                                 | `11.0.0.1`                  | 
+| `HAPROXY`           | IP Address of haproxy                                                                                 | `11.0.0.1`                  |
 | `FLANNEL_NET`       | IP range used for flannel overlay network.                                                            | `172.17.0.0/16`             |
 | `CLUSTERIPRANGE`    | IP range of kubernetes service.                                                                       | `172.18.0.0/24`             |
 | `APISERVER_HOST`    | The url of kubernetes  api server                                                                     | `https://master.cloud.com`  |
@@ -129,7 +129,7 @@ iptables -t nat -A PREROUTING -p tcp --dport 31000 -j DNAT --to-destination 11.0
 - To access nginx ui
 
 ```console
-https://master.cloud.com:32000/nginx_status
+http://master.cloud.com:32000/nginx_status
 ```
 
 - To access kubernetes dashboard
