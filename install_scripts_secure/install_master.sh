@@ -11,11 +11,35 @@ fi
 
 
 /bin/bash $INSTALL_PATH/install_binaries.sh
+if [  $? -ne 0 ]
+then
+  exit 1
+fi
 /bin/bash $INSTALL_PATH/install_kubeconfig.sh
+if [  $? -ne 0 ]
+then
+  exit 1
+fi
 /bin/bash $INSTALL_PATH/install_etcd.sh
+if [  $? -ne 0 ]
+then
+  exit 1
+fi
 /bin/bash $INSTALL_PATH/install_kube_api_server.sh
+if [  $? -ne 0 ]
+then
+  exit 1
+fi
 /bin/bash $INSTALL_PATH/install_kube_controller_manager.sh
+if [  $? -ne 0 ]
+then
+  exit 1
+fi
 /bin/bash $INSTALL_PATH/install_kube_scheduler.sh
+if [  $? -ne 0 ]
+then
+  exit 1
+fi
 
 if [[ $INSTALL_KUBELET_ON_MASTER == 'true' ]]
 then
@@ -49,4 +73,3 @@ then
  /bin/bash $INSTALL_PATH/install_cadvisor.sh
  /bin/bash $INSTALL_PATH/install_heapster.sh
 fi
-
