@@ -14,6 +14,8 @@ pushd workspace/
 if [ ! -d /opt/kubernetes ]
 then
  wget https://dl.k8s.io/v1.10.0/kubernetes-server-linux-amd64.tar.gz
+ wget https://github.com/coreos/etcd/releases/download/v3.2.18/etcd-v3.2.18-linux-amd64.tar.gz
+ wget https://github.com/coreos/flannel/releases/download/v0.10.0/flannel-v0.10.0-linux-amd64.tar.gz
  tar -xf kubernetes-server-linux-amd64.tar.gz -C /opt/
  if [ $? -ne 0 ]
  then
