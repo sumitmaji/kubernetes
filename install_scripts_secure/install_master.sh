@@ -75,6 +75,19 @@ then
  /bin/bash $INSTALL_PATH/install_skydns.sh
 fi
 
+if [ $(hostname -f) == 'master.cloud.com' ]
+then
+  /bin/bash $INSTALL_PATH/install_haproxy.sh
+  if [  $? -ne 0 ]
+  then
+    exit 1
+  else
+    sleep 5
+  fi
+fi
+
+
+
 if [[ $INSTALL_INGRESS == 'true' ]]
 then
  /bin/bash $INSTALL_PATH/install_ingress.sh
