@@ -52,7 +52,7 @@ fi
 
 ln -s /opt/kubernetes/server/bin/kubectl /usr/bin/kubectl
 
-if [ $(hostname -f) -eq 'master.cloud.com' ]
+if [ $(hostname -f) == 'master.cloud.com' ]
 then
   /bin/bash $INSTALL_PATH/install_haproxy.sh
   if [  $? -ne 0 ]
