@@ -44,6 +44,10 @@ fi
 if [[ $INSTALL_KUBELET_ON_MASTER == 'true' ]]
 then
   /bin/bash $INSTALL_PATH/install_nodes.sh
+  if [  $? -ne 0 ]
+  then
+    exit 1
+  fi
 fi
 
 ln -s /opt/kubernetes/server/bin/kubectl /usr/bin/kubectl
