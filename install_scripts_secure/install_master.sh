@@ -52,6 +52,11 @@ fi
 
 ln -s /opt/kubernetes/server/bin/kubectl /usr/bin/kubectl
 
+if [ $(hostname -f) -eq 'master.cloud.com' ]
+then
+  /bin/bash $INSTALL_PATH/install_haproxy.sh
+fi
+
 kubectl create -f $INSTALL_PATH/admin.yaml
 
 if [[ $INSTALL_DASHBOARD == 'true' ]]
