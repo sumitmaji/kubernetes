@@ -58,6 +58,8 @@ then
   if [  $? -ne 0 ]
   then
     exit 1
+  else
+    sleep 5
   fi
 fi
 
