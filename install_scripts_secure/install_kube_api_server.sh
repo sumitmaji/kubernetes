@@ -86,7 +86,8 @@ fi` \
 --client-ca-file=$CERTIFICATE/certs/ca.crt \
 --tls-cert-file=$CERTIFICATE/certs/server.crt \
 --tls-private-key-file=$CERTIFICATE/certs/server.key \
---v=6
+--v=6 \
+--enable-swagger-ui=true
 Restart=on-failure
 Type=notify
 LimitNOFILE=65536
