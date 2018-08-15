@@ -148,6 +148,17 @@ username: sumit
 password: sumit
 ```
 
+# Useful commands
+
+```console
+kubectl top nodes --v 6
+```
+
+```console
+kubectl get pod, svc, hpa -owide
+watch -n1 !!
+```
+
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
 https://medium.com/@TarunChinmai/installing-kubernetes-f0c8dec1487c<br>
