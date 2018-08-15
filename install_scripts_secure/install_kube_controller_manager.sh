@@ -24,7 +24,7 @@ then
 
 fi
 ` \
---logtostderr=true --master=127.0.0.1:8080 --root-ca-file=$CERTIFICATE_MOUNT_PATH/ca.crt --service-account-private-key-file=$CERTIFICATE_MOUNT_PATH/server.key --kubeconfig=/var/lib/kube-controller-manager/kubeconfig
+--logtostderr=true --master=127.0.0.1:8080 --root-ca-file=$CERTIFICATE_MOUNT_PATH/ca.crt --service-account-private-key-file=$CERTIFICATE_MOUNT_PATH/server.key --kubeconfig=/var/lib/kube-controller-manager/kubeconfig --horizontal-pod-autoscaler-use-rest-clients=false
 Restart=on-failure
 LimitNOFILE=65536
 [Install]
