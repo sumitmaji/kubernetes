@@ -61,7 +61,7 @@ fi
 sed -i 's_/etc/bind/\*\* r,_/etc/bind/\*\* rw,_' /etc/apparmor.d/usr.sbin.named
 service apparmor restart
 
-if [ -f /etc/bind/cloud.com.fwd ] 
+if [ -f /etc/bind/cloud.com.fwd ]
 then
 echo "The forward exits"
 else
@@ -178,6 +178,12 @@ service nfs-kernel-server start
 
 service ntp start
 
+echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
+echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
+
+rm -rf rndc-key
+
+exit 0
 
 #################################
 #################################
@@ -247,8 +253,3 @@ if [ -z "$STATUS" ]
 then
 `sed -i '/%admin ALL=(ALL) ALL/a\%admins ALL=(ALL) ALL' /etc/sudoers`
 fi
-
-echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
-echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
-
-rm -rf rndc-key
