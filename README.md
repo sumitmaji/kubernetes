@@ -159,6 +159,31 @@ kubectl get pod, svc, hpa -owide
 watch -n1 !!
 ```
 
+##To Install Kubernetes cluster using kubeadm
+```shell script
+Master Node
+./install_scripts/install-k8s.sh
+
+Worker Node
+./install_scripts/install-k8s-worker.sh
+```
+
+###To join a worker node
+```shell script
+sodo kubeadm join master_ip:master_port --token token_id --discovery-token-ca-cert-hash hash_cert
+```
+
+###To remoave a kubernetes setup
+```shell script
+kubeadm reset
+```
+###To create a new join token
+```shell script
+kubeadm token create print-join-command
+```
+
+
+
 Useful links:<br>
 https://kubernetes.io/docs/tasks/tools/install-kubectl/<br>
 https://medium.com/@TarunChinmai/installing-kubernetes-f0c8dec1487c<br>
