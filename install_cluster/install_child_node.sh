@@ -54,7 +54,7 @@ fi
 ############################################
 ############################################
 
-apt-get install -y nfs-common sntp libopts25
+apt-get install -y nfs-common sntp
 
 mkdir -p /export
 
@@ -69,7 +69,7 @@ mount master:/export /export
 ############################################
 
 
-apt-get install -y ntp sntp libopts25
+apt-get install -y sntp ntp
 
 STATUS=`grep "server master.cloud.com" /etc/ntp.conf`
 if [ -z "$STATUS" ]
