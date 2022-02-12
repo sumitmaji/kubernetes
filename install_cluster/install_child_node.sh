@@ -20,12 +20,6 @@ then
 	exit 0
 fi
 
-if [ -z "$IP_ADDRESS" ]
-then
-	echo "Please provide node ip address"
-	exit 0
-fi
-
 
 touch /etc/network/interfaces
 STATUS=`grep "auto enp0s3" /etc/network/interfaces`
@@ -102,7 +96,7 @@ mount /root
 mount /home
 mount /export
 
-
+exit 0
 ########################################
 ########################################
 #############SETTING GANGLIA############
