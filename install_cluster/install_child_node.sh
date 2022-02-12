@@ -19,6 +19,20 @@ fi
 apt-get update
 apt-get install -y net-tools ifupdown
 
+rm /etc/netplan/00-installer-config.yaml
+touch /etc/netplan/00-installer-config.yaml
+cat >> /etc/netplan/00-installer-config.yaml << EOF
+network:
+  renderer: networkd
+  ethernets:
+    enp0s3:
+      dhcp4: true
+      optional: true
+  version: 2
+EOF
+netplan generate
+netplan apply
+
 touch /etc/network/interfaces
 STATUS=`grep "auto enp0s3" /etc/network/interfaces`
 if [ -z "$STATUS" ]
@@ -84,6 +98,7 @@ fi
 
 service ntp start
 
+exit 0
 STATUS=`grep "master:/root    /root   nfs     _netdev,x-systemd.automount        0 0" /etc/fstab`
 if [ -z "$STATUS" ]
 then
@@ -96,7 +111,6 @@ mount /root
 mount /home
 mount /export
 
-exit 0
 ########################################
 ########################################
 #############SETTING GANGLIA############
