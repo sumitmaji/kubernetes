@@ -16,6 +16,8 @@ then
 	exit 0
 fi
 
+apt-get update
+apt-get install net-tools
 
 touch /etc/network/interfaces
 STATUS=`grep "auto enp0s3" /etc/network/interfaces`
