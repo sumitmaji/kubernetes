@@ -54,7 +54,7 @@ fi
 ############################################
 ############################################
 
-apt-get install -y nfs-common sntp
+apt-get install -y nfs-common sntp libopts25
 
 mkdir -p /export
 
