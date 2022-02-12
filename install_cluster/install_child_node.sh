@@ -69,7 +69,7 @@ mount master:/export /export
 ############################################
 
 
-apt-get install -y ntp
+apt-get install -y ntp sntp libopts25
 
 STATUS=`grep "server master.cloud.com" /etc/ntp.conf`
 if [ -z "$STATUS" ]
