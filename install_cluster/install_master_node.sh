@@ -1,4 +1,6 @@
 #!/bin/bash
+[[ "TRACE" ]] && set -x
+
 while [ $# -gt 0 ]
 do
     case "$1" in
@@ -207,14 +209,14 @@ fi
 
 
 apt-get install -y nfs-kernel-server
-mkdir /home/shared
+mkdir -p /home/shared
 
 echo "/root 11.0.0.0/24(rw,async,no_root_squash)" > /etc/exports
 echo "/home 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 echo "/home/shared 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 echo "/export 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 
-mkdir /export
+mkdir -p /export
 
 exportfs -va
 
