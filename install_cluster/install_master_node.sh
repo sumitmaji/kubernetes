@@ -164,9 +164,13 @@ fi
 
 service isc-dhcp-server restart
 
+chattr -i /etc/resolv.conf
 echo "nameserver 11.0.0.1" > /etc/resolv.conf
 echo "nameserver $CLOUD_HOST_IP" >> /etc/resolv.conf
 echo "search cloud.com Home" >> /etc/resolv.conf
+cp /etc/resolv.conf .
+rm /etc/resolv.conf
+cp resolv.conf /etc/
 chattr +i /etc/resolv.conf
 
 chmod 775 -R /etc/bind
