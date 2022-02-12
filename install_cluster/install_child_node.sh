@@ -1,8 +1,6 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
 
-while [ $# -gt 0 ]
-do
     case "$1" in
         '-n')  NODE_NAME="$2"
         shift
@@ -11,8 +9,6 @@ do
         shift
         ;;
     esac
-
-done
 
 if [ -z "$NODE_NAME" ]
 then
