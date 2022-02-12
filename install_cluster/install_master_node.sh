@@ -15,36 +15,55 @@ fi
 
 echo 'Installing the master node!!!!!!!!!'
 
-`sed -i 's/master$/master.cloud.com/' /etc/hostname`
+apt-get update
+echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-tools"
+apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools
 
-STATUS=`grep "##ethernet setup end" /etc/network/interfaces`
+sed -i 's/master$/master.cloud.com/' /etc/hostname
+
+touch /etc/network/interfaces
+STATUS="$(grep "##ethernet setup completed" /etc/network/interfaces)"
 if [ -z "$STATUS" ]
 then
-`sed -i '$r ./ethernet' /etc/network/interfaces`
+cat >> /etc/network/interfaces << EOF
+iface enp0s8 inet dhcp
+auto enp0s3
+iface enp0s3 inet static
+address 11.0.0.1
+netmast 255.255.255.0
+network 11.0.0.0
+broadcast 11.0.0.254
+##ethernet setup completed
+EOF
 fi
 
-`sed -i 's/\(127.0.0.1\)\(.*master.cloud.com.*\)/'"$CLOUD_HOST_IP"'\2/' /etc/hosts`
+sed -i 's/\(127.0.1.1\)\(.*master.*\)/'"$CLOUD_HOST_IP"' master.cloud.com/' /etc/hosts
 echo "Activating eth0 ethernet"
-ifup eth0
+ifup enp0s3
 
-#apt-get update
-echo "Installing dhcp server wget nfs-common bind9 ntp gcc make"
-apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make
 
-STATUS=`grep "##zone append end" /etc/bind/named.conf.default-zones`
+STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
 if [ -z "$STATUS" ]
 then
-`sed -i '$r ./zones' /etc/bind/named.conf.default-zones`
+cat >>  /etc/bind/named.conf.default-zones << EOF
+##zone append begin
+zone "cloud.com" {
+	type master;
+	file "/etc/bind/cloud.com.fwd";
+	allow-update { key rndc-key; };
+};
+
+zone "0.0.11.in-addr.arpa" {
+	type master;
+	file "/etc/bind/cloud.com.rev";
+	allow-update { key rndc-key; };
+};
+##zone append end
+EOF
 fi
 
-if [ -f ./rndc-key ]
-then
-echo "rndc-key file exists"
-else
-`touch ./rndc-key`
-fi
-
-STATUS=`grep "##rndc-key copy end" ./rndc-key`
+touch ./rndc-key
+STATUS="$(grep "##rndc-key copy end" ./rndc-key)"
 if [ -z "$STATUS" ]
 then
 `echo '##rndc-key copy begin' >  ./rndc-key`
@@ -66,18 +85,39 @@ then
 echo "The forward exits"
 else
 touch /etc/bind/cloud.com.fwd
+cat >> /etc/bind/cloud.com.fwd << EOF
+$TTL	86400
+@	IN 		SOA 	master.cloud.com.		root.cloud.com. (
+	1		;Serial
+	604800	;Refresh
+	86400	;Retry
+	2419200	;Expire
+	86400	;minimum
+)
+@	IN		NS		master.cloud.com.
+master		IN		A	11.0.0.1
+EOF
 fi
-
-`cat < ./network-fwd > /etc/bind/cloud.com.fwd`
 
 if [ -f /etc/bind/cloud.com.rev ]
 then
 echo "The reverse exists"
 else
 touch /etc/bind/cloud.com.rev
+cat >> /etc/bind/cloud.com.rev << EOF
+$TTL    86400
+@       IN              SOA     master.cloud.com.         root.cloud.com. (
+        1               ;Serial
+        3600            ;Refresh
+        1800            ;Retry
+        604800          ;Expire
+        86400           ;minimum ttl
+)
+@       IN      NS      master.cloud.com
+master.cloud.com  IN      A       11.0.0.1
+1       IN      PTR     master.cloud.com
+EOF
 fi
-
-`cat < ./network-rev > /etc/bind/cloud.com.rev`
 
 service bind9 restart
 
@@ -85,33 +125,47 @@ if [ -f /etc/dhcp/dhcpd.conf_tmp ]
 then
 echo "Dhcp Temp file exists."
 else
-`cp /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf_tmp`
+cp /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf_tmp
 fi
 
-`cat ./rndc-key > /etc/dhcp/temp-local-zones`
-`cat ./local-zones >> /etc/dhcp/temp-local-zones`
-`cat /etc/dhcp/dhcpd.conf_tmp >> /etc/dhcp/temp-local-zones`
-`sed -i 's/ddns-update-style none/ddns-update-style interim/' /etc/dhcp/temp-local-zones`
-`sed -i '/ddns-update-style interim/ a\autorotive;' /etc/dhcp/temp-local-zones`
-`sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones`
-`sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones`
-`sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones`
-`sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones`
-`sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers 11.0.0.1, $CLOUD_HOST_IP;/" /etc/dhcp/temp-local-zones`
-`sed -i '/^max-lease-time 7200;/ a\subnet 11.0.0.0 netmask 255.255.255.0 {' /etc/dhcp/temp-local-zones`
-`sed -i '/subnet 11.0.0.0 netmask 255.255.255.0 {/ a\option routers 11.0.0.1;'  /etc/dhcp/temp-local-zones`
-`sed -i '/option routers 11.0.0.1;/ a\option subnet-mask 255.255.255.0;' /etc/dhcp/temp-local-zones`
-`sed -i '/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;' /etc/dhcp/temp-local-zones`
-`sed -i '/option time-offset -18000;/ a\range 11.0.0.1 11.0.0.254;' /etc/dhcp/temp-local-zones`
-`sed -i '/range 11.0.0.1 11.0.0.254;/ a\}' /etc/dhcp/temp-local-zones`
+if [[ ! -f /etc/dhcp/temp-local-zones ]]
+then
+cat ./rndc-key > /etc/dhcp/temp-local-zones
+cat >> /etc/dhcp/temp-local-zones << EOF
+zone cloud.com. {
+        primary 127.0.0.1;
+        key rndc-key;
+}
 
-`cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf`
+zone 0.0.11.in-addr.arpa. {
+        primary 127.0.0.1;
+        key rndc-key;
+}
+EOF
+cat /etc/dhcp/dhcpd.conf_tmp >> /etc/dhcp/temp-local-zones
+sed -i 's/ddns-update-style none/ddns-update-style interim/' /etc/dhcp/temp-local-zones
+sed -i '/ddns-update-style interim/ a\autorotive;' /etc/dhcp/temp-local-zones
+sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
+sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
+sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
+sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
+sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers 11.0.0.1, $CLOUD_HOST_IP;/" /etc/dhcp/temp-local-zones
+sed -i '/^max-lease-time 7200;/ a\subnet 11.0.0.0 netmask 255.255.255.0 {' /etc/dhcp/temp-local-zones
+sed -i '/subnet 11.0.0.0 netmask 255.255.255.0 {/ a\option routers 11.0.0.1;'  /etc/dhcp/temp-local-zones
+sed -i '/option routers 11.0.0.1;/ a\option subnet-mask 255.255.255.0;' /etc/dhcp/temp-local-zones
+sed -i '/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;' /etc/dhcp/temp-local-zones
+sed -i '/option time-offset -18000;/ a\range 11.0.0.1 11.0.0.254;' /etc/dhcp/temp-local-zones
+sed -i '/range 11.0.0.1 11.0.0.254;/ a\}' /etc/dhcp/temp-local-zones
+
+cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf
+fi
 
 service isc-dhcp-server restart
 
-`echo "nameserver 11.0.0.1" > /etc/resolv.conf`
-`echo "nameserver $CLOUD_HOST_IP" >> /etc/resolv.conf`
-`echo "search cloud.com Home" >> /etc/resolv.conf`
+echo "nameserver 11.0.0.1" > /etc/resolv.conf
+echo "nameserver $CLOUD_HOST_IP" >> /etc/resolv.conf
+echo "search cloud.com Home" >> /etc/resolv.conf
+chattr +i /etc/resolv.conf
 
 chmod 775 -R /etc/bind
 chown -R bind /etc/bind
@@ -127,10 +181,10 @@ service isc-dhcp-server restart
 ###########################
 
 echo "1" > /proc/sys/net/ipv4/ip_forward
-`sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf`
+sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
 iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
 iptables-save > /etc/iptables.rules
-STATUS=`grep "pre-up iptables-restore < /etc/iptables.rules" /etc/network/interfaces`
+STATUS="$(grep "pre-up iptables-restore < /etc/iptables.rules" /etc/network/interfaces)"
 if [ -z "$STATUS" ]
 then
 `sed -i '/broadcast 11.0.0.254/ a\pre-up iptables-restore < /etc/iptables.rules' /etc/network/interfaces`
@@ -153,9 +207,11 @@ fi
 
 
 apt-get install -y nfs-kernel-server
+mkdir /home/shared
 
 echo "/root 11.0.0.0/24(rw,async,no_root_squash)" > /etc/exports
 echo "/home 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
+echo "/home/shared 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 echo "/export 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 
 mkdir /export
@@ -164,7 +220,7 @@ exportfs -va
 
 service nfs-kernel-server start
 
-#mount 11.0.0.1:/root /export
+mount 11.0.0.1:/home/shared /export
 
 #umount /export
 
