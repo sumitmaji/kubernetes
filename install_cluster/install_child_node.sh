@@ -54,7 +54,7 @@ fi
 ############################################
 ############################################
 
-apt-get install -y nfs-common
+apt-get install -y nfs-common sntp
 
 mkdir -p /export
 
