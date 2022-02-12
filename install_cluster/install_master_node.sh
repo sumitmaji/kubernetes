@@ -68,15 +68,15 @@ touch ./rndc-key
 STATUS="$(grep "##rndc-key copy end" ./rndc-key)"
 if [ -z "$STATUS" ]
 then
-`echo '##rndc-key copy begin' >  ./rndc-key`
-`grep -A 3 "key \"rndc-key\"" /etc/bind/rndc.key >> ./rndc-key`
-`sed -i '$a\##rndc-key copy end' ./rndc-key`
+echo '##rndc-key copy begin' >  ./rndc-key
+grep -A 3 "key \"rndc-key\"" /etc/bind/rndc.key >> ./rndc-key
+sed -i '$a\##rndc-key copy end' ./rndc-key
 fi
 
-STATUS=`grep "##rndc-key copy end" /etc/bind/named.conf.options`
+STATUS="$(grep "##rndc-key copy end" /etc/bind/named.conf.options)"
 if [ -z "$STATUS" ]
 then
-`sed -i '$r ./rndc-key' /etc/bind/named.conf.options`
+sed -i '$r ./rndc-key' /etc/bind/named.conf.options
 fi
 
 sed -i 's_/etc/bind/\*\* r,_/etc/bind/\*\* rw,_' /etc/apparmor.d/usr.sbin.named
@@ -88,7 +88,7 @@ echo "The forward exits"
 else
 touch /etc/bind/cloud.com.fwd
 cat >> /etc/bind/cloud.com.fwd << EOF
-$TTL	86400
+\$TTL	86400
 @	IN 		SOA 	master.cloud.com.		root.cloud.com. (
 	1		;Serial
 	604800	;Refresh
@@ -107,7 +107,7 @@ echo "The reverse exists"
 else
 touch /etc/bind/cloud.com.rev
 cat >> /etc/bind/cloud.com.rev << EOF
-$TTL    86400
+\$TTL    86400
 @       IN              SOA     master.cloud.com.         root.cloud.com. (
         1               ;Serial
         3600            ;Refresh
