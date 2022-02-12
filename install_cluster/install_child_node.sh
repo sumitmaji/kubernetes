@@ -17,7 +17,7 @@ then
 fi
 
 apt-get update
-apt-get install net-tools ifupdown
+apt-get install -y net-tools ifupdown
 
 touch /etc/network/interfaces
 STATUS=`grep "auto enp0s3" /etc/network/interfaces`
