@@ -1,27 +1,55 @@
 #!/bin/bash
+[[ "TRACE" ]] && set -x
 
-STATUS=`grep "auto eth0" /etc/network/interfaces`
+while [ $# -gt 0 ]
+do
+    case "$1" in
+        '-n')  NODE_NAME="$2"
+        shift
+        ;;
+        '-i')  IP_ADDRESS="$2"
+        shift
+        ;;
+    esac
+
+done
+
+if [ -z "$NODE_NAME" ]
+then
+	echo "Please provide node name"
+	exit 0
+fi
+
+if [ -z "$IP_ADDRESS" ]
+then
+	echo "Please provide node ip address"
+	exit 0
+fi
+
+
+touch /etc/network/interfaces
+STATUS=`grep "auto enp0s3" /etc/network/interfaces`
 if [ -z "$STATUS" ]
 then
-`sed -i '$a\auto eth0' /etc/network/interfaces`
-`sed -i '$a\iface eth0 inet dhcp' /etc/network/interfaces`
+`sed -i '$a\auto enp0s3' /etc/network/interfaces`
+`sed -i '$a\iface enp0s3 inet dhcp' /etc/network/interfaces`
 fi
 
-if [ ! -f /etc/dhcp/dhclient-eth0.conf ]
+if [ ! -f /etc/dhcp/dhclient-enp0s3.conf ]
 then
-touch /etc/dhcp/dhclient-eth0.conf
+touch /etc/dhcp/dhclient-enp0s3.conf
 fi
 
-STATUS=`grep -i "send fqdn.fqdn "node01";" /etc/dhcp/dhclient-eth0.conf`
+STATUS=`grep -i "send fqdn.fqdn "$NODE_NAME";" /etc/dhcp/dhclient-enp0s3.conf`
 if [ -z "$STATUS" ]
 then
-echo "send fqdn.fqdn \"node01\";" > /etc/dhcp/dhclient-eth0.conf
-echo "send fqdn.encoded on;" >> /etc/dhcp/dhclient-eth0.conf
-echo "send fqdn.server-update off;" >> /etc/dhcp/dhclient-eth0.conf
-echo "also request fqdn.fqdn;" >> /etc/dhcp/dhclient-eth0.conf
+echo "send fqdn.fqdn \"$NODE_NAME\";" > /etc/dhcp/dhclient-enp0s3.conf
+echo "send fqdn.encoded on;" >> /etc/dhcp/dhclient-enp0s3.conf
+echo "send fqdn.server-update off;" >> /etc/dhcp/dhclient-enp0s3.conf
+echo "also request fqdn.fqdn;" >> /etc/dhcp/dhclient-enp0s3.conf
 fi
 
-ifup eth0
+ifup enp0s3
 
 if [ ! -d ~/.ssh ]
 then
@@ -36,13 +64,11 @@ fi
 
 apt-get install -y nfs-common
 
-mkdir /export
-
+mkdir -p /export
+mkdir -p /home/shared
 mount master:/root /root
-
 mount master:/home /home
-
-mount master:/export /export
+mount master:/home/shared /export
 
 ############################################
 ############################################
@@ -69,13 +95,11 @@ if [ -z "$STATUS" ]
 then
 `sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
 `sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
-`sed -i '$a\master:/export    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/home/shared    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
 fi
 
 mount /root
-
 mount /home
-
 mount /export
 
 

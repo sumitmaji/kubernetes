@@ -188,7 +188,7 @@ service isc-dhcp-server restart
 
 echo "1" > /proc/sys/net/ipv4/ip_forward
 sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
-iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+iptables -t nat -A POSTROUTING -o enp0s8 -j MASQUERADE
 iptables-save > /etc/iptables.rules
 STATUS="$(grep "pre-up iptables-restore < /etc/iptables.rules" /etc/network/interfaces)"
 if [ -z "$STATUS" ]
