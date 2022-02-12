@@ -17,7 +17,7 @@ then
 fi
 
 apt-get update
-apt-get install -y net-tools ifupdown
+apt-get install -y net-tools ifupdown openssh-client openssh-server
 
 rm /etc/netplan/00-installer-config.yaml
 touch /etc/netplan/00-installer-config.yaml
@@ -102,9 +102,9 @@ exit 0
 STATUS=`grep "master:/root    /root   nfs     _netdev,x-systemd.automount        0 0" /etc/fstab`
 if [ -z "$STATUS" ]
 then
-`sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
-`sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
-`sed -i '$a\master:/export    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/root    /root   nfs     rw,hard,intr,rsize=8192,wsize=8192,timeo=14,_netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/home    /home   nfs     rw,hard,intr,rsize=8192,wsize=8192,timeo=14,_netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/export    /export   nfs     rw,hard,intr,rsize=8192,wsize=8192,timeo=14,_netdev,x-systemd.automount        0 0' /etc/fstab`
 fi
 
 mount /root

@@ -21,6 +21,23 @@ apt-get update
 echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-tools"
 apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools
 
+
+rm /etc/netplan/00-installer-config.yaml
+touch /etc/netplan/00-installer-config.yaml
+cat >> /etc/netplan/00-installer-config.yaml << EOF
+network:
+  renderer: networkd
+  ethernets:
+    enp0s8:
+      dhcp4: true
+      optional: true
+  version: 2
+EOF
+netplan generate
+netplan apply
+
+
+
 sed -i 's/master$/master.cloud.com/' /etc/hostname
 
 touch /etc/network/interfaces
