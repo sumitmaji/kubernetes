@@ -196,13 +196,12 @@ then
 `sed -i '/broadcast 11.0.0.254/ a\pre-up iptables-restore < /etc/iptables.rules' /etc/network/interfaces`
 fi
 
-#ssh-keygen
+ssh-keygen -q -N "" -t rsa -f ~/.ssh/id_rsa
+cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
 
-#cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
-
-#cp ~/.ssh/ /home/sumit/ -r
-
-#chown -R sumit /home/sumit/
+useradd -m admin
+cp ~/.ssh/ /home/admin/ -r
+chown -R admin /home/admin/
 
 
 #################################
@@ -213,22 +212,15 @@ fi
 
 
 apt-get install -y nfs-kernel-server
-mkdir -p /home/shared
 
 echo "/root 11.0.0.0/24(rw,async,no_root_squash)" > /etc/exports
 echo "/home 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
-echo "/home/shared 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 echo "/export 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 
 mkdir -p /export
-
 exportfs -va
-
 service nfs-kernel-server start
-
-mount 11.0.0.1:/home/shared /export
-
-#umount /export
+mount 11.0.0.1:/export /export
 
 #################################
 #################################

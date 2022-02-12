@@ -41,9 +41,11 @@ fi
 
 ifup enp0s3
 
+useradd -m admin
+
 if [ ! -d ~/.ssh ]
 then
-scp -r sumit@master:/home/sumit/.ssh .
+scp -r admin@master:/home/admin/.ssh .
 fi
 
 ############################################
@@ -55,10 +57,10 @@ fi
 apt-get install -y nfs-common
 
 mkdir -p /export
-mkdir -p /home/shared
+
 mount master:/root /root
 mount master:/home /home
-mount master:/home/shared /export
+mount master:/export /export
 
 ############################################
 ############################################
@@ -85,7 +87,7 @@ if [ -z "$STATUS" ]
 then
 `sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
 `sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
-`sed -i '$a\master:/home/shared    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
+`sed -i '$a\master:/export    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
 fi
 
 mount /root
