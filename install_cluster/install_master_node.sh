@@ -231,13 +231,17 @@ chown -R admin /home/admin/
 
 apt-get install -y nfs-kernel-server
 
-echo "/root 11.0.0.0/24(rw,async,no_root_squash)" > /etc/exports
-echo "/home 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
+#echo "/root 11.0.0.0/24(rw,async,no_root_squash)" > /etc/exports
+#echo "/home 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 echo "/export 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 
 mkdir -p /export
+chmod 777 /export
+
 exportfs -va
-service nfs-kernel-server start
+#service nfs-kernel-server start
+systemctl start nfs-kernel-server
+systemctl enable nfs-kernel-server
 mount 11.0.0.1:/export /export
 
 #################################

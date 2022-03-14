@@ -74,9 +74,9 @@ apt-get install -y nfs-common
 
 mkdir -p /export
 
-mount master:/root /root
-mount master:/home /home
-mount master:/export /export
+#mount master:/root /root
+#mount master:/home /home
+#mount master:/export /export
 
 ############################################
 ############################################
@@ -98,19 +98,20 @@ fi
 
 service ntp start
 
-exit 0
-STATUS=`grep "master:/root    /root   nfs     _netdev,x-systemd.automount        0 0" /etc/fstab`
+STATUS=`grep "master:/export    /export   nfs     defaults,_netdev,x-systemd.automount,timeo=14,retry=0        0 0" /etc/fstab`
 if [ -z "$STATUS" ]
 then
-`sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
-`sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
-`sed -i '$a\master:/export    /export   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
+#`sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
+#`sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
+`sed -i '$a\master:/export    /export   nfs     defaults,_netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
 fi
 
-mount /root
-mount /home
-mount /export
+#mount /root
+#mount /home
+#mount /export
+mount -a
 
+exit 0
 ########################################
 ########################################
 #############SETTING GANGLIA############
