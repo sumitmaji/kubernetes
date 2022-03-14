@@ -25,20 +25,18 @@ apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown n
 rm /etc/netplan/00-installer-config.yaml
 touch /etc/netplan/00-installer-config.yaml
 cat >> /etc/netplan/00-installer-config.yaml << EOF
-etwork:
+network:
   renderer: networkd
   ethernets:
     enp0s8:
       dhcp4: true
       optional: true
-      nameservers:
-        addresses: [11.0.0.1, 192.168.0.1]
-    enp0s3:
-      dhcp4: false
-      addresses: [11.0.0.1/24]
   version: 2
 EOF
+netplan generate
 netplan apply
+
+
 
 sed -i 's/master$/master.cloud.com/' /etc/hostname
 
