@@ -111,6 +111,8 @@ fi
 #mount /export
 mount -a
 
+echo "$NODE_NAME" > /etc/hostname
+reboot
 exit 0
 ########################################
 ########################################
