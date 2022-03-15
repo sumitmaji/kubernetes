@@ -75,7 +75,7 @@ export KUBECONFIG=/etc/kubernetes/admin.conf
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 
-kubectl apply -f https://docs.projectcalico.org/v3.11/manifests/calico.yaml
+kubectl apply -f https://projectcalico.docs.tigera.io/manifests/calico.yaml
 echo << "EOF"
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
  |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
