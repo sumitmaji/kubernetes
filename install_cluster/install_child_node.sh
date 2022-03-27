@@ -1,14 +1,19 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
 
+while [ $# -gt 0 ]; do
     case "$1" in
-        '-n')  NODE_NAME="$2"
+        -n | --node)
         shift
+        NODE_NAME=$1
         ;;
-        '-i')  IP_ADDRESS="$2"
+        -i | --ipaddress)
         shift
+        IP_ADDRESS=$1
         ;;
     esac
+shift
+done
 
 if [ -z "$NODE_NAME" ]
 then
