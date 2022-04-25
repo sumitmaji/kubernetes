@@ -4,7 +4,7 @@ apiServer:
     service-node-port-range: 30000-32767
     authorization-rbac-super-user: admin
     admission-control: NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota
-    enable-swagger-ui: true
+    enable-swagger-ui: "true"
   timeoutForControlPlane: 4m0s
 apiVersion: kubeadm.k8s.io/v1beta3
 certificatesDir: /etc/kubernetes/pki
@@ -12,7 +12,7 @@ clusterName: kubernetes
 controllerManager:
   extraArgs:
     attach-detach-reconcile-sync-period: 1m0s
-    configure-cloud-routes: false
+    configure-cloud-routes: "false"
 dns: {}
 etcd:
   local:
@@ -26,4 +26,4 @@ networking:
   serviceSubnet: 10.96.0.0/12
 scheduler:
   extraArgs:
-    logtostderr: true
+    logtostderr: "true"
