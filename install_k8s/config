@@ -1,2 +1,2 @@
-CLUSTER_NAME=cloud.com
-DNS_DOMAIN=cloud.uat
+export CLUSTER_NAME=cloud.com
+export DNS_DOMAIN=cloud.uat
