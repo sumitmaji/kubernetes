@@ -74,7 +74,7 @@ spec:
           # If not specified, Dashboard will attempt to auto discover the API server and connect
           # to it. Uncomment only if the default does not work.
           # - --apiserver-host=http://my-address:port
-          - --apiserver-host=${API_SERVER}
+          - --apiserver-host=${LOAD_BALANCER_URL}
           - --kubeconfig=/etc/kubernetes/kubelet.conf
         livenessProbe:
           httpGet:
