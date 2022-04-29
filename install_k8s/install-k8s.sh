@@ -4,6 +4,10 @@
 
 source $WORKING_DIR/config
 
+#Install network tools
+apt-get install net-tools
+
+
 # Enable kernel modules
 sudo modprobe overlay
 sudo modprobe br_netfilter
