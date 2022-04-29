@@ -6,6 +6,6 @@ source $WORKING_DIR/config
 
 apt-get install net-tools
 
-envsubst < $WORKING_DIR/dashboard/v1.6.3.yaml > $WORKING_DIR/dashboard/dashboard.yaml
+envsubst < $WORKING_DIR/dashboard/v2.5.1.yaml > $WORKING_DIR/dashboard/dashboard.yaml
 
 kubectl create -f $WORKING_DIR/dashboard/dashboard.yaml
