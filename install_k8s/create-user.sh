@@ -43,6 +43,6 @@ openssl pkcs12 -export -clcerts -inkey ${USERNAME}.key -in temp.crt -out ${USERN
 echo "======Kubeconfig file user ${USERNAME}.conf generated"
 cat ~/.kube/config | \
     sed -r "s/^(\s*)(client-certificate-data:.*$)/\1client-certificate-data: ${CERT}/" | \
-    sed -r "s/^(\s*)(client-key-data:.*$)/\1client-key-data: ${KEY}/" > sumit.conf
+    sed -r "s/^(\s*)(client-key-data:.*$)/\1client-key-data: ${KEY}/" > ${USERNAME}.conf
 
 rm ${USERNAME}.key ${USERNAME}.csr temp.key temp.crt
