@@ -4,10 +4,12 @@
 
 source $WORKING_DIR/config
 
-mkdir $WORKING_DIR/ingress
 pushd $WORKING_DIR/ingress
 
 kubectl delete -f $WORKING_DIR/ingress/
+kubectl delete secret ingress-certificate -n ingress
+kubectl delete secret appingress-certificate -n ingress
+kubectl delete secret appingress-certificate -n ingress
 
 #below would create user named ingress with group assigned as ingress:masters
 openssl genrsa -out ingress.key 4096
@@ -29,7 +31,8 @@ sed -i "s/\$APP_HOST/$APP_HOST/" example/app-ingress.yaml
 kubectl create namespace ingress
 kubectl create -f default-backend-deployment.yaml -f default-backend-service.yaml -n=ingress
 kubectl create secret tls ingress-certificate --key ingress.key --cert ingress.crt -n ingress
-kubectl create secret tls ingress-certificate --key ingress.key --cert ingress.crt -n default
+kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
+kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n ingress
 kubectl create -f ssl-dh-param.yaml
 kubectl create -f nginx-ingress-controller-config-map.yaml -n=ingress
 kubectl create -f nginx-ingress-controller-roles.yaml -n=ingress
