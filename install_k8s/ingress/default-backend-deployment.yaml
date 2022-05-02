@@ -7,7 +7,7 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      k8s-app: default-backend
+      app: default-backend
   template:
     metadata:
       labels:
