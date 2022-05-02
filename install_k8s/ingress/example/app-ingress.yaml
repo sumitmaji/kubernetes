@@ -10,13 +10,19 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: appsvc1
-          servicePort: 80
+          service:
+            name: appsvc1
+            port:
+              number: 80
         path: /app1
+        pathType: Prefix
       - backend:
-          serviceName: appsvc2
-          servicePort: 80
+          service:
+            name: appsvc2
+            port:
+              number: 80
         path: /app2
+        pathType: Prefix
   tls:
   - hosts:
     - $APP_HOST

@@ -9,9 +9,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: nginx-ingress
-          servicePort: 18080
+          service:
+            name: nginx-ingress
+            port:
+              number: 18080
         path: /nginx_status
+        pathType: Prefix
   tls:
   - hosts:
     - $APP_HOST
