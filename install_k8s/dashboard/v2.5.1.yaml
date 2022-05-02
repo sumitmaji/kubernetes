@@ -210,15 +210,15 @@ spec:
             - containerPort: 8443
               protocol: TCP
           args:
-            #- --tls-cert-file=/apiconnect/dashboard.crt
-            #- --tls-key-file=/apiconnect/dashboard.key
+            - --tls-cert-file=/etc/kubernetes/pki/dashboard.crt
+            - --tls-key-file=/etc/kubernetes/pki/dashboard.key
             - --auto-generate-certificates
             - --namespace=kubernetes-dashboard
             # Uncomment the following line to manually specify Kubernetes API server Host
             # If not specified, Dashboard will attempt to auto discover the API server and connect
             # to it. Uncomment only if the default does not work.
             - --apiserver-host=${LOAD_BALANCER_URL}
-            - --kubeconfig=/etc/kubernetes/admin.conf
+            #- --kubeconfig=/etc/kubernetes/admin.conf
           volumeMounts:
             - name: kubernetes-dashboard-apiconnect-certs
               mountPath: /apiconnect

@@ -14,6 +14,10 @@ kubectl delete csr dashboard-csr
 
 openssl genrsa -out dashboard.key 4096
 openssl req -new -key dashboard.key -out dashboard.csr -subj "/CN=dashboard/O=cloud:masters"
+openssl x509 -req -in dashboard.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out dashboard.crt -days 7200
+cp dashboard.key /etc/kubernetes/pki/
+cp dashboard.crt /etc/kubernetes/pki/
+
 
 B64=`cat dashboard.csr | base64 | tr -d '\n'`
 cat ../signing-request-template.yaml | \
