@@ -28,10 +28,13 @@ subjects:
   name: dashboard:masters
 EOF
 
+#below would create user named dashboard with group assigned as dashboard:masters
 openssl genrsa -out dashboard.key 4096
 openssl req -new -key dashboard.key -out dashboard.csr -subj "/CN=dashboard/O=dashboard:masters"
 openssl x509 -req -in dashboard.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out dashboard.crt -days 7200
 
+#Certificates for dashboard user(created above) will be mounted in the pod as secret for
+# authenticating dashbaord user with kubernetes api-server
 kubectl create ns kubernetes-dashboard
 kubectl -n kubernetes-dashboard create secret generic kubernetes-dashboard-certs \
 --from-file=tls.crt=dashboard.crt \
