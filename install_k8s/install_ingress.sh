@@ -9,8 +9,9 @@ pushd $WORKING_DIR/ingress
 kubectl delete -f $WORKING_DIR/ingress/
 kubectl delete secret ingress-certificate -n ingress
 kubectl delete secret appingress-certificate -n ingress
-kubectl delete secret appingress-certificate -n ingress
+kubectl delete secret appingress-certificate -n default
 kubectl delete -f example/
+kubectl delete ns ingress
 
 
 #below would create user named ingress with group assigned as ingress:masters
@@ -33,11 +34,11 @@ kubectl create -f nginx-ingress-controller-config-map.yaml
 kubectl create -f nginx-ingress-controller-roles.yaml
 
 cat nginx-ingress-controller-deployment.yaml | \
-sed -r "s/\$LOAD_BALANCER_URL/$(echo "$LOAD_BALANCER_URL" | sed 's/\//\\\//g')/" | \
+sed "s/\$LOAD_BALANCER_URL/$(echo "$LOAD_BALANCER_URL" | sed 's/\//\\\//g')/" | \
 kubectl create -f -
 
 cat nginx-ingress.yaml | \
-sed -r "s/\$APP_HOST/$APP_HOST/" | \
+sed "s/\$APP_HOST/$APP_HOST/" | \
 kubectl create -f -
 
 kubectl create -f nginx-ingress.yaml -n=ingress
@@ -45,7 +46,7 @@ kubectl create -f nginx-ingress-controller-service.yaml -n=ingress
 
 #Example app
 cat example/app-ingress.yaml | \
-sed -r "s/\$APP_HOST/$APP_HOST/" | \
+sed "s/\$APP_HOST/$APP_HOST/" | \
 kubectl create -f -
 
 kubectl create -f example/
