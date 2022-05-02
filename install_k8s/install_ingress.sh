@@ -38,10 +38,9 @@ sed "s/\$LOAD_BALANCER_URL/$(echo "$LOAD_BALANCER_URL" | sed 's/\//\\\//g')/" | 
 kubectl create -f -
 
 cat nginx-ingress.yaml | \
-envsubst | \
+sed "s/\$APP_HOST/$APP_HOST/g" | \
 kubectl create -f -
 
-kubectl create -f nginx-ingress.yaml -n=ingress
 kubectl create -f nginx-ingress-controller-service.yaml -n=ingress
 
 #Example app
@@ -49,6 +48,7 @@ cat example/app-ingress.yaml | \
 envsubst | \
 kubectl create -f -
 
-kubectl create -f example/
+kubectl create -f example/app-deployment.yaml
+kubectl create -f example/app-service.yaml
 
 popd
