@@ -10,6 +10,8 @@ kubectl delete -f $WORKING_DIR/ingress/
 kubectl delete secret ingress-certificate -n ingress
 kubectl delete secret appingress-certificate -n ingress
 kubectl delete secret appingress-certificate -n ingress
+kubectl delete -f example/
+
 
 #below would create user named ingress with group assigned as ingress:masters
 openssl genrsa -out ingress.key 4096
