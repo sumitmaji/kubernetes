@@ -7,6 +7,8 @@ source $WORKING_DIR/config
 mkdir $WORKING_DIR/ingress
 pushd $WORKING_DIR/ingress
 
+kubectl delete -f $WORKING_DIR/ingress/
+
 #below would create user named ingress with group assigned as ingress:masters
 openssl genrsa -out ingress.key 4096
 openssl req -new -key ingress.key -out ingress.csr -subj "/CN=ingress/O=ingress:masters"
@@ -19,8 +21,8 @@ openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc
 
 
 
-sed -i "s/\$LOAD_BALANCER_URL/$LOAD_BALANCER_URL/" nginx-ingress-controller-deployment.yaml
-
+cat nginx-ingress-controller-deployment.yaml | \
+sed -i "s/\$LOAD_BALANCER_URL/$LOAD_BALANCER_URL/" | kubectl create -f
 sed -i "s/\$APP_HOST/$APP_HOST/" nginx-ingress.yaml
 sed -i "s/\$APP_HOST/$APP_HOST/" example/app-ingress.yaml
 

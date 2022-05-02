@@ -5,7 +5,7 @@ metadata:
   namespace: ingress
 ---
 kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nginx-role
   namespace: ingress
@@ -58,7 +58,7 @@ rules:
   - get
 ---
 kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: nginx-role
   namespace: ingress
