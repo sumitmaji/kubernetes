@@ -10,31 +10,33 @@ apt-get install net-tools
 
 rm dashboard.key dashboard.crt dashboard.csr
 kubectl delete -f v2.5.1.yaml
-kubectl delete csr dashboard-csr
+
+#Create a service account which is having cluster admin role to group dashboard:masters,
+#This service account will be granted to kubernetes dashboard user
+cat <<EOF | kubectl create -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dashboard-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: dashboard:masters
+EOF
 
 openssl genrsa -out dashboard.key 4096
-openssl req -new -key dashboard.key -out dashboard.csr -subj "/CN=dashboard/O=cloud:masters"
+openssl req -new -key dashboard.key -out dashboard.csr -subj "/CN=dashboard/O=dashboard:masters"
 openssl x509 -req -in dashboard.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out dashboard.crt -days 7200
-cp dashboard.key /etc/kubernetes/pki/
-cp dashboard.crt /etc/kubernetes/pki/
 
+kubectl create ns kubernetes-dashboard
+kubectl -n kubernetes-dashboard create secret generic kubernetes-dashboard-certs \
+--from-file=tls.crt=dashboard.crt \
+--from-file=tls.key=dashboard.key
 
-B64=`cat dashboard.csr | base64 | tr -d '\n'`
-cat ../signing-request-template.yaml | \
-    sed "s@__USERNAME__@dashboard@" | \
-    sed "s@__CSRREQUEST__@${B64}@" | \
-    kubectl create -f -
-
-
-kubectl certificate approve dashboard-csr
-
-KEY=`cat dashboard.key | base64 | tr -d '\n'`
-CERT=`kubectl get csr dashboard-csr -o jsonpath='{.status.certificate}'`
-echo $CERT | base64 -d > dashboard.crt
-
-cat v2.5.1.yaml | \
-sed "s@__DASHBOARD_KEY__@${KEY}@" | \
-sed "s@__DASHBOARD_CRT__@${CERT}@" > dashboard.yaml
-cat dashboard.yaml | envsubst | kubectl create -f -
+cat v2.5.1.yaml | envsubst | kubectl create -f -
 
 popd
