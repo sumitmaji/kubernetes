@@ -23,7 +23,7 @@ openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
 
 cat v1.2.yaml | \
-sed '393 a \\t    - --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
+sed '393 a \            - --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
 kubectl apply -f -
 kubectl apply -f default-backend-deployment.yaml -f default-backend-service.yaml
 
