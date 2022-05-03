@@ -40,6 +40,7 @@ kubectl -n kubernetes-dashboard create secret generic kubernetes-dashboard-certs
 --from-file=tls.crt=dashboard.crt \
 --from-file=tls.key=dashboard.key
 
-cat v2.5.1.yaml | envsubst | kubectl create -f -
+cat v2.5.1.yaml | envsubst | kubectl apply -f -
+kubectl apply -f metric-server.yaml
 
 popd
