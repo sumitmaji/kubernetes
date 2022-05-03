@@ -17,7 +17,7 @@ openssl x509 -req -in ingress.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kub
 #below would create user named ingress with group assigned as ingress:masters
 openssl genrsa -out ${APP_HOST}.key 4096
 openssl req -new -key ${APP_HOST}.key -out ${APP_HOST}.csr -subj "/CN=${APP_HOST}" \
--addext "subjectAltName = DNS:foobar.mydomain.svc"
+-addext "subjectAltName = DNS:${APP_HOST}"
 openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${APP_HOST}.crt -days 7200
 
 cat v1.2.yaml | \
