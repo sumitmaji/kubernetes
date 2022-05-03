@@ -15,7 +15,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: appsvc2
-  namespcae: default
+  namespace: default
 spec:
   ports:
   - port: 80
