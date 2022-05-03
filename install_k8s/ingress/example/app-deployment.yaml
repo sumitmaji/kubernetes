@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app1
-  namespace: ingress-nginx
+  namespace: default
 spec:
   replicas: 2
   selector:
@@ -26,7 +26,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app2
-  namespace: ingress-nginx
+  namespace: default
 spec:
   replicas: 2
   selector:
