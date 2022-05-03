@@ -4,7 +4,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
   name: app-ingress
-  namespcae: default
+  namespace: default
 spec:
   rules:
   - host: $APP_HOST
