@@ -6,8 +6,7 @@ source $WORKING_DIR/config
 
 pushd $WORKING_DIR/ingress
 
-kubectl delete -f \
-https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.2.0/deploy/static/provider/baremetal/deploy.yaml
+kubectl delete -f v1.2.yaml
 kubectl delete secret appingress-certificate -n default
 kubectl delete -f example/
 
@@ -23,7 +22,7 @@ openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc
 
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
 
-curl https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.2.0/deploy/static/provider/baremetal/deploy.yaml | \
+cat v1.2.yaml | \
 sed '393 a \t\t- --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
 kubectl apply -f -
 kubectl apply -f default-backend-deployment.yaml -f default-backend-service.yaml
