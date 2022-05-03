@@ -6,7 +6,6 @@ source $WORKING_DIR/config
 
 pushd $WORKING_DIR/ingress
 
-kubectl delete -f v1.2.yaml
 kubectl delete secret appingress-certificate -n default
 kubectl delete -f example/
 
