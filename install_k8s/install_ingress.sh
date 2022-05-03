@@ -26,7 +26,7 @@ kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${
 
 curl https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.2.0/deploy/static/provider/baremetal/deploy.yaml | \
 sed '393 a \t\t- --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
-kubectl creat -f -
+kubectl apply -f -
 
 #Example app
 cat example/app-ingress.yaml | \
