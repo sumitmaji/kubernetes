@@ -5,6 +5,23 @@ USERNAME=${1}
 kubectl delete csr ${USERNAME}-csr
 rm ${USERNAME}.key temp.crt ${USERNAME}.conf temp.key ${USERNAME}.conf ${USERNAME}.p12
 
+#Create a service account which is having cluster admin role to group cloud:masters,
+#This service account will be granted to kubernetes dashboard user
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloud-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: cloud:masters
+EOF
+
 echo + Creating private key: ${USERNAME}.key
 openssl genrsa -out ${USERNAME}.key 4096
 
