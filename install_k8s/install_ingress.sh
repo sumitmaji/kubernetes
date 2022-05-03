@@ -21,12 +21,12 @@ openssl genrsa -out ${APP_HOST}.key 4096
 openssl req -new -key ${APP_HOST}.key -out ${APP_HOST}.csr -subj "/CN=${APP_HOST}"
 openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${APP_HOST}.crt -days 7200
 
-kubectl create -f default-backend-deployment.yaml -f default-backend-service.yaml
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
 
 curl https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.2.0/deploy/static/provider/baremetal/deploy.yaml | \
 sed '393 a \t\t- --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
 kubectl apply -f -
+kubectl apply -f default-backend-deployment.yaml -f default-backend-service.yaml
 
 #Example app
 cat example/app-ingress.yaml | \
