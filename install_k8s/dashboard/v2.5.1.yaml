@@ -40,6 +40,8 @@ spec:
   ports:
     - port: 443
       targetPort: 8443
+    - port: 80
+      targetPort: 9090
   selector:
     k8s-app: kubernetes-dashboard
 
@@ -194,6 +196,8 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8443
+              protocol: TCP
+            - containerPort: 9090
               protocol: TCP
           args:
             - --tls-cert-file=/tls.crt
