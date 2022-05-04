@@ -10,6 +10,10 @@ apt-get install net-tools
 
 rm dashboard.key dashboard.crt dashboard.csr
 kubectl delete -f v2.5.1.yaml
+kubectl delete -f metric-server.yaml
+kubectl delete -f ingress.yaml
+kubectl delete secret appingress-certificate -n kubernetes-dashboard
+kubectl delete secret kubernetes-dashboard-certs -n kubernetes-dashboard
 
 #Create a service account which is having cluster admin role to group dashboard:masters,
 #This service account will be granted to kubernetes dashboard user
@@ -46,10 +50,10 @@ kubectl -n kubernetes-dashboard create secret generic kubernetes-dashboard-certs
 --from-file=tls.crt=dashboard.crt \
 --from-file=tls.key=dashboard.key
 
-cat v2.5.1.yaml | envsubst | kubectl apply -f -
-kubectl apply -f metric-server.yaml
+cat v2.5.1.yaml | envsubst | kubectl create -f -
+kubectl create -f metric-server.yaml
 
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n kubernetes-dashboard
-cat ingress.yaml | envsubst | kubectl apply -f -
+cat ingress.yaml | envsubst | kubectl create -f -
 
 popd
