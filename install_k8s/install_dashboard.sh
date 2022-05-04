@@ -33,6 +33,12 @@ openssl genrsa -out dashboard.key 4096
 openssl req -new -key dashboard.key -out dashboard.csr -subj "/CN=dashboard/O=dashboard:masters"
 openssl x509 -req -in dashboard.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out dashboard.crt -days 7200
 
+#below would create user named ingress with group assigned as ingress
+openssl genrsa -out ${APP_HOST}.key 4096
+openssl req -new -key ${APP_HOST}.key -out ${APP_HOST}.csr -subj "/CN=${APP_HOST}" \
+-addext "subjectAltName = DNS:${APP_HOST}"
+openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${APP_HOST}.crt -days 7200
+
 #Certificates for dashboard user(created above) will be mounted in the pod as secret for
 # authenticating dashbaord user with kubernetes api-server
 kubectl create ns kubernetes-dashboard
@@ -42,5 +48,8 @@ kubectl -n kubernetes-dashboard create secret generic kubernetes-dashboard-certs
 
 cat v2.5.1.yaml | envsubst | kubectl apply -f -
 kubectl apply -f metric-server.yaml
+
+kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n kubernetes-dashboard
+cat ingress.yaml | envsubst | kubectl apply -f -
 
 popd
