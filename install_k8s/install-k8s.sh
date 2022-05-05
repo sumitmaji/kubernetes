@@ -89,7 +89,6 @@ sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 kubectl apply -f https://projectcalico.docs.tigera.io/manifests/calico.yaml
 
 alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
-kcd name_space
 
 echo << "EOF"
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
