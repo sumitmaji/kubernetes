@@ -3,6 +3,7 @@ kind: Ingress
 metadata:
   annotations:
     ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     nginx.org/ssl-backends: "kubernetes-dashboard"
     kubernetes.io/ingress.allow-http: "false"
@@ -19,7 +20,7 @@ spec:
                 name: kubernetes-dashboard
                 port:
                   number: 443
-            path: /dashboard
+            path: /
             pathType: Prefix
   tls:
     - hosts:
