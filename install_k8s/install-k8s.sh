@@ -68,7 +68,8 @@ cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
 deb http://apt.kubernetes.io/ kubernetes-xenial main
 EOF
 apt-get update
-apt-get install -y kubelet kubeadm kubectl
+#Kubernets version 1.24.0 is working properly, downgrading to 1.23.0
+apt-get install -qy kubelet=1.23.0-00 kubeadm=1.23.0-00 kubectl=1.23.0-00 --allow-downgrades
 
 kubeadm version
 kubeadm config images pull
