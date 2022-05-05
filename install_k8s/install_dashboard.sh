@@ -15,7 +15,7 @@ kubectl delete -f ingress.yaml
 kubectl delete secret appingress-certificate -n kubernetes-dashboard
 kubectl delete secret kubernetes-dashboard-certs -n kubernetes-dashboard
 
-sleep 15000
+sleep 15
 #Create a service account which is having cluster admin role to group dashboard:masters,
 #This service account will be granted to kubernetes dashboard user
 cat <<EOF | kubectl create -f -
