@@ -8,7 +8,7 @@ pushd $WORKING_DIR/prometheus-graphana
 kubectl delete -f setup
 kubectl delete -f ../prometheus-graphana
 kubectl delete -f ingress
-kubectl delete secret graphanaingress-certificate -n monitoring
+kubectl delete secret grafanaingress-certificate -n monitoring
 
 sleep 15
 
@@ -19,7 +19,7 @@ openssl req -new -key ${GRAFANA_HOST}.key -out ${GRAFANA_HOST}.csr -subj "/CN=${
 -addext "subjectAltName = DNS:${GRAFANA_HOST}"
 openssl x509 -req -in ${GRAFANA_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${GRAFANA_HOST}.crt -days 7200
 
-kubectl create secret tls graphanaingress-certificate --key ${GRAFANA_HOST}.key --cert ${GRAFANA_HOST}.crt -n monitoring
+kubectl create secret tls grafanaingress-certificate --key ${GRAFANA_HOST}.key --cert ${GRAFANA_HOST}.crt -n monitoring
 
 cat ingress/ingress.yaml | envsubst | kubectl create -f -
 kubectl create -f setup
