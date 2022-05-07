@@ -4,7 +4,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     kubernetes.io/ingress.class: "nginx"
-  name: graphana-ingress
+  name: grafana-ingress
   namespace: monitoring
 spec:
   rules:
@@ -21,4 +21,4 @@ spec:
   tls:
     - hosts:
         - ${GRAFANA_HOST}
-      secretName: graphanaingress-certificate
+      secretName: grafanaingress-certificate
