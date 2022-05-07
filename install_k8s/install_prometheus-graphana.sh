@@ -22,7 +22,7 @@ kubectl create secret tls graphanaingress-certificate --key ${GRAPHANA_HOST}.key
 
 cat ingress/ingress.yaml | envsubst | kubectl create -f -
 kubectl create -f setup
-kubectl cretae -f ../prometheus-graphana
+kubectl create -f ../prometheus-graphana
 kubectl delete networkpolicy graphana -n monitoring
 
 #https://computingforgeeks.com/setup-prometheus-and-grafana-on-kubernetes/
