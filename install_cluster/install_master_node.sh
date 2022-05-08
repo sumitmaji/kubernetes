@@ -247,12 +247,14 @@ then
 `sed -i '/broadcast 11.0.0.254/ a\pre-up iptables-restore < /etc/iptables.rules' /etc/network/interfaces`
 fi
 
-ssh-keygen -q -N "" -t rsa -f ~/.ssh/id_rsa
-cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
+if [ "$ENV" == "LOCAL" ]; then
+      ssh-keygen -q -N "" -t rsa -f ~/.ssh/id_rsa
+      cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
 
-useradd -m admin
-cp ~/.ssh/ /home/admin/ -r
-chown -R admin /home/admin/
+      useradd -m admin
+      cp ~/.ssh/ /home/admin/ -r
+      chown -R admin /home/admin/
+fi
 
 
 #################################
