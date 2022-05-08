@@ -1,8 +1,11 @@
 apiServer:
+  certSANs:
+  - "master.cloud.com"
+  - "11.0.0.1"
   extraArgs:
     authorization-mode: Node,RBAC
     service-node-port-range: 30000-32767
-#Below 2 properties causing issue
+    #Below 2 properties causing issue
 #    authorization-rbac-super-user: admin
 #    admission-control: NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota
     enable-swagger-ui: "true"
