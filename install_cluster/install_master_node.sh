@@ -1,13 +1,21 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
 
-while [ $# -gt 0 ]
-do
+: ${ENV:="LOCAL"}
+while [ $# -gt 0 ]; do
     case "$1" in
-        '-h')  CLOUD_HOST_IP="$2";;
+        -h | --host)
+        shift
+        CLOUD_HOST_IP=$1
+        ;;
+        -e | --env)
+        shift
+        ENV=$1
+        ;;
     esac
-    shift
+shift
 done
+
 
 if [ -z "$CLOUD_HOST_IP" ]
 then
@@ -22,6 +30,9 @@ echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-too
 apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools
 
 
+
+if [ "$ENV" == "LOCAL" ]
+then
 rm /etc/netplan/00-installer-config.yaml
 touch /etc/netplan/00-installer-config.yaml
 cat >> /etc/netplan/00-installer-config.yaml << EOF
@@ -36,9 +47,8 @@ EOF
 netplan generate
 netplan apply
 
-
-
 sed -i 's/master$/master.cloud.com/' /etc/hostname
+hostnamectl set-hostname master.cloud.com
 
 touch /etc/network/interfaces
 STATUS="$(grep "##ethernet setup completed" /etc/network/interfaces)"
@@ -60,6 +70,24 @@ sed -i 's/\(127.0.1.1\)\(.*master.*\)/'"$CLOUD_HOST_IP"' master.cloud.com/' /etc
 echo "Activating eth0 ethernet"
 ifup enp0s3
 
+elif [ "$ENV" == "CLOUD" ]; then
+    sudo touch /etc/systemd/network/eth2.netdev
+    sudo touch /etc/systemd/network/eth2.network
+    cat <<EOF >/etc/systemd/network/eth2.network
+[Match]
+Name=eth2
+[Network]
+Address=11.0.0.1
+Mask=255.255.255.0
+EOF
+    cat <<EOF >/etc/systemd/network/eth2.netdev
+[NetDev]
+Name=eth2
+Kind=dummy
+EOF
+    systemctl restart systemd-networkd
+
+fi
 
 STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
 if [ -z "$STATUS" ]
@@ -206,7 +234,12 @@ service isc-dhcp-server restart
 
 echo "1" > /proc/sys/net/ipv4/ip_forward
 sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
-iptables -t nat -A POSTROUTING -o enp0s8 -j MASQUERADE
+if [ "$ENV" == "LOCAL" ]; then
+  iptables -t nat -A POSTROUTING -o enp0s8 -j MASQUERADE
+elif [ "$ENV" == "CLOUD" ]; then
+   iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+fi
+
 iptables-save > /etc/iptables.rules
 STATUS="$(grep "pre-up iptables-restore < /etc/iptables.rules" /etc/network/interfaces)"
 if [ -z "$STATUS" ]
