@@ -60,6 +60,9 @@ sudo systemctl daemon-reload
 sudo systemctl restart docker
 sudo systemctl enable docker
 
+#Installing haproxy
+./install_haproxy.sh
+
 
 echo "Installing Kubernetes"
 apt-get update && apt-get install -y apt-transport-https
