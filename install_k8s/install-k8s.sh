@@ -93,44 +93,6 @@ kubectl apply -f https://projectcalico.docs.tigera.io/manifests/calico.yaml
 
 alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
 
-#Adding custom dns server
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-data:
-  Corefile: |
-    .:53 {
-        errors
-        health {
-           lameduck 5s
-        }
-        ready
-        kubernetes cloud.uat in-addr.arpa ip6.arpa {
-           pods insecure
-           fallthrough in-addr.arpa ip6.arpa
-           ttl 30
-        }
-        prometheus :9153
-        forward . /etc/resolv.conf {
-           max_concurrent 1000
-        }
-        cache 30
-        loop
-        reload
-        loadbalance
-    }
-    cloud.com:53 {
-        errors
-        cache 30
-        forward . 11.0.0.1
-    }
-kind: ConfigMap
-metadata:
-  name: coredns
-  namespace: kube-system
-EOF
-
-kubectl delete pod --namespace kube-system -l k8s-app=kube-dns
-
 echo << "EOF"
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
  |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
