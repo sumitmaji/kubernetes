@@ -42,6 +42,13 @@ kubectl create -f nginx-ingress-controller-deployment.yaml -n=ingress
 kubectl create -f nginx-ingress.yaml -n=ingress
 kubectl create -f nginx-ingress-controller-service.yaml -n=ingress
 
+output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}'`
+while [ "$output" != "true" ]; do
+    echo "Ingress controller service is not up, will check again after 5seconds"
+    sleep 5
+    output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}'`
+done
+
 #Example app
 kubectl create -f example/
 
