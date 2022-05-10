@@ -6,8 +6,6 @@ source $WORKING_DIR/config
 
 ./install-k8s.sh
 
-./install_haproxy.sh
-
 ./install_ingress.sh
 
 ./install_dashboard.sh
