@@ -27,6 +27,15 @@ kubectl apply -f default-backend-deployment.yaml -f default-backend-service.yaml
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n ingress-nginx
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
 
+output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}'`
+
+while [ "$output" != "true" ]; do
+    echo "Ingress controller service is not up, will check again after 5seconds"
+    sleep 5
+    output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}'`
+done
+
+
 #Example app
 cat example/app-ingress.yaml | \
 envsubst | \
