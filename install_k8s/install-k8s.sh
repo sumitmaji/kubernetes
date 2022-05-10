@@ -136,7 +136,7 @@ JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
 NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
 kubectl taint node ${NODE_NAME} node-role.kubernetes.io/master:NoSchedule-
 
-echo << "EOF"
+echo << EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
  |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
  |    |   |  |_\  ___/ / __ \_\___ \\  ___/   \     / / __ \|  ||  |    |  |(  <_> |  | \/  |   | |  Y Y  |  |   |  \
