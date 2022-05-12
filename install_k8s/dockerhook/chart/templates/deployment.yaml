@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "dockerhook.fullname" . }}
+  labels:
+    app: {{ template "dockerhook.name" . }}
+    chart: {{ template "dockerhook.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "dockerhook.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "dockerhook.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      hostname: {{ template "dockerhook.name" . }}
+      volumes:
+      - name: dockersock
+        hostPath:
+          path: /var/run/docker.sock
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+#          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ui
+              containerPort: 5002
+              protocol: TCP
+#          env:
+#          - name: LDAP_PASSWORD
+#            valueFrom:
+#              secretKeyRef:
+#                name: dockerhooksecret
+#                key: password
+#          - name: KERB_ADMIN_PASS
+#            valueFrom:
+#              secretKeyRef:
+#                name: krbsecret
+#                key: password
+          # livenessProbe:
+          #   exec:
+          #     command: ['dockerhooksearch', '-LLLQY EXTERNAL -H dockerhooki:/// -b cn=config "(|(cn=config)(olcDatabase={1}hdb))"']
+          #   initialDelaySeconds: 20
+#          readinessProbe:
+#            exec:
+#              command:
+#              - curl
+#              - -k
+#              - dockerhooks://dockerhook:636/
+#            initialDelaySeconds: 30
+#            periodSeconds: 10
+          volumeMounts:
+          - name: dockersock
+            mountPath: /var/run/docker.sock
+            readOnly: true
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
