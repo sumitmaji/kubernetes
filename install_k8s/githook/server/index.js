@@ -33,6 +33,14 @@ function verifyPostData(req, res, next) {
   return next();
 }
 
+app.get('/health', (req, res) => {
+  console.log(req.body.toString('utf8'));
+  res.send({
+    Hi: 'Git Hook is up.'
+  })
+});
+
+
 
 app.post('/payload', verifyPostData, (req, res) => {
 
