@@ -34,7 +34,7 @@ app.post('/event', (req, res) => {
   })
 });
 
-app.get('/', (req, res) => {
+app.get('/health', (req, res) => {
   console.log(req.body.toString('utf8'));
   res.send({
     Hi: 'Registry Hook is up.'
