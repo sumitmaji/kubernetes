@@ -1,7 +1,6 @@
 #!/bin/bash
 
 source config
-source scripts/config
 
 : ${PATH_TO_CHART:=chart}
 
