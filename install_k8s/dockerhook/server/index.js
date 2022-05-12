@@ -46,6 +46,14 @@ function execAsync(cmd, opts = {}) {
   });
 }
 
+app.get('/health', (req, res) => {
+  console.log(req.body.toString('utf8'));
+  res.send({
+    Hi: 'Docker Hook is up.'
+  })
+});
+
+
 function submitDeploymentReq(url, rep, branch){
   var data = JSON.stringify({
     payload: {
