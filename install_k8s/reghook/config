@@ -2,3 +2,4 @@ IMAGE_NAME=sumit/reghook
 REPO_NAME=master.cloud.com:5000/reghook
 CONTAINER_NAME=reghook
 BUILD_PATH=/tmp
+RELEASE_NAME=reghook

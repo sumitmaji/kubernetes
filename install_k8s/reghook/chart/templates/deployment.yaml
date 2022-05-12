@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "reghook.fullname" . }}
+  labels:
+    app: {{ template "reghook.name" . }}
+    chart: {{ template "reghook.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "reghook.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "reghook.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      hostname: {{ template "reghook.name" . }}
+      volumes:
+      - name: kubeconfig
+        hostPath:
+          path: /root/.kube/config
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+#          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ui
+              containerPort: 5003
+              protocol: TCP
+#          env:
+#          - name: LDAP_PASSWORD
+#            valueFrom:
+#              secretKeyRef:
+#                name: reghooksecret
+#                key: password
+#          - name: KERB_ADMIN_PASS
+#            valueFrom:
+#              secretKeyRef:
+#                name: krbsecret
+#                key: password
+          # livenessProbe:
+          #   exec:
+          #     command: ['reghooksearch', '-LLLQY EXTERNAL -H reghooki:/// -b cn=config "(|(cn=config)(olcDatabase={1}hdb))"']
+          #   initialDelaySeconds: 20
+#          readinessProbe:
+#            exec:
+#              command:
+#              - curl
+#              - -k
+#              - reghooks://reghook:636/
+#            initialDelaySeconds: 30
+#            periodSeconds: 10
+          volumeMounts:
+          - name: kubeconfig
+            mountPath: /root/.kube/config
+            readOnly: true
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
