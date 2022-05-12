@@ -1,14 +1,23 @@
-from ubuntu:xenial
+FROM ubuntu:focal
 
-RUN apt-get update \
-&& apt-get install -y curl \
-&& curl -sL https://deb.nodesource.com/setup_8.x | bash - \
+LABEL sum.label-schema.vcs-url="https://github.com/sumitmaji/dockerhook.git"
+
+RUN apt-get update && apt-get install -y net-tools apt-utils ca-certificates software-properties-common
+
+RUN apt-get update && apt-get install -y apt-transport-https \
+&& apt-get install -y curl wget \
+&& curl -sL https://deb.nodesource.com/setup_14.x | bash - \
 && apt-get install -y docker.io \
+&& curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+&& apt-get install -y \
 nodejs \
 git \
+socat \
 build-essential \
 && apt-get clean \
 && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+#Install Docker
 
 RUN node -v
 
