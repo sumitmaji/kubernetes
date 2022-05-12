@@ -14,7 +14,7 @@ spec:
   - port: 5001
     protocol: TCP
     name: ui
-    nodePort: 32501
+    #nodePort: 32501
   selector:
     app: {{ template "githook.name" . }}
     release: {{ .Release.Name }}
