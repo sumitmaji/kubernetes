@@ -7,7 +7,7 @@ source $WORKING_DIR/config
 #Setup registry
 pushd $WORKING_DIR/registry
 
-chmod +x *.sh
+chmod +x master.sh
 ./master.sh
 
 popd
