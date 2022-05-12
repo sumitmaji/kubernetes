@@ -1,0 +1,36 @@
+version: 0.1
+log:
+  accesslog:
+    disabled: true
+  level: debug
+  formatter: text
+  fields:
+    service: registry
+    environment: staging
+storage:
+  cache:
+    blobdescriptor: inmemory
+  filesystem:
+    rootdirectory: /var/lib/registry
+http:
+  addr: :5000
+  headers:
+    X-Content-Type-Options: [nosniff]
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
+notifications:
+  endpoints:
+    - name: notifiers
+      disabled: true
+      url: http://11.0.0.2:5003/event
+      #      headers:
+      #        Accept:
+      #          - application/vnd.docker.distribution.manifest.v2+json
+      timeout: 15000
+      threshold: 5
+      backoff: 1000
+      ignoredmediatypes:
+        - application/octet-stream
