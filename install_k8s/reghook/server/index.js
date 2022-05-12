@@ -34,6 +34,13 @@ app.post('/event', (req, res) => {
   })
 });
 
+app.post('/', (req, res) => {
+  console.log(req.body.toString('utf8'));
+  res.send({
+    Hi: 'Registry Hook is up.'
+  })
+});
+
 app.post('/deploy', (req, res) => {
   var data = JSON.parse(req.body.toString('utf8'));
   var {
