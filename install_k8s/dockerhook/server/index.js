@@ -64,7 +64,7 @@ function submitDeploymentReq(url, rep, branch){
   });
 
   var options = {
-     host: '11.0.0.1',
+     host: 'reghook.default.svc',
      port: 5003,
      method: 'POST',
      path: '/deploy',
