@@ -1,4 +1,5 @@
 #!/bin/bash
+[[ "TRACE" ]] && set -x
 
 : ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_k8s}
 
