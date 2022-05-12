@@ -7,6 +7,7 @@ source $WORKING_DIR/config
 #Setup registry
 pushd $WORKING_DIR/registry
 
+chmod +x *.sh
 ./master.sh
 
 popd
@@ -16,6 +17,7 @@ popd
 #Setup DockerHook
 pushd $WORKING_DIR/dockerhook
 
+chmod +x *.sh
 ./run_dockerhook.sh
 
 popd
@@ -23,6 +25,7 @@ popd
 #Setup RegistryHook
 pushd $WORKING_DIR/reghook
 
+chmod +x *.sh
 ./run_reghook.sh
 
 popd
