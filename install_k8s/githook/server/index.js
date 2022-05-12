@@ -46,7 +46,7 @@ app.post('/payload', verifyPostData, (req, res) => {
 
   var data = JSON.stringify(req.body);
   var options = {
-    host: '192.168.1.7',
+    host: 'dockerhook.default.svc',
     port: 5002,
     method: 'POST',
     path: '/process',
@@ -73,6 +73,7 @@ app.post('/payload', verifyPostData, (req, res) => {
 
 app.use((err, req, res, next) => {
   console.log('In Error')
+  console.log(err)
   res.status(403).send(err);
 })
 
