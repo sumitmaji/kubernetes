@@ -20,7 +20,7 @@ function verifyPostData(req, res, next) {
   if (!payload) {
     return next('Request body empty')
   }
-
+  console.log(process.env.GITHUB_SECRET)
   const hmac = crypto.createHmac('sha1', process.env.GITHUB_SECRET);
   const digest = 'sha1=' + hmac.update(payload).digest('hex');
 
