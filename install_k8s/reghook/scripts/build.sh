@@ -35,8 +35,8 @@ git clone -b $BRANCH $URL/${REP}.git
 pushd $REP
 source configuration
 if [[ $DEPLOY == "true" ]]; then
-  helm del --purge $RELEASE_NAME
-  helm install $PATH_TO_CHART --name $RELEASE_NAME
+  helm uninstall $RELEASE_NAME
+  helm install $RELEASE_NAME $PATH_TO_CHART
 fi
 popd
 popd
