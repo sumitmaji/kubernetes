@@ -10,7 +10,7 @@ image:
   pullPolicy: IfNotPresent
 
 service:
-  type: clusterIP
+  type: ClusterIP
   port: 5003
 
 ingress:
