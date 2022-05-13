@@ -4,10 +4,14 @@
 
 source $WORKING_DIR/config
 
+chmod +x *.sh
+
 ./install-k8s.sh
 
 ./install_ingress.sh
 
 ./install_dashboard.sh
 
-./install_prometheus-graphana.sh
+./setUp-Devops.sh
+
+#./install_prometheus-graphana.sh
