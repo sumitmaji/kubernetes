@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/ldap
+REGISTRY=master.cloud.com:5000
+REPO_NAME=ldap
+CONTAINER_NAME=ldap
+BUILD_PATH=/tmp
+RELEASE_NAME=ldap
+PATH_TO_CHART=chart
+DEPLOY=true

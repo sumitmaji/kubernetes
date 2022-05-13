@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ldap.fullname" . }}
+  labels:
+    app: {{ template "ldap.name" . }}
+    chart: {{ template "ldap.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "ldap.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "ldap.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      hostname: {{ template "ldap.name" . }}
+      volumes:
+      - name: ldapsecret
+        secret:
+          secretName: ldapsecret
+      - name: krbsecret
+        secret:
+          secretName: krbsecret
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+#          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ui
+              containerPort: 8181
+              protocol: TCP
+            - name: search
+              containerPort: 389
+              protocol: TCP
+            - name: ssh22
+              containerPort: 22
+              protocol: TCP
+            - name: ssh2122
+              containerPort: 2122
+              protocol: TCP
+            - name: ssl-tcp
+              containerPort: 636
+              protocol: TCP
+            - name: ssl-udp
+              containerPort: 636
+              protocol: UDP
+#          env:
+#          - name: LDAP_PASSWORD
+#            valueFrom:
+#              secretKeyRef:
+#                name: ldapsecret
+#                key: password
+#          - name: KERB_ADMIN_PASS
+#            valueFrom:
+#              secretKeyRef:
+#                name: krbsecret
+#                key: password
+          # livenessProbe:
+          #   exec:
+          #     command: ['ldapsearch', '-LLLQY EXTERNAL -H ldapi:/// -b cn=config "(|(cn=config)(olcDatabase={1}hdb))"']
+          #   initialDelaySeconds: 20
+          readinessProbe:
+            exec:
+              command:
+              - curl
+              - -k
+              - ldaps://ldap:636/
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+          - name: ldapsecret
+            mountPath: /etc/secret/ldap/
+            readOnly: true
+          - name: krbsecret
+            mountPath: /etc/secret/krb/
+            readOnly: true
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
