@@ -36,6 +36,7 @@ spec:
             backend:
               service:
                 name: {{ $fullName }}
-                port: {{ $servicePort }}
+                port:
+                  number: {{ $servicePort }}
   {{- end }}
 {{- end }}
