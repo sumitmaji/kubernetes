@@ -14,6 +14,13 @@ chmod +x master.sh
 popd
 
 #Setup GitHook
+pushd $WORKING_DIR/githook
+
+chmod +x *.sh
+./run_githook.sh
+
+popd
+
 
 #Setup DockerHook
 pushd $WORKING_DIR/dockerhook
