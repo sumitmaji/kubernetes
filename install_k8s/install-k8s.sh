@@ -139,7 +139,7 @@ kubectl taint node ${NODE_NAME} node-role.kubernetes.io/master:NoSchedule-
 
 
 #Installing helm
-RUN curl https://baltocdn.com/helm/signing.asc | apt-key add - \
+curl https://baltocdn.com/helm/signing.asc | apt-key add - \
 && apt-get install apt-transport-https --yes \
 && echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list \
 && apt-get update \
