@@ -136,6 +136,18 @@ JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
 NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
 kubectl taint node ${NODE_NAME} node-role.kubernetes.io/master:NoSchedule-
 
+
+
+#Installing helm
+RUN curl https://baltocdn.com/helm/signing.asc | apt-key add - \
+&& apt-get install apt-transport-https --yes \
+&& echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list \
+&& apt-get update \
+&& apt-get install helm \
+&& helm version --short \
+&& helm repo add stable https://charts.helm.sh/stable
+
+
 echo << EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
  |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
