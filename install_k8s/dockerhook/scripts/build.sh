@@ -42,8 +42,14 @@ pushd /$BUILD_PATH/$NUMBER
 git clone -b $BRANCH $URL/${REP}.git
 pushd $REP
 source configuration
-chmod +x build.sh
-./build.sh
+
+if [ "$BUILD_TYPE" == "REACT" ]; then
+    cp /usr/src/app/scripts/Dockerfile_React ./Dockerfile
+    sed -i "s/__PATH__/$APPNAME/g" Dockerfile
+    sed -i "s/__PORT__/$REACT_APP_PORT/g" Dockerfile
+    docker build -t $IMAGE_NAME .
+fi
+
 if [ $? -eq 0 ]
 then
 docker tag $IMAGE_NAME master.cloud.com:5000/$REPO_NAME
