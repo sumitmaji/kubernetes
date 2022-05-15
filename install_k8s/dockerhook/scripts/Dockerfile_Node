@@ -17,4 +17,4 @@ COPY __PATH__/index.js ./
 
 EXPOSE __PORT__
 
-CMD [ "npm", "start" ]
+CMD [ "PORT=__PORT__", "node", "index.js" ]
