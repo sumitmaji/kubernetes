@@ -16,6 +16,4 @@ COPY --from=backend-build ${DEPENDENCY}/BOOT-INF/lib /app/lib
 COPY --from=backend-build ${DEPENDENCY}/META-INF /app/META-INF
 COPY --from=backend-build ${DEPENDENCY}/BOOT-INF/classes /app
 
-ENTRYPOINT ["java", "-cp", "app:app/lib/*", "com.sum.rest.webservices.restfulwebservices.RestfulWebservicesApplication"]
-
-
+ENTRYPOINT ["java", "-cp", "app:app/lib/*", "com.sum.rest.webservices.restfulwebservices.RestfulWebServicesApplication"]
