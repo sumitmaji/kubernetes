@@ -1,2 +1,3 @@
 BUILD_PATH=/tmp
 BRANCH=master
+APP_PORT=8001
