@@ -132,6 +132,9 @@ alias kcd='kubectl config set-context $(kubectl config current-context) --namesp
 #kubectl delete pod --namespace kube-system -l k8s-app=kube-dns
 
 : ${IP:=$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+if [ -z "$IP" ]; then
+    : ${IP:=$(ifconfig enp0s8 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+fi
 JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
 NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
 kubectl taint node ${NODE_NAME} node-role.kubernetes.io/master:NoSchedule-
