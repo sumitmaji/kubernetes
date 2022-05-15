@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: "nginx"
+  name: app-ingress
+  namespace: default
+spec:
+  rules:
+  - host: $APP_HOST
+    http:
+      paths:
+      - backend:
+          service:
+            name: appsvc1
+            port:
+              number: 80
+        path: /app1
+        pathType: Prefix
+      - backend:
+          service:
+            name: appsvc2
+            port:
+              number: 80
+        path: /app2
+        pathType: Prefix
+  tls:
+  - hosts:
+    - $APP_HOST
+    secretName: appingress-certificate

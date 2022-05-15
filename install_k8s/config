@@ -1,0 +1,12 @@
+export NUMBER_OF_HOSTS=1
+export CLUSTER_NAME=cloud.com
+export DNS_DOMAIN=cloud.uat
+export CERTIFICATE_PATH=/etc/kubernetes/pki
+export SERVER_DNS=master.cloud.com,node01.cloud.com,kubernetes.default.svc,kubernetes.default,kubernetes,kubernetes.default.svc.cloud,kubernetes.default.svc.cloud.uat,localhost,master,node01
+export SERVER_IP="$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')",127.0.0.1,11.0.0.1
+export HA_PROXY_PORT=6643
+export HA_PROXY_HOSTNAME=11.0.0.1
+export LOAD_BALANCER_URL=${HA_PROXY_HOSTNAME}:${HA_PROXY_PORT}
+export APP_HOST=master.cloud.com
+export GRAFANA_HOST=grafana.cloud.com
+export API_SERVERS="$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')":master.cloud.com

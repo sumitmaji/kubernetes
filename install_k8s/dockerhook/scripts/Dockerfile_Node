@@ -1,0 +1,20 @@
+FROM node:carbon
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Install app dependencies
+# A wildcard is used to ensure both package.json AND package-lock.json are copied
+# where available (npm@5+)
+COPY __PATH__/package*.json ./
+ENV PORT __PORT__
+RUN export PORT=__PORT__
+RUN npm install
+# If you are building your code for production
+# RUN npm install --only=production
+
+COPY __PATH__/index.js ./
+
+EXPOSE __PORT__
+
+CMD [ "npm", "start" ]

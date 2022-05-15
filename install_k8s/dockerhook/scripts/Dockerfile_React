@@ -1,0 +1,20 @@
+FROM node:7.10 as frontend-build
+
+# Create app directory
+WORKDIR /usr/src/app
+
+# Install app dependencies
+# A wildcard is used to ensure both package.json AND package-lock.json are copied
+# where available (npm@5+)
+COPY __PATH__/package*.json ./
+RUN npm install
+
+# Step 2 - Copy all source and run build
+COPY __PATH__/ ./
+RUN npm run build
+
+## Stage 2 - Let's build a minimal image with the "deployable package"
+FROM nginx:1.12-alpine
+COPY --from=frontend-build /usr/src/app/build /usr/share/nginx/html
+EXPOSE __PORT__
+CMD ["nginx", "-g", "daemon off;"]

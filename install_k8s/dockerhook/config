@@ -1,0 +1,5 @@
+IMAGE_NAME=sumit/dockerhook
+REPO_NAME=master.cloud.com:5000/dockerhook
+CONTAINER_NAME=dockerhook
+BUILD_PATH=/tmp
+RELEASE_NAME=dockerhook

@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "githook.fullname" . }}
+  labels:
+    app: {{ template "githook.name" . }}
+    chart: {{ template "githook.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "githook.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "githook.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      hostname: {{ template "githook.name" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+#          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ui
+              containerPort: 5001
+              protocol: TCP
+#          env:
+#          - name: LDAP_PASSWORD
+#            valueFrom:
+#              secretKeyRef:
+#                name: githooksecret
+#                key: password
+#          - name: KERB_ADMIN_PASS
+#            valueFrom:
+#              secretKeyRef:
+#                name: krbsecret
+#                key: password
+          # livenessProbe:
+          #   exec:
+          #     command: ['githooksearch', '-LLLQY EXTERNAL -H githooki:/// -b cn=config "(|(cn=config)(olcDatabase={1}hdb))"']
+          #   initialDelaySeconds: 20
+#          readinessProbe:
+#            exec:
+#              command:
+#              - curl
+#              - -k
+#              - githooks://githook:636/
+#            initialDelaySeconds: 30
+#            periodSeconds: 10
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

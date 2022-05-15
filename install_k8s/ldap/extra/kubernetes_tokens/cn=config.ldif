@@ -1,0 +1,36 @@
+# AUTO-GENERATED FILE - DO NOT EDIT!! Use ldapmodify.
+# CRC32 84151ece
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcConfigFile: /kubernetes_tokens/schema_convert.conf
+olcConfigDir: /kubernetes_tokens
+olcAttributeOptions: lang-
+olcAuthzPolicy: none
+olcConcurrency: 0
+olcConnMaxPending: 100
+olcConnMaxPendingAuth: 1000
+olcGentleHUP: FALSE
+olcIdleTimeout: 0
+olcIndexSubstrIfMaxLen: 4
+olcIndexSubstrIfMinLen: 2
+olcIndexSubstrAnyLen: 4
+olcIndexSubstrAnyStep: 2
+olcIndexIntLen: 4
+olcLocalSSF: 71
+olcReadOnly: FALSE
+olcReverseLookup: FALSE
+olcSaslSecProps: noplain,noanonymous
+olcSockbufMaxIncoming: 262143
+olcSockbufMaxIncomingAuth: 16777215
+olcThreads: 16
+olcTLSVerifyClient: never
+olcToolThreads: 1
+olcWriteTimeout: 0
+structuralObjectClass: olcGlobal
+entryUUID: 74cffdbc-0bb3-1038-926a-755766a75663
+creatorsName: cn=config
+createTimestamp: 20180624043315Z
+entryCSN: 20180624043315.763575Z#000000#000#000000
+modifiersName: cn=config
+modifyTimestamp: 20180624043315Z

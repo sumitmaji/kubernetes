@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.class: "nginx"
+  name: grafana-ingress
+  namespace: monitoring
+spec:
+  rules:
+    - host: ${GRAFANA_HOST}
+      http:
+        paths:
+          - backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+            path: /
+            pathType: Prefix
+  tls:
+    - hosts:
+        - ${GRAFANA_HOST}
+      secretName: grafanaingress-certificate

@@ -58,6 +58,7 @@ openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out s
 openssl x509 -noout -text -in server.crt
 
 
+#Install certificates for the services, master host and admin user
 for user in admin kube-proxy kubelet kube-controller-manager kube-scheduler master.cloud.com
 do
     openssl genrsa -out ${user}.key 2048
@@ -79,7 +80,7 @@ unset IFS
 
 echo "admin,admin,admin" > basic_auth.csv
 
-#Install worker nodes
+#Install peer certificates for etcd server
 IFS=','
 for worker in $ETCD_CLUSTERS_CERTS; do
  oifs=$IFS
@@ -91,7 +92,7 @@ for worker in $ETCD_CLUSTERS_CERTS; do
 done
 unset IFS
 
-#Install worker nodes
+#Install peer certificates for etcd client
 IFS=','
 for worker in $NODES; do
  oifs=$IFS

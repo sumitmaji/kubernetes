@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ldapclient2.fullname" . }}
+  labels:
+    app: {{ template "ldapclient2.name" . }}
+    chart: {{ template "ldapclient2.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "ldapclient2.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "ldapclient2.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      hostname: {{ template "ldapclient2.name" . }}
+      volumes:
+      - name: ldapsecret
+        secret:
+          secretName: ldapsecret
+      - name: krbsecret
+        secret:
+          secretName: krbsecret
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["/utility/ldap/bootstrap.sh"]
+          args: ["-d"]
+          securityContext:
+            capabilities:
+              add:
+                - ALL
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+    {{- if .Values.service.ports }}
+          ports:
+          {{- range .Values.service.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .port }}
+              protocol: {{ .protocol }}
+          {{- end }}
+    {{- end }}
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: http
+          # readinessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: http
+          volumeMounts:
+          - name: ldapsecret
+            mountPath: /etc/secret/ldap/
+            readOnly: true
+          - name: krbsecret
+            mountPath: /etc/secret/krb/
+            readOnly: true
+          env:
+          - name: LDAP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: ldapsecret
+                key: password
+          - name: KERB_ADMIN_PASS
+            valueFrom:
+              secretKeyRef:
+                name: krbsecret
+                key: password
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

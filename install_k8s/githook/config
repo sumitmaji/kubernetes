@@ -1,0 +1,5 @@
+IMAGE_NAME=sumit/githook
+REPO_NAME=master.cloud.com:5000/githook
+CONTAINER_NAME=githook
+BUILD_PATH=/tmp
+RELEASE_NAME=githook

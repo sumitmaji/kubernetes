@@ -1,0 +1,13 @@
+# kubernetesToken.schema
+attributeType ( 1.3.6.1.4.1.18171.2.1.8
+        NAME 'kubernetesToken'
+        DESC 'Kubernetes authentication token'
+        EQUALITY caseExactIA5Match
+        SUBSTR caseExactIA5SubstringsMatch
+        SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+
+objectClass ( 1.3.6.1.4.1.18171.2.3
+        NAME 'kubernetesAuthenticationObject'
+        DESC 'Object that may authenticate to a Kubernetes cluster'
+        AUXILIARY
+        MUST kubernetesToken )

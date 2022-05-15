@@ -1,31 +1,72 @@
 #!/bin/bash
+[[ "TRACE" ]] && set -x
 
-STATUS=`grep "auto eth0" /etc/network/interfaces`
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -n | --node)
+        shift
+        NODE_NAME=$1
+        ;;
+        -i | --ipaddress)
+        shift
+        IP_ADDRESS=$1
+        ;;
+    esac
+shift
+done
+
+if [ -z "$NODE_NAME" ]
+then
+	echo "Please provide node name"
+	exit 0
+fi
+
+apt-get update
+apt-get install -y net-tools ifupdown openssh-client openssh-server
+
+rm /etc/netplan/00-installer-config.yaml
+touch /etc/netplan/00-installer-config.yaml
+cat >> /etc/netplan/00-installer-config.yaml << EOF
+network:
+  renderer: networkd
+  ethernets:
+    enp0s3:
+      dhcp4: true
+      optional: true
+  version: 2
+EOF
+netplan generate
+netplan apply
+
+touch /etc/network/interfaces
+STATUS=`grep "auto enp0s3" /etc/network/interfaces`
 if [ -z "$STATUS" ]
 then
-`sed -i '$a\auto eth0' /etc/network/interfaces`
-`sed -i '$a\iface eth0 inet dhcp' /etc/network/interfaces`
+`sed -i '$a\auto enp0s3' /etc/network/interfaces`
+`sed -i '$a\iface enp0s3 inet dhcp' /etc/network/interfaces`
 fi
 
-if [ ! -f /etc/dhcp/dhclient-eth0.conf ]
+if [ ! -f /etc/dhcp/dhclient-enp0s3.conf ]
 then
-touch /etc/dhcp/dhclient-eth0.conf
+touch /etc/dhcp/dhclient-enp0s3.conf
 fi
 
-STATUS=`grep -i "send fqdn.fqdn "node01";" /etc/dhcp/dhclient-eth0.conf`
+STATUS=`grep -i "send fqdn.fqdn "$NODE_NAME";" /etc/dhcp/dhclient-enp0s3.conf`
 if [ -z "$STATUS" ]
 then
-echo "send fqdn.fqdn \"node01\";" > /etc/dhcp/dhclient-eth0.conf
-echo "send fqdn.encoded on;" >> /etc/dhcp/dhclient-eth0.conf
-echo "send fqdn.server-update off;" >> /etc/dhcp/dhclient-eth0.conf
-echo "also request fqdn.fqdn;" >> /etc/dhcp/dhclient-eth0.conf
+echo "send fqdn.fqdn \"$NODE_NAME\";" > /etc/dhcp/dhclient-enp0s3.conf
+echo "send fqdn.encoded on;" >> /etc/dhcp/dhclient-enp0s3.conf
+echo "send fqdn.server-update off;" >> /etc/dhcp/dhclient-enp0s3.conf
+echo "also request fqdn.fqdn;" >> /etc/dhcp/dhclient-enp0s3.conf
 fi
 
-ifup eth0
+ifup enp0s3
+
+useradd -m admin
 
 if [ ! -d ~/.ssh ]
 then
-scp -r sumit@master:/home/sumit/.ssh .
+scp -r admin@master:/home/admin/.ssh .
 fi
 
 ############################################
@@ -36,13 +77,11 @@ fi
 
 apt-get install -y nfs-common
 
-mkdir /export
+mkdir -p /export
 
-mount master:/root /root
-
-mount master:/home /home
-
-mount master:/export /export
+#mount master:/root /root
+#mount master:/home /home
+#mount master:/export /export
 
 ############################################
 ############################################
@@ -50,8 +89,8 @@ mount master:/export /export
 ############################################
 ############################################
 
-
-apt-get install -y ntp
+apt-get update
+apt-get install -y sntp libopts25 ntp
 
 STATUS=`grep "server master.cloud.com" /etc/ntp.conf`
 if [ -z "$STATUS" ]
@@ -64,21 +103,22 @@ fi
 
 service ntp start
 
-STATUS=`grep "master:/root    /root   nfs     _netdev,x-systemd.automount        0 0" /etc/fstab`
+STATUS=`grep "master:/export    /export   nfs     defaults,_netdev,x-systemd.automount,timeo=14,retry=0        0 0" /etc/fstab`
 if [ -z "$STATUS" ]
 then
-`sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
-`sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
-`sed -i '$a\master:/export    /export   nfs     _netdev,x-systemd.automount        0 0' /etc/fstab`
+#`sed -i '$a\master:/root    /root   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
+#`sed -i '$a\master:/home    /home   nfs     _netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
+`sed -i '$a\master:/export    /export   nfs     defaults,_netdev,x-systemd.automount,timeo=14,retry=0        0 0' /etc/fstab`
 fi
 
-mount /root
+#mount /root
+#mount /home
+#mount /export
+mount -a
 
-mount /home
-
-mount /export
-
-
+echo "$NODE_NAME" > /etc/hostname
+reboot
+exit 0
 ########################################
 ########################################
 #############SETTING GANGLIA############
