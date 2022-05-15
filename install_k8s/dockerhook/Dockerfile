@@ -37,8 +37,7 @@ COPY server/index.js .
 
 
 RUN mkdir -p scripts
-ADD scripts/build.sh scripts/build.sh
-ADD scripts/config scripts/config
+COPY scripts/* scripts/
 RUN chmod +x scripts/build.sh
 
 EXPOSE 5002
