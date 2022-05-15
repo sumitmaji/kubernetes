@@ -47,6 +47,8 @@ if [ "$BUILD_TYPE" == "REACT" ]; then
     cp /usr/src/app/scripts/Dockerfile_React ./Dockerfile
 elif [ "$BUILD_TYPE" == "NODE" ]; then
     cp /usr/src/app/scripts/Dockerfile_Node ./Dockerfile
+elif [ "$BUILD_TYPE" == "SPRING" ]; then
+    cp /usr/src/app/scripts/Dockerfile_Spring ./Dockerfile
 fi
 
 sed -i "s/__PATH__/$APP_SRC_CODE/g" Dockerfile
