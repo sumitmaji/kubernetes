@@ -16,6 +16,10 @@ while [ $# -gt 0 ]; do
 shift
 done
 
+: ${CLOUD_HOST_IP:=$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+if [ -z "$CLOUD_HOST_IP" ]; then
+    : ${CLOUD_HOST_IP:=$(ifconfig enp0s8 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+fi
 
 if [ -z "$CLOUD_HOST_IP" ]
 then
@@ -293,74 +297,3 @@ echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
 echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
 
 rm -rf rndc-key
-
-exit 0
-
-#################################
-#################################
-#######SETTING GANGLIA###########
-#################################
-#################################
-
-apt-get install -y ganglia-monitor rrdtool gmetad ganglia-webfrontend
-
-cp /etc/ganglia-webfrontend/apache.conf /etc/apache2/sites-enabled/ganglia.conf
-
-`sed -i 's/data_source "my cluster" localhost/data_source "cloud" master.cloud.com/' /etc/ganglia/gmetad.conf`
-
-`sed -i 's/name = "unspecified"/name = "cloud"/' /etc/ganglia/gmond.conf`
-
-`sed -i '/udp_send_channel {/,/}/ { s/mcast_join/#mcast_join/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_send_channel {/,/}/ { s/.*mcast_join.*/host = master.cloud.com/}' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/mcast_join/#mcast_join/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/bind/#bind/ }' /etc/ganglia/gmond.conf`
-service ganglia-monitor restart
-
-service gmetad restart
-
-service apache2 restart
-
-
-#################################
-#################################
-###########SETTING LDAP##########
-#################################
-#################################
-
-apt-get install -y slapd ldap-utils
-
-dpkg-reconfigure slapd
-
-apt-get install -y phpldapadmin
-
-`sed -i "s/servers->setValue('server','host','127.0.0.1');/servers->setValue('server','host','master.cloud.com');/" /etc/phpldapadmin/config.php`
-`sed -i "s/servers->setValue('server','base',array('dc=example,dc=com'));/servers->setValue('server','base',array('dc=cloud,dc=com'));/" /etc/phpldapadmin/config.php`
-`sed -i "s/servers->setValue('login','bind_id','cn=admin,dc=example,dc=com');/servers->setValue('login','bind_id','cn=admin,dc=cloud,dc=com');/" /etc/phpldapadmin/config.php`
-`sed -i "s/'appearance','password_hash'/'appearance','password_hash_custom'/" /usr/share/phpldapadmin/lib/TemplateRender.php`
-
-#################################
-#################################
-########SETTING LDAP CLIENT######
-#################################
-#################################
-
-#apt-get install -y libpam-ldap nscd
-sudo apt-get install -y ldap-auth-client nscd
-
-sudo auth-client-config -t nss -p lac_ldap
-
-STATUS=`grep "umask=0022 skel=/etc/skel" /etc/pam.d/common-session`
-
-if [ -z "$STATUS" ]
-then
-`sed -i '/pam_ldap.so/ s/^/session required        pam_mkhomedir.so umask=0022 skel=\/etc\/skel\n/' /etc/pam.d/common-session`
-#`sed -i '$a\session optional        pam_mkhomedir.so        skel=/etc/skel umask=0022' /etc/pam.d/common-session`
-fi
-
-service nscd restart
-
-STATUS=`grep "%admins ALL=(ALL) ALL" /etc/sudoers`
-if [ -z "$STATUS" ]
-then
-`sed -i '/%admin ALL=(ALL) ALL/a\%admins ALL=(ALL) ALL' /etc/sudoers`
-fi
