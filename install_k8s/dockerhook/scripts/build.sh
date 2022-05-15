@@ -53,6 +53,7 @@ fi
 
 sed -i "s/__PATH__/$APP_SRC_CODE/g" Dockerfile
 sed -i "s/__PORT__/$APP_PORT/g" Dockerfile
+sed -i "s/__MAIN_CLASS__/$MAIN_CLASS/g" Dockerfile
 docker build -t $IMAGE_NAME .
 
 
