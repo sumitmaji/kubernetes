@@ -45,10 +45,14 @@ source configuration
 
 if [ "$BUILD_TYPE" == "REACT" ]; then
     cp /usr/src/app/scripts/Dockerfile_React ./Dockerfile
-    sed -i "s/__PATH__/$APP_SRC_CODE/g" Dockerfile
-    sed -i "s/__PORT__/$APP_PORT/g" Dockerfile
-    docker build -t $IMAGE_NAME .
+elif [ "$BUILD_TYPE" == "NODE" ]; then
+    cp /usr/src/app/scripts/Dockerfile_Node ./Dockerfile
 fi
+
+sed -i "s/__PATH__/$APP_SRC_CODE/g" Dockerfile
+sed -i "s/__PORT__/$APP_PORT/g" Dockerfile
+docker build -t $IMAGE_NAME .
+
 
 if [ $? -eq 0 ]
 then

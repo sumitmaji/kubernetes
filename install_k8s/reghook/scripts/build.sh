@@ -39,6 +39,7 @@ source configuration
 find ./ -type f -exec sed -i -e "s/__APPNAME__/$APPNAME/g" {} \;
 find ./ -type f -exec sed -i -e "s/__CONTEXT__/$CONTEXT/g" {} \;
 find ./ -type f -exec sed -i -e "s/__VERSION__/$VERSION/g" {} \;
+find ./ -type f -exec sed -i -e "s/__PORT__/$APP_PORT/g" {} \;
 
 if [[ $DEPLOY == "true" ]]; then
   helm uninstall $RELEASE_NAME

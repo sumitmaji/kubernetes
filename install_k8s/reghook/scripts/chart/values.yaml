@@ -8,11 +8,11 @@ image:
   repository: master.cloud.com:5000/__APPNAME__
   tag: latest
   pullPolicy: Always
-  port: 8001
+  port: __PORT__
 
 service:
   type: ClusterIP
-  port: 8001
+  port: __PORT__
 
 ingress:
   enabled: true
