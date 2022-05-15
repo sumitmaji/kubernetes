@@ -49,6 +49,8 @@ COPY server/index.js .
 RUN mkdir -p scripts
 ADD scripts/build.sh scripts/build.sh
 ADD scripts/config scripts/config
+ADD scripts/chart scripts/chart
+
 RUN chmod +x scripts/build.sh
 ADD rbac.yaml scripts/rbac.yaml
 ADD setup.sh scripts/setup.sh
