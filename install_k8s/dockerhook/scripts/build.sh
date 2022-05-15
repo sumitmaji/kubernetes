@@ -45,8 +45,8 @@ source configuration
 
 if [ "$BUILD_TYPE" == "REACT" ]; then
     cp /usr/src/app/scripts/Dockerfile_React ./Dockerfile
-    sed -i "s/__PATH__/$APPNAME/g" Dockerfile
-    sed -i "s/__PORT__/$REACT_APP_PORT/g" Dockerfile
+    sed -i "s/__PATH__/$APP_SRC_CODE/g" Dockerfile
+    sed -i "s/__PORT__/$APP_PORT/g" Dockerfile
     docker build -t $IMAGE_NAME .
 fi
 
