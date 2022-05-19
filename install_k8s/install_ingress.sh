@@ -43,5 +43,7 @@ kubectl create -f -
 
 kubectl create -f example/app-deployment.yaml
 kubectl create -f example/app-service.yaml
-
+kubectl create -f example/echo-deployment.yaml
+kubectl create -f example/echo-service.yaml
+kubectl create -f example/echo-ingress.yaml
 popd
