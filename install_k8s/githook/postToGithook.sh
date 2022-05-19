@@ -33,7 +33,7 @@ fi
 
 
 
-DATA="{\"ref\": \"refs/heads/master\",\"repository\": {\"name\": \"hlw\",\"owner\": {\"html_url\": \"https://github.com/sumitmaji\"}}}"
+DATA="{\"ref\": \"refs/heads/$BRANCH\",\"repository\": {\"name\": \"$APP\",\"owner\": {\"html_url\": \"https://github.com/sumitmaji\"}}}"
 
 curl --header "Content-Type: application/json" \
   --request POST \
