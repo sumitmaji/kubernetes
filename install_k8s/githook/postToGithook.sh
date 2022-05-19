@@ -26,7 +26,10 @@ then
 	exit 0
 fi
 
-
+: ${IP:=$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+if [ -z "$IP" ]; then
+    : ${IP:=$(ifconfig enp0s8 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+fi
 
 
 
@@ -38,5 +41,8 @@ DATA="{
       "html_url": "https://github.com/sumitmaji"
     }
 }"
-echo $DATA
 
+curl --header "Content-Type: application/json" \
+  --request POST \
+  --data '$DATA' \
+  http://$IP:32501/payload
