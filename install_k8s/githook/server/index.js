@@ -33,12 +33,54 @@ function verifyPostData(req, res, next) {
   return next();
 }
 
+function verifyLocalPostData(req, res, next) {
+  const payload = JSON.stringify(req.body)
+
+  if (!payload) {
+    return next('Request body empty')
+  }
+
+   console.log(payload)
+  return next();
+}
+
+
 app.get('/health', (req, res) => {
   console.log(req.body.toString('utf8'));
   res.send({
     Hi: 'Git Hook is up.'
   })
 });
+
+app.post('/localpayload', verifyLocalPostData, (req, res) => {
+
+  var data = JSON.stringify(req.body);
+  var options = {
+    host: 'dockerhook.default.svc',
+    port: 5002,
+    method: 'POST',
+    path: '/process',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(data)
+    }
+  };
+
+  var httpreq = http.request(options, function(response) {
+    response.setEncoding('utf8');
+    response.on('data', function(chunk) {
+      console.log("body: " + chunk);
+    });
+    response.on('end', function() {
+      res.send('ok');
+    })
+  }).on("error", (err) => {
+    console.log("Error: " + err.message);
+  });
+  httpreq.write(data);
+  httpreq.end();
+});
+
 
 
 
