@@ -62,6 +62,8 @@ def main():
     auth()
   except jwt.JWTClaimsError as e:
     auth()
+  except jwt.JWTError as e:
+    auth()
 
 
 if __name__ == '__main__':
