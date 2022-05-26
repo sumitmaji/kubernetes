@@ -189,7 +189,7 @@ echo "OAuth kubeconfig file create in /root/oauth.conf"
 echo "Use below command to use oauth.conf"
 echo "kubectl --kubeconfig=/root/oauth.conf --token=__USER_TOKEN__ rest of command"
 echo "alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=\${__USER_TOKEN__}'"
-echo "alias kcd='kctl config set-context \$(kubectl config current-context) --namespace'"
+echo "alias kcd='kctl config set-context \$(kctl config current-context) --namespace'"
 
 
 cat << EOF
