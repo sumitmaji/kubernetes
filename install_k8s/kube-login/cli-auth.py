@@ -28,7 +28,7 @@ def auth():
   login = input()
   password = getpass.getpass()
 
-  r = requests.get("https://"+APP_HOST+"/kubeauth/kubectl?username="+login+"&password="+password)
+  r = requests.get("https://"+APP_HOST+"/kubeauthentication/kubectl?username="+login+"&password="+password)
 
   resp = json.loads(r.text)
 
