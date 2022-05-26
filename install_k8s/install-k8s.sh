@@ -150,6 +150,68 @@ curl https://baltocdn.com/helm/signing.asc | apt-key add - \
 && helm version --short \
 && helm repo add stable https://charts.helm.sh/stable
 
+#Creating user role developers which would allow users authenticated with oauth and
+#having developers role to connect with cluster
+cat <<EOF | kubectl create -f -
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["extensions", "apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+- kind: Group
+  name: developers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+EOF
+
+#Creating user role administrators which would allow users authenticated with oauth and
+#having administrators role to connect with cluster
+cat <<EOF | kubectl create -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oauth-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: administrators
+EOF
+
+
+
+kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://192.168.43.23:6443 --kubeconfig=/root/oauth.conf
+kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
+kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
+
+echo "OAuth kubeconfig file create in /root/oauth.conf"
+echo "Use below command to use oauth.conf"
+echo "kubectl --kubeconfig=/root/oauth.conf --token=__USER_TOKEN__ rest of command"
+echo "alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=\${__USER_TOKEN__}'"
+echo "alias kcd='kctl config set-context \$(kctl config current-context) --namespace'"
+
+chmod 766 /root/oauth.conf
+
 
 cat << EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____

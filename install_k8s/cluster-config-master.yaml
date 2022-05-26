@@ -5,6 +5,10 @@ apiServer:
   extraArgs:
     authorization-mode: Node,RBAC
     service-node-port-range: 30000-32767
+    oidc-issuer-url: ${OIDC_ISSUE_URL}
+    oidc-client-id: ${OIDC_CLIENT_ID}
+    oidc-username-claim: ${OIDC_USERNAME_CLAIM}
+    oidc-groups-claim: ${OIDC_GROUPS_CLAIM}
     #Below 2 properties causing issue
 #    authorization-rbac-super-user: admin
 #    admission-control: NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota
