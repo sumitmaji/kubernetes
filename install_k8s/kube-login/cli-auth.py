@@ -1,4 +1,7 @@
 #!/usr/bin/python3
+#Installing python3
+#apt-get install python3
+#pip3 insall -r requirements-cli.txt
 
 from os import environ as env
 from dotenv import load_dotenv, find_dotenv
