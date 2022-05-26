@@ -151,6 +151,15 @@ curl https://baltocdn.com/helm/signing.asc | apt-key add - \
 && helm repo add stable https://charts.helm.sh/stable
 
 
+kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://192.168.43.23:6443 --kubeconfig=/root/oauth.conf
+kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
+kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
+
+echo "OAuth kubeconfig file create in /root/oauth.conf"
+echo "Use below command to use oauth.conf"
+echo "kubectl --kubeconfig=/root/oauth.conf --token=__USER_TOKEN__ rest of command"
+echo "alias kubectl='kubectl --kubeconfig=/root/oauth.conf --token=\${__USER_TOKEN__}'"
+
 cat << EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
  |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
