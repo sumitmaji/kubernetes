@@ -181,6 +181,25 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 EOF
 
+#Creating user role administrators which would allow users authenticated with oauth and
+#having administrators role to connect with cluster
+cat <<EOF | kubectl create -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oauth-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: administrators
+EOF
+
+
+
 kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://192.168.43.23:6443 --kubeconfig=/root/oauth.conf
 kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
 kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
