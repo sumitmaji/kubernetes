@@ -191,6 +191,8 @@ echo "kubectl --kubeconfig=/root/oauth.conf --token=__USER_TOKEN__ rest of comma
 echo "alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=\${__USER_TOKEN__}'"
 echo "alias kcd='kctl config set-context \$(kctl config current-context) --namespace'"
 
+chmod 766 /root/oauth.conf
+
 
 cat << EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
