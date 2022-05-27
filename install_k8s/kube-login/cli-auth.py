@@ -13,6 +13,7 @@ import getpass
 import requests
 import json
 import sys
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
@@ -27,8 +28,8 @@ def auth():
   sys.stderr.write("Login: ")
   login = input()
   password = getpass.getpass()
-
-  r = requests.get("https://"+APP_HOST+"/kubeauthentication/kubectl?username="+login+"&password="+password)
+  requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+  r = requests.get("https://"+APP_HOST+"/kubeauthentication/kubectl?username="+login+"&password="+password,verify=False)
 
   resp = json.loads(r.text)
 
