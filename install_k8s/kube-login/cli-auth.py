@@ -29,7 +29,7 @@ def auth():
   login = input()
   password = getpass.getpass()
   requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-  r = requests.get("https://"+APP_HOST+"/kubeauthentication/kubectl?username="+login+"&password="+password,verify=False)
+  r = requests.get("https://"+APP_HOST+"/kubectl?username="+login+"&password="+password,verify=False)
 
   resp = json.loads(r.text)
 
