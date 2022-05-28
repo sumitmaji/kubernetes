@@ -1,5 +1,52 @@
 # LDAP
 
+Its an open ldap installation which is integrated with kerberos to provide kerberized ssh 
+feature. Using this kerberized ssh, user need to login only once and they can move across
+multiple vms without being asked to login again.
+- Base Dn: `dc=default,dc=svc,dc=cloud,dc=uat`
+- Ldap server hostname: `ldap.default.svc.cloud.uat`
+- Admin user account: `cn=admin,dc=default,dc=svc,dc=cloud,dc=uat`, password: sumit/admin
+- Sample user account: `cn=smaji,ou=users,dc=default,dc=svc,dc=cloud,dc=uat`
+- `bootstrap.sh` contains script for setting up ldap.
+- `utility/createUser.sh` creates user in ldap.
+- `utility/createGroup.sh` creates new group in ldap.
+- `utility/createTokenLdif.sh` creates token for integrating kubernetes with ldap.
+- `utility/setupssl.sh` enabled ssl for ldap. The certificates are present in `ldap.default.svc.cloud.uat`.
+The certificates can be created via [`openssl`](https://github.com/sumitmaji/openssl) application.
+- Username and Password for ldap/kerberos are pushed to pods via secrets 
+(`chart/templates/ldap-secret.yaml`, `char/template/krb-secret.yaml`). These secrets are loaded
+into pods as volumes and read in `bootstrap.sh`.
+- `config/config` contains configuration for ldap.
+
+# Note
+Ldap and [`kerberos`]() both should be installed. First ldap and next kerberos. 
+
+# Installation commands
+
+```console
+cd /root/kubernetes/install_k8s/ldap
+./run_ldap.sh
+```
+
+- Inorder to access pod
+```console
+cd chart/util
+./bash.sh
+```
+
+- Inorder to access logs
+```console
+ch char/util
+./logs.sh
+```
+
+- To access ldap
+```console
+https://master.cloud.com:31000/phpldapadmin/
+username: sumit
+password: sumit
+```
+
 ### Usefull Links
 
 https://wiki.ubuntuusers.de/Archiv/LDAP_Client_Authentifizierung/<br>
