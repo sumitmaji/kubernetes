@@ -34,5 +34,5 @@ It then [creates](https://github.com/sumitmaji/kubernetes/blob/master/install_k8
 the certificates that would be used in ingress resource for ssl connection. Finally it creates the sample 
 app resources.
 
-In all apps deployed in default namespace used `appingress-certificate`.
+All apps deployed in default namespace use `appingress-certificate` certificate.
 
