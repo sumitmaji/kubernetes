@@ -146,15 +146,17 @@ In order to test the pipeline use [`hlw`](https://github.com/sumitmaji/hlw) repo
 
 Application would be accessible in https://master.cloud.com:32028/hlw
 
-# Setup required to use ingress
 
-- Enable port forwarding to ingress service ports from master vm
-
-```console
-iptables -t nat -A PREROUTING -p tcp --dport 30000 -j DNAT --to-destination 11.0.0.2:30000 # http
-iptables -t nat -A PREROUTING -p tcp --dport 32000 -j DNAT --to-destination 11.0.0.2:32000 # nginx ui
-iptables -t nat -A PREROUTING -p tcp --dport 31000 -j DNAT --to-destination 11.0.0.2:31000 # https
-```
+# Installing components
+1. [`Ingress Controller`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh)
+2. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
+3. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh)
+4. [`Kubernetes Dashboard`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_dashboard.sh)
+5. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
+6. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh)
+7. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh)
+8. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh)
+9. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh)
 
 - Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
 
@@ -173,12 +175,4 @@ http://master.cloud.com:32000/nginx_status
 https://master.cloud.com/api/v1/namespaces/kube-system/services/http:kubernetes-dashboard:/proxy/
 username: admin
 password: admin
-```
-
-- To access ldap
-
-```console
-https://master.cloud.com:31000/phpldapadmin/
-username: sumit
-password: sumit
 ```
