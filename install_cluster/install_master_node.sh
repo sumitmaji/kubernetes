@@ -16,6 +16,9 @@ while [ $# -gt 0 ]; do
 shift
 done
 
+
+apt-get install -y net-tools
+
 : ${CLOUD_HOST_IP:=$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
 if [ -z "$CLOUD_HOST_IP" ]; then
     : ${CLOUD_HOST_IP:=$(ifconfig enp0s8 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
