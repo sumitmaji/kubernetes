@@ -139,6 +139,9 @@ This would install local [`docker registry`](https://github.com/sumitmaji/kubern
 [`Docker webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook)
 and [`Helm webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
 
+Architecture of the pipeline
+![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/images/img_1.png)
+
 In order to test the pipeline use [`hlw`](https://github.com/sumitmaji/hlw) repository, make a sample change and commit.
 
 Application would be accessible in https://master.cloud.com:32028/hlw
