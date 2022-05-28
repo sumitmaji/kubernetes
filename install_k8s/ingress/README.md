@@ -1,10 +1,10 @@
 # Ingress Nginx
 
-Installation of kubernetes cluster in private cloud using kubeadm.
+Installation of Ingress Nginx controller.
 
 ## Configuration
 
-The following table lists the configurable parameters of the kubernetes cluster install and their default values.
+The following table lists the configurable parameters of the ingress nginx controller install and their default values.
 
 | Parameter                  | Description                                                                                                                                                                                  | Default                               |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
