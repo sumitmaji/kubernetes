@@ -4,7 +4,7 @@ Installation of local docker registry.
 
 ## Configuration
 
-The following table lists the configurable parameters of the ingress nginx controller install and their default values.
+The following table lists the configurable parameters of the registry install and their default values.
 
 | Parameter                  | Description                                                             | Default                               |
 |----------------------------|-------------------------------------------------------------------------|---------------------------------------|
