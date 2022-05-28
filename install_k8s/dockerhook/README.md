@@ -14,11 +14,13 @@ repository
 `BUILD_TYPE`, `APP_SRC_CODE`, `MAIN_CLASS`
 
 
-| Parameter                  | Description                                                    | Default  |
-|----------------------------|----------------------------------------------------------------|----------|
-| `BUILD_TYPE`               | Technology stack of the application.`REACT`, `NODE`, `SPRING`  |          |
-| `APP_SRC_CODE`             | Path where application source code is present.                 | `server` |
-| `MAIN_CLASS`               | In case of springboot application, fully qualified main class. |          |
+| Parameter                  | Description                                                    | Default            |
+|----------------------------|----------------------------------------------------------------|--------------------|
+| `BUILD_TYPE`               | Technology stack of the application.`REACT`, `NODE`, `SPRING`  |                    |
+| `APP_SRC_CODE`             | Path where application source code is present.                 | `server`           |
+| `MAIN_CLASS`               | In case of springboot application, fully qualified main class. |                    |
+| `IMAGE_NAME`               | The name of the docker image.                                  | `sumit/$REPO_NAME` |
+| `REPO_NAME`                | The name of the repository in docker registry.                 |                    |
 
 
 ## Configuration
