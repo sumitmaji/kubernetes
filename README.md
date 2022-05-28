@@ -103,7 +103,7 @@ alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=$(python3 /root/kubern
 ```
 
 In order to use the above approach, you must install and run
-1. Ingress [Instress ReadME]()
+1. Ingress [Instress ReadME](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ingress/README.md)
 2. Kubeauthentication service [KubeAuth ReadME]()
 
 
@@ -125,6 +125,23 @@ watch -n1 !!
 ```console
 kubectl get componentstatus
 ```
+
+# Automation of build and deployment
+### Note: [`Ingress`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ingress) should be installed before this can begin.
+
+- Execute below command to install ci/cd pipeline
+```console
+cd /root/kubernetes/install_k8s/
+./setuUp-devops.sh 
+```
+This would install local [`docker registry`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/registry),
+[`Git webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook), 
+[`Docker webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook)
+and [`Helm webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
+
+In order to test the pipeline use [`hlw`](https://github.com/sumitmaji/hlw) repository, make a sample change and commit.
+
+Application would be accessible in https://master.cloud.com:32028/hlw
 
 # Setup required to use ingress
 
