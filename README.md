@@ -67,6 +67,11 @@ cd /root/kubernetes/install_cluster
   ```shell script
   kubeadm token create print-join-command
   ```
+  
+When installation of master is completed you should see below components in kube-system
+namespace
+![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/images/img.png)
+
 When you reboot the vms, the kubelet service may not run, you need to restart the kubelet.
 ```shell
 sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
