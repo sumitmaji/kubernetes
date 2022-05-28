@@ -41,7 +41,7 @@ cd /root/kubernetes/install_k8s/githook/chart/util
 ./bash.sh
 ```
 - To manually push messages to githook service:
-```shell
+```console
 cd /root/kubernetes/install_k8s/githook
 ./postToGithook.sh -b __BRANCH__NAME -a __REPOSITORY_NAME__
 ```
