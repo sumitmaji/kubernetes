@@ -21,12 +21,6 @@ repository
 | `MAIN_CLASS`               | In case of springboot application, fully qualified main class. |          |
 
 
-- The port number the service is listening is `5002`.
-- The end which would receive the push messages `/process`.
-- Hostname is `dockerhook.default.svc.cloud.uat`.
-- The application code is present in [`server/index.js`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/server/index.js).
-- The configuration files for build and push is present in [`config`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/config) file.
-
 ## Configuration
 
 The following table lists the configurable parameters of the registry install and their default values.
