@@ -7,3 +7,4 @@ echo "search cloud.com Home" >> /etc/resolv.conf
 
 #hostip="$(ifconfig eth1 2>/dev/null|awk '/inet addr:/ {print $2}'|sed 's/addr://')"
 #sed -i "/127.0.1.1.*master/ s/127.0.1.1/$hostip/" /etc/hosts
+
