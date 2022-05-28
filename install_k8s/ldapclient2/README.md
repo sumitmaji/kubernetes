@@ -14,8 +14,8 @@ installed.
 # Installation commands
 
 ```console
-cd /root/kubernetes/install_k8s/ldapclient
-./run_ldapclient.sh
+cd /root/kubernetes/install_k8s/ldapclient2
+./run_ldapclient2.sh
 ```
 
 - Inorder to access pod
