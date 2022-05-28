@@ -67,6 +67,19 @@ cd /root/kubernetes/install_cluster
   ```shell script
   kubeadm token create print-join-command
   ```
+When you reboot the vms, the kubelet service may not run, you need to restart the kubelet.
+```shell
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+sudo swapoff -a
+
+systemctl stop kubelet
+syatemctl start kubelet
+```
+### Other begging steps
+```shell
+systemctl status kubelet
+journalctl -u kubelet
+```
 
 
 # Useful commands:
