@@ -5,13 +5,13 @@ The service would then capture the repository name, branch name and repository u
 build is completed and image is pushed into local docker registry. Afterwards the service would send notification 
 reghook service to deploy the image to kubernetes cluster.
 
-Once it receives a push message it runs the [`build.sh`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/scrips/build.sh)
-to trigger the Docker build. It has [`config`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/scrips/config)
+Once it receives a push message it runs the [`build.sh`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/scripts/build.sh)
+to trigger the Docker build. It has [`config`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/scripts/config)
 file which mentions what would be port number (`APP_PORT`) image should expose or application should run. Depending on the type of
 application it would trigger docker build using different docker file. The service would expect the 
 repository would provide below details in the `configuration` file present at the root of the 
 repository
-`BUILD_TYPE`, `APP_SRC_CODE`, `MAIN_CLASS`
+`BUILD_TYPE`, `APP_SRC_CODE`, `MAIN_CLASS`, `IMAGE_NAME`, `REPO_NAME`
 
 
 | Parameter                  | Description                                                    | Default            |
@@ -21,6 +21,12 @@ repository
 | `MAIN_CLASS`               | In case of springboot application, fully qualified main class. |                    |
 | `IMAGE_NAME`               | The name of the docker image.                                  | `sumit/$REPO_NAME` |
 | `REPO_NAME`                | The name of the repository in docker registry.                 |                    |
+
+- The port number the service is listening is `5002`.
+- The end which would receive the push messages `/process`.
+- Hostname is `dockerhook.default.svc.cloud.uat`.
+- The application code is present in [`server/index.js`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/server/index.js).
+- The configuration files for build and push is present in [`config`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/dockerhook/config) file.
 
 
 ## Configuration
