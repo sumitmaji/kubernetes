@@ -37,7 +37,7 @@ app resources.
 All apps deployed in default namespace use `appingress-certificate` certificate.
 
 After the installation is completed you should see below resources
-![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress/images/img.png)
+![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ingress/images/img.png)
 
 We need to know the port where ingress-controller is running, which would used to access 
 ingress apps from outside. The highlighted text in the below scren shot is port number
@@ -45,9 +45,9 @@ where ingress controller is running.
 ```shell
 kubectl get svc ingress-nginx-controller -n ingress-nginx
 ```
-![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress/images/img_1.png)
+![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ingress/images/img_1.png)
 
 Inorder to access apps via ingress
 1. Update /etc/hosts file in your system to point to the ip address of the vm where ingress controller is running.
-![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress/images/img_2.png)
+![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ingress/images/img_2.png)
 2. Open browser and access https://master.cloud.com:32028/app1
