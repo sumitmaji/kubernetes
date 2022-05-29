@@ -19,7 +19,8 @@ into pods as volumes and read in `bootstrap.sh`.
 - `config/config` contains configuration for ldap.
 
 # Note
-Ldap and [`kerberos`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos) both should be installed. First ldap and next kerberos. 
+[`Base`](https://github.com/sumitmaji/base/tree/trusty) image should be created first.
+Ldap and [`kerberos`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos) both should be installed. First ldap and next kerberos.
 
 # Installation commands
 
