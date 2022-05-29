@@ -150,7 +150,8 @@ Application would be accessible in https://master.cloud.com:32028/hlw
 # Installing components
 1. [`Ingress Controller`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh)
 2. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
-3. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh)
+3. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh): [`Githook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook),
+[`Dockerhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook),[`Reghook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
 4. [`Kubernetes Dashboard`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_dashboard.sh)
 5. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
 6. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh)
