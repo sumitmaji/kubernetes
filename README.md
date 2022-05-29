@@ -104,7 +104,7 @@ alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=$(python3 /root/kubern
 
 In order to use the above approach, you must install and run
 1. Ingress [Instress ReadME](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ingress/README.md)
-2. Kubeauthentication service [KubeAuth ReadME]()
+2. Kubeauthentication service [KubeAuth ReadME](https://github.com/sumitmaji/kubeauthentication/blob/main/README.md)
 
 
 - To enable verbose(logging) of kubectl command
