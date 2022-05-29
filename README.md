@@ -148,16 +148,16 @@ Application would be accessible in https://master.cloud.com:32028/hlw
 
 
 # Installing components
-1. [`Ingress Controller`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh)
+1. [`Ingress Controller`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh): [Link](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ingress)
 2. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
 3. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh): [`Githook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook),
 [`Dockerhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook),[`Reghook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
-4. [`Kubernetes Dashboard`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_dashboard.sh)
+4. [`Kubernetes Dashboard`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_dashboard.sh): [Link](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dashboard)
 5. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
-6. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh)
-7. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh)
-8. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh)
-9. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh)
+6. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh): [Link](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldap)
+7. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh): [Link](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos)
+8. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh): [Link](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient1)
+9. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh): [Link](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient2)
 
 - Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
 - Add `ip_address master.cloud.com` to windows host file located in C:\Windows\System32\drivers\etc. e.g. `192.168.1.5 master.cloud.com` >> host file.
