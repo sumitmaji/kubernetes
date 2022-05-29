@@ -49,6 +49,8 @@ this work.
       to backend.
    2. If Authenticated, then forward the request to the backend.
 
+#### Please check the [`link`](https://mac-blog.org.ua/kubernetes-oauth2-proxy) containing good explanation.
+
 ## Description
 The [install_ingress.sh](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh) 
 file contains scripts to install ingress in kubernetes cluster. It first [deletes](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh#L8)
