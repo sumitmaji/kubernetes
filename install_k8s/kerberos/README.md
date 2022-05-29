@@ -10,6 +10,7 @@ multiple vms without being asked to login again.
 - `config` contains configuration for ldap.
 
 # Note
+[`Base`](https://github.com/sumitmaji/base/tree/trusty) image should be created first.
 [`Ldap`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldap) and kerberos both should be installed. First ldap and next kerberos.
 
 # Installation commands
