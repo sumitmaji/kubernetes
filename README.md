@@ -160,20 +160,4 @@ Application would be accessible in https://master.cloud.com:32028/hlw
 9. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh)
 
 - Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
-
 - Add `ip_address master.cloud.com` to windows host file located in C:\Windows\System32\drivers\etc. e.g. `192.168.1.5 master.cloud.com` >> host file.
-
-# Notes
-- To access nginx ui
-
-```console
-http://master.cloud.com:32000/nginx_status
-```
-
-- To access kubernetes dashboard
-
-```console
-https://master.cloud.com/api/v1/namespaces/kube-system/services/http:kubernetes-dashboard:/proxy/
-username: admin
-password: admin
-```
