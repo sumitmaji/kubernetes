@@ -7,7 +7,7 @@
 - Install python
 ```console
 apt-get install python3
-apt-get install pip3
+apt-get install python3-pip
 pip3 insall -r requirements-cli.txt
 ```
 
