@@ -8,7 +8,7 @@
 ```console
 apt-get install python3
 apt-get install python3-pip
-pip3 insall -r requirements-cli.txt
+pip3 install -r requirements-cli.txt
 ```
 
 - Create kubeconfig file containing details about server
