@@ -200,7 +200,7 @@ EOF
 
 
 
-kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://192.168.43.23:6443 --kubeconfig=/root/oauth.conf
+kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://${IP}:6443 --kubeconfig=/root/oauth.conf
 kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
 kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
 
