@@ -41,10 +41,10 @@ openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc
 #Certificates for dashboard user(created above) will be mounted in the pod as secret for
 # authenticating dashbaord user with kubernetes api-server
 
-sed -i "s/__TLS_CRT__/$(cat dashboard.crt)/g" chart/values.yaml
-sed -i "s/__TLS_KEY__/$(cat dashboard.key)/g" chart/values.yaml
-sed -i "s/__INGRESS_TLS_KEY__/$(cat ${APP_HOST}.key)/g" chart/values.yaml
-sed -i "s/__INGRESS_TLS_CRT__/$(cat ${APP_HOST}.crt)/g" chart/values.yaml
+sed -i "s/__TLS_CRT__/$(cat dashboard.crt | base64 | tr -d '\n')/g" chart/values.yaml
+sed -i "s/__TLS_KEY__/$(cat dashboard.key | base64 | tr -d '\n')/g" chart/values.yaml
+sed -i "s/__INGRESS_TLS_KEY__/$(cat ${APP_HOST}.key | base64 | tr -d '\n')/g" chart/values.yaml
+sed -i "s/__INGRESS_TLS_CRT__/$(cat ${APP_HOST}.crt | base64 | tr -d '\n')/g" chart/values.yaml
 
 helm install kubernetes-dashbaord chart
 

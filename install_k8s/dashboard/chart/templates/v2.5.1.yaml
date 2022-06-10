@@ -53,7 +53,7 @@ kind: Secret
 type: kubernetes.io/tls
 data:
   {{- range $key, $val := .Values.secret.data }}
-  {{ $key }}: {{ $val | b64enc }}
+  {{ $key }}: {{ $val }}
   {{- end}}
 ---
 
