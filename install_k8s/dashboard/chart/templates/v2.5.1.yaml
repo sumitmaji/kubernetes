@@ -50,7 +50,7 @@ kind: Secret
     k8s-app: kubernetes-dashboard
   name: appingress-certificate
   namespace: kubernetes-dashboard
-type: kubernetes.io/tls
+type: Opaque
 data:
   {{- range $key, $val := .Values.secret.data }}
   {{ $key }}: {{ $val }}
