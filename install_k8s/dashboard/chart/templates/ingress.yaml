@@ -8,10 +8,8 @@ kind: Secret
 type: Opaque
 data:
   {{- range $key, $val := .Values.ingress.tls.secret.data }}
-    {{ $key }}: {{ $val | b64enc }}
-    {{- end}}
-  {{- end }}
-
+  {{ $key }}: {{ $val }}
+  {{- end}}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
