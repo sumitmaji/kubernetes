@@ -46,6 +46,7 @@ spec:
 ---
 apiVersion: v1
 kind: Secret
+metadata:
   labels:
     k8s-app: kubernetes-dashboard
   name: appingress-certificate
