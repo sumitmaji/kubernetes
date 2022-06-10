@@ -1,4 +1,3 @@
-{{- if .Values.secret.enabled -}}
 apiVersion: v1
 kind: Secret
   labels:
