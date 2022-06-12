@@ -1,0 +1,24 @@
+replicaCount: 1
+
+image: {}
+
+secret:
+  enabled: true
+  data:
+    tls.crt: __TLS_CRT__
+    tls.key: __TLS_KEY__
+
+ingress:
+  tls:
+    secret:
+      data:
+        tls.crt: __INGRESS_TLS_CRT__
+        tls.key: __INGRESS_TLS_KEY__
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
