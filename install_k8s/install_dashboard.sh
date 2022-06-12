@@ -9,6 +9,7 @@ pushd $WORKING_DIR/dashboard
 apt-get install net-tools
 
 helm uninstall kubernetes-dashboard
+helm uninstall metric-server
 
 #Create a service account which is having cluster admin role to group dashboard:masters,
 #This service account will be granted to kubernetes dashboard user
@@ -46,6 +47,10 @@ sed -i "s/__TLS_KEY__/$(cat dashboard.key | base64 | tr -d '\n')/g" chart/values
 sed -i "s/__INGRESS_TLS_KEY__/$(cat ${APP_HOST}.key | base64 | tr -d '\n')/g" chart/values.yaml
 sed -i "s/__INGRESS_TLS_CRT__/$(cat ${APP_HOST}.crt | base64 | tr -d '\n')/g" chart/values.yaml
 
-helm install kubernetes-dashbaord chart
+helm install kubernetes-dashboard chart
+popd
 
+pushd $WORKING_DIR/metric-server
+
+helm install metric-server chart
 popd
