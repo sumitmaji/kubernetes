@@ -8,14 +8,9 @@ mkdir -p $WORKING_DIR/dashboard
 pushd $WORKING_DIR/dashboard
 apt-get install net-tools
 
-rm dashboard.key dashboard.crt dashboard.csr
-kubectl delete -f v2.5.1.yaml
-kubectl delete -f metric-server.yaml
-kubectl delete -f ingress.yaml
-kubectl delete secret appingress-certificate -n kubernetes-dashboard
-kubectl delete secret kubernetes-dashboard-certs -n kubernetes-dashboard
+helm uninstall kubernetes-dashboard
+helm uninstall metric-server
 
-sleep 15
 #Create a service account which is having cluster admin role to group dashboard:masters,
 #This service account will be granted to kubernetes dashboard user
 cat <<EOF | kubectl create -f -
@@ -46,15 +41,16 @@ openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc
 
 #Certificates for dashboard user(created above) will be mounted in the pod as secret for
 # authenticating dashbaord user with kubernetes api-server
-kubectl create ns kubernetes-dashboard
-kubectl -n kubernetes-dashboard create secret generic kubernetes-dashboard-certs \
---from-file=tls.crt=dashboard.crt \
---from-file=tls.key=dashboard.key
 
-cat v2.5.1.yaml | envsubst | kubectl create -f -
-kubectl create -f metric-server.yaml
+sed -i "s/__TLS_CRT__/$(cat dashboard.crt | base64 | tr -d '\n')/g" chart/values.yaml
+sed -i "s/__TLS_KEY__/$(cat dashboard.key | base64 | tr -d '\n')/g" chart/values.yaml
+sed -i "s/__INGRESS_TLS_KEY__/$(cat ${APP_HOST}.key | base64 | tr -d '\n')/g" chart/values.yaml
+sed -i "s/__INGRESS_TLS_CRT__/$(cat ${APP_HOST}.crt | base64 | tr -d '\n')/g" chart/values.yaml
 
-kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n kubernetes-dashboard
-cat ingress.yaml | envsubst | kubectl create -f -
+helm install kubernetes-dashboard chart
+popd
 
+pushd $WORKING_DIR/metric-server
+
+helm install metric-server chart
 popd

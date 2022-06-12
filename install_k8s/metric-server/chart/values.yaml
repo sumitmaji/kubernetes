@@ -1,0 +1,20 @@
+replicaCount: 1
+
+image: {}
+
+secret:
+  enabled: false
+  data: {}
+
+ingress:
+  tls:
+    secret:
+      data: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
