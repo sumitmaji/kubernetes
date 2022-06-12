@@ -216,8 +216,8 @@ echo "alias kcd='kubectl config set-context \$(kubectl config current-context) -
 chmod 766 /root/oauth.conf
 
 #Installing python
-apt-get install python3
-apt-get install python3-pip
+apt-get install python3 -y
+apt-get install python3-pip -y
 
 cat << EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
