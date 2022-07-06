@@ -80,12 +80,16 @@ sudo swapoff -a
 systemctl stop kubelet
 syatemctl start kubelet
 ```
-### Other begging steps
+
+Or Execute below command
+```shell
+./start_cluster.sh
+```
+### Other debugging steps
 ```shell
 systemctl status kubelet
 journalctl -u kubelet
 ```
-
 
 # Useful commands:
 
