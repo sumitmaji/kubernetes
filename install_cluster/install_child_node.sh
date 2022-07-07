@@ -117,49 +117,9 @@ fi
 mount -a
 
 echo "$NODE_NAME" > /etc/hostname
-reboot
-exit 0
-########################################
-########################################
-#############SETTING GANGLIA############
-########################################
-########################################
 
-
-apt-get install -y ganglia-monitor
-
-`sed -i 's/deaf = no/deaf = yes/' /etc/ganglia/gmond.conf`
-`sed -i 's/name = "unspecified"/name = "cloud"/' /etc/ganglia/gmond.conf`
-`sed -i '/udp_send_channel {/,/}/ { s/mcast_join/#mcast_join/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_send_channel {/,/}/ { s/.*mcast_join.*/host = master.cloud.com/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/udp_recv_channel/#udp_recv_channel/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/mcast_join/#mcast_join/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/port/#port/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/bind/#bind/ }' /etc/ganglia/gmond.conf`
-`sed -i '/udp_recv_channel {/,/}/ { s/\}/#\}/ }' /etc/ganglia/gmond.conf`
-
-
-service ganglia-monitor restart
-
-########################################
-########################################
-##########SETTING LDAP CLIENT###########
-########################################
-########################################
-
-#apt-get install -y libpam-ldap nscd
-sudo apt-get install -y ldap-auth-client nscd
-
-sudo auth-client-config -t nss -p lac_ldap
-
-STATUS=`grep "umask=0022 skel=/etc/skel" /etc/pam.d/common-session`
-
-if [ -z "$STATUS" ]
-then
-`sed -i '/pam_ldap.so/ s/^/session required        pam_mkhomedir.so umask=0022 skel=\/etc\/skel\n/' /etc/pam.d/common-session`
-#`sed -i '$a\session optional        pam_mkhomedir.so        skel=/etc/skel umask=0022' /etc/pam.d/common-session`
-fi
-
-service nscd restart
 echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
 echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
+
+reboot
+exit 0
