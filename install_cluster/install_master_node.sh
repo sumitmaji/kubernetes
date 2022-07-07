@@ -219,7 +219,7 @@ service isc-dhcp-server restart
 chattr -i /etc/resolv.conf
 echo "nameserver 11.0.0.1" > /etc/resolv.conf
 echo "nameserver $CLOUD_HOST_IP" >> /etc/resolv.conf
-echo "nameserver 192.168.0.1" >> /etc/resolv.conf
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf
 echo "search cloud.com Home" >> /etc/resolv.conf
 cp /etc/resolv.conf .
 rm /etc/resolv.conf
