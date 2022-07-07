@@ -115,3 +115,5 @@ kubectl delete namespace cert-manager
 kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
 ```
 
+### Useful Link
+- [`Stephen Grinder`](https://github.com/webmakaka/Docker-and-Kubernetes-The-Complete-Guide/tree/master/17_HTTPS_Setup_with_Kubernetes)
