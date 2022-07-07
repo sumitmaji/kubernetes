@@ -10,7 +10,7 @@ TODO
 
 ```console
 cd /root/kubernetes/install_k8s/
-./install_ingress.sh
+./install_dashboard.sh
 ```
 
 Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashboard need to be accessible from outside the cluster.
