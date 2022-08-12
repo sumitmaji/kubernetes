@@ -8,7 +8,7 @@ pushd $WORKING_DIR/ingress
 
 output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length'`
 
-if [ "$ouput" == "1" ]; then
+if [ "$output" == "1" ]; then
   kubectl delete -f v1.2.yaml -f default-backend-deployment.yaml -f default-backend-service.yaml
   kubectl delete secret appingress-certificate -n ingress-nginx
   kubectl delete secret appingress-certificate -n default
