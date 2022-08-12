@@ -19,6 +19,13 @@ if [ "$ouput" == "1" ]; then
       sleep 5
       output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length'`
   done
+
+  output=`kubectl get po -n ingress-nginx -l app=default-backend -o json | jq '.items | length'`
+  while [ "$output" != "0" ]; do
+      echo "backend service is not down, will check again after 5seconds"
+      sleep 5
+      output=`kubectl get po -n ingress-nginx -l app=default-backend -o json | jq '.items | length'`
+  done
 fi
 
 
