@@ -7,7 +7,7 @@ source "$WORKING_DIR"/config
 
 #Install network tools
 apt-get install net-tools
-
+apt-get install jq -y
 
 # Enable kernel modules
 sudo modprobe overlay
