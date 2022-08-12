@@ -5,9 +5,22 @@
 source $WORKING_DIR/config
 
 pushd $WORKING_DIR/ingress
-kubectl delete secret appingress-certificate -n ingress-nginx
-kubectl delete secret appingress-certificate -n default
-kubectl delete -f example/
+
+output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length'`
+
+if [ "$ouput" == "1" ]; then
+  kubectl delete -f v1.2.yaml -f default-backend-deployment.yaml -f default-backend-service.yaml
+  kubectl delete secret appingress-certificate -n ingress-nginx
+  kubectl delete secret appingress-certificate -n default
+  kubectl delete -f example/
+  output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length'`
+  while [ "$output" != "0" ]; do
+      echo "Ingress controller service is not down, will check again after 5seconds"
+      sleep 5
+      output=`kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length'`
+  done
+fi
+
 
 #below would create user named ingress with group assigned as ingress:masters
 openssl genrsa -out ingress.key 4096
