@@ -1,8 +1,9 @@
 #!/bin/bash
 
+# shellcheck disable=SC2223
 : ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_k8s}
 
-source $WORKING_DIR/config
+source "$WORKING_DIR"/config
 
 #Install network tools
 apt-get install net-tools
@@ -82,14 +83,22 @@ sudo swapoff -a
 
 sudo systemctl enable kubelet
 
-envsubst < $WORKING_DIR/cluster-config-master.yaml > $WORKING_DIR/config.yaml
-kubeadm init --config=$WORKING_DIR/config.yaml
+envsubst < "$WORKING_DIR"/cluster-config-master.yaml > "$WORKING_DIR"/config.yaml
+kubeadm init --config="$WORKING_DIR"/config.yaml
 export KUBECONFIG=/etc/kubernetes/admin.conf
 
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+mkdir -p "$HOME"/.kube
+sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
 
 kubectl apply -f https://projectcalico.docs.tigera.io/manifests/calico.yaml
+
+# shellcheck disable=SC2181
+if [ $? -ne 0 ]
+then
+  echo "Kubectl command execution failed, please check!!!!!"
+  exit 1
+fi
+
 
 alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
 
@@ -137,7 +146,7 @@ if [ -z "$IP" ]; then
 fi
 JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
 NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
-kubectl taint node ${NODE_NAME} node-role.kubernetes.io/master:NoSchedule-
+kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/master:NoSchedule-
 
 
 
