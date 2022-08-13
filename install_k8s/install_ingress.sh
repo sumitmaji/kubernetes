@@ -41,7 +41,7 @@ openssl req -new -key ${APP_HOST}.key -out ${APP_HOST}.csr -subj "/CN=${APP_HOST
 openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${APP_HOST}.crt -days 7200
 
 cat v1.2.yaml | \
-sed '393 a \            - --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
+sed '394 a \            - --default-backend-service=$(POD_NAMESPACE)/default-backend' | \
 kubectl apply -f -
 kubectl apply -f default-backend-deployment.yaml -f default-backend-service.yaml
 kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n ingress-nginx
