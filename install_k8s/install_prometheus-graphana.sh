@@ -6,6 +6,9 @@ source $WORKING_DIR/config
 
 pushd $WORKING_DIR/prometheus-graphana
 
+helm -n monitoring delete monitoring
+kubectl delete ns monitoring
+
 helm repo add prometheus-community \
   https://prometheus-community.github.io/helm-charts
 
@@ -14,7 +17,7 @@ helm repo update
 helm install monitoring \
   prometheus-community/kube-prometheus-stack \
   --values values.yaml \
-  --version 16.10.0 \
+  --version 39.6.0 \
   --namespace monitoring \
   --create-namespace
 
@@ -32,7 +35,7 @@ helm repo update
 helm install postgres \
   bitnami/postgresql \
   --values postgres-values.yaml \
-  --version 10.5.0 \
+  --version 11.7.1 \
   --namespace db \
   --create-namespace
 
