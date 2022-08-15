@@ -9,6 +9,9 @@ pushd $WORKING_DIR/prometheus-graphana
 helm -n monitoring delete monitoring
 kubectl delete ns monitoring
 
+helm -n db delete postgres
+kubectl delete ns db
+
 helm repo add prometheus-community \
   https://prometheus-community.github.io/helm-charts
 
