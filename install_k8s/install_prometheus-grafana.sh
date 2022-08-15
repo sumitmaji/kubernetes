@@ -4,7 +4,7 @@
 
 source $WORKING_DIR/config
 
-pushd $WORKING_DIR/prometheus-graphana
+pushd $WORKING_DIR/prometheus-grafana
 
 helm -n monitoring delete monitoring
 kubectl delete ns monitoring
