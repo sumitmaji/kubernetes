@@ -8,6 +8,15 @@ pushd $WORKING_DIR/ingress
 
 HELM=true
 if [ "$HELM" == "true" ]; then
+
+  output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length')
+  if [ "$output" == "1" ]; then
+    helm uninstall ingress-nginx
+    kubectl delete secret appingress-certificate -n ingress-nginx
+    kubectl delete secret appingress-certificate -n default
+    kubectl delete -f example/
+  fi
+
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
   helm repo update
   helm install \
