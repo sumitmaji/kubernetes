@@ -5,26 +5,37 @@
 source $WORKING_DIR/config
 
 pushd $WORKING_DIR/prometheus-graphana
-kubectl delete -f setup
-kubectl delete -f ../prometheus-graphana
-kubectl delete -f ingress
-kubectl delete secret grafanaingress-certificate -n monitoring
 
-sleep 15
+helm repo add prometheus-community \
+  https://prometheus-community.github.io/helm-charts
 
-kubectl create ns monitoring
+helm repo update
 
-openssl genrsa -out ${GRAFANA_HOST}.key 4096
-openssl req -new -key ${GRAFANA_HOST}.key -out ${GRAFANA_HOST}.csr -subj "/CN=${GRAFANA_HOST}" \
--addext "subjectAltName = DNS:${GRAFANA_HOST}"
-openssl x509 -req -in ${GRAFANA_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${GRAFANA_HOST}.crt -days 7200
+helm install monitoring \
+  prometheus-community/kube-prometheus-stack \
+  --values values.yaml \
+  --version 16.10.0 \
+  --namespace monitoring \
+  --create-namespace
 
-kubectl create secret tls grafanaingress-certificate --key ${GRAFANA_HOST}.key --cert ${GRAFANA_HOST}.crt -n monitoring
+kubectl -n kube-system get cm kube-proxy-config -o yaml | sed \
+  's/metricsBindAddress: 127.0.0.1:10249/metricsBindAddress: 0.0.0.0:10249' \
+  kubectl apply -f -
 
-cat ingress/ingress.yaml | envsubst | kubectl create -f -
-kubectl create -f setup
-kubectl create -f ../prometheus-graphana
-kubectl delete networkpolicy grafana -n monitoring
+kubectl -n kube-system patch ds kube-proxy -p \
+  '{"spec":{"template":{"metadata":{"labels":{"updateTime":"`date + '%s'`"}}}}}'
+
+helm repo add bitnami https://charts.bitnami.com/bitnami
+
+helm repo update
+
+helm install postgres \
+  bitnami/postgresql \
+  --values postgres-values.yaml \
+  --version 10.5.0 \
+  --namespace db \
+  --create-namespace
+
 
 #https://computingforgeeks.com/setup-prometheus-and-grafana-on-kubernetes/
 ##Grapha details
