@@ -16,7 +16,7 @@ while [ $# -gt 0 ]; do
 shift
 done
 
-
+apt-get update
 apt-get install -y net-tools
 
 : ${CLOUD_HOST_IP:=$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
@@ -37,45 +37,26 @@ echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-too
 apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools
 
 
+hostnamectl set-hostname master.cloud.com
 
 if [ "$ENV" == "LOCAL" ]
 then
 rm /etc/netplan/00-installer-config.yaml
 touch /etc/netplan/00-installer-config.yaml
-cat >> /etc/netplan/00-installer-config.yaml << EOF
+cat > /etc/netplan/00-installer-config.yaml << EOF
 network:
-  renderer: networkd
   ethernets:
+    enp0s3:
+      dhcp4: false
+      addresses: [11.0.0.1/24]
+      nameservers:
+        addresses: [8.8.8.8,8.8.4.4]
     enp0s8:
       dhcp4: true
-      optional: true
   version: 2
 EOF
 netplan generate
 netplan apply
-
-sed -i 's/master$/master.cloud.com/' /etc/hostname
-hostnamectl set-hostname master.cloud.com
-
-touch /etc/network/interfaces
-STATUS="$(grep "##ethernet setup completed" /etc/network/interfaces)"
-if [ -z "$STATUS" ]
-then
-cat >> /etc/network/interfaces << EOF
-iface enp0s8 inet dhcp
-auto enp0s3
-iface enp0s3 inet static
-address 11.0.0.1
-netmast 255.255.255.0
-network 11.0.0.0
-broadcast 11.0.0.254
-##ethernet setup completed
-EOF
-fi
-
-sed -i 's/\(127.0.1.1\)\(.*master.*\)/'"$CLOUD_HOST_IP"' master.cloud.com/' /etc/hosts
-echo "Activating eth0 ethernet"
-ifup enp0s3
 
 elif [ "$ENV" == "CLOUD" ]; then
     sudo touch /etc/systemd/network/eth2.netdev
@@ -203,7 +184,7 @@ sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
 sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
 sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
 sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
-sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers 11.0.0.1, $CLOUD_HOST_IP;/" /etc/dhcp/temp-local-zones
+sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers 11.0.0.1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
 sed -i '/^max-lease-time 7200;/ a\subnet 11.0.0.0 netmask 255.255.255.0 {' /etc/dhcp/temp-local-zones
 sed -i '/subnet 11.0.0.0 netmask 255.255.255.0 {/ a\option routers 11.0.0.1;'  /etc/dhcp/temp-local-zones
 sed -i '/option routers 11.0.0.1;/ a\option subnet-mask 255.255.255.0;' /etc/dhcp/temp-local-zones
@@ -217,13 +198,9 @@ fi
 service isc-dhcp-server restart
 
 chattr -i /etc/resolv.conf
-echo "nameserver 11.0.0.1" > /etc/resolv.conf
-echo "nameserver $CLOUD_HOST_IP" >> /etc/resolv.conf
-echo "nameserver 8.8.8.8" >> /etc/resolv.conf
-echo "search cloud.com Home" >> /etc/resolv.conf
-cp /etc/resolv.conf .
-rm /etc/resolv.conf
-cp resolv.conf /etc/
+sed -i '/nameserver/ i nameserver 11.0.0.1' /etc/resolv.conf
+sed -i '/nameserver 11.0.0.1/ a\nameserver 192.168.0.1' /etc/resolv.conf
+sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
 chattr +i /etc/resolv.conf
 
 chmod 775 -R /etc/bind
@@ -251,7 +228,7 @@ iptables-save > /etc/iptables.rules
 STATUS="$(grep "pre-up iptables-restore < /etc/iptables.rules" /etc/network/interfaces)"
 if [ -z "$STATUS" ]
 then
-`sed -i '/broadcast 11.0.0.254/ a\pre-up iptables-restore < /etc/iptables.rules' /etc/network/interfaces`
+sed -i '$a pre-up iptables-restore < /etc/iptables.rules' /etc/network/interfaces
 fi
 
 if [ "$ENV" == "LOCAL" ]; then
@@ -266,6 +243,16 @@ fi
 
 #################################
 #################################
+##########SETTING NTP############
+#################################
+#################################
+
+sed -i '/^restrict ::1$/a\ restrict 11.0.0.0 mask 255.255.255.0 nomodify notrap' /etc/ntp.conf
+service ntp start
+
+
+#################################
+#################################
 ##########SETTING NFS############
 #################################
 #################################
@@ -273,28 +260,14 @@ fi
 
 apt-get install -y nfs-kernel-server
 
-#echo "/root 11.0.0.0/24(rw,async,no_root_squash)" > /etc/exports
-#echo "/home 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
 echo "/export 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
-
 mkdir -p /export
 chmod 777 /export
-
 exportfs -va
-#service nfs-kernel-server start
 systemctl start nfs-kernel-server
 systemctl enable nfs-kernel-server
 mount 11.0.0.1:/export /export
 
-#################################
-#################################
-##########SETTING NTP############
-#################################
-#################################
-
-`sed -i '/^restrict ::1$/a\ restrict 11.0.0.0 mask 255.255.255.0 nomodify notrap' /etc/ntp.conf`
-
-service ntp start
 
 echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
 echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
