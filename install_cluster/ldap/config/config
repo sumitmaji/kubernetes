@@ -1,9 +1,9 @@
-DOMAIN_NAME=default.svc.cloud.uat
-DC_1=default.svc.cloud
-DC_2=uat
-DC=dc=default,dc=svc,dc=cloud,dc=uat
-LDAP_HOSTNAME=ldap.default.svc.cloud.uat
-KDC_ADDRESS=kerberos.default.svc.cloud.uat
-LDAP_HOST=ldap://ldap.default.svc.cloud.uat
+DOMAIN_NAME=gokcloud.co.in
+DC_1=gokcloud.co
+DC_2=in
+DC=dc=gokcloud,dc=co,dc=in
+LDAP_HOSTNAME=ldap.gokcloud.co.in
+KDC_ADDRESS=kerberos.gokcloud.co.in
+LDAP_HOST=ldap://ldap.gokcloud.co.in
 ENABLE_SSL=true
 ENABLE_KUBERNETES=true
