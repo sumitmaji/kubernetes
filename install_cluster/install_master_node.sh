@@ -216,6 +216,10 @@ service isc-dhcp-server restart
 ###########################
 ###########################
 
+apt-get install -y iptables-persistent <<EOF
+YES
+YES
+EOF
 echo "1" > /proc/sys/net/ipv4/ip_forward
 sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
 if [ "$ENV" == "LOCAL" ]; then
@@ -223,13 +227,7 @@ if [ "$ENV" == "LOCAL" ]; then
 elif [ "$ENV" == "CLOUD" ]; then
    iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 fi
-
-iptables-save > /etc/iptables.rules
-STATUS="$(grep "pre-up iptables-restore < /etc/iptables.rules" /etc/network/interfaces)"
-if [ -z "$STATUS" ]
-then
-sed -i '$a pre-up iptables-restore < /etc/iptables.rules' /etc/network/interfaces
-fi
+iptables-save > /etc/iptables/rules.v4
 
 if [ "$ENV" == "LOCAL" ]; then
       ssh-keygen -q -N "" -t rsa -f ~/.ssh/id_rsa
