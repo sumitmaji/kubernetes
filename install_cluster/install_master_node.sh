@@ -271,3 +271,5 @@ echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
 echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
 
 rm -rf rndc-key
+
+reboot
