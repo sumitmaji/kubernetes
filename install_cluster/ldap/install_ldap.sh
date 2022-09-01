@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
     ;;
   -k | --kpassword)
     shift
-    LDC_PASSWORD=$1
+    KDC_PASSWORD=$1
     ;;
   esac
   shift

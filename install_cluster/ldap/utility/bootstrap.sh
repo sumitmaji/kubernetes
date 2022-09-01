@@ -88,39 +88,39 @@ EOF
 
 create_ldif() {
 
-gzip -d conf/kerberos.schema.gz
-echo "include conf/kerberos.schema" > conf/schema_convert.conf
-mkdir conf/ldif_result
+gzip -d config/kerberos.schema.gz
+echo "include config/kerberos.schema" > config/schema_convert.conf
+mkdir config/ldif_result
 
-slapcat -f conf/schema_convert.conf -F conf/ldif_result \
+slapcat -f config/schema_convert.conf -F config/ldif_result \
 -s "cn=kerberos,cn=schema,cn=config"
 
-cp conf/ldif_result/cn\=config/cn\=schema/cn\=\{0\}kerberos.ldif \
-conf/kerberos.ldif
+cp config/ldif_result/cn\=config/cn\=schema/cn\=\{0\}kerberos.ldif \
+config/kerberos.ldif
 
 #####Edit the file here
-sed -i 's/cn={0}kerberos/cn=kerberos,cn=schema,cn=config/' conf/kerberos.ldif
-sed -i 's/{0}kerberos/kerberos/' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
-sed -i '$d' conf/kerberos.ldif
+sed -i 's/cn={0}kerberos/cn=kerberos,cn=schema,cn=config/' config/kerberos.ldif
+sed -i 's/{0}kerberos/kerberos/' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
+sed -i '$d' config/kerberos.ldif
 
-ldapadd -QY EXTERNAL -H ldapi:/// -f conf/kerberos.ldif
+ldapadd -QY EXTERNAL -H ldapi:/// -f config/kerberos.ldif
 
 echo "dn: olcDatabase={0}config,cn=config
 changetype: modify
 add: olcAccess
 olcAccess: to * by dn="cn=admin,$BASE_DN" write" > /var/tmp/access.ldif
 
-sed -i "s/\$DOMAIN_NAME_UPPER/$REALM/" conf/access.ldif
-sed -i "s/\$DC/$BASE_DN/" conf/access.ldif
+sed -i "s/\$DOMAIN_NAME_UPPER/$REALM/" config/access.ldif
+sed -i "s/\$DC/$BASE_DN/" config/access.ldif
 
 ldapmodify -c -Y EXTERNAL -H ldapi:/// -f /var/tmp/access.ldif
-ldapmodify -c -Y EXTERNAL -H ldapi:/// -f conf/access.ldif
+ldapmodify -c -Y EXTERNAL -H ldapi:/// -f config/access.ldif
 
   sudo ldapadd -c -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/core.ldif
   sudo ldapadd -c -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/cosine.ldif
@@ -156,20 +156,20 @@ objectclass: posixGroup
 objectclass: top" > /var/tmp/groups.ldif
 ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /var/tmp/groups.ldif
 
-conf/utility/createGroup.sh hadoop $BASE_DN $LDAP_PASSWORD
-conf/utility/createUser.sh smaji hadoop sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh hduser hadoop hadoop $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh hive hadoop hive $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh hue hadoop hue $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh oozie hadoop oozie $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh yarn hadoop yarn $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh hdfs hadoop hdfs $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh mapred hadoop mapred $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh jobhist hadoop jobhist $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh spark hadoop spark $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh pig hadoop pig $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh hbase hadoop hbase $LDAP_PASSWORD $BASE_DN $LDAP_HOST
-conf/utility/createUser.sh livy hadoop livy $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createGroup.sh hadoop $BASE_DN $LDAP_PASSWORD
+config/utility/createUser.sh smaji hadoop sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh hduser hadoop hadoop $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh hive hadoop hive $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh hue hadoop hue $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh oozie hadoop oozie $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh yarn hadoop yarn $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh hdfs hadoop hdfs $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh mapred hadoop mapred $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh jobhist hadoop jobhist $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh spark hadoop spark $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh pig hadoop pig $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh hbase hadoop hbase $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+config/utility/createUser.sh livy hadoop livy $LDAP_PASSWORD $BASE_DN $LDAP_HOST
 
 echo "dn: ou=krb5,$BASE_DN
 ou: krb5
@@ -192,27 +192,27 @@ ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /tmp/krb5.ld
 
 #Install kube tokens
 mkdir -p kubernetes_tokens
-echo "include /kubernetesToken.schema" > conf/kubernetes_tokens/schema_convert.conf
-slapcat -f conf/kubernetes_tokens/schema_convert.conf -F conf//kubernetes_tokens -s "cn=kubernetestoken,cn=schema,cn=config"
-cp conf/kubernetes_tokens/cn\=config/cn\=schema/cn\=\{0\}kubernetestoken.ldif \
-conf/kubernetestoken.ldif
+echo "include /kubernetesToken.schema" > config/kubernetes_tokens/schema_convert.conf
+slapcat -f config/kubernetes_tokens/schema_convert.conf -F config//kubernetes_tokens -s "cn=kubernetestoken,cn=schema,cn=config"
+cp config/kubernetes_tokens/cn\=config/cn\=schema/cn\=\{0\}kubernetestoken.ldif \
+config/kubernetestoken.ldif
 
 #####Edit the file here
-sed -i 's/cn={0}kubernetestoken/cn=kubernetestoken,cn=schema,cn=config/' conf/kubernetestoken.ldif
-sed -i 's/{0}kubernetestoken/kubernetestoken/' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
-sed -i '$d' conf/kubernetestoken.ldif
+sed -i 's/cn={0}kubernetestoken/cn=kubernetestoken,cn=schema,cn=config/' config/kubernetestoken.ldif
+sed -i 's/{0}kubernetestoken/kubernetestoken/' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
+sed -i '$d' config/kubernetestoken.ldif
 
 
-ldapadd -QY EXTERNAL -H ldapi:/// -f conf/kubernetestoken.ldif
+ldapadd -QY EXTERNAL -H ldapi:/// -f config/kubernetestoken.ldif
 
-echo "dn: cn=smaji,ou=users,$BASE_DN" >> conf/users.txt
-conf/utility/createTokenLdif.sh $LDAP_PASSWORD $BASE_DN
+echo "dn: cn=smaji,ou=users,$BASE_DN" >> config/users.txt
+config/utility/createTokenLdif.sh $LDAP_PASSWORD $BASE_DN
 
 }
 
@@ -234,7 +234,7 @@ start_ldap() {
 
    if [ "$ENABLE_SSL" == 'true' ]
    then
-     conf/utility/setupssl.sh
+     config/utility/setupssl.sh
    fi
 }
 
