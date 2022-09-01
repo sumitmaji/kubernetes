@@ -1,6 +1,6 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
-
+# ./install_ldap.sh -d master.cloud.com -h ldap.master.cloud.com -b dc=master,dc=cloud,dc=com -p sumit -k admin
 : ${ENV:="LOCAL"}
 while [ $# -gt 0 ]; do
   case "$1" in
