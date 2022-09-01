@@ -28,9 +28,6 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# Avoid ERROR: invoke-rc.d: policy-rc.d denied execution of start.
-sed -i "s/^exit 101$/exit 0/" /usr/sbin/policy-rc.d
-
 DEBIAN_FRONTEND=noninteractive
 LDAP_ORG=CloudInc
 
@@ -65,7 +62,7 @@ echo "slapd slapd/no_configuration boolean false" | debconf-set-selections
 echo "slapd slapd/dump_database_destdir string /var/backups/slapd-VERSION" | debconf-set-selections
 echo "slapd slapd/dump_database select when needed" | debconf-set-selections
 
-LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y --force-yes slapd ldap-utils
+LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y slapd ldap-utils
 
 apt-get install -yq phpldapadmin
 
@@ -94,30 +91,13 @@ echo "ldap-auth-config ldap-auth-config/move-to-debconf boolean true" | debconf-
 echo "ldap-auth-config ldap-auth-config/ldapns/base-dn string $BASE_DN" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | debconf-set-selections
 
-cat >/etc/auth-client-config/profile.d/krb-ldap-config <<EOF
-[krb_ldap]
-nss_group=group:          files ldap
-nss_passwd=passwd:         files ldap
-nss_shadow=shadow:         files ldap
-nss_netgroup=netgroup:       ldap
-pam_account=account sufficient        pam_unix.so
-        account sufficient        pam_krb5.so
-        account required          pam_deny.so
-pam_auth=auth sufficient pam_krb5.so
-        auth sufficient pam_unix.so use_first_pass
-        auth required   pam_deny.so
-pam_password=password  sufficient   pam_unix.so nullok obscure md5
-        password  sufficient   pam_krb5.so use_first_pass
-        password  required     pam_deny.so
-pam_session=session required        pam_unix.so
-EOF
-
 apt-get install -yq ldap-auth-client nscd krb5-user libpam-krb5 libpam-ccreds
-auth-client-config -a -p krb_ldap
 
-STATUS=$(grep "ldap compat" /etc/nsswitch.conf)
+STATUS=$(grep "ldap" /etc/nsswitch.conf)
 if [ -z "$STATUS" ]; then
-  $(sed -i 's/compat/ldap compat/' /etc/nsswitch.conf)
+  sed -i 's/files systemd/files ldap systemd/g' /etc/nsswitch.conf
+  sed -i 's/\(shadow:\)\(.*\)files/\1\2files ldap/g' /etc/nsswitch.conf
+  sed -i 's/netgroup:\(.*\)nis/netgroup:\1ldap/g' /etc/nsswitch.conf
 fi
 
 echo 'account [success=1 new_authtok_reqd=done default=ignore]        pam_unix.so
@@ -146,7 +126,7 @@ service nscd restart
 
 STATUS=$(grep "%admins ALL=(ALL) ALL" /etc/sudoers)
 if [ -z "$STATUS" ]; then
-  $(sed -i '/%admin ALL=(ALL) ALL/a\%admins ALL=(ALL) ALL' /etc/sudoers)
+  sed -i '/%admin ALL=(ALL) ALL/a\%admins ALL=(ALL) ALL' /etc/sudoers
 fi
 
 echo "$LDAP_PASSWORD" >/etc/ldap.secret
@@ -171,14 +151,14 @@ apt-get clean
 touch /var/userid
 echo '1000' >/var/userid
 chown root:root /var/userid
-touch /var/groupidb
+touch /var/groupid
 chown root:root /var/groupid
 echo '502' >/var/groupid
 
 mkdir -p /etc/secret/krb
 mkdir -p /etc/secret/ldap
 
-echo "${LDAP_PASSWORD}" > /etc/secret/ldap/password
-echo "${KDC_PASSWORD}" > /etc/secret/krb/password
-echo "${KDC_PASSWORD}" > /etc/secret/krb/kdcpassword
-echo "${KDC_PASSWORD}" > /etc/secret/krb/admpassword
+echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/kdcpassword
+echo "${KDC_PASSWORD}" >/etc/secret/krb/admpassword
