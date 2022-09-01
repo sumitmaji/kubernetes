@@ -1,9 +1,9 @@
-DOMAIN_NAME=gokcloud.co.in
-DC_1=gokcloud.co
-DC_2=in
-DC=dc=gokcloud,dc=co,dc=in
-LDAP_HOSTNAME=ldap.gokcloud.co.in
-KDC_ADDRESS=kerberos.gokcloud.co.in
-LDAP_HOST=ldap://ldap.gokcloud.co.in
+DOMAIN_NAME=master.cloud.com
+DC_1=master.cloud
+DC_2=com
+DC=dc=master,dc=cloud,dc=com
+LDAP_HOSTNAME=ldap.master.cloud.com
+KDC_ADDRESS=kerberos.master.cloud.com
+LDAP_HOST=ldap://ldap.master.cloud.com
 ENABLE_SSL=true
-ENABLE_KUBERNETES=true
+ENABLE_KUBERNETES=false
