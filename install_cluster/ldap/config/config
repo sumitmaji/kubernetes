@@ -5,5 +5,5 @@ DC=dc=master,dc=cloud,dc=com
 LDAP_HOSTNAME=ldap.master.cloud.com
 KDC_ADDRESS=kerberos.master.cloud.com
 LDAP_HOST=ldap://ldap.master.cloud.com
-ENABLE_SSL=true
+ENABLE_SSL=false
 ENABLE_KUBERNETES=false
