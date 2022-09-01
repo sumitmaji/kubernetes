@@ -85,28 +85,9 @@ EOF
 
 create_ldif() {
 
+  apt-get install -yq schema2ldif
   gzip -d config/kerberos.schema.gz
-  echo "include config/kerberos.schema" >${WORKING_DIR}/config/schema_convert.conf
-  mkdir -p config/ldif_result
-
-  slapcat -f config/schema_convert.conf -F config/ldif_result \
-    -s "cn=kerberos,cn=schema,cn=config"
-
-  cp config/ldif_result/cn\=config/cn\=schema/cn\=\{0\}kerberos.ldif \
-    config/kerberos.ldif
-
-  #####Edit the file here
-  sed -i 's/cn={0}kerberos/cn=kerberos,cn=schema,cn=config/' config/kerberos.ldif
-  sed -i 's/{0}kerberos/kerberos/' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-  sed -i '$d' config/kerberos.ldif
-
-  ldapadd -QY EXTERNAL -H ldapi:/// -f config/kerberos.ldif
+  ldap-schema-manager -i config/kerberos.schema
 
   echo "dn: olcDatabase={0}config,cn=config
 changetype: modify
