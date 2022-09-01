@@ -19,7 +19,7 @@ objectclass: kubernetesAuthenticationObject
 add: kubernetesToken
 kubernetesToken: $token
 EOF
-done < /users.txt
+done < config/users.txt
 
 for i in *.ldif; do ldapmodify -x -D "cn=admin,$BASE_DN" -w ${LDAP_PASSWORD} -H ldapi:/// -f $i; done
 popd
