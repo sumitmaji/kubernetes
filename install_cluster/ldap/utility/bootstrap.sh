@@ -87,7 +87,7 @@ create_ldif() {
 
   gzip -d config/kerberos.schema.gz
   echo "include config/kerberos.schema" >${WORKING_DIR}/config/schema_convert.conf
-  mkdir config/ldif_result
+  mkdir -p config/ldif_result
 
   slapcat -f config/schema_convert.conf -F config/ldif_result \
     -s "cn=kerberos,cn=schema,cn=config"
