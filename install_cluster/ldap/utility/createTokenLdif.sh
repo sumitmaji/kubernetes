@@ -2,6 +2,7 @@
 
 [[ "TRACE" ]] && set -x
 
+: ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_cluster/ldap}
 : ${LDAP_PASSWORD:=$1}
 : ${BASE_DN:=$2}
 
@@ -19,7 +20,7 @@ objectclass: kubernetesAuthenticationObject
 add: kubernetesToken
 kubernetesToken: $token
 EOF
-done < config/users.txt
+done < ${WORKING_DIR}/config/users.txt
 
 for i in *.ldif; do ldapmodify -x -D "cn=admin,$BASE_DN" -w ${LDAP_PASSWORD} -H ldapi:/// -f $i; done
 popd
