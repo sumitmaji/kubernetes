@@ -169,24 +169,7 @@ userPassword: sumit" >/tmp/krb5.ldif
   ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /tmp/krb5.ldif
 
   #Install kube tokens
-  mkdir -p config/kubernetes_tokens
-  echo "include config/kubernetesToken.schema" >config/kubernetes_tokens/schema_convert.conf
-  slapcat -f config/kubernetes_tokens/schema_convert.conf -F config//kubernetes_tokens -s "cn=kubernetestoken,cn=schema,cn=config"
-  cp config/kubernetes_tokens/cn\=config/cn\=schema/cn\=\{0\}kubernetestoken.ldif \
-    config/kubernetestoken.ldif
-
-  #####Edit the file here
-  sed -i 's/cn={0}kubernetestoken/cn=kubernetestoken,cn=schema,cn=config/' config/kubernetestoken.ldif
-  sed -i 's/{0}kubernetestoken/kubernetestoken/' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-  sed -i '$d' config/kubernetestoken.ldif
-
-  ldapadd -QY EXTERNAL -H ldapi:/// -f config/kubernetestoken.ldif
+  ldap-schema-manager -i config/kubernetesToken.schema
 
   echo "dn: cn=smaji,ou=users,$BASE_DN" >>config/users.txt
   utility/createTokenLdif.sh $LDAP_PASSWORD $BASE_DN
