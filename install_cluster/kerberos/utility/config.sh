@@ -33,6 +33,10 @@ fix_hostname() {
 create_config() {
   : ${KDC_ADDRESS:=$(hostname -f)}
 
+  sudo mkdir /var/log/kerberos
+  sudo touch /var/log/kerberos/{krb5kdc,kadmin,krb5lib}.log
+  sudo chmod -R 750 /var/log/kerberos
+
   cat >/etc/krb5.conf <<EOF
 [logging]
  default = FILE:/var/log/kerberos/krb5libs.log
@@ -102,7 +106,6 @@ create_ldif() {
   gzip -d config/kerberos.schema.gz
   ldap-schema-manager -i config/kerberos.schema
 }
-
 
 create_containers() {
   kdb5_ldap_util -D cn=admin,$BASE_DN -w $LDAP_PASSWORD \
