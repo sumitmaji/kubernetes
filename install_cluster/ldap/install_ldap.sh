@@ -1,6 +1,6 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
-# ./install_ldap.sh -d master.cloud.com -h ldap.master.cloud.com -b dc=master,dc=cloud,dc=com -p sumit -k admin
+# ./install_ldap.sh -d master.cloud.com -h ldap.master.cloud.com -b dc=master,dc=cloud,dc=com -p sumit
 : ${ENV:="LOCAL"}
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -19,10 +19,6 @@ while [ $# -gt 0 ]; do
   -p | --password)
     shift
     LDAP_PASSWORD=$1
-    ;;
-  -k | --kpassword)
-    shift
-    KDC_PASSWORD=$1
     ;;
   esac
   shift
