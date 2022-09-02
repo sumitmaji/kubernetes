@@ -64,7 +64,7 @@ echo "ldap-auth-config ldap-auth-config/rootbindpw password ${LDAP_PASSWORD}" | 
 echo "ldap-auth-config ldap-auth-config/bindpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/dblogin boolean false" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/override boolean true" | debconf-set-selections
-echo "ldap-auth-config ldap-auth-config/ldapns/ldap-server string ldap:///$LDAP_HOSTNAME" | debconf-set-selections
+echo "ldap-auth-config ldap-auth-config/ldapns/ldap-server string ldap://$LDAP_HOSTNAME" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/pam_password string md5" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/dbrootlogin boolean true" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/binddn string cn=proxyuser,dc=example,dc=net" | debconf-set-selections
