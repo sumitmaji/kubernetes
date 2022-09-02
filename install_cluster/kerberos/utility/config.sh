@@ -96,6 +96,14 @@ EOF
 
 }
 
+create_ldif() {
+
+  apt-get install -yq schema2ldif
+  gzip -d config/kerberos.schema.gz
+  ldap-schema-manager -i config/kerberos.schema
+}
+
+
 create_containers() {
   kdb5_ldap_util -D cn=admin,$BASE_DN -w $LDAP_PASSWORD \
     -H $LDAP_HOST create -subtrees cn=krbContainer,$BASE_DN -r $REALM -s -P $KERB_ADMIN_PASS 2>error
@@ -145,16 +153,27 @@ create_admin_user() {
   echo "*/admin@$REALM *" >/etc/krb5kdc/kadm5.acl
 }
 
+enableGss() {
+  sed -i 's/UsePAM no/UsePAM yes/' /etc/ssh/sshd_config
+  echo 'GSSAPIAuthentication yes
+ GSSAPICleanupCredentials yes' >>/etc/ssh/sshd_config
+
+}
+
 main() {
   #  fix_nameserver
   fix_hostname
 
   if [ ! -f /kerberos_initialized ]; then
+    create_ldif
     create_config
     create_db
     create_containers
     create_admin_user
     start_kdc
+
+    enableGss
+    service ssh restart
 
     touch /kerberos_initialized
   fi
