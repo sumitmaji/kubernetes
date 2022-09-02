@@ -64,6 +64,20 @@ echo "slapd slapd/dump_database select when needed" | debconf-set-selections
 
 LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y slapd ldap-utils
 
+apt-get install -yq phpldapadmin
+
+sed -i "s/servers->setValue('server','host','127.0.0.1');/servers->setValue('server','host','${LDAP_HOSTNAME}');/" /etc/phpldapadmin/config.php
+sed -i "s/servers->setValue('server','base',array('dc=example,dc=com'));/servers->setValue('server','base',array('$BASE_DN'));/" /etc/phpldapadmin/config.php
+sed -i "s/servers->setValue('login','bind_id','cn=admin,dc=example,dc=com');/servers->setValue('login','bind_id','cn=admin,$BASE_DN');/" /etc/phpldapadmin/config.php
+sed -i "s/'appearance','password_hash'/'appearance','password_hash_custom'/" /usr/share/phpldapadmin/lib/TemplateRender.php
+
+sed -i "s/<VirtualHost \*:80>/<VirtualHost \*:8181>/" /etc/apache2/sites-available/000-default.conf
+sed -i "s/Listen 80/Listen 8181/" /etc/apache2/ports.conf
+
+# Set FQDN for Apache Webserver
+echo "ServerName ${LDAP_HOSTNAME}" >/etc/apache2/conf-available/fqdn.conf
+a2enconf fqdn
+
 echo "ldap-auth-config ldap-auth-config/rootbindpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/bindpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/dblogin boolean false" | debconf-set-selections
@@ -77,10 +91,7 @@ echo "ldap-auth-config ldap-auth-config/move-to-debconf boolean true" | debconf-
 echo "ldap-auth-config ldap-auth-config/ldapns/base-dn string $BASE_DN" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | debconf-set-selections
 
-# To enable the system see and use LDAP accounts, we need to install libnss-ldap, libpam-ldap and nscd.
-# ldap-auth-client: will install all required packages for an ldap client (auth-client-config, ldap-auth-config, libnss-ldap and libpam-ldap)
-# libpam-ccreds: To cache the password information through the use of the PAM module
-apt-get install -yq ldap-auth-client nscd libpam-ccreds libnss-ldap libpam-ldap
+apt-get install -yq ldap-auth-client nscd krb5-user libpam-krb5 libpam-ccreds
 
 STATUS=$(grep "ldap" /etc/nsswitch.conf)
 if [ -z "$STATUS" ]; then
@@ -89,57 +100,26 @@ if [ -z "$STATUS" ]; then
   sed -i 's/netgroup:\(.*\)nis/netgroup:\1ldap/g' /etc/nsswitch.conf
 fi
 
-echo '# Disable if using Kerberos:
-account [success=2 new_authtok_reqd=done default=ignore]        pam_unix.so
-account [success=1 default=ignore]      pam_ldap.so
-
-# Enable if using Kerberos:
-#account [success=1 new_authtok_reqd=done default=ignore]        pam_unix.so
-
+echo 'account [success=1 new_authtok_reqd=done default=ignore]        pam_unix.so
 account requisite                       pam_deny.so
-
 account required                        pam_permit.so
+account required                        pam_krb5.so minimum_uid=1000' >/etc/pam.d/common-account
 
-# Enable if using Kerberos:
-#account required                        pam_krb5.so minimum_uid=1000' >/etc/pam.d/common-account
-
-echo '# Disable if using Kerberos:
-auth    [success=2 default=ignore]      pam_unix.so nullok_secure
-auth    [success=1 default=ignore]      pam_ldap.so use_first_pass
-
-# Enable if using Kerberos:
-#auth    [success=2 default=ignore]      pam_krb5.so minimum_uid=1000
-#auth    [success=1 default=ignore]      pam_unix.so nullok_secure try_first_pass
-
+echo 'auth    [success=2 default=ignore]      pam_krb5.so minimum_uid=1000
+auth    [success=1 default=ignore]      pam_unix.so nullok_secure try_first_pass
 auth    requisite                       pam_deny.so
-
 auth    required                        pam_permit.so' >/etc/pam.d/common-auth
 
-echo '# Disable if using Kerberos:
-password        [success=2 default=ignore]      pam_unix.so obscure sha512
-password        [success=1 user_unknown=ignore default=die]     pam_ldap.so use_authtok try_first_pass
-
-# Enable if using Kerberos:
-#password        [success=2 default=ignore]      pam_krb5.so minimum_uid=1000
-#password        [success=1 default=ignore]      pam_unix.so obscure use_authtok try_first_pass sha512
-
+echo 'password        [success=2 default=ignore]      pam_krb5.so minimum_uid=1000
+password        [success=1 default=ignore]      pam_unix.so obscure use_authtok try_first_pass sha512
 password        requisite                       pam_deny.so
-
 password        required                        pam_permit.so' >/etc/pam.d/common-password
 
 echo 'session [default=1]                     pam_permit.so
-
 session requisite                       pam_deny.so
-
 session required                        pam_permit.so
-
-# Enable if using Kerberos:
-#session  optional  pam_krb5.so minimum_uid=1000
-
+session optional                        pam_krb5.so minimum_uid=1000
 session required        pam_unix.so
-
-# Disable if using Kerberos:
-session optional                        pam_ldap.so
 session required        pam_mkhomedir.so        skel=/etc/skel umaks=0022' >/etc/pam.d/common-session
 
 service nscd restart
@@ -154,13 +134,14 @@ chmod 600 /etc/ldap.secret
 adduser openldap sudo
 echo openldap:openldap | chpasswd
 chown -R openldap:openldap /var/lib/ldap
+
 chown -R openldap:openldap /etc/ldap
 
 chgrp openldap /etc/init.d/slapd
 chmod g+x /etc/init.d/slapd
 echo "local4.*			/var/log/sldapd.log" >/etc/rsyslog.d/slapd.conf
 
-apt-get install -yq ntp ntpdate nmap
+apt-get install -yq ntp ntpdate nmap libsasl2-modules-gssapi-mit
 
 # Cleanup Apt
 apt-get autoremove
@@ -174,6 +155,10 @@ touch /var/groupid
 chown root:root /var/groupid
 echo '502' >/var/groupid
 
+mkdir -p /etc/secret/krb
 mkdir -p /etc/secret/ldap
 
 echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/kdcpassword
+echo "${KDC_PASSWORD}" >/etc/secret/krb/admpassword

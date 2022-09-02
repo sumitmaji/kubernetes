@@ -1,0 +1,12 @@
+kerberos client setup
+apt-get install krb5-user libpam-krb5
+
+To kerberize slapd, start by installing this package:
+apt-get install -yq libsasl2-modules-gssapi-mit
+
+mkdir -p /etc/secret/krb
+
+
+echo "${KDC_PASSWORD}" >/etc/secret/krb/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/kdcpassword
+echo "${KDC_PASSWORD}" >/etc/secret/krb/admpassword
