@@ -98,25 +98,6 @@ objectclass: top" >/var/tmp/groups.ldif
   utility/createUser.sh hbase hadoop hbase $LDAP_PASSWORD $BASE_DN $LDAP_HOST
   utility/createUser.sh livy hadoop livy $LDAP_PASSWORD $BASE_DN $LDAP_HOST
 
-  echo "dn: ou=krb5,$BASE_DN
-ou: krb5
-objectClass: organizationalUnit
-
-dn: cn=kdc-srv,ou=krb5,$BASE_DN
-cn: kdc-srv
-objectClass: simpleSecurityObject
-objectClass: organizationalRole
-description: Default bind DN for the Kerberos KDC server
-userPassword: sumit
-
-dn: cn=adm-srv,ou=krb5,$BASE_DN
-cn: adm-srv
-objectClass: simpleSecurityObject
-objectClass: organizationalRole
-description: Default bind DN for the Kerberos Administration server
-userPassword: sumit" >/tmp/krb5.ldif
-  ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /tmp/krb5.ldif
-
   #Install kube tokens
   ldap-schema-manager -i config/kubernetesToken.schema
 

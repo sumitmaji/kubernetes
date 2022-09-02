@@ -105,6 +105,28 @@ create_ldif() {
   apt-get install -yq schema2ldif
   gzip -d config/kerberos.schema.gz
   ldap-schema-manager -i config/kerberos.schema
+
+
+    echo "dn: ou=krb5,$BASE_DN
+  ou: krb5
+  objectClass: organizationalUnit
+
+  dn: cn=kdc-srv,ou=krb5,$BASE_DN
+  cn: kdc-srv
+  objectClass: simpleSecurityObject
+  objectClass: organizationalRole
+  description: Default bind DN for the Kerberos KDC server
+  userPassword: $KDC_PASSWORD
+
+  dn: cn=adm-srv,ou=krb5,$BASE_DN
+  cn: adm-srv
+  objectClass: simpleSecurityObject
+  objectClass: organizationalRole
+  description: Default bind DN for the Kerberos Administration server
+  userPassword: $ADM_PASSWORD" >/tmp/krb5.ldif
+    ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /tmp/krb5.ldif
+
+
 }
 
 create_containers() {
