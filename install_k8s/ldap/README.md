@@ -62,3 +62,4 @@ http://www.linux-mag.com/id/4765/<br>
 https://docs.oracle.com/cd/E19253-01/816-4557/ggdqi/index.html<br>
 https://help.ubuntu.com/lts/serverguide/kerberos-ldap.html<br>
 http://jurjenbokma.com/ApprenticesNotes/kerberized_ssh.xhtml<br>
+https://ubuntu.com/server/docs/service-kerberos-with-openldap-backend<br>
