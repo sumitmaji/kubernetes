@@ -84,7 +84,7 @@ objectclass: top" >/var/tmp/groups.ldif
   ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /var/tmp/groups.ldif
 
   utility/createGroup.sh hadoop $BASE_DN $LDAP_PASSWORD
-  utility/createUser.sh smaji hadoop sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+  utility/createUser.sh smaji admins sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST
   utility/createUser.sh hduser hadoop hadoop $LDAP_PASSWORD $BASE_DN $LDAP_HOST
   utility/createUser.sh hive hadoop hive $LDAP_PASSWORD $BASE_DN $LDAP_HOST
   utility/createUser.sh hue hadoop hue $LDAP_PASSWORD $BASE_DN $LDAP_HOST
