@@ -73,3 +73,6 @@ chmod 600 /etc/ldap.secret
 apt-get autoremove
 apt-get autoclean
 apt-get clean
+
+echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/password
