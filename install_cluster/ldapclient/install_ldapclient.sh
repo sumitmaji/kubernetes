@@ -62,12 +62,12 @@ echo "ldap-auth-config ldap-auth-config/ldapns/base-dn string $BASE_DN" | debcon
 echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | debconf-set-selections
 
 apt-get install -yq ldap-auth-client nscd krb5-user libpam-krb5 libpam-ccreds
+apt-get install -yq ntp ntpdate nmap libsasl2-modules-gssapi-mit
 
 
 echo "$LDAP_PASSWORD" >/etc/ldap.secret
 chmod 600 /etc/ldap.secret
 
-apt-get install -yq ntp ntpdate nmap libsasl2-modules-gssapi-mit
 
 # Cleanup Apt
 apt-get autoremove
