@@ -157,9 +157,6 @@ create_db() {
   mkdir -p /var/log/kerberos
   touch /var/log/kerberos/{krb5kdc,kadmin,krb5lib}.log
   chmod -R 750 /var/log/kerberos
-
-  #database will be created in ldap
-  #/usr/sbin/kdb5_util -P $KERB_MASTER_KEY -r $REALM create -s
 }
 
 start_kdc() {
