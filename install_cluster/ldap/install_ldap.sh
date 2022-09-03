@@ -44,6 +44,8 @@ DEBIAN_FRONTEND=noninteractive
 #apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
 #apt-get -y dist-upgrade
 
+apt-get update
+
 echo "slapd slapd/internal/adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "slapd slapd/internal/generated_adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "slapd slapd/password2 password ${LDAP_PASSWORD}" | debconf-set-selections
@@ -76,7 +78,8 @@ echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | d
 # To enable the system see and use LDAP accounts, we need to install libnss-ldap, libpam-ldap and nscd.
 # ldap-auth-client: will install all required packages for an ldap client (auth-client-config, ldap-auth-config, libnss-ldap and libpam-ldap)
 # libpam-ccreds: To cache the password information through the use of the PAM module
-apt-get install -yq ldap-auth-client nscd libpam-ccreds libnss-ldap libpam-ldap
+apt-get install -yq ldap-auth-client nscd libpam-ccreds
+apt-get install -yq ntp ntpdate nmap schema2ldif
 
 STATUS=$(grep "ldap" /etc/nsswitch.conf)
 if [ -z "$STATUS" ]; then
@@ -155,8 +158,6 @@ chown -R openldap:openldap /etc/ldap
 chgrp openldap /etc/init.d/slapd
 chmod g+x /etc/init.d/slapd
 echo "local4.*			/var/log/sldapd.log" >/etc/rsyslog.d/slapd.conf
-
-apt-get install -yq ntp ntpdate nmap schema2ldif
 
 # Cleanup Apt
 apt-get autoremove
