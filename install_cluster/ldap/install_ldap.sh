@@ -39,7 +39,7 @@ DEBIAN_FRONTEND=noninteractive
 #ln -sf /bin/true /sbin/initctl
 #DEBIAN_FRONTEND=noninteractive
 #apt-get update
-#apt-get install -yq apt debconf
+apt-get install -yq apt debconf
 #apt-get upgrade -yq
 #apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
 #apt-get -y dist-upgrade
