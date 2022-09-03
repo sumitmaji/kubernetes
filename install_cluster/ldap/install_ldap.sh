@@ -51,7 +51,7 @@ echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | d
 # ldap-auth-client: will install all required packages for an ldap client (auth-client-config, ldap-auth-config, libnss-ldap and libpam-ldap)
 # libpam-ccreds: To cache the password information through the use of the PAM module
 apt-get install -yq ldap-auth-client nscd libpam-ccreds
-apt-get install -yq ntp ntpdate nmap
+apt-get install -yq ntp ntpdate nmap schema2ldif
 
 mkdir -p /etc/secret/ldap
 echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
