@@ -35,14 +35,14 @@ echo "LDAP_PASSWORD: $LDAP_PASSWORD"
 DEBIAN_FRONTEND=noninteractive
 
 # Keep upstart from complaining
-#dpkg-divert --local --rename --add /sbin/initctl
-#ln -sf /bin/true /sbin/initctl
-#DEBIAN_FRONTEND=noninteractive
-#apt-get update
+dpkg-divert --local --rename --add /sbin/initctl
+ln -sf /bin/true /sbin/initctl
+DEBIAN_FRONTEND=noninteractive
+apt-get update
 apt-get install -yq apt debconf
-#apt-get upgrade -yq
-#apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
-#apt-get -y dist-upgrade
+apt-get upgrade -yq
+apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
+apt-get -y dist-upgrade
 
 echo "slapd slapd/internal/adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "slapd slapd/internal/generated_adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
