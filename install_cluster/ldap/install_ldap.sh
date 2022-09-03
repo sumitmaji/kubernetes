@@ -156,7 +156,7 @@ chgrp openldap /etc/init.d/slapd
 chmod g+x /etc/init.d/slapd
 echo "local4.*			/var/log/sldapd.log" >/etc/rsyslog.d/slapd.conf
 
-apt-get install -yq ntp ntpdate nmap
+apt-get install -yq ntp ntpdate nmap schema2ldif
 
 # Cleanup Apt
 apt-get autoremove
