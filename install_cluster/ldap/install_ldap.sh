@@ -1,50 +1,21 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
-# ./install_ldap.sh -d master.cloud.com -h ldap.master.cloud.com -b dc=master,dc=cloud,dc=com -p sumit
-: ${ENV:="LOCAL"}
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -d | --domain)
-    shift
-    LDAP_DOMAIN=$1
-    ;;
-  -h | --hostname)
-    shift
-    LDAP_HOSTNAME=$1
-    ;;
-  -b | --basedn)
-    shift
-    BASE_DN=$1
-    ;;
-  -p | --password)
-    shift
-    LDAP_PASSWORD=$1
-    ;;
-  esac
-  shift
-done
 
+DOMAIN_NAME=master.cloud.com
+LDAP_DOMAIN=master.cloud.com
+DC_1=master.cloud
+DC_2=com
+DC=dc=master,dc=cloud,dc=com
+BASE_DN=dc=master,dc=cloud,dc=com
+LDAP_HOSTNAME=master.cloud.com
+KDC_ADDRESS=master.cloud.com
+LDAP_HOST=ldap://master.cloud.com
+ENABLE_SSL=false
+ENABLE_KUBERNETES=false
+LDAP_PASSWORD=sumit
 DEBIAN_FRONTEND=noninteractive
 LDAP_ORG=CloudInc
 
-echo "ldap domain: $LDAP_DOMAIN"
-echo "ldap hostname: $LDAP_HOSTNAME"
-echo "ldap base_dn: $BASE_DN"
-echo "LDAP_PASSWORD: $LDAP_PASSWORD"
-
-DEBIAN_FRONTEND=noninteractive
-
-# Keep upstart from complaining
-#dpkg-divert --local --rename --add /sbin/initctl
-#ln -sf /bin/true /sbin/initctl
-#DEBIAN_FRONTEND=noninteractive
-#apt-get update
-#apt-get install -yq apt debconf
-#apt-get upgrade -yq
-#apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
-#apt-get -y dist-upgrade
-
-apt-get update
 
 echo "slapd slapd/internal/adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "slapd slapd/internal/generated_adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
@@ -78,8 +49,11 @@ echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | d
 # To enable the system see and use LDAP accounts, we need to install libnss-ldap, libpam-ldap and nscd.
 # ldap-auth-client: will install all required packages for an ldap client (auth-client-config, ldap-auth-config, libnss-ldap and libpam-ldap)
 # libpam-ccreds: To cache the password information through the use of the PAM module
-apt-get update && apt-get install -yq ldap-auth-client nscd libpam-ccreds
-apt-get update && apt-get install -yq ntp ntpdate nmap schema2ldif
+apt-get install -yq ldap-auth-client nscd libpam-ccreds
+apt-get install -yq ntp ntpdate nmap
+
+mkdir -p /etc/secret/ldap
+echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
 
 STATUS=$(grep "ldap" /etc/nsswitch.conf)
 if [ -z "$STATUS" ]; then
@@ -170,7 +144,3 @@ chown root:root /var/userid
 touch /var/groupid
 chown root:root /var/groupid
 echo '502' >/var/groupid
-
-mkdir -p /etc/secret/ldap
-
-echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
