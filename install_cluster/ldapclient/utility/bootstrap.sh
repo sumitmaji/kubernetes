@@ -14,11 +14,11 @@ source config/config
 : ${DOMAIN_REALM:=$DOMAIN_NAME}
 : ${KERB_MASTER_KEY:=masterkey}
 : ${KERB_ADMIN_USER:=root}
-: ${KERB_ADMIN_PASS:=$KERB_ADMIN_PASS}
+: ${KERB_ADMIN_PASS:=$(</etc/secret/krb/password)}
 : ${KDC_ADDRESS:=$KDC_ADDRESS}
 : ${LDAP_HOST:=$LDAP_HOST}
 : ${BASE_DN:=$DC}
-: ${LDAP_PASSWORD:=$LDAP_PASSWORD}
+: ${LDAP_PASSWORD:=$(</etc/secret/ldap/password)}
 : ${DC_1:=$DC_1}
 : ${DC_2:=$DC_2}
 : ${ENABLE_KUBERNETES:=$ENABLE_KUBERNETES}
