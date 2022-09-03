@@ -16,6 +16,7 @@ LDAP_PASSWORD=sumit
 DEBIAN_FRONTEND=noninteractive
 LDAP_ORG=CloudInc
 
+apt-get update
 
 echo "slapd slapd/internal/adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "slapd slapd/internal/generated_adminpw password ${LDAP_PASSWORD}" | debconf-set-selections
