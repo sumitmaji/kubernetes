@@ -28,7 +28,6 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-DEBIAN_FRONTEND=noninteractive
 LDAP_ORG=CloudInc
 
 echo "ldap domain: $LDAP_DOMAIN"
@@ -38,15 +37,6 @@ echo "LDAP_PASSWORD: $LDAP_PASSWORD"
 
 DEBIAN_FRONTEND=noninteractive
 
-# Keep upstart from complaining
-dpkg-divert --local --rename --add /sbin/initctl
-ln -sf /bin/true /sbin/initctl
-DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -yq apt debconf
-apt-get upgrade -yq
-apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
-apt-get -y dist-upgrade
 
 echo "ldap-auth-config ldap-auth-config/rootbindpw password ${LDAP_PASSWORD}" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/bindpw password ${LDAP_PASSWORD}" | debconf-set-selections
@@ -67,7 +57,6 @@ apt-get install -yq ntp ntpdate nmap libsasl2-modules-gssapi-mit
 
 echo "$LDAP_PASSWORD" >/etc/ldap.secret
 chmod 600 /etc/ldap.secret
-
 
 # Cleanup Apt
 apt-get autoremove
