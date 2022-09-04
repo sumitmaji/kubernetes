@@ -9,14 +9,6 @@ olcAccess: to attrs=userPassword,shadowLastChange
   by anonymous auth
   by * none
 -
-add: olcAccess
-olcAccess: to attrs=krbPrincipalKey
-  by anonymous auth
-  by dn.exact="uid=kdc-service,dc=example,dc=com" read
-  by dn.exact="uid=kadmin-service,dc=example,dc=com" write
-  by self write
-  by * none
--
 # 2.2.2.
 add: olcAccess
 olcAccess: to dn.subtree="cn=$DOMAIN_NAME_UPPER,cn=krbContainer,$DC"
