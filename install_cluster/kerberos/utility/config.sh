@@ -138,7 +138,9 @@ userPassword: $ADM_PASSWORD" >/tmp/krb5.ldif
 
 }
 
-create_containers() {
+create_db() {
+
+  # Create kerberos db in ldap
   kdb5_ldap_util -D cn=admin,$BASE_DN -w $LDAP_PASSWORD \
     -H $LDAP_HOST create -subtrees cn=krbContainer,$BASE_DN -r $REALM -s -P $KERB_ADMIN_PASS 2>error
   output=$(grep "Can't contact LDAP server while initializing database" error)
@@ -149,6 +151,7 @@ create_containers() {
     output=$(grep "Can't contact LDAP server while initializing database" error)
   done
 
+  # Setting up password to kdc and kadmin to access kerberos db in ldap
   kdb5_ldap_util -D cn=admin,$BASE_DN -w $LDAP_PASSWORD stashsrvpw \
     -f /etc/krb5kdc/service.keyfile cn=kdc-srv,ou=krb5,$BASE_DN <<EOF
 $KDC_PASSWORD
@@ -162,7 +165,7 @@ EOF
 
 }
 
-create_db() {
+create_logs() {
   mkdir -p /var/log/kerberos
   touch /var/log/kerberos/{krb5kdc,kadmin,krb5lib}.log
   chmod -R 750 /var/log/kerberos
@@ -223,8 +226,8 @@ main() {
   if [ ! -f /kerberos_initialized ]; then
     create_ldif
     create_config
+    create_logs
     create_db
-    create_containers
     create_admin_user
     enableKerberosPam
     start_kdc
