@@ -110,5 +110,37 @@ echo "$NODE_NAME" > /etc/hostname
 echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
 echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
 
+
+#################################
+#################################
+##########SETTING SSHD############
+#################################
+#################################
+
+mkdir -p /var/run/sshd
+echo 'root:root' | chpasswd
+sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# SSH login fix. Otherwise user is kicked off after login
+sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+cp /container/scripts/ssh_config /root/.ssh/
+cat > /root/.ssh/config <<EOF
+Host *
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  LogLevel quiet
+  Port 2122
+EOF
+chmod 600 /root/.ssh/config
+chown root:root /root/.ssh/config
+
+# fix the 254 error code
+sed  -i "/^[^#]*UsePAM/ s/.*/#&/"  /etc/ssh/sshd_config
+echo "UsePAM no" >> /etc/ssh/sshd_config
+echo "Port 2122" >> /etc/ssh/sshd_config
+
+export NOTVISIBLE="in users profile"
+echo "export VISIBLE=now" >> /etc/profile
+
 reboot
-exit 0

@@ -34,7 +34,7 @@ echo 'Installing the master node!!!!!!!!!'
 
 apt-get update
 echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-tools"
-apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools
+apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools openssh-server openssh-client
 
 
 hostnamectl set-hostname master.cloud.com
