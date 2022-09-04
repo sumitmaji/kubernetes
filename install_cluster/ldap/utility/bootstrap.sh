@@ -43,16 +43,9 @@ changetype: modify
 add: olcAccess
 olcAccess: to * by dn="cn=admin,$BASE_DN" write" >/var/tmp/access.ldif
 
-  sed -i "s/\$DOMAIN_NAME_UPPER/$REALM/" config/access.ldif
-  sed -i "s/\$DC/$BASE_DN/" config/access.ldif
 
   ldapmodify -c -Y EXTERNAL -H ldapi:/// -f /var/tmp/access.ldif
-  ldapmodify -c -Y EXTERNAL -H ldapi:/// -f config/access.ldif
 
-#  sudo ldapadd -c -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/core.ldif
-#  sudo ldapadd -c -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/cosine.ldif
-#  sudo ldapadd -c -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/nis.ldif
-#  sudo ldapadd -c -Y EXTERNAL -H ldapi:/// -f /etc/ldap/schema/inetorgperson.ldif
   echo "dn: cn=config
 changetype: modify
 replace: olcLogLevel

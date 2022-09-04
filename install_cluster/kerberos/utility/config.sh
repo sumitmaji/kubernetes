@@ -103,11 +103,11 @@ EOF
 create_ldif() {
 
   apt-get install -yq schema2ldif
+  cp /usr/share/doc/krb5-kdc-ldap/kerberos.schema.gz config/
   gzip -d config/kerberos.schema.gz
   ldap-schema-manager -i config/kerberos.schema
 
-
-    echo "dn: ou=krb5,$BASE_DN
+  echo "dn: ou=krb5,$BASE_DN
 ou: krb5
 objectClass: organizationalUnit
 
@@ -124,8 +124,12 @@ objectClass: simpleSecurityObject
 objectClass: organizationalRole
 description: Default bind DN for the Kerberos Administration server
 userPassword: $ADM_PASSWORD" >/tmp/krb5.ldif
-    ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /tmp/krb5.ldif
+  ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /tmp/krb5.ldif
 
+  sed -i "s/\$DOMAIN_NAME_UPPER/$REALM/" config/access.ldif
+  sed -i "s/\$DC/$BASE_DN/" config/access.ldif
+
+  ldapmodify -c -Y EXTERNAL -H ldapi:/// -f config/access.ldif
 
 }
 
