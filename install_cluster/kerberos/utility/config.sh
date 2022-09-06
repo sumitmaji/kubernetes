@@ -237,9 +237,9 @@ main() {
     create_logs
     create_db
     create_admin_user
-    addServerHostToKrb
     enableKerberosPam
     start_kdc
+    addServerHostToKrb
 
     #Going to setup kerberized ssh in separate module
     #enableGss
