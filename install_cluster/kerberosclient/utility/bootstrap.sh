@@ -103,17 +103,11 @@ initialize() {
     addServerHostToKrb
 }
 
-start_ssh() {
-  service ssh restart
-}
 
 main() {
   if [ ! -f /ldap_initialized ]; then
     initialize
-    start_ldap
     touch /ldap_initialized
-  else
-    start_ldap
   fi
 }
 
