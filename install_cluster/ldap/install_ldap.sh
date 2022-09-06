@@ -134,3 +134,5 @@ chown root:root /var/userid
 touch /var/groupid
 chown root:root /var/groupid
 echo '502' >/var/groupid
+
+utility/bootstrap.sh
