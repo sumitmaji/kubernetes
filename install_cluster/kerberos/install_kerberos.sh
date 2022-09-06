@@ -5,6 +5,8 @@
 
 source $CONFIG_FILE
 
+apt-get update
+
 echo "kerberos krb5-config/default_realm string ${DOMAIN_NAME}" | debconf-set-selections
 
 LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -yq krb5-kdc krb5-admin-server krb5-kdc-ldap
