@@ -291,7 +291,7 @@ Host *
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
   LogLevel quiet
-  Port 2122
+#  Port 2122
 EOF
 chmod 600 /root/.ssh/config
 chown root:root /root/.ssh/config
@@ -299,7 +299,7 @@ chown root:root /root/.ssh/config
 # fix the 254 error code
 sed  -i "/^[^#]*UsePAM/ s/.*/#&/"  /etc/ssh/sshd_config
 echo "UsePAM no" >> /etc/ssh/sshd_config
-echo "Port 2122" >> /etc/ssh/sshd_config
+#echo "Port 2122" >> /etc/ssh/sshd_config
 
 export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >> /etc/profile
