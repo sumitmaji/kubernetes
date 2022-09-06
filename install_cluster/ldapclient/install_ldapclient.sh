@@ -20,10 +20,6 @@ while [ $# -gt 0 ]; do
     shift
     LDAP_PASSWORD=$1
     ;;
-  -k | --kpassword)
-    shift
-    KDC_PASSWORD=$1
-    ;;
   esac
   shift
 done
@@ -51,8 +47,8 @@ echo "ldap-auth-config ldap-auth-config/move-to-debconf boolean true" | debconf-
 echo "ldap-auth-config ldap-auth-config/ldapns/base-dn string $BASE_DN" | debconf-set-selections
 echo "ldap-auth-config ldap-auth-config/rootbinddn string cn=admin,$BASE_DN" | debconf-set-selections
 
-apt-get install -yq ldap-auth-client nscd krb5-user libpam-krb5 libpam-ccreds
-apt-get install -yq ntp ntpdate nmap libsasl2-modules-gssapi-mit
+apt-get install -yq ldap-auth-client nscd libpam-ccreds
+apt-get install -yq ntp ntpdate nmap
 
 
 echo "$LDAP_PASSWORD" >/etc/ldap.secret
@@ -64,4 +60,3 @@ apt-get autoclean
 apt-get clean
 
 echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
-echo "${KDC_PASSWORD}" >/etc/secret/krb/password
