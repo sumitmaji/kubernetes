@@ -232,8 +232,9 @@ main() {
     enableKerberosPam
     start_kdc
 
-    enableGss
-    service ssh restart
+    #Going to setup kerberized ssh in separate module
+    #enableGss
+    #service ssh restart
 
     touch /kerberos_initialized
   fi
