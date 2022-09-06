@@ -25,7 +25,7 @@ echo "kerberos krb5-config/default_realm string ${DOMAIN_NAME}" | debconf-set-se
 # kerberos client and pam configuration for kerberos
 LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -yq krb5-user libpam-krb5
 
-# Kerberize sshd
+# Kerberize services
 apt-get install -yq libsasl2-modules-gssapi-mit
 
 mkdir -p /etc/secret/krb
