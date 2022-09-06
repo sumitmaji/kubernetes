@@ -3,10 +3,14 @@
 [[ "TRACE" ]] && set -x
 
 : ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_cluster/ldap}
+: ${CONFIG_FILE:=$MOUNT_PATH/kubernetes/install_cluster/config}
+
+source $CONFIG_FILE
+
 
 pushd ${WORKING_DIR}
 
-source config/config
+source $CONFIG_FILE
 
 : ${REALM:=$(echo $DOMAIN_NAME | tr 'a-z' 'A-Z')}
 : ${DOMAIN_REALM:=$DOMAIN_NAME}
