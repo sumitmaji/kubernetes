@@ -1,28 +1,10 @@
 #!/bin/bash
 [[ "TRACE" ]] && set -x
-# ./install_ldap.sh -d master.cloud.com -h ldap.master.cloud.com -b dc=master,dc=cloud,dc=com -p sumit -k admin
-: ${ENV:="LOCAL"}
-while [ $# -gt 0 ]; do
-  case "$1" in
-  -d | --domain)
-    shift
-    LDAP_DOMAIN=$1
-    ;;
-  -h | --hostname)
-    shift
-    LDAP_HOSTNAME=$1
-    ;;
-  -b | --basedn)
-    shift
-    BASE_DN=$1
-    ;;
-  -p | --password)
-    shift
-    LDAP_PASSWORD=$1
-    ;;
-  esac
-  shift
-done
+
+: ${CONFIG_FILE:=$MOUNT_PATH/kubernetes/install_cluster/config}
+
+source $CONFIG_FILE
+
 
 LDAP_ORG=CloudInc
 

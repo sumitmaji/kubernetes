@@ -6,7 +6,9 @@
 
 pushd ${WORKING_DIR}
 
-source config/config
+: ${CONFIG_FILE:=$MOUNT_PATH/kubernetes/install_cluster/config}
+
+source $CONFIG_FILE
 
 
 : ${ENABLE_KRB:=$ENABLE_KRB}

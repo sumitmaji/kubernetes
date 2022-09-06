@@ -6,7 +6,10 @@
 
 pushd ${WORKING_DIR}
 
-source config/config
+: ${CONFIG_FILE:=$MOUNT_PATH/kubernetes/install_cluster/config}
+
+source $CONFIG_FILE
+
 
 : ${REALM:=$(echo $DOMAIN_NAME | tr 'a-z' 'A-Z')}
 : ${DOMAIN_REALM:=$DOMAIN_NAME}
