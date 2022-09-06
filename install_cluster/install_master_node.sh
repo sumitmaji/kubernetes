@@ -32,6 +32,17 @@ fi
 
 echo 'Installing the master node!!!!!!!!!'
 
+
+# Keep upstart from complaining
+dpkg-divert --local --rename --add /sbin/initctl
+ln -sf /bin/true /sbin/initctl
+DEBIAN_FRONTEND noninteractive
+apt-get update
+apt-get install -yq apt debconf
+apt-get upgrade -yq
+apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
+apt-get -y dist-upgrade
+
 apt-get update
 echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-tools"
 apt-get install -y isc-dhcp-server wget nfs-common bind9 ntp gcc make ifupdown net-tools openssh-server openssh-client

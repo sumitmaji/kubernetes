@@ -20,6 +20,18 @@ if [ -z "$NODE_NAME" ]; then
   exit 0
 fi
 
+
+# Keep upstart from complaining
+dpkg-divert --local --rename --add /sbin/initctl
+ln -sf /bin/true /sbin/initctl
+DEBIAN_FRONTEND noninteractive
+apt-get update
+apt-get install -yq apt debconf
+apt-get upgrade -yq
+apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
+apt-get -y dist-upgrade
+
+
 hostnamectl set-hostname "${NODE_NAME}".cloud.com
 
 apt-get update
