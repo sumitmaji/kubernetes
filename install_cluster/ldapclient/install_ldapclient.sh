@@ -43,3 +43,5 @@ apt-get clean
 
 mkdir -p /etc/secret/ldap
 echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
+
+utility/bootstrap.sh
