@@ -105,9 +105,9 @@ initialize() {
 
 
 main() {
-  if [ ! -f /ldap_initialized ]; then
+  if [ ! -f /kerberos_initialized ]; then
     initialize
-    touch /ldap_initialized
+    touch /kerberos_initialized
   fi
 }
 
