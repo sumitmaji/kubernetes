@@ -2,7 +2,7 @@
 
 [[ "TRACE" ]] && set -x
 
-: ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_cluster/ldapclient}
+: ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_cluster/kerberosclient}
 
 pushd ${WORKING_DIR}
 
@@ -94,8 +94,7 @@ enableGss() {
 
   cat utility/setupUser.sh >> /etc/bash.bashrc
 }
-initializePrincipal() {
-  #Kerberize ssh
+addServerHostToKrb() {
   kadmin -p root/admin -w $KERB_ADMIN_PASS -q "addprinc -randkey host/$(hostname -f)@$REALM"
   kadmin -p root/admin -w $KERB_ADMIN_PASS -q "xst -k /etc/krb5.keytab host/$(hostname -f)@$REALM"
 }
@@ -105,7 +104,7 @@ initialize() {
     utility/enableKerbPam.sh
     enable_krb
     enableGss
-    initializePrincipal
+    addServerHostToKrb
 }
 
 start_ssh() {
