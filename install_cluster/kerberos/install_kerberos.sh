@@ -20,3 +20,5 @@ echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
 echo "${KDC_PASSWORD}" >/etc/secret/krb/password
 echo "${KDC_PASSWORD}" >/etc/secret/krb/kdcpassword
 echo "${KDC_PASSWORD}" >/etc/secret/krb/admpassword
+
+utility/config.sh
