@@ -9,4 +9,12 @@ LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -yq krb5-user libpam-krb
 # Kerberize sshd
 apt-get install -yq libsasl2-modules-gssapi-mit
 
+mkdir -p /etc/secret/krb
+mkdir -p /etc/secret/ldap
+echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/password
+echo "${KDC_PASSWORD}" >/etc/secret/krb/kdcpassword
+echo "${KDC_PASSWORD}" >/etc/secret/krb/admpassword
+
 utility/bootstrap.sh
+
