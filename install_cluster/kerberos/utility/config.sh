@@ -190,6 +190,11 @@ create_admin_user() {
   echo "*/admin@$REALM *" >/etc/krb5kdc/kadm5.acl
 }
 
+addServerHostToKrb() {
+  kadmin -p root/admin -w $KERB_ADMIN_PASS -q "addprinc -randkey host/$(hostname -f)@$REALM"
+  kadmin -p root/admin -w $KERB_ADMIN_PASS -q "xst -k /etc/krb5.keytab host/$(hostname -f)@$REALM"
+}
+
 enableGss() {
   sed -i 's/UsePAM no/UsePAM yes/' /etc/ssh/sshd_config
   echo 'GSSAPIAuthentication yes
@@ -232,6 +237,7 @@ main() {
     create_logs
     create_db
     create_admin_user
+    addServerHostToKrb
     enableKerberosPam
     start_kdc
 
