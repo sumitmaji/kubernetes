@@ -90,13 +90,7 @@ EOF
 
 }
 
-enableGss() {
-  sed -i 's/UsePAM no/UsePAM yes/' /etc/ssh/sshd_config
-  echo 'GSSAPIAuthentication yes
- GSSAPICleanupCredentials yes' >>/etc/ssh/sshd_config
 
-  cat utility/setupUser.sh >> /etc/bash.bashrc
-}
 addServerHostToKrb() {
   kadmin -p root/admin -w $KERB_ADMIN_PASS -q "addprinc -randkey host/$(hostname -f)@$REALM"
   kadmin -p root/admin -w $KERB_ADMIN_PASS -q "xst -k /etc/krb5.keytab host/$(hostname -f)@$REALM"
@@ -106,7 +100,6 @@ initialize() {
     fix_hostname
     utility/enableKerbPam.sh
     enable_krb
-    enableGss
     addServerHostToKrb
 }
 
