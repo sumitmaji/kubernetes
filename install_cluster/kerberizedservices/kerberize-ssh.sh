@@ -27,3 +27,5 @@ EOF
     fi
   fi
 fi
+
+service ssh restart
