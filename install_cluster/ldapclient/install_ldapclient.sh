@@ -41,4 +41,5 @@ apt-get autoremove
 apt-get autoclean
 apt-get clean
 
+mkdir -p /etc/secret/ldap
 echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
