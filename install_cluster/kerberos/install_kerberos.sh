@@ -27,10 +27,6 @@ LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -yq krb5-kdc krb5-admin-
 # kerberos client and pam configuration for kerberos
 apt-get install -yq krb5-user libpam-krb5
 
-# Kerberize sshd
-apt-get install -yq libsasl2-modules-gssapi-mit
-
-
 mkdir -p /etc/secret/krb
 
 echo "${LDAP_PASSWORD}" >/etc/secret/ldap/password
