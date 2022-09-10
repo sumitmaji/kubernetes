@@ -118,3 +118,14 @@ kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download
 ### Useful Documents
 - [`Stephen Grinder`](https://github.com/webmakaka/Docker-and-Kubernetes-The-Complete-Guide/tree/master/17_HTTPS_Setup_with_Kubernetes)
 - Refer to `HTTPS Setup with Kubernetes` from `Stephen Grinder`
+
+### Setup at router
+![img.png](img.png)
+
+### Setup at DNS provider(Godaddy)
+![img_1.png](img_1.png)
+
+### Changes in ingress resouce
+```shell
+utils/patch-ingress.sh -i $INGRESS_NAME -n $NAMESPACE
+```
