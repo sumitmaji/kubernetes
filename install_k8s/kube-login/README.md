@@ -31,5 +31,5 @@ skmaji2@outlook.com - developer access
 The Roles are created in [`install-k8s.sh`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install-k8s.sh#L153)
 
 # Architecture
-![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kube-login/images/img.png)
+![alt text](images/img.png)
 
