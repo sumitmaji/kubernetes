@@ -21,4 +21,4 @@ COPY --from=backend-build ${DEPENDENCY}/META-INF /app/META-INF
 COPY --from=backend-build ${DEPENDENCY}/BOOT-INF/classes /app
 COPY --from=frontend-build /usr/src/app/build /app/classes/public
 
-ENTRYPOINT ["java", "-cp", "app:app/lib/*", "-Dserver.port=__PORT__", "__MAIN_CLASS__"]
+ENTRYPOINT ["java", "-cp", "app:app/lib/*:app/classes", "-Dserver.port=__PORT__", "__MAIN_CLASS__"]
