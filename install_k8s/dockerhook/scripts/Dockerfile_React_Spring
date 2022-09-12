@@ -6,7 +6,7 @@ COPY src src
 RUN mvn install -DskipTests
 RUN mkdir -p target/dependency && (cd target/dependency; jar -xf ../*.jar)
 
-FROM node:7.10 as frontend-build
+FROM node as frontend-build
 WORKDIR /usr/src/app
 COPY __PATH__/package*.json ./
 RUN npm install
