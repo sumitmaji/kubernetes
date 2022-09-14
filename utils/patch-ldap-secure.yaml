@@ -1,0 +1,4 @@
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-signin: https://kube.gokcloud.co.in/authenticate
+    nginx.ingress.kubernetes.io/auth-url: https://kube.gokcloud.co.in/check
