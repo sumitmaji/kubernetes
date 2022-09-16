@@ -1,3 +1,7 @@
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+certificatesDir: /etc/kubernetes/pki
+clusterName: ${CLUSTER_NAME}
 apiServer:
   certSANs:
   - "master.cloud.com"
@@ -9,14 +13,8 @@ apiServer:
     oidc-client-id: ${OIDC_CLIENT_ID}
     oidc-username-claim: ${OIDC_USERNAME_CLAIM}
     oidc-groups-claim: ${OIDC_GROUPS_CLAIM}
-    #Below 2 properties causing issue
-#    authorization-rbac-super-user: admin
-#    admission-control: NamespaceLifecycle,LimitRanger,ServiceAccount,PersistentVolumeLabel,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota
     enable-swagger-ui: "true"
   timeoutForControlPlane: 4m0s
-apiVersion: kubeadm.k8s.io/v1beta3
-certificatesDir: /etc/kubernetes/pki
-clusterName: ${CLUSTER_NAME}
 controllerManager:
   extraArgs:
     attach-detach-reconcile-sync-period: 1m0s
@@ -27,7 +25,6 @@ etcd:
     dataDir: /var/lib/etcd
 imageRepository: k8s.gcr.io
 controlPlaneEndpoint: ${LOAD_BALANCER_URL}
-kind: ClusterConfiguration
 kubernetesVersion: v1.23.6
 networking:
   dnsDomain: ${DNS_DOMAIN}
