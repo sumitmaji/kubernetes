@@ -33,6 +33,7 @@ apt-get -y dist-upgrade
 
 
 hostnamectl set-hostname "${NODE_NAME}".cloud.com
+echo "${NODE_NAME}".cloud.com > /etc/hostname
 
 apt-get update
 apt-get install -y net-tools ifupdown openssh-client openssh-server
