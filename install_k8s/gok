@@ -105,7 +105,8 @@ ingressInst() {
     --create-namespace \
     --set controller.service.nodePorts.http=32001 \
     --set controller.service.nodePorts.https=32000 \
-    --set controller.service.type=NodePort
+    --set controller.service.type=NodePort \
+    --set defaultBackend.enabled=true
   #    -f charts/values.yaml
 
   output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
