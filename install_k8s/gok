@@ -116,6 +116,17 @@ ingressInst() {
   done
 }
 
+patchLdapSecure() {
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-signin: https://kube.gokcloud.co.in/authenticate
+    nginx.ingress.kubernetes.io/auth-url: https://kube.gokcloud.co.in/check
+EOF
+  )" -n "$NS"
+}
+
 patchLetsEncrypt() {
   NAME=$1
   NS=$2
@@ -430,5 +441,7 @@ elif [ "$CMD" == "patch" ]; then
   NS=$4
   if [ "$RESOURCE" == "ingress" ]; then
     patchLetsEncrypt "$NAME" "$NS"
+  elif [ "$RESOURCE" == "ingress-secure" ]; then
+    patchLdapSecure "$NAME" "NS"
   fi
 fi
