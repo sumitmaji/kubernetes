@@ -442,6 +442,6 @@ elif [ "$CMD" == "patch" ]; then
   if [ "$RESOURCE" == "ingress" ]; then
     patchLetsEncrypt "$NAME" "$NS"
   elif [ "$RESOURCE" == "ingress-secure" ]; then
-    patchLdapSecure "$NAME" "NS"
+    patchLdapSecure "$NAME" "$NS"
   fi
 fi
