@@ -289,7 +289,7 @@ EOF
   fi
 elif [ "$CMD" == "start" ]; then
   COMPONENT=$2
-  if [ "$COMPONENT" == "cluster" ]; then
+  if [ "$COMPONENT" == "kubernetes" ]; then
     disableSwap
     startHa
     startKubelet
@@ -298,4 +298,11 @@ elif [ "$CMD" == "start" ]; then
   elif [ "$COMPONNT" == "kubelet" ]; then
     startKubelet
   fi
+elif [ "$CMD" == "reset" ]; then
+    COMPONENT=$2
+    if [ "$COMPONENT" == "kubernetes" ]; then
+        kubeadm reset <<EOF
+yes
+EOF
+    fi
 fi
