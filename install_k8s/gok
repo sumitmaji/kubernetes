@@ -180,6 +180,24 @@ helmInst() {
 
 }
 
+startKubelet() {
+  systemctl stop kubelet
+  systemctl start kubelet
+}
+
+startHa() {
+  docker stop master-proxy
+  docker rm master-proxy
+  docker run -d --name master-proxy \
+    -v /opt/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
+    --net=host haproxy
+}
+
+disableSwap(){
+  sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  sudo swapoff -a
+}
+
 if [ "$CMD" == "bash" ]; then
   pod=$(getpod)
   echo "Opening terminal on $pod"
@@ -215,6 +233,16 @@ elif [ "$CMD" == "install" ]; then
  |____|   |____/\___  (____  /____  >\___  >   \/\_/ (____  |__||__|    |__| \____/|__|     |___| |__|_|  |__|___|  / /\
                     \/     \/     \/     \/               \/                                            \/        \/  \/
 EOF
-
+  fi
+elif [ "$CMD" == "start" ]; then
+  COMPONENT=$2
+  if [ "$COMPONENT" == "cluster" ]; then
+    disableSwap
+    startHa
+    startKubelet
+  elif [ "$COMPONENT" == "proxy" ]; then
+    startHa
+  elif [ "$COMPONNT" == "kubelet" ]; then
+      startKubelet
   fi
 fi
