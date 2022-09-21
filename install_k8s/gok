@@ -499,6 +499,7 @@ elif [ "$CMD" == "install" ]; then
     dockrInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certmanagerInst
+    godaddyWebhook
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
