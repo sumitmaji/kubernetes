@@ -341,6 +341,15 @@ disableSwap() {
   sudo swapoff -a
 }
 
+hostSecret() {
+  openssl genrsa -out ${APP_HOST}.key 4096
+  openssl req -new -key ${APP_HOST}.key -out ${APP_HOST}.csr -subj "/CN=${APP_HOST}" \
+    -addext "subjectAltName = DNS:${APP_HOST}"
+  openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${APP_HOST}.crt -days 7200
+
+  kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
+}
+
 patchLdapSecure() {
   kubectl patch ing "$NAME" --patch "$(
     cat <<EOF
@@ -372,6 +381,19 @@ EOF
 
 }
 
+patchLocalTls(){
+  NAME=$1
+  NS=$2
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+spec:
+  tls:
+    - hosts:
+        - $APP_HOST
+      secretName: appingress-certificate
+EOF
+  )" -n "$NS"
+}
 
 if [ "$CMD" == "bash" ]; then
   pod=$(getpod)
@@ -441,9 +463,22 @@ elif [ "$CMD" == "patch" ]; then
   RESOURCE=$2
   NAME=$3
   NS=$4
+  OPTIONS=$5
   if [ "$RESOURCE" == "ingress" ]; then
-    patchLetsEncrypt "$NAME" "$NS"
-  elif [ "$RESOURCE" == "ingress-secure" ]; then
-    patchLdapSecure "$NAME" "$NS"
+    if [ "$OPTIONS" == "letsencrypt" ]; then
+      patchLetsEncrypt "$NAME" "$NS"
+    elif [ "$OPTIONS" == "ldap" ]; then
+      patchLdapSecure "$NAME" "$NS"
+    elif [ "$OPTIONS" == "localtls" ]; then
+      patchLocalTls  "$NAME" "$NS"
+    fi
+  fi
+elif [ "$CMD" == "create" ]; then
+  RESOURCE=$2
+  NAME=$3
+  if [ "$RESOURCE" == "secret" ]; then
+    if [ "$NAME" == "apphost" ]; then
+      hostSecret
+    fi
   fi
 fi
