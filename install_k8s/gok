@@ -271,6 +271,84 @@ helmInst() {
 
 }
 
+certmanagerInst() {
+  helm repo add jetstack https://charts.jetstack.io
+  helm repo update
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+
+  helm install \
+    cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --version v1.8.2
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: majisumitkumar@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - dns01:
+        webhook:
+          config:
+            apiKeySecretRef:
+              name: godaddy-api-key-secret
+              key: api-key
+            production: true
+            ttl: 600
+          groupName: acme.mycompany.com
+          solverName: godaddy
+      selector:
+       dnsNames:
+       - 'kube.gokcloud.co.in'
+       - '*.gokcloud.co.in'
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gokcloud-co-in-tls
+  namespace: default
+spec:
+  secretName: gokcloud-co-in
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: kube.gokcloud.co.in
+  dnsNames:
+    - kube.gokcloud.co.in
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+EOF
+}
+
+godaddyWebhook() {
+  kubectl apply -f https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
+  echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
+  # shellcheck disable=SC2162
+  read API_KEY
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: godaddy-api-key-secret
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-key: ${API_KEY}
+EOF
+
+}
+
 haInst() {
   docker stop master-proxy
   docker rm master-proxy
@@ -381,7 +459,7 @@ EOF
 
 }
 
-patchLocalTls(){
+patchLocalTls() {
   NAME=$1
   NS=$2
   kubectl patch ing "$NAME" --patch "$(
@@ -393,8 +471,8 @@ spec:
       secretName: appingress-certificate
 EOF
   )" -n "$NS"
-    kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"master.cloud.com"}]' -n "$NS"
-    kubectl patch ing "$NAME" --type=json -p='[{"op": "add", "path": "/metadata/annotations", "value":{"nginx.ingress.kubernetes.io/rewrite-target": "/", "kubernetes.io/ingress.class": "nginx"}}]' -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"master.cloud.com"}]' -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "add", "path": "/metadata/annotations", "value":{"nginx.ingress.kubernetes.io/rewrite-target": "/", "kubernetes.io/ingress.class": "nginx"}}]' -n "$NS"
 }
 
 if [ "$CMD" == "bash" ]; then
@@ -419,6 +497,8 @@ elif [ "$CMD" == "install" ]; then
   COMPONENT=$2
   if [ "$COMPONENT" == "docker" ]; then
     dockrInst
+  elif [ "$COMPONENT" == "cert-manager" ]; then
+    certmanagerInst
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
@@ -472,7 +552,7 @@ elif [ "$CMD" == "patch" ]; then
     elif [ "$OPTIONS" == "ldap" ]; then
       patchLdapSecure "$NAME" "$NS"
     elif [ "$OPTIONS" == "localtls" ]; then
-      patchLocalTls  "$NAME" "$NS"
+      patchLocalTls "$NAME" "$NS"
     fi
   fi
 elif [ "$CMD" == "create" ]; then
