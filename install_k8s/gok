@@ -330,6 +330,13 @@ spec:
 EOF
 }
 
+certManagerReset(){
+  kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces
+  helm --namespace cert-manager delete cert-manager
+  kubectl delete namespace cert-manager
+  kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+}
+
 godaddyWebhook() {
   kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
   echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
@@ -348,6 +355,12 @@ stringData:
 EOF
 
 }
+
+godaddyWebhookReset(){
+  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
+  kubectl delete secret godaddy-api-key-secret -n cert-manager
+}
+
 
 haInst() {
   docker stop master-proxy
@@ -596,7 +609,7 @@ elif [ "$CMD" == "start" ]; then
     startKubelet
   elif [ "$COMPONENT" == "proxy" ]; then
     startHa
-  elif [ "$COMPONNT" == "kubelet" ]; then
+  elif [ "$COMPONET" == "kubelet" ]; then
     startKubelet
   fi
 elif [ "$CMD" == "reset" ]; then
@@ -607,6 +620,9 @@ y
 EOF
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
+  elif [ "$COMPONENT" == "cert-manager" ]; then
+    godaddyWebhookReset
+    certManagerReset
   fi
 elif [ "$CMD" == "deploy" ]; then
   COMPONENT=$2
