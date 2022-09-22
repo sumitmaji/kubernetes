@@ -484,6 +484,7 @@ EOF
   kubectl certificate approve ${USERNAME}-csr
 
   kubectl get csr ${USERNAME}-csr -o jsonpath='{.status.certificate}' | base64 -d >${USERNAME}.crt
+  cat ${USERNAME}.key | base64 | tr -d '\n' > temp.key
 
   openssl pkcs12 -export -clcerts -inkey ${USERNAME}.key -in ${USERNAME}.crt -out /root/${USERNAME}.p12 -name "kubernetes-client"
 
@@ -492,9 +493,9 @@ EOF
   kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://${IP}:6443 --kubeconfig=/root/${USERNAME}.conf
   kubectl config --kubeconfig=/root/${USERNAME}.conf set-context ${USERNAME}@cloud.com --cluster=cloud.com --user=${USERNAME}
   kubectl config --kubeconfig=/root/${USERNAME}.conf use-context ${USERNAME}@cloud.com
-  kubectl config set-credentials ${USERNAME} --client-key=${USERNAME}.key --client-certificate=${USERNAME}.crt --embed-certs=true
+  kubectl config set-credentials ${USERNAME} --client-key=temp.key --client-certificate=${USERNAME}.crt --embed-certs=true
 
-  rm ${USERNAME}.key ${USERNAME}.csr ${USERNAME}.crt
+  rm ${USERNAME}.key ${USERNAME}.csr ${USERNAME}.crt temp.key
 
 }
 
