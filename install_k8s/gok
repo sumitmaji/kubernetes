@@ -202,7 +202,7 @@ EOF
 taintNode() {
   : ${IP:=$(ifconfig eth0 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   if [ -z "$IP" ]; then
-    : ${IP:=$(ifconfig enp0s8 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+    : ${IP:=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   fi
   JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
   NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
@@ -428,6 +428,76 @@ hostSecret() {
   kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
 }
 
+adminRole() {
+  WC=$(kubectl get clusterrolebinding cloud-cluster-admin 2>/dev/null | wc -l)
+  if [ "$WC" == "0" ]; then
+
+    cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloud-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: cloud:masters
+EOF
+  fi
+
+}
+
+createKubeConfig() {
+  USERNAME=$1
+  : ${IP:=$(ifconfig eth0 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+  if [ -z "$IP" ]; then
+    : ${IP:=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+  fi
+  adminRole
+  echo + Creating private key: ${USERNAME}.key
+  openssl genrsa -out ${USERNAME}.key 4096
+
+  echo + Creating signing request: ${USERNAME}.csr
+  openssl req -new -key ${USERNAME}.key -out ${USERNAME}.csr -subj "/CN=${USERNAME}/O=cloud:masters"
+
+  echo + Creating signing request in kubernetes
+  cat <<EOF | kubectl create -f -
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: ${USERNAME}-csr
+spec:
+  groups:
+    - system:authenticated
+    - cloud:masters
+  request: $(cat ${USERNAME}.csr | base64 | tr -d '\n')
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+EOF
+
+  kubectl certificate approve ${USERNAME}-csr
+
+  kubectl get csr ${USERNAME}-csr -o jsonpath='{.status.certificate}' | base64 -d >${USERNAME}.crt
+
+  openssl pkcs12 -export -clcerts -inkey ${USERNAME}.key -in ${USERNAME}.crt -out /root/${USERNAME}.p12 -name "kubernetes-client"
+
+  echo "======Kubeconfig file user ${USERNAME}.conf generated"
+
+  kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://${IP}:6443 --kubeconfig=/root/${USERNAME}.conf
+  kubectl config --kubeconfig=/root/${USERNAME}.conf set-context ${USERNAME}@cloud.com --cluster=cloud.com --user=${USERNAME}
+  kubectl config --kubeconfig=/root/${USERNAME}.conf use-context ${USERNAME}@cloud.com
+  kubectl config set-credentials ${USERNAME} --client-key=${USERNAME}.key --client-certificate=${USERNAME}.crt --embed-certs=true
+
+  rm ${USERNAME}.key ${USERNAME}.csr ${USERNAME}.crt
+
+}
+
 patchLdapSecure() {
   kubectl patch ing "$NAME" --patch "$(
     cat <<EOF
@@ -532,7 +602,7 @@ elif [ "$CMD" == "reset" ]; then
   COMPONENT=$2
   if [ "$COMPONENT" == "kubernetes" ]; then
     kubeadm reset <<EOF
-yes
+y
 EOF
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
@@ -563,5 +633,7 @@ elif [ "$CMD" == "create" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
     fi
+  elif [ "$RESOUCE" == "kubeconfig" ]; then
+    createKubeConfig "$NAME"
   fi
 fi
