@@ -330,7 +330,7 @@ spec:
 EOF
 }
 
-certManagerReset(){
+certManagerReset() {
   kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces
   helm --namespace cert-manager delete cert-manager
   kubectl delete namespace cert-manager
@@ -356,11 +356,10 @@ EOF
 
 }
 
-godaddyWebhookReset(){
+godaddyWebhookReset() {
   kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml
   kubectl delete secret godaddy-api-key-secret -n cert-manager
 }
-
 
 haInst() {
   docker stop master-proxy
@@ -439,6 +438,20 @@ hostSecret() {
   openssl x509 -req -in ${APP_HOST}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${APP_HOST}.crt -days 7200
 
   kubectl create secret tls appingress-certificate --key ${APP_HOST}.key --cert ${APP_HOST}.crt -n default
+}
+
+dashboardInst() {
+  helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+  kubectl delete ns kubernetes-dashboard
+  helm install kubernetes-dashboard \
+    kubernetes-dashboard/kubernetes-dashboard \
+    --namespace kubernetes-dashboard \
+    --create-namespace \
+    -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values.yaml
+}
+
+dashboardReset(){
+  helm uninstall kubernetes-dashboard
 }
 
 adminRole() {
@@ -584,6 +597,8 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certmanagerInst
     godaddyWebhook
+  elif [ "$COMPONENT" == "dashboard" ]; then
+    dashboardInst
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
@@ -618,6 +633,8 @@ elif [ "$CMD" == "reset" ]; then
     kubeadm reset <<EOF
 y
 EOF
+  elif [ "$COMPONENT" == "dashboard" ]; then
+    dashboardReset
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
