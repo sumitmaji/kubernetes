@@ -357,7 +357,7 @@ EOF
 }
 
 godaddyWebhookReset(){
-  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
+  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml
   kubectl delete secret godaddy-api-key-secret -n cert-manager
 }
 
