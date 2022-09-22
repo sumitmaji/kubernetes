@@ -633,7 +633,7 @@ elif [ "$CMD" == "create" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
     fi
-  elif [ "$RESOUCE" == "kubeconfig" ]; then
+  elif [ "$RESOURCE" == "kubeconfig" ]; then
     createKubeConfig "$NAME"
   fi
 fi
