@@ -462,7 +462,7 @@ createKubeConfig() {
 
   echo + Creating signing request: ${USERNAME}.csr
   openssl req -new -key ${USERNAME}.key -out ${USERNAME}.csr -subj "/CN=${USERNAME}/O=cloud:masters"
-  WC=$(kubectl get csr ${USERNAME}-csr) 2>/dev/null | wc -l)
+  WC=$(kubectl get csr ${USERNAME}-csr 2>/dev/null | wc -l)
   if [ "$WC" != "0" ]; then
     kubectl delete csr ${USERNAME}-csr
   fi
