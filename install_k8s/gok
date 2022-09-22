@@ -331,7 +331,7 @@ EOF
 }
 
 godaddyWebhook() {
-  kubectl apply -f https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
+  kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
   echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
   # shellcheck disable=SC2162
   read API_KEY
