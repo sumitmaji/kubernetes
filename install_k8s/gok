@@ -494,9 +494,9 @@ EOF
   echo "======Kubeconfig file user ${USERNAME}.conf generated"
 
   kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=https://${IP}:6443 --kubeconfig=/root/${USERNAME}.conf
+  kubectl config set-credentials ${USERNAME} --client-key=temp.key --client-certificate=${USERNAME}.crt --embed-certs=true
   kubectl config --kubeconfig=/root/${USERNAME}.conf set-context ${USERNAME}@cloud.com --cluster=cloud.com --user=${USERNAME}
   kubectl config --kubeconfig=/root/${USERNAME}.conf use-context ${USERNAME}@cloud.com
-  kubectl config set-credentials ${USERNAME} --client-key=temp.key --client-certificate=${USERNAME}.crt --embed-certs=true
 
   rm ${USERNAME}.key ${USERNAME}.csr ${USERNAME}.crt temp.key
 
