@@ -488,10 +488,7 @@ EOF
 
   kubectl get csr ${USERNAME}-csr -o jsonpath='{.status.certificate}' | base64 -d >${USERNAME}.crt
 
-  openssl pkcs12 -export -clcerts -inkey ${USERNAME}.key -in ${USERNAME}.crt -out /root/${USERNAME}.p12 -name "kubernetes-client"<<EOF
-sumit
-sumit
-EOF
+  openssl pkcs12 -export -clcerts -inkey ${USERNAME}.key -in ${USERNAME}.crt -out /root/${USERNAME}.p12 -name "kubernetes-client"
 
   echo "======Kubeconfig file user ${USERNAME}.conf generated"
 
