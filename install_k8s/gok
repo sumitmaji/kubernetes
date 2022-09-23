@@ -449,8 +449,43 @@ dashboardInst() {
     --create-namespace \
     -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values.yaml
 }
+prometheusGrafanaReset() {
+  helm -n monitoring delete monitoring
+  kubectl delete ns monitoring
+  helm -n db delete postgres
+  kubectl delete ns db
+}
+prometheusGrafanaInst() {
 
-dashboardReset(){
+  helm repo add prometheus-community \
+    https://prometheus-community.github.io/helm-charts
+  helm repo update
+  helm install monitoring \
+    prometheus-community/kube-prometheus-stack \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/values.yaml \
+    --version 39.6.0 \
+    --namespace monitoring \
+    --create-namespace
+
+  kubectl -n kube-system get cm kube-proxy-config -o yaml | sed \
+    's/metricsBindAddress: 127.0.0.1:10249/metricsBindAddress: 0.0.0.0:10249' \
+    kubectl apply -f -
+
+  kubectl -n kube-system patch ds kube-proxy -p \
+    '{"spec":{"template":{"metadata":{"labels":{"updateTime":"`date + '%s'`"}}}}}'
+
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm repo update
+  helm install postgres \
+    bitnami/postgresql \
+    --values postgres-values.yaml \
+    --version 11.7.1 \
+    --namespace db \
+    --create-namespace
+
+}
+
+dashboardReset() {
   helm uninstall kubernetes-dashboard
 }
 
@@ -597,6 +632,8 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certmanagerInst
     godaddyWebhook
+  elif [ "$COMPONENT" == "prometheus-grafana" ]; then
+    prometheusGrafanaInst
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardInst
   elif [ "$COMPONENT" == "ingress" ]; then
@@ -633,6 +670,8 @@ elif [ "$CMD" == "reset" ]; then
     kubeadm reset <<EOF
 y
 EOF
+  elif [ "$COMPONENT" == "prometheus-grafana" ]; then
+    prometheusGrafanaReset
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardReset
   elif [ "$COMPONENT" == "ingress" ]; then
