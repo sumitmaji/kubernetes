@@ -258,9 +258,7 @@ EOF
 }
 
 calicoInst(){
-  helm repo add projectcalico https://projectcalico.docs.tigera.io/charts
-  kubectl create namespace tigera-operator
-  helm install calico projectcalico/tigera-operator --version v3.23.5 --namespace tigera-operator
+  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/calico.yaml
 
   if [ $? -ne 0 ]; then
     echo "Calico installation failed, please check!!!!!"
