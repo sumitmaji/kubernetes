@@ -249,14 +249,21 @@ EOF
   mkdir -p "$HOME"/.kube
   sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
 
-  kubectl apply -f https://projectcalico.docs.tigera.io/manifests/calico.yaml
-
   # shellcheck disable=SC2181
   if [ $? -ne 0 ]; then
     echo "Kubectl command execution failed, please check!!!!!"
     exit 1
   fi
 
+}
+
+calicoInst(){
+  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/calico.yaml
+
+  if [ $? -ne 0 ]; then
+    echo "Calico installation failed, please check!!!!!"
+    exit 1
+  fi
 }
 
 helmInst() {
@@ -642,9 +649,10 @@ elif [ "$CMD" == "install" ]; then
     dockrInst
     haInst
     k8sInst
-    customDns
-    taintNode
     helmInst
+    taintNode
+    calicoInst
+    customDns
     cat <<EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
  |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
