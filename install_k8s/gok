@@ -343,24 +343,24 @@ spec:
           solverName: godaddy
       selector:
        dnsNames:
-       - 'kube.gokcloud.co.in'
-       - '*.gokcloud.co.in'
+       - 'kube.gokcloud.com'
+       - '*.gokcloud.com'
 EOF
 
   cat <<EOF | kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: gokcloud-co-in-tls
+  name: gokcloud-com-tls
   namespace: default
 spec:
-  secretName: gokcloud-co-in
+  secretName: gokcloud-com
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: kube.gokcloud.co.in
+  commonName: kube.gokcloud.com
   dnsNames:
-    - kube.gokcloud.co.in
+    - kube.gokcloud.com
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
@@ -604,8 +604,8 @@ patchLdapSecure() {
     cat <<EOF
 metadata:
   annotations:
-    nginx.ingress.kubernetes.io/auth-signin: https://kube.gokcloud.co.in/authenticate
-    nginx.ingress.kubernetes.io/auth-url: https://kube.gokcloud.co.in/check
+    nginx.ingress.kubernetes.io/auth-signin: https://kube.gokcloud.com/authenticate
+    nginx.ingress.kubernetes.io/auth-url: https://kube.gokcloud.com/check
 EOF
   )" -n "$NS"
 }
@@ -622,11 +622,11 @@ metadata:
 spec:
   tls:
     - hosts:
-        - kube.gokcloud.co.in
-      secretName: gokcloud-co-in
+        - kube.gokcloud.com
+      secretName: gokcloud-com
 EOF
   )" -n "$NS"
-  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"kube.gokcloud.co.in"}]' -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"kube.gokcloud.com"}]' -n "$NS"
 
 }
 
