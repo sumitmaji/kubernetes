@@ -504,18 +504,20 @@ prometheusGrafanaInst() {
     --namespace monitoring \
     --create-namespace
 
-  kubectl -n kube-system get cm kube-proxy-config -o yaml | sed \
-    's/metricsBindAddress: 127.0.0.1:10249/metricsBindAddress: 0.0.0.0:10249' \
-    kubectl apply -f -
+#  kubectl -n kube-system get cm kube-proxy-config -o yaml | sed \
+#    's/metricsBindAddress: 127.0.0.1:10249/metricsBindAddress: 0.0.0.0:10249' \
+#    kubectl apply -f -
+
+  kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
 
   kubectl -n kube-system patch ds kube-proxy -p \
-    '{"spec":{"template":{"metadata":{"labels":{"updateTime":"`date + '%s'`"}}}}}'
+    '{"spec":{"template":{"metadata":{"labels":{"updateTime":"'`date +'%s'`'"}}}}}'
 
   helm repo add bitnami https://charts.bitnami.com/bitnami
   helm repo update
   helm install postgres \
     bitnami/postgresql \
-    --values postgres-values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/postgres-values.yaml \
     --version 11.7.1 \
     --namespace db \
     --create-namespace
