@@ -23,13 +23,15 @@ dns: {}
 etcd:
   local:
     dataDir: /var/lib/etcd
-#imageRepository: k8s.gcr.io
 controlPlaneEndpoint: ${LOAD_BALANCER_URL}
 kubernetesVersion: v1.30.0
 networking:
   dnsDomain: ${DNS_DOMAIN}
   podSubnet: 192.168.0.0/16
   serviceSubnet: 10.96.0.0/12
-#scheduler:
-#  extraArgs:
-#    logtostderr: "true"
+
+---
+
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+cgroupDriver: "systemd"
