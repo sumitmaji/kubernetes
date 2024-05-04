@@ -126,16 +126,19 @@ dockrInst() {
     curl \
     software-properties-common
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-  add-apt-repository \
-    "deb https://download.docker.com/linux/$(
-      . /etc/os-release
-      echo "$ID"
-    ) \
-        $(lsb_release -cs) \
-        stable"
+  sudo install -m 0755 -d /etc/apt/keyrings
+  sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+  # Add the repository to Apt sources:
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  sudo apt-get update
 
   apt-get update && apt-get install -y \
-    docker-ce=$(apt-cache madison docker-ce | grep 20.10 | head -1 | awk '{print $3}')
+    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
   # Create required directories
   sudo mkdir -p /etc/systemd/system/docker.service.d
@@ -157,6 +160,11 @@ EOF
   sudo systemctl restart docker
   sudo systemctl enable docker
 
+  # Start and enable containerd services
+  sudo systemctl enable containerd
+  sudo systemctl start containerd
+  sudo rm /etc/containerd/config.toml
+  sudo systemctl restart containerd
 }
 
 customDns() {
@@ -226,13 +234,20 @@ EOF
   sudo sysctl --system
   echo "Installing Kubernetes"
   apt-get update && apt-get install -y apt-transport-https
-  curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-  cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
-deb http://apt.kubernetes.io/ kubernetes-xenial main
-EOF
-  apt-get update
-  #Kubernets version 1.24.0 is not working properly, downgrading to 1.23.0
-  apt-get install -qy kubelet=1.23.0-00 kubeadm=1.23.0-00 kubectl=1.23.0-00 --allow-downgrades
+  sudo apt-get update
+  # apt-transport-https may be a dummy package; if so, you can skip that package
+  sudo apt-get install -y apt-transport-https ca-certificates curl
+
+  # If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
+  # sudo mkdir -p -m 755 /etc/apt/keyrings
+  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg # allow unprivileged APT programs to read this keyring
+  # This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
+  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+  sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list   # helps tools such as command-not-found to work correctly
+
+  sudo apt-get update
+  sudo apt-get install -y kubectl kubeadm kubelet
 
   kubeadm version
   kubeadm config images pull

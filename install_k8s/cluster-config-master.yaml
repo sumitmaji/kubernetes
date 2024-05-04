@@ -25,7 +25,7 @@ etcd:
     dataDir: /var/lib/etcd
 imageRepository: k8s.gcr.io
 controlPlaneEndpoint: ${LOAD_BALANCER_URL}
-kubernetesVersion: v1.23.6
+kubernetesVersion: v1.30.0
 networking:
   dnsDomain: ${DNS_DOMAIN}
   podSubnet: 192.168.0.0/16
