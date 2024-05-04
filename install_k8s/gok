@@ -208,13 +208,14 @@ EOF
 }
 
 taintNode() {
-  : ${IP:=$(ifconfig eth0 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+  echo "Going to taint node for scheduling in master"
+  : ${IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   if [ -z "$IP" ]; then
     : ${IP:=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   fi
   JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
   NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
-  kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/master:NoSchedule-
+  kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/control-plane:NoSchedule-
 
 }
 
