@@ -232,6 +232,17 @@ EOF
 
   # Reload sysctl
   sudo sysctl --system
+  sudo tee /etc/modules-load.d/containerd.conf <<EOF
+overlay
+br_netfilter
+EOF
+  sysctl --system
+  mkdir -p /etc/containerd
+  containerd config default>/etc/containerd/config.toml
+  systemctl restart containerd
+  systemctl enable containerd
+
+
   echo "Installing Kubernetes"
   apt-get update && apt-get install -y apt-transport-https
   sudo apt-get update

@@ -23,7 +23,7 @@ dns: {}
 etcd:
   local:
     dataDir: /var/lib/etcd
-imageRepository: k8s.gcr.io
+#imageRepository: k8s.gcr.io
 controlPlaneEndpoint: ${LOAD_BALANCER_URL}
 kubernetesVersion: v1.30.0
 networking:
