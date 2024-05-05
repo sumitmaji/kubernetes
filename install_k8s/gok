@@ -339,7 +339,7 @@ spec:
               key: api-key
             production: true
             ttl: 600
-          groupName: acme.mycompany.com
+          groupName: gokcloud.com
           solverName: godaddy
       selector:
        dnsNames:
