@@ -8,7 +8,7 @@ apiServer:
   - "11.0.0.1"
   extraArgs:
     authorization-mode: Node,RBAC
-    service-node-port-range: 30000-32767
+    service-node-port-range: 80-32767
 #    oidc-issuer-url: ${OIDC_ISSUE_URL}
 #    oidc-client-id: ${OIDC_CLIENT_ID}
 #    oidc-username-claim: ${OIDC_USERNAME_CLAIM}

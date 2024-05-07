@@ -103,8 +103,8 @@ ingressInst() {
     ingress-nginx ingress-nginx/ingress-nginx \
     --namespace ingress-nginx \
     --create-namespace \
-    --set controller.service.nodePorts.http=32001 \
-    --set controller.service.nodePorts.https=32000 \
+    --set controller.service.nodePorts.http=80 \
+    --set controller.service.nodePorts.https=443 \
     --set controller.service.type=NodePort \
     --set defaultBackend.enabled=true
   #    -f charts/values.yaml
@@ -311,13 +311,53 @@ helmInst() {
 certmanagerInst() {
   helm repo add jetstack https://charts.jetstack.io
   helm repo update
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
 
   helm install \
     cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
-    --version v1.8.2
+    --version v1.14.5
+}
+
+generateHttpSolverCertificate() {
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: majisumitkumar@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          ingressClassName: nginx
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gokcloud-com-tls
+  namespace: default
+spec:
+  secretName: gokcloud-com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: kube.gokcloud.com
+  dnsNames:
+    - kube.gokcloud.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+EOF
+
 }
 
 certManagerReset() {
@@ -327,6 +367,7 @@ certManagerReset() {
   kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
 }
 
+#Godday api calls are disabled, hence going to remove this call.
 godaddyWebhook() {
   kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
   echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
@@ -484,7 +525,7 @@ dashboardInst() {
     kubernetes-dashboard/kubernetes-dashboard \
     --namespace kubernetes-dashboard \
     --create-namespace \
-    -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values.yaml
+    -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/dashboard/values2.yaml
 }
 prometheusGrafanaReset() {
   helm -n monitoring delete monitoring
@@ -525,7 +566,7 @@ prometheusGrafanaInst() {
 }
 
 dashboardReset() {
-  helm uninstall kubernetes-dashboard
+  helm uninstall kubernetes-dashboard -n kubernetes-dashboard
 }
 
 adminRole() {
@@ -670,7 +711,8 @@ elif [ "$CMD" == "install" ]; then
     dockrInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certmanagerInst
-    godaddyWebhook
+    generateHttpSolverCertificate
+    #godaddyWebhook
   elif [ "$COMPONENT" == "prometheus-grafana" ]; then
     prometheusGrafanaInst
   elif [ "$COMPONENT" == "dashboard" ]; then
@@ -717,7 +759,7 @@ EOF
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
-    godaddyWebhookReset
+    #godaddyWebhookReset
     certManagerReset
   fi
 elif [ "$CMD" == "deploy" ]; then
