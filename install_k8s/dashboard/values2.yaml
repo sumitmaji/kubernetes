@@ -94,7 +94,7 @@ app:
     # Use only if your ingress controllers support default ingress classes.
     # If set to true ingressClassName will be ignored and not added to the Ingress resources.
     # It should fall back to using IngressClass marked as the default.
-    useDefaultIngressClass: true
+    useDefaultIngressClass: false
     # This will append our Ingress with annotations required by our default configuration.
     #    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     #    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
@@ -118,6 +118,8 @@ app:
     labels: {}
     annotations:
       kubernetes.io/ingress.class: nginx
+      certmanager.k8s.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
 #      ingress.kubernetes.io/ssl-passthrough: "true"
 #      nginx.ingress.kubernetes.io/rewrite-target: /$2
 #      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
