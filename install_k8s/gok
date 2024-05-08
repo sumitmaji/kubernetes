@@ -320,6 +320,31 @@ certmanagerInst() {
     --version v1.14.5
 }
 
+certificateRequestForNs() {
+NS=$1
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gokcloud-com-tls
+  namespace: ${NS}
+spec:
+  secretName: gokcloud-com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: kube.gokcloud.com
+  dnsNames:
+    - kube.gokcloud.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+EOF
+echo "Certificate request for NS $NS created, executing below command to know current status"
+echo "kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces"
+kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces
+}
+
 generateHttpSolverCertificate() {
 
   cat <<EOF | kubectl apply -f -
@@ -788,6 +813,8 @@ elif [ "$CMD" == "create" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
     fi
+  elif [ "$RESOURCE" == "certificate" ]; then
+    certificateRequestForNs "$NAME"
   elif [ "$RESOURCE" == "kubeconfig" ]; then
     createKubeConfig "$NAME"
   fi
