@@ -817,6 +817,7 @@ installPrometheusGrafanaWithCertMgr(){
   ./gok install monitoring
   ./gok create certificate monitoring
   ./gok patch ingress prometheus-server monitoring letsencrypt
+  ./gok patch ingress grafana monitoring letsencrypt
 }
 
 installDashboardwithCertManager(){

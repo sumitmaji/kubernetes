@@ -1,3 +1,6 @@
+grafana.ini:
+  server:
+    root_url: https://kube.gokcloud.com/grafana
 ingress:
   enabled: true
   # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
