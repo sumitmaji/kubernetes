@@ -1,4 +1,8 @@
 server:
+  extraFlags: # <-- added this section to specify my args manually
+    - web.enable-lifecycle
+    - web.route-prefix=/
+    - web.external-url=https://kube.gokcloud.com/prometheus
   ingress:
     ## If true, Prometheus server Ingress will be created
     ##
@@ -16,7 +20,7 @@ server:
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
       ingress.kubernetes.io/ssl-passthrough: "true"
       nginx.ingress.kubernetes.io/rewrite-target: /$2
-      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     #   kubernetes.io/tls-acme: 'true'
 
 

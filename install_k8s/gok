@@ -813,6 +813,12 @@ kcd(){
   alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
 }
 
+installPrometheusGrafanaWithCertMgr(){
+  ./gok install monitorin
+  ./gok create certificate monitoring
+  ./gok patch ingress prometheus-server monitoring letsencrypt
+}
+
 installDashboardwithCertManager(){
   ./gok install dashboard
   ./gok create certificate kubernetes-dashboard
