@@ -869,6 +869,7 @@ helmTemplateDebug(){
 
 keycloakReset(){
   helm uninstall keycloak -n keycloak
+  kubectl delete pvc --all -n keycloak
 }
 
 keycloakInst(){
