@@ -561,15 +561,61 @@ prometheusGrafanaReset() {
   kubectl delete ns db
 }
 
-emptyLocalFsStorage(){
+emptyLocalFsStorageKeycloak(){
+  kubectl delete pv keycloak-pv
+  kubectl delete sc keycloak-storage
+  rm -rf /data/volumes/{pv3}
+}
+
+localFsStorageClassKeycloakCreate(){
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: keycloak-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  mkdir -p /data/volumes/pv3
+  chmod 777 /data/volumes/pv3
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: keycloak-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: keycloak-storage
+  local:
+    path: /data/volumes/pv3
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+}
+
+
+
+emptyLocalFsStorageMonotring(){
   kubectl delete pv prometheus-pv
   kubectl delete pv alertmanager-pv
   kubectl delete sc prometheus-storage
   kubectl delete sc alertmanager-storage
-  rm -rf /data/volumes/*
+  rm -rf /data/volumes/{pv1,pv2}
 }
 
-localFsStorageClassCreate(){
+localFsStorageClassMonitoringCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
@@ -813,6 +859,18 @@ kcd(){
   alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
 }
 
+helmTemplateDebug(){
+  CHART_NAME=$1
+  CHART_REPO=$2
+  helm install $1 $2  \
+    --dry-run --debug | less
+
+}
+
+keycloakReset(){
+  helm uninstall keycloak -n keycloak
+}
+
 keycloakInst(){
   helm repo add codecentric https://codecentric.github.io/helm-charts
   helm repo update
@@ -822,11 +880,11 @@ keycloakInst(){
         -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/keycloak/values.yaml
 }
 
-installPrometheusGrafanaWithCertMgr(){
+installKeycloakWithCertMgr(){
   ./gok install keycloak
   ./gok create certificate keycloak
-  ./gok patch ingress prometheus-server keycloak letsencrypt
-  ./gok patch ingress grafana monitoring letsencrypt
+  ./gok patch ingress keycloak keycloak letsencrypt
+  ./gok patch ingress keycloak-console keycloak letsencrypt
 }
 
 installPrometheusGrafanaWithCertMgr(){
@@ -892,12 +950,13 @@ elif [ "$CMD" == "install" ]; then
     #godaddyWebhook
   elif [ "$COMPONENT" == "monitoring" ]; then
     #prometheusGrafanaInst
-    localFsStorageClassCreate
+    localFsStorageClassMonitoringCreate
     prometheusGrafanaInstv2
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardInst
   elif [ "$COMPONENT" == "keycloak" ]; then
       keycloakInst
+      localFsStorageClassKeycloakCreate
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
@@ -936,9 +995,12 @@ EOF
   elif [ "$COMPONENT" == "monitoring" ]; then
     #prometheusGrafanaReset
     prometheusGrafanaResetv2
-    emptyLocalFsStorage
+    emptyLocalFsStorageMonotring
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardReset
+  elif [ "$COMPONENT" == "keycloak" ]; then
+        keycloakReset
+        emptyLocalFsStorageKeycloak
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
   elif [ "$COMPONENT" == "cert-manager" ]; then

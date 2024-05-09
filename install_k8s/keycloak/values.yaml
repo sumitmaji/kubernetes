@@ -77,3 +77,5 @@ ingress:
 postgresql:
   enabled: true
   postgresqlPassword: asdfaso97sadfjylfasdsf78
+  persistence:
+    storageClass: "keycloak-storage"
