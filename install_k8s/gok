@@ -696,6 +696,16 @@ EOF
 
 }
 
+kcd(){
+  alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
+}
+
+decodeSecret(){
+  SECRET=$1
+  NS=$2
+  kubectl get secret -n $NS $SECRET -o json | jq -r '.data."tls.crt"' | base64 -d | openssl x509 -noout -text
+}
+
 patchLocalTls() {
   NAME=$1
   NS=$2
