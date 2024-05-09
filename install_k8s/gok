@@ -552,6 +552,7 @@ dashboardInst() {
     --create-namespace \
     -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/dashboard/values2.yaml
 }
+
 prometheusGrafanaReset() {
   helm -n monitoring delete monitoring
   kubectl delete ns monitoring
