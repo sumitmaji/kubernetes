@@ -85,7 +85,7 @@ alertmanager:
 
   persistence:
     size: 2Gi
-  storageClass: "alertmanager-storage"
+    storageClass: "alertmanager-storage"
 
   podSecurityContext:
     runAsUser: 65534
