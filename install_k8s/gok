@@ -559,31 +559,50 @@ prometheusGrafanaReset() {
   kubectl delete ns db
 }
 
+emptyLocalFsStorage(){
+  kubectl delete pv prometheus-pv
+  kubectl delete pv alertmanager-pv
+  kubectl delete sc prometheus-storage
+  kubectl delete sc alertmanager-storage
+  rm -rf /data/volumes/*
+}
+
 localFsStorageClassCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
-  name: monitoring-storage
+  name: prometheus-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: alertmanager-storage
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 EOF
 
   mkdir -p /data/volumes/pv1
   chmod 777 /data/volumes/pv1
+  mkdir -p /data/volumes/pv2
+  chmod 777 /data/volumes/pv2
 
   cat << EOF | kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: local-pv
+  name: prometheus-pv
 spec:
   capacity:
     storage: 10Gi
   accessModes:
   - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: monitoring-storage
+  storageClassName: prometheus-storage
   local:
     path: /data/volumes/pv1
   nodeAffinity:
@@ -595,6 +614,31 @@ spec:
           values:
           - master.cloud.com
 EOF
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: alertmanager-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: prometheus-storage
+  local:
+    path: /data/volumes/pv2
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+
 }
 
 prometheusGrafanaResetv2(){
