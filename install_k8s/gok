@@ -814,7 +814,7 @@ kcd(){
 }
 
 installPrometheusGrafanaWithCertMgr(){
-  ./gok install monitorin
+  ./gok install monitoring
   ./gok create certificate monitoring
   ./gok patch ingress prometheus-server monitoring letsencrypt
 }
