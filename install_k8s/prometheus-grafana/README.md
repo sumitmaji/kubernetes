@@ -7,6 +7,8 @@ https://www.youtube.com/watch?v=bwUECsVDbMA
 - Kubectl
 https://www.youtube.com/watch?v=mtE4migphGE
 
+[Learn](https://k21academy.com/docker-kubernetes/prometheus-grafana-monitoring/)
+
 Architecture Diagram
 ![img.png](img.png)
 

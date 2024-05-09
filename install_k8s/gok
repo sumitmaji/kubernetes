@@ -355,7 +355,8 @@ metadata:
 spec:
   acme:
     email: majisumitkumar@gmail.com
-    server: https://acme-v02.api.letsencrypt.org/directory
+    #server: https://acme-v02.api.letsencrypt.org/directory
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
@@ -812,6 +813,12 @@ kcd(){
   alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
 }
 
+installDashboardwithCertManager(){
+  ./gok install dashboard
+  ./gok create certificate kubernetes-dashboard
+  ./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt
+}
+
 decodeSecret(){
   SECRET=$1
   NS=$2
@@ -860,8 +867,10 @@ elif [ "$CMD" == "install" ]; then
     certmanagerInst
     generateHttpSolverCertificate
     #godaddyWebhook
-  elif [ "$COMPONENT" == "prometheus-grafana" ]; then
-    prometheusGrafanaInst
+  elif [ "$COMPONENT" == "monitoring" ]; then
+    #prometheusGrafanaInst
+    localFsStorageClassCreate
+    prometheusGrafanaInstv2
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardInst
   elif [ "$COMPONENT" == "ingress" ]; then
@@ -899,8 +908,10 @@ elif [ "$CMD" == "reset" ]; then
     kubeadm reset <<EOF
 y
 EOF
-  elif [ "$COMPONENT" == "prometheus-grafana" ]; then
-    prometheusGrafanaReset
+  elif [ "$COMPONENT" == "monitoring" ]; then
+    #prometheusGrafanaReset
+    prometheusGrafanaResetv2
+    emptyLocalFsStorage
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardReset
   elif [ "$COMPONENT" == "ingress" ]; then
