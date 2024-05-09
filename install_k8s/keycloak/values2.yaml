@@ -122,10 +122,10 @@ adminIngress:
   apiVersion: ""
   ## @param adminIngress.hostname Default host for the admin ingress record (evaluated as template)
   ##
-  hostname: master.cloud.com
+  hostname: kube.gokcloud.com
   ## @param adminIngress.path [string] Default path for the admin ingress record (evaluated as template)
   ##
-  path: /keyadmin(/|$)(.*)
+  path: /admin(/|$)(.*)
   ## @param adminIngress.servicePort Backend service port to use
   ## Default is http. Alternative is https.
   ##

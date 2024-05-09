@@ -884,7 +884,8 @@ installKeycloakWithCertMgr(){
   ./gok install keycloak
   ./gok create certificate keycloak
   ./gok patch ingress keycloak keycloak letsencrypt
-  ./gok patch ingress keycloak-console keycloak letsencrypt
+#  ./gok patch ingress keycloak-console keycloak letsencrypt
+  ./gok patch ingress keycloak-admin keycloak letsencrypt
 }
 
 installPrometheusGrafanaWithCertMgr(){
