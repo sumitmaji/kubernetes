@@ -79,3 +79,6 @@ postgresql:
   postgresqlPassword: asdfaso97sadfjylfasdsf78
   persistence:
     storageClass: "keycloak-storage"
+  common:
+    global:
+      storageClass: "keycloak-storage"
