@@ -558,6 +558,73 @@ prometheusGrafanaReset() {
   helm -n db delete postgres
   kubectl delete ns db
 }
+
+localFsStorageClassCreate(){
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: monitoring-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  mkdir -p /data/volumes/pv1
+  chmod 777 /data/volumes/pv1
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: monitoring-storage
+  local:
+    path: /data/volumes/pv1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+}
+
+prometheusGrafanaResetv2(){
+  helm -n monitoring delete prometheus
+  helm -n monitoring delete grafana
+  kubectl delete ns monitoring
+
+}
+
+prometheusGrafanaInstv2(){
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm repo add grafana https://grafana.github.io/helm-charts
+  helm repo update
+  helm install prometheus prometheus-community/prometheus \
+    --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/prometheus-grafana/prometheus-values.yaml \
+    --namespace monitoring \
+    --create-namespace
+
+  helm install grafana grafana/grafana \
+    --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --namespace monitoring
+
+  kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
+
+  kubectl -n kube-system patch ds kube-proxy -p \
+      '{"spec":{"template":{"metadata":{"labels":{"updateTime":"'`date +'%s'`'"}}}}}'
+
+
+}
+
 prometheusGrafanaInst() {
 
   helm repo add prometheus-community \
