@@ -872,12 +872,11 @@ keycloakReset(){
 }
 
 keycloakInst(){
-  helm repo add codecentric https://codecentric.github.io/helm-charts
-  helm repo update
-  helm install keycloak codecentric/keycloak \
+
+  helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/keycloak/values.yaml
+        -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/keycloak/values2.yaml
 }
 
 installKeycloakWithCertMgr(){
