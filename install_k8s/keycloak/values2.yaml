@@ -1,3 +1,4 @@
+proxy: reencrypt
 extraEnv: |
   - name: KEYCLOAK_LOGLEVEL
     value: DEBUG
