@@ -2,10 +2,10 @@ proxy: edge
 extraEnvVars: |
   - name: KEYCLOAK_LOG_LEVEL
     value: DEBUG
-#  - name: KEYCLOAK_ADMIN
-#    value: sumit_keycloak
-#  - name: KEYCLOAK_ADMIN_PASSWORD
-#    value: sumit123
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: admin
 #  - name: PROXY_ADDRESS_FORWARDING
 #    value: "true"
 
@@ -202,8 +202,8 @@ ingress:
 #  ##   key:
 #  ##   certificate:
 #  ##
-auth:
-  adminPassword: sumit@$0989123
+#auth:
+#  adminPassword: sumit@$0989123
 #  adminUser: sumit_keycloak
 #  managementPassword: sumit123
 
