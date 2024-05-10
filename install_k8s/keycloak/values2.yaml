@@ -202,10 +202,10 @@ ingress:
 #  ##   key:
 #  ##   certificate:
 #  ##
-auth:
-  adminPassword: sumit123
-  adminUser: sumit
-  managementPassword: sumit123
+#auth:
+#  adminPassword: sumit123
+#  adminUser: sumit
+#  managementPassword: sumit123
 
 postgresql:
   enabled: true
