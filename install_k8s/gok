@@ -322,20 +322,26 @@ certmanagerInst() {
 
 certificateRequestForNs() {
 NS=$1
+if [ -z $2 ]; then
+  SUBDOMAIN=kube
+else
+  SUBDOMAIN=$2
+fi
+
   cat <<EOF | kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: gokcloud-com-tls
+  name: ${SUBDOMAIN}-gokcloud-com-tls
   namespace: ${NS}
 spec:
-  secretName: gokcloud-com
+  secretName: ${SUBDOMAIN}-gokcloud-com
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: kube.gokcloud.com
+  commonName: ${SUBDOMAIN}.gokcloud.com
   dnsNames:
-    - kube.gokcloud.com
+    - ${SUBDOMAIN}.gokcloud.com
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
@@ -838,6 +844,11 @@ EOF
 patchLetsEncrypt() {
   NAME=$1
   NS=$2
+  if [ -z $3 ]; then
+    SUBDOMAIN=kube
+  else
+    SUBDOMAIN=$3
+  fi
   kubectl patch ing "$NAME" --patch "$(
     cat <<EOF
 metadata:
@@ -847,8 +858,8 @@ metadata:
 spec:
   tls:
     - hosts:
-        - kube.gokcloud.com
-      secretName: gokcloud-com
+        - ${SUBDOMAIN}.gokcloud.com
+      secretName: ${SUBDOMAIN}-gokcloud-com
 EOF
   )" -n "$NS"
   kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"kube.gokcloud.com"}]' -n "$NS"
@@ -864,7 +875,6 @@ helmTemplateDebug(){
   CHART_REPO=$2
   helm install $1 $2  \
     --dry-run --debug | less
-
 }
 
 keycloakReset(){
@@ -886,23 +896,21 @@ keycloakInst(){
 
 installKeycloakWithCertMgr(){
   ./gok install keycloak
-  ./gok create certificate keycloak
-  ./gok patch ingress keycloak keycloak letsencrypt
-#  ./gok patch ingress keycloak-console keycloak letsencrypt
-  ./gok patch ingress keycloak-admin keycloak letsencrypt
+  ./gok create certificate keycloak keycloak
+  ./gok patch ingress keycloak keycloak letsencrypt keycloak
 }
 
 installPrometheusGrafanaWithCertMgr(){
   ./gok install monitoring
-  ./gok create certificate monitoring
-  ./gok patch ingress prometheus-server monitoring letsencrypt
-  ./gok patch ingress grafana monitoring letsencrypt
+  ./gok create certificate monitoring kube
+  ./gok patch ingress prometheus-server monitoring letsencrypt kube
+  ./gok patch ingress grafana monitoring letsencrypt kube
 }
 
 installDashboardwithCertManager(){
   ./gok install dashboard
-  ./gok create certificate kubernetes-dashboard
-  ./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt
+  ./gok create certificate kubernetes-dashboard kube
+  ./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt kube
 }
 
 decodeSecret(){
@@ -1022,9 +1030,10 @@ elif [ "$CMD" == "patch" ]; then
   NAME=$3
   NS=$4
   OPTIONS=$5
+  SUBDOMAIN=$6
   if [ "$RESOURCE" == "ingress" ]; then
     if [ "$OPTIONS" == "letsencrypt" ]; then
-      patchLetsEncrypt "$NAME" "$NS"
+      patchLetsEncrypt "$NAME" "$NS" "$SUBDOMAIN"
     elif [ "$OPTIONS" == "ldap" ]; then
       patchLdapSecure "$NAME" "$NS"
     elif [ "$OPTIONS" == "localtls" ]; then
@@ -1034,12 +1043,13 @@ elif [ "$CMD" == "patch" ]; then
 elif [ "$CMD" == "create" ]; then
   RESOURCE=$2
   NAME=$3
+  ADDITIONAL=$4
   if [ "$RESOURCE" == "secret" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
     fi
   elif [ "$RESOURCE" == "certificate" ]; then
-    certificateRequestForNs "$NAME"
+    certificateRequestForNs "$NAME" "$ADDITIONAL"
   elif [ "$RESOURCE" == "kubeconfig" ]; then
     createKubeConfig "$NAME"
   fi
