@@ -1,5 +1,4 @@
 proxy: edge
-httpRelativePath: "/keycloak"
 extraEnv: |
   - name: KEYCLOAK_LOGLEVEL
     value: DEBUG
