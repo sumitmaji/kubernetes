@@ -564,7 +564,7 @@ prometheusGrafanaReset() {
 emptyLocalFsStorageKeycloak(){
   kubectl delete pv keycloak-pv
   kubectl delete sc keycloak-storage
-  rm -rf /data/volumes/{pv3}
+  rm -rf /data/volumes/pv3
 }
 
 localFsStorageClassKeycloakCreate(){
