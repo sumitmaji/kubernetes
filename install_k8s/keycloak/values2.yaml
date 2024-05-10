@@ -207,11 +207,8 @@ auth:
   adminUser: sumit_keycloak
   managementPassword: sumit123
 
-#externalDatabase:
-#  password: "sumit123"
-
 postgresql:
-  enabled: false
+  enabled: true
   auth:
     postgresPassword: "sumit123"
     username: sumit_keycloak
