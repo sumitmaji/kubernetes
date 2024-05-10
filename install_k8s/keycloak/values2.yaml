@@ -2,12 +2,12 @@ proxy: edge
 extraEnvVars: |
   - name: KEYCLOAK_LOG_LEVEL
     value: DEBUG
-#  - name: KEYCLOAK_ADMIN
-#    value: sumit_keycloak
-#  - name: KEYCLOAK_ADMIN_PASSWORD
-#    value: sumit123
-#  - name: PROXY_ADDRESS_FORWARDING
-#    value: "true"
+  - name: KEYCLOAK_ADMIN
+    value: sumit_keycloak
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: sumit123
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
 
 ingress:
   ## @param ingress.enabled Enable ingress record generation for Keycloak
@@ -202,10 +202,10 @@ ingress:
 #  ##   key:
 #  ##   certificate:
 #  ##
-#auth:
-#  adminPassword: sumit123
-#  adminUser: sumit
-#  managementPassword: sumit123
+auth:
+  adminPassword: sumit123
+  adminUser: sumit_keycloak
+  managementPassword: sumit123
 
 #externalDatabase:
 #  password: "sumit123"
