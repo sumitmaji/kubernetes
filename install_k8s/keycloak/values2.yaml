@@ -1,4 +1,4 @@
-proxy: reencrypt
+proxy: edge
 extraEnv: |
   - name: KEYCLOAK_LOGLEVEL
     value: DEBUG
