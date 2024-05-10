@@ -1,5 +1,5 @@
 proxy: edge
-extraEnv: |
+extraEnvVars: |
   - name: KEYCLOAK_LOGLEVEL
     value: DEBUG
   - name: KEYCLOAK_USER
