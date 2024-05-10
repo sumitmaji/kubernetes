@@ -1,4 +1,5 @@
 proxy: edge
+httpRelativePath: "/keycloak"
 extraEnv: |
   - name: KEYCLOAK_LOGLEVEL
     value: DEBUG
@@ -126,7 +127,7 @@ adminIngress:
   hostname: kube.gokcloud.com
   ## @param adminIngress.path [string] Default path for the admin ingress record (evaluated as template)
   ##
-  path: /admin(/|$)(.*)
+  path: /keycloak/admin(/|$)(.*)
   ## @param adminIngress.servicePort Backend service port to use
   ## Default is http. Alternative is https.
   ##
