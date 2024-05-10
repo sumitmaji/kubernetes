@@ -877,6 +877,9 @@ keycloakInst(){
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
+        --set auth.adminPassword=sumit123 \
+        --set auth.managementPassword=sumit123 \
+        --set postgresql.postgresqlPassword=sumit123 \
         -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/keycloak/values2.yaml
 }
 
