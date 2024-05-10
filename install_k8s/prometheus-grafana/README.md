@@ -1,6 +1,23 @@
 # Prometheus and Grafana
 
-### Installing prometheus and grafana
+## Installation
+
+Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashboard need to be accessible from outside the cluster.
+
+## Gok
+
+```console
+./gok install monitoring
+./gok create certificate monitoring kube
+./gok patch ingress prometheus-server monitoring letsencrypt kube
+./gok patch ingress grafana monitoring letsencrypt kube
+```
+
+```console
+./gok reset monitoring
+```
+
+## Information
 - Helm
 https://www.youtube.com/watch?v=bwUECsVDbMA
 

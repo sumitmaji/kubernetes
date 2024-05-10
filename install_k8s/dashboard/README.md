@@ -18,8 +18,8 @@ Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashbo
 ## Installation steps using gok using letsencrypt
 ```console
 ./gok install dashboard
-./gok create certificate kubernetes-dashboard
-./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt
+./gok create certificate kubernetes-dashboard kube
+./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt kube
 ```
 
 
