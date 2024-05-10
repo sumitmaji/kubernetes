@@ -17,6 +17,11 @@ Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashbo
 ./gok reset monitoring
 ```
 
+## Access UI
+
+Prometheus: https://kube.gokcloud.com/prometheus
+Grafana: https://kube.gokcloud.com/grafana
+
 ## Information
 - Helm
 https://www.youtube.com/watch?v=bwUECsVDbMA
