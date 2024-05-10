@@ -6,7 +6,9 @@ Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashbo
 
 ### Gok
 ```console
-installKeycloakWithCertMgr
+./gok install keycloak
+./gok create certificate keycloak keycloak
+./gok patch ingress keycloak keycloak letsencrypt keycloak
 ```
 
 ```console
