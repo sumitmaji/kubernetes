@@ -203,16 +203,16 @@ ingress:
 #  ##   certificate:
 #  ##
 auth:
-  adminPassword: "sumit@0989"
+  adminPassword: sumit123
 #  adminUser: sumit_keycloak
 #  managementPassword: sumit123
 
 postgresql:
   enabled: true
   auth:
-    postgresPassword: "sumit@0989"
+    postgresPassword: "sumit123"
     username: sumit_keycloak
-    password: "sumit@0989"
+    password: "sumit123"
   primary:
     persistence:
       storageClass: "keycloak-storage"

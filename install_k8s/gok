@@ -872,6 +872,10 @@ keycloakReset(){
   kubectl delete pvc --all -n keycloak
 }
 
+k(){
+  alias k='kubectl'
+}
+
 keycloakInst(){
 
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
