@@ -203,7 +203,7 @@ ingress:
 #  ##   certificate:
 #  ##
 auth:
-  adminPassword: sumit123
+  adminPassword: sumit@$0989123
 #  adminUser: sumit_keycloak
 #  managementPassword: sumit123
 
