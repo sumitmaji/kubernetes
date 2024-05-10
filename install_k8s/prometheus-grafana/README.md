@@ -19,8 +19,24 @@ Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashbo
 
 ## Access UI
 
-Prometheus: https://kube.gokcloud.com/prometheus
-Grafana: https://kube.gokcloud.com/grafana
+**Prometheus:** 
+
+https://kube.gokcloud.com/prometheus
+
+**Grafana:** 
+
+https://kube.gokcloud.com/grafana
+username: admin
+password: admin
+
+## Adding datasource in Grfana
+![img_1.png](images/img_1.png)
+
+![img_2.png](images/img_2.png)
+
+![img_3.png](images/img_3.png)
+
+![img_4.png](images/img_4.png)
 
 ## Information
 - Helm
@@ -32,7 +48,7 @@ https://www.youtube.com/watch?v=mtE4migphGE
 [Learn](https://k21academy.com/docker-kubernetes/prometheus-grafana-monitoring/)
 
 Architecture Diagram
-![img.png](img.png)
+![img.png](images/img.png)
 
 **Prometheus Server:** The main server which stores and scrapes time series data.
 
