@@ -1,10 +1,10 @@
 proxy: edge
 extraEnvVars: |
-  - name: KEYCLOAK_LOGLEVEL
+  - name: KEYCLOAK_LOG_LEVEL
     value: DEBUG
-  - name: KEYCLOAK_USER
+  - name: KEYCLOAK_ADMIN
     value: sumit
-  - name: KEYCLOAK_PASSWORD
+  - name: KEYCLOAK_ADMIN_PASSWORD
     value: sumitabc
   - name: PROXY_ADDRESS_FORWARDING
     value: "true"
@@ -205,6 +205,7 @@ ingress:
 auth:
   adminPassword: sumit123
   adminUser: sumit
+  managementPassword: sumit123
 
 postgresql:
   enabled: true
