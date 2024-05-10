@@ -3,9 +3,9 @@ extraEnvVars: |
   - name: KEYCLOAK_LOG_LEVEL
     value: DEBUG
   - name: KEYCLOAK_ADMIN
-    value: sumit
+    value: sumit_keycloak
   - name: KEYCLOAK_ADMIN_PASSWORD
-    value: sumitabc
+    value: sumit123
   - name: PROXY_ADDRESS_FORWARDING
     value: "true"
 
@@ -206,6 +206,9 @@ ingress:
 #  adminPassword: sumit123
 #  adminUser: sumit
 #  managementPassword: sumit123
+
+externalDatabase:
+  password: "sumit123"
 
 postgresql:
   enabled: true
