@@ -862,7 +862,7 @@ spec:
       secretName: ${SUBDOMAIN}-gokcloud-com
 EOF
   )" -n "$NS"
-  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"kube.gokcloud.com"}]' -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"${SUBDOMAIN}.gokcloud.com"}]' -n "$NS"
 
 }
 
