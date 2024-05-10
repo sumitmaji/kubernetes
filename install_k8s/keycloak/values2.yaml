@@ -211,7 +211,7 @@ auth:
 #  password: "sumit123"
 
 postgresql:
-  enabled: true
+  enabled: false
   auth:
     postgresPassword: "sumit123"
     username: sumit_keycloak
