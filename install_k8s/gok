@@ -77,6 +77,57 @@ updateSys() {
   apt-get update
 }
 
+setupDockerRegistry(){
+  [[ "TRACE" ]] && set -x
+
+  : ${COUNTRY:=IN}
+  : ${STATE:=UP}
+  : ${LOCALITY:=GN}
+  : ${ORGANIZATION:=CloudInc}
+  : ${ORGU:=IT}
+  : ${EMAIL:=cloudinc.gmail.com}
+  : ${COMMONNAME:=master.cloud.com}
+  : ${MOUNT_PATH:=/root}
+
+  EXPORTDIR=$MOUNT_PATH
+
+  mkdir -p "$EXPORTDIR"/certs
+  mkdir -p /mnt/registry
+  wget https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/config.yml -o /mnt/registry/config.yml
+  pushd "$EXPORTDIR"
+  if [ -f /etc/docker/certs.d/master.cloud.com:5000/domain.crt ]
+  then
+  echo "The file is present, not creating it!!!!!"
+  else
+  openssl req \
+    -newkey rsa:4096 -nodes -sha256 -keyout certs/domain.key \
+    -x509 -days 365 -out certs/domain.crt \
+    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$COMMONNAME/emailAddress=$EMAIL" \
+    -addext "subjectAltName = DNS:${COMMONNAME}"
+  fi
+
+  docker stop registry
+  docker rm registry
+
+  docker run -d \
+    --restart=always \
+    --name registry \
+    -v $EXPORTDIR/certs:/root/certs \
+    -e REGISTRY_HTTP_ADDR=0.0.0.0:5000 \
+    -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/domain.crt \
+    -e REGISTRY_HTTP_TLS_KEY=/root/certs/domain.key \
+    -v /mnt/registry:/var/lib/registry \
+    -v /mnt/registry/config.yml:/etc/docker/registry/config.yml \
+    -p 5000:5000 \
+    registry:latest
+
+  mkdir -p /etc/docker/certs.d/master.cloud.com:5000
+
+  cp "$EXPORTDIR"/certs/domain.crt /etc/docker/certs.d/master.cloud.com:5000/domain.crt
+
+  popd
+}
+
 installDeps() {
   #Install network tools
   apt-get install net-tools
@@ -781,6 +832,8 @@ EOF
 
 }
 
+# The method creates certificate for user having admin role and generate kube config file
+# for login to api server
 createKubeConfig() {
   USERNAME=$1
   : ${IP:=$(ifconfig eth0 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
@@ -971,6 +1024,8 @@ elif [ "$CMD" == "install" ]; then
       localFsStorageClassKeycloakCreate
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
+  elif [ "$COMPONENT" == "registry" ]; then
+      setupDockerRegistry
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
