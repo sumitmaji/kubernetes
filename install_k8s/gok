@@ -533,6 +533,9 @@ spec:
 EOYAML
   kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io $(getClusterIssuerName)
 
+  # Add the self signed issuer(ca) certificate to authorized certificates
+  kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt
+  update-ca-certificates
 fi
 
 
@@ -1342,6 +1345,9 @@ installRegistryWithCertMgr(){
   # Restarting docker stops the haproxy, need to start it again
   ./gok start proxy
   docker login registry.gokcloud.com
+  openssl s_client -connect registry.gokcloud.com:443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)'
+  [[ $? -eq 0 ]] && echo "Registry certificate verification succeeded" || echo "Registry certificate verification failed"
+
 }
 
 installKeycloakWithCertMgr(){
