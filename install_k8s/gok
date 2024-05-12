@@ -998,6 +998,8 @@ resetDockerRegistry(){
   kubectl delete ns registry
 }
 
+# https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
+# Generate User & Password
 genRegistyrPassword(){
   export REGISTRY_USER=sumit
   export REGISTRY_PASS=sumit
@@ -1015,6 +1017,8 @@ genRegistyrPassword(){
   unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
 }
 
+# https://blog.zachinachshon.com/docker-registry/
+# Verify access to the registry
 verifyRegistyrInst(){
   export DESTINATION_FOLDER=./registry-creds
   export USER=$(cat ${DESTINATION_FOLDER}/registry-user.txt)
@@ -1031,6 +1035,7 @@ verifyRegistyrInst(){
   unset USER PASSWORD
 }
 
+# https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 dockerRegistryInst(){
   genRegistyrPassword
   helm repo add twuni https://helm.twun.io
@@ -1318,13 +1323,18 @@ installRegistryWithCertMgr(){
   ./gok install registryv2
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
-  #./gok create certificate registry registry
+  # ./gok create certificate registry registry
   ./gok patch ingress registry-docker-registry registry letsencrypt registry
 
+  # Let docker trust the self-signed certificates
+  # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
+  #BEGIN
   rm /etc/docker/certs.d/registry.gokcloud.com/ca.crt
   mkdir -p /etc/docker/certs.d/registry.gokcloud.com/
   kubectl get secret registry-gokcloud-com -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/registry.gokcloud.com/ca.crt
   systemctl restart docker
+  #END
+
   # Restarting docker stops the haproxy, need to start it again
   ./gok start proxy
   docker login registry.gokcloud.com
