@@ -1206,6 +1206,11 @@ installRegistryWithCertMgr(){
   ./gok install registry
   ./gok create certificate registry registry
   ./gok patch ingress registry-docker-registry registry letsencrypt registry
+
+  mkdir -p /etc/docker/certs.d/registry.gokcloud.com/
+  kubectl get secret registry-gokcloud-com -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/registry.gokcloud.com/ca.crt
+  systemctl restart docker
+  docker login
 }
 
 installKeycloakWithCertMgr(){
