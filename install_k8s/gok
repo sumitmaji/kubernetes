@@ -623,6 +623,13 @@ emptyLocalFsStorageKeycloak(){
   rm -rf /data/volumes/pv3
 }
 
+emptyLocalFsStorageRegistry(){
+  kubectl delete pvc --all -n regisry
+  kubectl delete pv registry-pv
+  kubectl delete sc registry-storage
+  rm -rf /data/volumes/pv4
+}
+
 localFsStorageClassKeycloakCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
@@ -745,6 +752,48 @@ EOF
 
 }
 
+
+localFsStorageClassRegistryCreate(){
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: registry-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  mkdir -p /data/volumes/pv4
+  chmod 777 /data/volumes/pv4
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: registry-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: registry-storage
+  local:
+    path: /data/volumes/pv4
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+
+}
+
+
+
 prometheusGrafanaResetv2(){
   helm -n monitoring delete prometheus
   helm -n monitoring delete grafana
@@ -828,6 +877,26 @@ subjects:
   name: cloud:masters
 EOF
   fi
+
+}
+
+resetDockerRegistry(){
+  helm uninstall registry
+}
+
+dockerRegistryInst(){
+  helm repo add twuni https://helm.twun.io
+
+  helm upgrade --install registry \
+      --namespace registry \
+      --create-namespace \
+      --set replicaCount=1 \
+      --set persistence.enabled=true \
+      --set persistence.size=10Gi \
+      --set persistence.deleteEnabled=true \
+      --set persistence.storageClass=registry-storage \
+      --set secrets.htpasswd=sumit:sumit \
+      twuni/docker-registry
 
 }
 
@@ -1097,6 +1166,12 @@ keycloakInst(){
         -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/keycloak/values2.yaml
 }
 
+installRegistryWithCertMgr(){
+  ./gok install registry
+  ./gok create certificate registry registry
+  ./gok patch ingress registry registry letsencrypt registry
+}
+
 installKeycloakWithCertMgr(){
   ./gok install keycloak
   ./gok create certificate keycloak keycloak
@@ -1177,6 +1252,9 @@ elif [ "$CMD" == "install" ]; then
     ingressInst
   elif [ "$COMPONENT" == "registry" ]; then
       setupDockerRegistry
+  elif [ "$COMPONENT" == "registryv2" ]; then
+        localFsStorageClassRegistryCreate
+        dockerRegistryInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
@@ -1221,6 +1299,9 @@ EOF
         emptyLocalFsStorageKeycloak
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
+  elif [ "$COMPONENT" == "registryv2" ]; then
+          resetDockerRegistry
+          emptyLocalFsStorageRegistry
   elif [ "$COMPONENT" == "cert-manager" ]; then
     #godaddyWebhookReset
     certManagerReset
