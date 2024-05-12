@@ -1323,7 +1323,8 @@ keycloakInst(){
 
 installRegistryWithCertMgr(){
   [[ "TRACE" ]] && set -x
-  ./gok install registryv2
+  localFsStorageClassRegistryCreate
+  dockerRegistryInst
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
   # ./gok create certificate registry registry
@@ -1421,10 +1422,7 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "registry" ]; then
-      setupDockerRegistry
-  elif [ "$COMPONENT" == "registryv2" ]; then
-        localFsStorageClassRegistryCreate
-        dockerRegistryInst
+        installRegistryWithCertMgr
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
@@ -1469,7 +1467,7 @@ EOF
         emptyLocalFsStorageKeycloak
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
-  elif [ "$COMPONENT" == "registryv2" ]; then
+  elif [ "$COMPONENT" == "registry" ]; then
           resetDockerRegistry
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
