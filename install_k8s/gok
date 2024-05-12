@@ -10,6 +10,14 @@ CERTMANAGER_CHALANGE_TYPE=selfsigned
 #staging, prod
 LETS_ENCRYPT_ENV=staging
 
+echoSuccess(){
+  echo -e "\e[32m$1\e[0m"
+}
+
+echoFailed(){
+  echo -e "\e[31m$1\e[0m"
+}
+
 createApp1() {
   cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
@@ -1345,8 +1353,9 @@ installRegistryWithCertMgr(){
   # Restarting docker stops the haproxy, need to start it again
   ./gok start proxy
   docker login registry.gokcloud.com
+  [[ $? -eq 0 ]] && echoSuccess "OK" || echoFailed "FAILED"
   openssl s_client -connect registry.gokcloud.com:443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)'
-  [[ $? -eq 0 ]] && echo -e "\e[32mRegistry certificate verification succeeded\e[0m" || echo -e "\e[31mRegistry certificate verification failed\e[0m"
+  [[ $? -eq 0 ]] && echoSuccess "Registry certificate verification succeeded" || echoFailed "Registry certificate verification failed"
 }
 
 installKeycloakWithCertMgr(){
