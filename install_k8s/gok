@@ -80,15 +80,6 @@ updateSys() {
 setupDockerRegistry(){
   [[ "TRACE" ]] && set -x
 
-  : ${COUNTRY:=IN}
-  : ${STATE:=UP}
-  : ${LOCALITY:=GN}
-  : ${ORGANIZATION:=CloudInc}
-  : ${ORGU:=IT}
-  : ${EMAIL:=cloudinc.gmail.com}
-  : ${COMMONNAME:=master.cloud.com}
-  : ${MOUNT_PATH:=/root}
-
   EXPORTDIR=$MOUNT_PATH
 
   if [ $(hostname) == 'master.cloud.com' ]; then
@@ -105,22 +96,7 @@ setupDockerRegistry(){
       then
         echo "The file is present, not creating it!!!!!"
       else
-        #createCertificate ${USERNAME}
-        openssl genrsa -out ${USERNAME}.key 2048
-
-        #Create CSR for the server
-        openssl req -new -key ${USERNAME}.key \
-          -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$USERNAME/emailAddress=$EMAIL" \
-          -addext "subjectAltName = DNS:${USERNAME}" \
-          -out ${USERNAME}.csr
-
-        #Create a self signed certificate
-        openssl x509 -req -in ${USERNAME}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${USERNAME}.crt \
-          -days 10000 -extensions v3_req
-
-        mv ${USERNAME}.key certs/
-        mv ${USERNAME}.crt certs/
-        rm ${USERNAME}.csr
+        createCertificate -i 11.0.0.1 -h master.cloud.com -t server -f master.cloud.com
       fi
 
       docker stop registry
@@ -854,6 +830,121 @@ EOF
 }
 
 createCertificate(){
+  [[ "TRACE" ]] && set -x
+
+  : ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_k8s}
+
+  while [[ $# -gt 0 ]]
+  do
+  key="$1"
+  case $key in
+   -i|--ip)
+   NODE_IP="$2"
+   shift
+   shift
+   ;;
+   -h|--host)
+   HOSTNAME="$2"
+   shift
+   shift
+   ;;
+   -f|--file)
+   FILENAME="$2"
+   shift
+   shift
+   ;;
+   -t|--type)
+   TYPE="$2"
+   shift
+   shift
+   ;;
+  esac
+  done
+
+  if [ -z "$NODE_IP" ]
+  then
+  	echo "Please provide node ip"
+  	exit 0
+  fi
+  if [ -z "$HOSTNAME" ]
+  then
+          echo "Please provide node hostname"
+          exit 0
+  fi
+  if [ -z "$FILENAME" ]
+  then
+          echo "Please provide node filename"
+          exit 0
+  fi
+  if [ -z "$TYPE" ]
+  then
+          echo "Please provide file type"
+          exit 0
+  fi
+
+
+
+  : ${COUNTRY:=IN}
+  : ${STATE:=UP}
+  : ${LOCALITY:=GN}
+  : ${ORGANIZATION:=CloudInc}
+  : ${ORGU:=IT}
+  : ${EMAIL:=cloudinc.gmail.com}
+  : ${COMMONNAME:=kube-system}
+
+  mkdir -p $MOUNT_PATH/certs
+  pushd $MOUNT_PATH/certs
+
+  if [ $TYPE == 'server' ]
+  then
+   keyUsage='extendedKeyUsage = clientAuth,serverAuth'
+   HOSTNAME="${HOSTNAME}-${FILENAME}"
+  else
+   keyUsage='extendedKeyUsage = clientAuth'
+   FILENAME="${FILENAME}-client"
+   HOSTNAME="${HOSTNAME}-$FILENAME"
+  fi
+
+  cat <<EOF | sudo tee ${FILENAME}-openssl.cnf
+[req]
+req_extensions = v3_req
+distinguished_name = req_distinguished_name
+[req_distinguished_name]
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+$keyUsage
+`
+if [ $TYPE == 'server' ]
+then
+echo "subjectAltName = IP:$NODE_IP, DNS:$HOSTNAME"
+fi`
+EOF
+
+  #Create a private key
+  openssl genrsa -out $HOSTNAME.key 2048
+
+  #Create CSR for the node
+  openssl req -new -key $HOSTNAME.key \
+    -subj "/CN=$NODE_IP" \
+    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$HOSTNAME/emailAddress=$EMAIL" \
+    -out $HOSTNAME.csr -config ${FILENAME}-openssl.cnf
+
+  #Create a self signed certificate
+  openssl x509 -req -in $HOSTNAME.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial \
+    -out $HOSTNAME.crt -days 10000 -extensions v3_req -extfile ${FILENAME}-openssl.cnf
+
+  #Copy ca.crt to crt
+  cat /etc/kubernetes/pki/ca.crt >> $HOSTNAME.crt
+
+  #Verify a Private Key Matches a Certificate
+  openssl x509 -noout -text -in $HOSTNAME.crt
+
+  popd
+}
+
+
+createClientCertificate(){
   USERNAME=$1
   echo + Creating private key: ${USERNAME}.key
   openssl genrsa -out ${USERNAME}.key 4096
