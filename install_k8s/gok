@@ -413,6 +413,7 @@ spec:
     email: majisumitkumar@gmail.com
     #server: https://acme-v02.api.letsencrypt.org/directory
     server: https://acme-staging-v02.api.letsencrypt.org/directory
+    preferredChain: "(STAGING) Pretend Pear X1"
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
