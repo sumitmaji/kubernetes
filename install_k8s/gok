@@ -1320,6 +1320,7 @@ keycloakInst(){
 }
 
 installRegistryWithCertMgr(){
+  [[ "TRACE" ]] && set -x
   ./gok install registryv2
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
