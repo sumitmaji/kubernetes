@@ -994,6 +994,8 @@ EOF
 
 resetDockerRegistry(){
   helm uninstall registry -n registry
+  emptyLocalFsStorageRegistry
+  kubectl delete ns registry
 }
 
 genRegistyrPassword(){
@@ -1453,7 +1455,6 @@ EOF
     ingressUnInst
   elif [ "$COMPONENT" == "registryv2" ]; then
           resetDockerRegistry
-          emptyLocalFsStorageRegistry
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
