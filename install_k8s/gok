@@ -5,6 +5,10 @@ source "$WORKING_DIR"/config
 
 release=$2
 CMD=$1
+#dns, http, selfsigned
+CERTMANAGER_CHALANGE_TYPE=selfsigned
+#staging, prod
+LETS_ENCRYPT_ENV=staging
 
 createApp1() {
   cat <<EOF | kubectl apply -f -
@@ -401,26 +405,132 @@ echo "kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders
 kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces
 }
 
-generateHttpSolverCertificate() {
+getLetsEncryptUrl(){
+  [[ getLetsEncEnv = 'prod' ]] && echo "https://acme-v02.api.letsencrypt.org/directory " || echo "https://acme-staging-v02.api.letsencrypt.org/directory"
+}
+
+getLetsEncEnv(){
+  echo ${LETS_ENCRYPT_ENV}
+}
+
+getClusterIssuerName(){
+  case "$CERTMANAGER_CHALANGE_TYPE" in
+   'dns') echo "letsencrypt-$(getLetsEncEnv)" ;;
+   'http') echo "letsencrypt-$(getLetsEncEnv)" ;;
+   'selfsigned') echo "gokselfsign-ca-cluster-issuer" ;;
+  esac
+}
+
+setupCertiIssuers() {
+
+if [ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]; then
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: $(getClusterIssuerName)
+spec:
+  acme:
+    email: majisumitkumar@gmail.com
+    server: $(getLetsEncryptUrl)
+    privateKeySecretRef:
+      name: letsencrypt-$(getLetsEncEnv)
+    solvers:
+    - dns01:
+        webhook:
+          config:
+            apiKeySecretRef:
+              name: godaddy-api-key-secret
+              key: api-key
+            production: true
+            ttl: 600
+          groupName: acme.mycompany.com
+          solverName: godaddy
+      selector:
+       dnsNames:
+       - 'kube.gokcloud.co.in'
+       - '*.gokcloud.co.in'
+EOF
+  godaddyWebhook
+elif [ $CERTMANAGER_CHALANGE_TYPE == 'http' ]; then
+    
 
   cat <<EOF | kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-prod
+  name: $(getClusterIssuerName)
 spec:
   acme:
     email: majisumitkumar@gmail.com
-    #server: https://acme-v02.api.letsencrypt.org/directory
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
-    preferredChain: "(STAGING) Pretend Pear X1"
+    server: $(getLetsEncryptUrl)
+    #preferredChain: "(STAGING) Pretend Pear X1"
     privateKeySecretRef:
-      name: letsencrypt-prod
+      name: letsencrypt-$(getLetsEncEnv)
     solvers:
     - http01:
         ingress:
           ingressClassName: nginx
 EOF
+
+elif [ $CERTMANAGER_CHALANGE_TYPE == 'selfsigned' ]; then
+  # https://medium.com/geekculture/a-simple-ca-setup-with-kubernetes-cert-manager-bc8ccbd9c2
+  # https://gist.github.com/jakexks/c1de8238cbee247333f8c274dc0d6f0f
+  # Create self signed cluster issuer:
+  echo "Creating self-signed cluster-issuer..."
+  until cat <<EOYAML | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-cluster-issuer
+spec:
+  selfSigned: {}
+EOYAML
+  do sleep 1; done
+  kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io selfsigned-cluster-issuer
+
+  # Create CA certificate. If you want to use it as a ClusterIssuer the secret must be in the cert-manager namespace:
+  echo "Creating self-signed certificate..."
+  cat <<EOYAML | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gokselfsign-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: gokselfsign-ca
+  secretName: gokselfsign-ca
+  subject:
+    organizations:
+      - GOK Inc.
+    organizationalUnits:
+      - Widgets
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+EOYAML
+  kubectl --timeout=10s -n cert-manager wait --for=condition=Ready certificates.cert-manager.io gokselfsign-ca
+
+  # Create clusterissuer
+  echo "Creating CA cluster issuer..."
+  cat <<EOYAML | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: $(getClusterIssuerName)
+spec:
+  ca:
+    secretName: gokselfsign-ca
+EOYAML
+  kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io $(getClusterIssuerName)
+
+fi
+
 
   cat <<EOF | kubectl apply -f -
 apiVersion: cert-manager.io/v1
@@ -431,13 +541,13 @@ metadata:
 spec:
   secretName: gokcloud-com
   issuerRef:
-    name: letsencrypt-prod
+    name: $(getClusterIssuerName)
     kind: ClusterIssuer
   commonName: kube.gokcloud.com
   dnsNames:
     - kube.gokcloud.com
   issuerRef:
-    name: letsencrypt-prod
+    name: $(getClusterIssuerName)
     kind: ClusterIssuer
 EOF
 
@@ -631,6 +741,14 @@ emptyLocalFsStorageRegistry(){
   rm -rf /data/volumes/pv4
 }
 
+emptyLocalFsStorageMonotring(){
+  kubectl delete pv prometheus-pv
+  kubectl delete pv alertmanager-pv
+  kubectl delete sc prometheus-storage
+  kubectl delete sc alertmanager-storage
+  rm -rf /data/volumes/{pv1,pv2}
+}
+
 localFsStorageClassKeycloakCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
@@ -667,16 +785,6 @@ spec:
           values:
           - master.cloud.com
 EOF
-}
-
-
-
-emptyLocalFsStorageMonotring(){
-  kubectl delete pv prometheus-pv
-  kubectl delete pv alertmanager-pv
-  kubectl delete sc prometheus-storage
-  kubectl delete sc alertmanager-storage
-  rm -rf /data/volumes/{pv1,pv2}
 }
 
 localFsStorageClassMonitoringCreate(){
@@ -753,7 +861,6 @@ EOF
 
 }
 
-
 localFsStorageClassRegistryCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
@@ -792,8 +899,6 @@ spec:
 EOF
 
 }
-
-
 
 prometheusGrafanaResetv2(){
   helm -n monitoring delete prometheus
@@ -885,7 +990,6 @@ resetDockerRegistry(){
   helm uninstall registry -n registry
 }
 
-
 genRegistyrPassword(){
   export REGISTRY_USER=sumit
   export REGISTRY_PASS=sumit
@@ -937,6 +1041,8 @@ dockerRegistryInst(){
 
 }
 
+# It is used to generate both client/server certificate using
+# Kubernetes ca certificate in /etc/kubernetes/pki/ca.crt
 createCertificate(){
   [[ "TRACE" ]] && set -x
 
@@ -989,8 +1095,6 @@ createCertificate(){
           echo "Please provide file type"
           exit 0
   fi
-
-
 
   : ${COUNTRY:=IN}
   : ${STATE:=UP}
@@ -1051,14 +1155,16 @@ EOF
   popd
 }
 
-
+# It is used to generate client certificate
+# using kubectl command
 createClientCertificate(){
   USERNAME=$1
+  GROUPNAME=$2
   echo + Creating private key: ${USERNAME}.key
   openssl genrsa -out ${USERNAME}.key 4096
 
   echo + Creating signing request: ${USERNAME}-csr
-  openssl req -new -key ${USERNAME}.key -out ${USERNAME}.csr -subj "/CN=${USERNAME}/O=registry" \
+  openssl req -new -key ${USERNAME}.key -out ${USERNAME}.csr -subj "/CN=${USERNAME}/O=${GROUPNAME}" \
           -addext "subjectAltName = DNS:${USERNAME}"
 
   WC=$(kubectl get csr ${USERNAME}-csr 2>/dev/null | wc -l)
@@ -1074,7 +1180,7 @@ metadata:
 spec:
   groups:
     - system:authenticated
-    - cloud:masters
+    - ${GROUPNAME}
   request: $(cat ${USERNAME}.csr | base64 | tr -d '\n')
   signerName: kubernetes.io/kube-apiserver-client
   usages:
@@ -1087,7 +1193,6 @@ EOF
 
   kubectl get csr ${USERNAME}-csr -o jsonpath='{.status.certificate}' | base64 -d >${USERNAME}.crt
 }
-
 
 # The method creates certificate for user having admin role and generate kube config file
 # for login to api server
@@ -1282,7 +1387,7 @@ elif [ "$CMD" == "install" ]; then
     dockrInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certmanagerInst
-    generateHttpSolverCertificate
+    setupCertiIssuers
     #godaddyWebhook
   elif [ "$COMPONENT" == "monitoring" ]; then
     #prometheusGrafanaInst
