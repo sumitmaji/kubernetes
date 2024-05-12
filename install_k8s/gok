@@ -89,14 +89,15 @@ setupDockerRegistry(){
       wget https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/config.yml -P /mnt/registry/
       pushd "$EXPORTDIR"
       USERNAME=master.cloud.com
-      rm /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}.crt
-      rm /root/certs/${USERNAME}.crt
-      rm /root/certs/${USERNAME}.key
-      if [ -f /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}.crt ]
+      FILENAME=server
+      rm /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}-${FILENAME}.crt
+      rm /root/certs/${USERNAME}-${FILENAME}.crt
+      rm /root/certs/${USERNAME}-${FILENAME}.key
+      if [ -f /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}-${FILENAME}.crt ]
       then
         echo "The file is present, not creating it!!!!!"
       else
-        createCertificate -i 11.0.0.1 -h master.cloud.com -t server -f master.cloud.com
+        createCertificate -i 11.0.0.1 -h master.cloud.com -t server -f server
       fi
 
       docker stop registry
@@ -107,8 +108,8 @@ setupDockerRegistry(){
         --name registry \
         -v $EXPORTDIR/certs:/root/certs \
         -e REGISTRY_HTTP_ADDR=0.0.0.0:5000 \
-        -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/${USERNAME}.crt \
-        -e REGISTRY_HTTP_TLS_KEY=/root/certs/${USERNAME}.key \
+        -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/${USERNAME}-${FILENAME}.crt \
+        -e REGISTRY_HTTP_TLS_KEY=/root/certs/${USERNAME}-${FILENAME}.key \
         -v /mnt/registry:/var/lib/registry \
         -v /mnt/registry/config.yml:/etc/docker/registry/config.yml \
         -p 5000:5000 \
@@ -116,7 +117,7 @@ setupDockerRegistry(){
 
       mkdir -p /etc/docker/certs.d/master.cloud.com:5000
 
-      cp "$EXPORTDIR"/certs/${USERNAME}.crt /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}.crt
+      cp "$EXPORTDIR"/certs/${USERNAME}-${FILENAME}.crt /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}-${FILENAME}.crt
 
       popd
   else
