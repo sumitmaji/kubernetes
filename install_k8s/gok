@@ -882,7 +882,7 @@ EOF
 }
 
 resetDockerRegistry(){
-  helm uninstall registry
+  helm uninstall registry -n registry
 }
 
 
