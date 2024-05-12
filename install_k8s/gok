@@ -1289,6 +1289,8 @@ spec:
 EOF
   )" -n "$NS"
   kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"'$SUBDOMAIN'.gokcloud.com"}]' -n "$NS"
+
+  kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io ${SUBDOMAIN}-gokcloud-com
 }
 
 kcd(){
