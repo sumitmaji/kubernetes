@@ -18,6 +18,10 @@ echoFailed(){
   echo -e "\e[31m$1\e[0m"
 }
 
+echoWarning(){
+  echo -e "\e[32m$1\e[0m"
+}
+
 createApp1() {
   cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
@@ -544,6 +548,7 @@ EOYAML
   # Add the self signed issuer(ca) certificate to authorized certificates
   kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt
   update-ca-certificates
+  #Need to restart the container
 fi
 
 
@@ -566,6 +571,7 @@ spec:
     kind: ClusterIssuer
 EOF
 
+echoWarning "Selfsigned certificate is added to root ca, please reboot the system for it to effect"
 }
 
 certManagerReset() {

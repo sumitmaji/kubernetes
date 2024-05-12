@@ -14,3 +14,4 @@ export OIDC_ISSUE_URL=https://skmaji.auth0.com/
 export OIDC_CLIENT_ID=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO
 export OIDC_USERNAME_CLAIM=sub
 export OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
+export REGISTRY=registry.gokcloud.com
