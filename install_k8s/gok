@@ -892,8 +892,8 @@ genRegistyrPassword(){
 
   # Backup credentials to local files (in case you'll forget them later on)
   mkdir -p ${DESTINATION_FOLDER}
-  echo ${REGISTRY_USER} >> ${DESTINATION_FOLDER}/registry-user.txt
-  echo ${REGISTRY_PASS} >> ${DESTINATION_FOLDER}/registry-pass.txt
+  echo ${REGISTRY_USER} > ${DESTINATION_FOLDER}/registry-user.txt
+  echo ${REGISTRY_PASS} > ${DESTINATION_FOLDER}/registry-pass.txt
 
   docker run --entrypoint htpasswd registry:2.7.0 \
       -Bbn ${REGISTRY_USER} ${REGISTRY_PASS} \
@@ -1203,14 +1203,15 @@ keycloakInst(){
 }
 
 installRegistryWithCertMgr(){
-  ./gok install registry
+  ./gok install registryv2
   ./gok create certificate registry registry
   ./gok patch ingress registry-docker-registry registry letsencrypt registry
 
+  rm /etc/docker/certs.d/registry.gokcloud.com/ca.crt
   mkdir -p /etc/docker/certs.d/registry.gokcloud.com/
   kubectl get secret registry-gokcloud-com -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/registry.gokcloud.com/ca.crt
   systemctl restart docker
-  docker login
+  docker login registry.gokcloud.com
 }
 
 installKeycloakWithCertMgr(){
