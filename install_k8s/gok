@@ -884,9 +884,28 @@ resetDockerRegistry(){
   helm uninstall registry
 }
 
-dockerRegistryInst(){
-  helm repo add twuni https://helm.twun.io
 
+genRegistyrPassword(){
+  export REGISTRY_USER=sumit
+  export REGISTRY_PASS=sumit
+  export DESTINATION_FOLDER=./registry-creds
+
+  # Backup credentials to local files (in case you'll forget them later on)
+  mkdir -p ${DESTINATION_FOLDER}
+  echo ${REGISTRY_USER} >> ${DESTINATION_FOLDER}/registry-user.txt
+  echo ${REGISTRY_PASS} >> ${DESTINATION_FOLDER}/registry-pass.txt
+
+  docker run --entrypoint htpasswd registry:2.7.0 \
+      -Bbn ${REGISTRY_USER} ${REGISTRY_PASS} \
+      > ${DESTINATION_FOLDER}/htpasswd
+
+  unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
+}
+
+dockerRegistryInst(){
+  genRegistyrPassword
+  helm repo add twuni https://helm.twun.io
+  export DESTINATION_FOLDER=./registry-creds
   helm upgrade --install registry \
       --namespace registry \
       --create-namespace \
@@ -895,7 +914,7 @@ dockerRegistryInst(){
       --set persistence.size=10Gi \
       --set persistence.deleteEnabled=true \
       --set persistence.storageClass=registry-storage \
-      --set secrets.htpasswd=sumit:sumit \
+      --set secrets.htpasswd=$(cat ${DESTINATION_FOLDER}/htpasswd) \
       --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/registry/values.yaml \
       twuni/docker-registry
 
@@ -1170,7 +1189,7 @@ keycloakInst(){
 installRegistryWithCertMgr(){
   ./gok install registry
   ./gok create certificate registry registry
-  ./gok patch ingress registry registry letsencrypt registry
+  ./gok patch ingress registry-docker-registry registry letsencrypt registry
 }
 
 installKeycloakWithCertMgr(){
