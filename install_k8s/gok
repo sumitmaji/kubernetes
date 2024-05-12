@@ -1346,8 +1346,7 @@ installRegistryWithCertMgr(){
   ./gok start proxy
   docker login registry.gokcloud.com
   openssl s_client -connect registry.gokcloud.com:443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)'
-  [[ $? -eq 0 ]] && echo "Registry certificate verification succeeded" || echo "Registry certificate verification failed"
-
+  [[ $? -eq 0 ]] && echo -e "\e[32mRegistry certificate verification succeeded\e[0m" || echo -e "\e[31mRegistry certificate verification failed\e[0m"
 }
 
 installKeycloakWithCertMgr(){
