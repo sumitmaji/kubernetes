@@ -374,14 +374,17 @@ certmanagerInst() {
     --version v1.14.5
 }
 
-certificateRequestForNs() {
-NS=$1
-if [ -z $2 ]; then
-  SUBDOMAIN=kube
-else
-  SUBDOMAIN=$2
-fi
+subDomain(){
+  if [ -z $1 ]; then
+    echo "kube"
+  else
+    echo "$1"
+  fi
+}
 
+certificateRequestForNs() {
+  NS=$1
+  SUBDOMAIN=$(subDomain $2)
   cat <<EOF | kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -391,18 +394,19 @@ metadata:
 spec:
   secretName: ${SUBDOMAIN}-gokcloud-com
   issuerRef:
-    name: letsencrypt-prod
+    name: $(getClusterIssuerName)
     kind: ClusterIssuer
   commonName: ${SUBDOMAIN}.gokcloud.com
   dnsNames:
     - ${SUBDOMAIN}.gokcloud.com
   issuerRef:
-    name: letsencrypt-prod
+    name: $(getClusterIssuerName)
     kind: ClusterIssuer
 EOF
-echo "Certificate request for NS $NS created, executing below command to know current status"
-echo "kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces"
-kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces
+  echo "Certificate request for NS $NS created, executing below command to know current status"
+  echo "kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces"
+  kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces
+  kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io ${SUBDOMAIN}-gokcloud-com-tls
 }
 
 getLetsEncryptUrl(){
@@ -558,6 +562,8 @@ certManagerReset() {
   helm --namespace cert-manager delete cert-manager
   kubectl delete namespace cert-manager
   kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+
+  if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then godaddyWebhook; fi
 }
 
 #Godday api calls are disabled, hence going to remove this call.
@@ -1388,7 +1394,6 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certmanagerInst
     setupCertiIssuers
-    #godaddyWebhook
   elif [ "$COMPONENT" == "monitoring" ]; then
     #prometheusGrafanaInst
     localFsStorageClassMonitoringCreate
@@ -1453,7 +1458,6 @@ EOF
           resetDockerRegistry
           emptyLocalFsStorageRegistry
   elif [ "$COMPONENT" == "cert-manager" ]; then
-    #godaddyWebhookReset
     certManagerReset
   fi
 elif [ "$CMD" == "deploy" ]; then
