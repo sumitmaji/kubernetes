@@ -97,15 +97,15 @@ setupDockerRegistry(){
       rm -rf /mnt/registry/config.yml
       wget https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/config.yml -P /mnt/registry/
       pushd "$EXPORTDIR"
-      if [ -f /etc/docker/certs.d/master.cloud.com:5000/domain.crt ]
+      USERNAME=master.cloud.com
+      if [ -f /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}.crt ]
       then
-      echo "The file is present, not creating it!!!!!"
+        echo "The file is present, not creating it!!!!!"
       else
-      openssl req \
-        -newkey rsa:4096 -nodes -sha256 -keyout certs/domain.key \
-        -x509 -days 365 -out certs/domain.crt \
-        -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$COMMONNAME/emailAddress=$EMAIL" \
-        -addext "subjectAltName = DNS:${COMMONNAME}"
+          createCertificate ${USERNAME}
+          mv ${USERNAME}.key cert/
+          mv ${USERNAME}.crt cert/
+          rm ${USERNAME}.csr
       fi
 
       docker stop registry
@@ -837,6 +837,43 @@ EOF
   fi
 
 }
+
+createCertificate(){
+  USERNAME=$1
+  echo + Creating private key: ${USERNAME}.key
+  openssl genrsa -out ${USERNAME}.key 4096
+
+  echo + Creating signing request: ${USERNAME}.csr
+  openssl req -new -key ${USERNAME}.key -out ${USERNAME}.csr -subj "/CN=${USERNAME}/O=registry" \
+          -addext "subjectAltName = DNS:${USERNAME}"
+
+  WC=$(kubectl get csr ${USERNAME}-csr 2>/dev/null | wc -l)
+  if [ "$WC" != "0" ]; then
+    kubectl delete csr ${USERNAME}-csr
+  fi
+  echo + Creating signing request in kubernetes
+  cat <<EOF | kubectl create -f -
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: ${USERNAME}-csr
+spec:
+  groups:
+    - system:authenticated
+    - cloud:masters
+  request: $(cat ${USERNAME}.csr | base64 | tr -d '\n')
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+    - digital signature
+    - key encipherment
+    - client auth
+EOF
+
+  kubectl certificate approve ${USERNAME}-csr
+
+  kubectl get csr ${USERNAME}-csr -o jsonpath='{.status.certificate}' | base64 -d >${USERNAME}.crt
+}
+
 
 # The method creates certificate for user having admin role and generate kube config file
 # for login to api server
