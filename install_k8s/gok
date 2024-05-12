@@ -103,8 +103,8 @@ setupDockerRegistry(){
         echo "The file is present, not creating it!!!!!"
       else
           createCertificate ${USERNAME}
-          mv ${USERNAME}.key cert/
-          mv ${USERNAME}.crt cert/
+          mv ${USERNAME}.key certs/
+          mv ${USERNAME}.crt certs/
           rm ${USERNAME}.csr
       fi
 
