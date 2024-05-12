@@ -902,6 +902,22 @@ genRegistyrPassword(){
   unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
 }
 
+verifyRegistyrInst(){
+  export DESTINATION_FOLDER=./registry-creds
+  export USER=$(cat ${DESTINATION_FOLDER}/registry-user.txt)
+  export PASSWORD=$(cat ${DESTINATION_FOLDER}/registry-pass.txt)
+
+  curl -kiv -H \
+    "Authorization: Basic $(echo -n "${USER}:${PASSWORD}" | base64)" \
+    https://registry.gokcloud.com/v2/_catalog
+
+  wget --no-check-certificate --header \
+    "Authorization: Basic $(echo -n "${USER}:${PASSWORD}" | base64)" \
+    https://registry.gokcloud.com/v2/_catalog
+
+  unset USER PASSWORD
+}
+
 dockerRegistryInst(){
   genRegistyrPassword
   helm repo add twuni https://helm.twun.io
