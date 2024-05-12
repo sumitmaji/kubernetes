@@ -1273,7 +1273,8 @@ patchLetsEncrypt() {
     cat <<EOF
 metadata:
   annotations:
-    certmanager.k8s.io/cluster-issuer: $(getClusterIssuerName)
+    #certmanager.k8s.io/cluster-issuer: $(getClusterIssuerName)
+    cert-manager.io/cluster-issuer: $(getClusterIssuerName)
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   tls:
@@ -1315,7 +1316,9 @@ keycloakInst(){
 
 installRegistryWithCertMgr(){
   ./gok install registryv2
-  ./gok create certificate registry registry
+  # No need to generate the certificate.
+  # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
+  #./gok create certificate registry registry
   ./gok patch ingress registry-docker-registry registry letsencrypt registry
 
   rm /etc/docker/certs.d/registry.gokcloud.com/ca.crt
