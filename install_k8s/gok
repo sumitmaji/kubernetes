@@ -109,7 +109,7 @@ setupDockerRegistry(){
         openssl genrsa -out ${USERNAME}.key 2048
 
         #Create CSR for the server
-        openssl req -new -key -nodes -sha256 ${USERNAME}.key \
+        openssl req -new -key ${USERNAME}.key \
           -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$USERNAME/emailAddress=$EMAIL" \
           -addext "subjectAltName = DNS:${USERNAME}" \
           -out ${USERNAME}.csr
