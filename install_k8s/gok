@@ -90,10 +90,11 @@ setupDockerRegistry(){
       pushd "$EXPORTDIR"
       USERNAME=master.cloud.com
       FILENAME=registry
-      rm /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}-${FILENAME}.crt
-      rm /root/certs/${USERNAME}-${FILENAME}.crt
-      rm /root/certs/${USERNAME}-${FILENAME}.key
-      if [ -f /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}-${FILENAME}.crt ]
+      CERTIFICATE_KEY_NAME=$USERNAME
+      rm /etc/docker/certs.d/master.cloud.com:5000/${CERTIFICATE_KEY_NAME}.crt
+      rm /root/certs/${CERTIFICATE_KEY_NAME}.crt
+      rm /root/certs/${CERTIFICATE_KEY_NAME}.key
+      if [ -f /etc/docker/certs.d/master.cloud.com:5000/${CERTIFICATE_KEY_NAME}.crt ]
       then
         echo "The file is present, not creating it!!!!!"
       else
@@ -108,8 +109,8 @@ setupDockerRegistry(){
         --name registry \
         -v $EXPORTDIR/certs:/root/certs \
         -e REGISTRY_HTTP_ADDR=0.0.0.0:5000 \
-        -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/${USERNAME}-${FILENAME}.crt \
-        -e REGISTRY_HTTP_TLS_KEY=/root/certs/${USERNAME}-${FILENAME}.key \
+        -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/${CERTIFICATE_KEY_NAME}.crt \
+        -e REGISTRY_HTTP_TLS_KEY=/root/certs/${CERTIFICATE_KEY_NAME}.key \
         -v /mnt/registry:/var/lib/registry \
         -v /mnt/registry/config.yml:/etc/docker/registry/config.yml \
         -p 5000:5000 \
@@ -117,7 +118,7 @@ setupDockerRegistry(){
 
       mkdir -p /etc/docker/certs.d/master.cloud.com:5000
 
-      cp "$EXPORTDIR"/certs/${USERNAME}-${FILENAME}.crt /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}-${FILENAME}.crt
+      cp "$EXPORTDIR"/certs/${CERTIFICATE_KEY_NAME}.crt /etc/docker/certs.d/master.cloud.com:5000/${CERTIFICATE_KEY_NAME}.crt
 
       popd
   else
@@ -899,11 +900,11 @@ createCertificate(){
   if [ $TYPE == 'server' ]
   then
    keyUsage='extendedKeyUsage = clientAuth,serverAuth'
-   HOSTNAME="${HOSTNAME}-${FILENAME}"
+   #HOSTNAME="${HOSTNAME}-${FILENAME}" # Need to see why I did that
   else
    keyUsage='extendedKeyUsage = clientAuth'
    FILENAME="${FILENAME}-client"
-   HOSTNAME="${HOSTNAME}-$FILENAME"
+   #HOSTNAME="${HOSTNAME}-$FILENAME"
   fi
 
   cat <<EOF | sudo tee ${FILENAME}-openssl.cnf
@@ -928,7 +929,7 @@ EOF
   #Create CSR for the node
   openssl req -new -key $HOSTNAME.key \
     -subj "/CN=$NODE_IP" \
-    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$NODE_IP/emailAddress=$EMAIL" \
+    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$HOSTNAME/emailAddress=$EMAIL" \
     -out $HOSTNAME.csr -config ${FILENAME}-openssl.cnf
 
   #Create a self signed certificate
