@@ -1333,7 +1333,6 @@ keycloakInst(){
 }
 
 installRegistryWithCertMgr(){
-  [[ "TRACE" ]] && set -x
   localFsStorageClassRegistryCreate
   dockerRegistryInst
   # No need to generate the certificate.
