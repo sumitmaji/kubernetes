@@ -937,7 +937,7 @@ EOF
     -out $HOSTNAME.crt -days 10000 -extensions v3_req -extfile ${FILENAME}-openssl.cnf
 
   #Copy ca.crt to crt
-  cat /etc/kubernetes/pki/ca.crt >> $HOSTNAME.crt
+#  cat /etc/kubernetes/pki/ca.crt >> $HOSTNAME.crt
 
   #Verify a Private Key Matches a Certificate
   openssl x509 -noout -text -in $HOSTNAME.crt
