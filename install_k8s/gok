@@ -94,6 +94,7 @@ setupDockerRegistry(){
   if [ $(hostname) == 'master.cloud.com' ]; then
       mkdir -p "$EXPORTDIR"/certs
       mkdir -p /mnt/registry
+      rm -rf /mnt/registry/*
       wget https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/config.yml -P /mnt/registry/
       pushd "$EXPORTDIR"
       if [ -f /etc/docker/certs.d/master.cloud.com:5000/domain.crt ]
