@@ -1211,6 +1211,8 @@ installRegistryWithCertMgr(){
   mkdir -p /etc/docker/certs.d/registry.gokcloud.com/
   kubectl get secret registry-gokcloud-com -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/registry.gokcloud.com/ca.crt
   systemctl restart docker
+  # Restarting docker stops the haproxy, need to start it again
+  ./gok start proxy
   docker login registry.gokcloud.com
 }
 
