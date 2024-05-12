@@ -116,8 +116,8 @@ setupDockerRegistry(){
         --name registry \
         -v $EXPORTDIR/certs:/root/certs \
         -e REGISTRY_HTTP_ADDR=0.0.0.0:5000 \
-        -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/domain.crt \
-        -e REGISTRY_HTTP_TLS_KEY=/root/certs/domain.key \
+        -e REGISTRY_HTTP_TLS_CERTIFICATE=/root/certs/${USERNAME}.crt \
+        -e REGISTRY_HTTP_TLS_KEY=/root/certs/${USERNAME}.key \
         -v /mnt/registry:/var/lib/registry \
         -v /mnt/registry/config.yml:/etc/docker/registry/config.yml \
         -p 5000:5000 \
