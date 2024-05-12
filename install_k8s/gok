@@ -1364,7 +1364,8 @@ installRegistryWithCertMgr(){
 }
 
 installKeycloakWithCertMgr(){
-  ./gok install keycloak
+  keycloakInst
+  localFsStorageClassKeycloakCreate
   ./gok create certificate keycloak keycloak
   ./gok patch ingress keycloak keycloak letsencrypt keycloak
 }
@@ -1436,8 +1437,7 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardInst
   elif [ "$COMPONENT" == "keycloak" ]; then
-      keycloakInst
-      localFsStorageClassKeycloakCreate
+    installKeycloakWithCertMgr
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "registry" ]; then
