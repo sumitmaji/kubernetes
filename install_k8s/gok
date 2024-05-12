@@ -111,7 +111,7 @@ setupDockerRegistry(){
         #Create CSR for the server
         openssl req -new -key ${USERNAME}.key \
           -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORGU/CN=$USERNAME/emailAddress=$EMAIL" \
-          -out ${USERNAME}.csr -config server-openssl.cnf
+          -out ${USERNAME}.csr
 
         #Create a self signed certificate
         openssl x509 -req -in ${USERNAME}.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubernetes/pki/ca.key -CAcreateserial -out ${USERNAME}.crt \
