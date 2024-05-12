@@ -896,6 +896,7 @@ dockerRegistryInst(){
       --set persistence.deleteEnabled=true \
       --set persistence.storageClass=registry-storage \
       --set secrets.htpasswd=sumit:sumit \
+      --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/registry/values.yaml \
       twuni/docker-registry
 
 }
