@@ -1375,15 +1375,23 @@ installKeycloakWithCertMgr(){
   ./gok patch ingress keycloak keycloak letsencrypt keycloak
 
   echo "Waiting for services to be up!!!!"
-  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace keycloak
+  kubectl --timeout=180 wait --for=condition=Ready pods --all --namespace keycloak
   [[ $? -eq 0 ]] && echoSuccess "Keycloak services are now up!\nAccess it using https://keycloak.gokcloud.com/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
 installPrometheusGrafanaWithCertMgr(){
-  ./gok install monitoring
-  ./gok create certificate monitoring kube
+  localFsStorageClassMonitoringCreate
+  prometheusGrafanaInstv2
+
+  # No need to generate the certificate.
+  # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
+  #./gok create certificate monitoring kube
   ./gok patch ingress prometheus-server monitoring letsencrypt kube
   ./gok patch ingress grafana monitoring letsencrypt kube
+
+  echo "Waiting for services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace monitoring
+  [[ $? -eq 0 ]] && echoSuccess "Prometheus and Grafana services are now up!\nAccess it using \nprometheus: https://kube.gokcloud.com/prometheus\ngrafana: https://kube.gokcloud.com/grafana" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
 installDashboardwithCertManager(){
@@ -1440,9 +1448,7 @@ elif [ "$CMD" == "install" ]; then
     certmanagerInst
     setupCertiIssuers
   elif [ "$COMPONENT" == "monitoring" ]; then
-    #prometheusGrafanaInst
-    localFsStorageClassMonitoringCreate
-    prometheusGrafanaInstv2
+    installPrometheusGrafanaWithCertMgr
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardInst
   elif [ "$COMPONENT" == "keycloak" ]; then
