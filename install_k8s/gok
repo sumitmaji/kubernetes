@@ -1366,7 +1366,9 @@ installRegistryWithCertMgr(){
 installKeycloakWithCertMgr(){
   keycloakInst
   localFsStorageClassKeycloakCreate
-  ./gok create certificate keycloak keycloak
+  # No need to generate the certificate.
+  # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
+  #./gok create certificate keycloak keycloak
   ./gok patch ingress keycloak keycloak letsencrypt keycloak
 }
 
