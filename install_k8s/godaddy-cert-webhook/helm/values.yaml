@@ -12,7 +12,7 @@ image:
 pod:
   securePort:
 
-groupName: acme.mycompany.com
+groupName: gokcloud.com
 
 certManager:
   namespace: cert-manager

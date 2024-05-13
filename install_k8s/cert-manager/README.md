@@ -1,5 +1,11 @@
 # Cer-Manager
 
+## Understanding
+
+[YouTube](https://www.youtube.com/watch?v=Xv1bdeVnGGY)
+
+[YouTube](https://www.youtube.com/watch?v=cvGFTuZ2TRo&list=WL&index=49&t=200s)
+
 Installation of Cert-Manager
 
 ### Install commands
