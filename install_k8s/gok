@@ -585,7 +585,7 @@ certManagerReset() {
 
 #Godday api calls are disabled, hence going to remove this call.
 godaddyWebhook() {
-  kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
+  kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
   echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
   # shellcheck disable=SC2162
   read API_KEY
@@ -651,7 +651,7 @@ EOF
 }
 
 godaddyWebhookReset() {
-  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/godaddy-cert-webhook/webhook-all.yml
+  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml
   kubectl delete secret godaddy-api-key-secret -n cert-manager
 }
 
@@ -741,7 +741,7 @@ dashboardInst() {
     kubernetes-dashboard/kubernetes-dashboard \
     --namespace kubernetes-dashboard \
     --create-namespace \
-    -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/dashboard/values2.yaml
+    -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values2.yaml
 }
 
 prometheusGrafanaReset() {
@@ -935,12 +935,12 @@ prometheusGrafanaInstv2(){
   helm repo add grafana https://grafana.github.io/helm-charts
   helm repo update
   helm install prometheus prometheus-community/prometheus \
-    --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/prometheus-grafana/prometheus-values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/prometheus-values.yaml \
     --namespace monitoring \
     --create-namespace
 
   helm install grafana grafana/grafana \
-    --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
   kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
@@ -1067,7 +1067,7 @@ dockerRegistryInst(){
       --set persistence.deleteEnabled=true \
       --set persistence.storageClass=registry-storage \
       --set secrets.htpasswd=$(cat ${DESTINATION_FOLDER}/htpasswd) \
-      --values https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/registry/values.yaml \
+      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/values.yaml \
       twuni/docker-registry
 
 }
@@ -1338,7 +1338,7 @@ keycloakInst(){
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/q1/install_k8s/keycloak/values2.yaml
+        -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/keycloak/values2.yaml
 }
 
 installRegistryWithCertMgr(){
