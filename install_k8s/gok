@@ -1395,9 +1395,15 @@ installPrometheusGrafanaWithCertMgr(){
 }
 
 installDashboardwithCertManager(){
-  ./gok install dashboard
-  ./gok create certificate kubernetes-dashboard kube
+  dashboardInst
+  # No need to generate the certificate.
+  # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
+  #./gok create certificate kubernetes-dashboard kube
   ./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt kube
+
+  echo "Waiting for services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace kubernetes-dashboard
+  [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://kube.gokcloud.com/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
 decodeSecret(){
@@ -1450,7 +1456,7 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "monitoring" ]; then
     installPrometheusGrafanaWithCertMgr
   elif [ "$COMPONENT" == "dashboard" ]; then
-    dashboardInst
+    installDashboardwithCertManager
   elif [ "$COMPONENT" == "keycloak" ]; then
     installKeycloakWithCertMgr
   elif [ "$COMPONENT" == "ingress" ]; then
