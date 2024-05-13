@@ -985,6 +985,7 @@ prometheusGrafanaInst() {
 
 dashboardReset() {
   helm uninstall kubernetes-dashboard -n kubernetes-dashboard
+  helm delete ns kubernetes-dashboard
 }
 
 adminRole() {
@@ -1324,6 +1325,8 @@ helmTemplateDebug(){
 keycloakReset(){
   helm uninstall keycloak -n keycloak
   kubectl delete pvc --all -n keycloak
+  emptyLocalFsStorageKeycloak
+  kubectl delete ns keycloak
 }
 
 k(){
@@ -1484,12 +1487,11 @@ EOF
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardReset
   elif [ "$COMPONENT" == "keycloak" ]; then
-        keycloakReset
-        emptyLocalFsStorageKeycloak
+    keycloakReset
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
   elif [ "$COMPONENT" == "registry" ]; then
-          resetDockerRegistry
+    resetDockerRegistry
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
