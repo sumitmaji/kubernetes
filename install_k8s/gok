@@ -1375,7 +1375,7 @@ installKeycloakWithCertMgr(){
   ./gok patch ingress keycloak keycloak letsencrypt keycloak
 
   echo "Waiting for services to be up!!!!"
-  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace cert-manager
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace keycloak
   [[ $? -eq 0 ]] && echoSuccess "Keycloak services are now up!\nAccess it using https://keycloak.gokcloud.com/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
