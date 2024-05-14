@@ -8,15 +8,15 @@ CMD=$1
 
 cat <<EOF  > ${MOUNT_PATH}/root_config
 #dns, http, selfsigned
-: ${LETS_ENCRYPT_PROD_URL:=https://acme-v02.api.letsencrypt.org/directory}
-: ${LETS_ENCRYPT_STAGING_URL:=https://acme-staging-v02.api.letsencrypt.org/directory}
-: ${CERTMANAGER_CHALANGE_TYPE:=selfsigned}
+LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
+LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
+CERTMANAGER_CHALANGE_TYPE=selfsigned
 #staging, prod
-: ${LETS_ENCRYPT_ENV:=staging}
-: ${GOK_ROOT_DOMAIN:=cloud.com}
-: ${REGISTRY:=registry}
-: ${KEYCLOAK:=keycloak}
-: ${DEFAULT_SUBDOMAIN:=kube}
+LETS_ENCRYPT_ENV=staging
+GOK_ROOT_DOMAIN=gokcloud.com
+REGISTRY=registry
+KEYCLOAK=keycloak
+DEFAULT_SUBDOMAIN=kube
 EOF
 
 source ${MOUNT_PATH}/root_config
