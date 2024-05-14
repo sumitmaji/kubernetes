@@ -114,7 +114,7 @@ metadata:
   namespace: default
 spec:
   rules:
-  - host: master.cloud.com
+  - host: $(fullDefaultUrl)
     http:
       paths:
       - backend:
@@ -218,12 +218,16 @@ ingressInst() {
     --set defaultBackend.enabled=true
   #    -f charts/values.yaml
 
-  output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
-  while [ "$output" != "true" ]; do
-    echo "Ingress controller service is not up, will check again after 5seconds"
-    sleep 5
-    output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
-  done
+  echo "Waiting for services to be up!!!!"
+  kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace ingress-nginx
+  [[ $? -eq 0 ]] && echoSuccess "Ingress controller service is up" || echoFailed "Ingress controller services timed-out, please check!!"
+
+#  output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
+#  while [ "$output" != "true" ]; do
+#    echo "Ingress controller service is not up, will check again after 5seconds"
+#    sleep 5
+#    output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
+#  done
 }
 
 dockrInst() {
@@ -507,8 +511,8 @@ spec:
           solverName: godaddy
       selector:
        dnsNames:
-       - '$(defaultSubdomain).gokcloud.co.in'
-       - '*.gokcloud.co.in'
+       - '$(defaultSubdomain).$(rootDomain)'
+       - '*.$(rootDomain)'
 EOF
   godaddyWebhook
 elif [ $CERTMANAGER_CHALANGE_TYPE == 'http' ]; then
