@@ -22,7 +22,7 @@ EOF
 source ${MOUNT_PATH}/root_config
 
 rootDomain(){
-  echo "$EXTERNAL_URL"
+  echo "$GOK_ROOT_DOMAIN"
 }
 
 sedRootDomain(){
@@ -42,15 +42,15 @@ keycloakSubdomain(){
 }
 
 fullDefaultUrl(){
-  echo "${DEFAULT_SUBDOMAIN}.${EXTERNAL_URL}"
+  echo "${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}"
 }
 
 fullRegistryUrl(){
-  echo "${REGISTRY}.${EXTERNAL_URL}"
+  echo "${REGISTRY}.${GOK_ROOT_DOMAIN}"
 }
 
 fullKeycloakUrl(){
-  echo "${KEYCLOAK}.${EXTERNAL_URL}"
+  echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
 }
 
 echoSuccess(){
