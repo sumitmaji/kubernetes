@@ -1397,7 +1397,7 @@ installRegistryWithCertMgr(){
   #BEGIN
   rm /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
   mkdir -p /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/
-  kubectl get secret $(registrySubdomain)-$(sedRootDomain) -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
+  kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
   systemctl restart docker
   #END
 
