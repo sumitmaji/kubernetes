@@ -983,7 +983,7 @@ prometheusGrafanaInstv2(){
   helm repo add grafana https://grafana.github.io/helm-charts
   helm repo update
   helm install prometheus prometheus-community/prometheus \
-    --set server.extraFlags=\{web.enable-lifecycle,web.route-prefix=/,web.external-url=$URL/prometheus\} \
+    --set server.extraFlags=\{web.enable-lifecycle,web.route-prefix=/,web.external-url=prometheus\} \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/prometheus-values.yaml \
     --namespace monitoring \
     --create-namespace
