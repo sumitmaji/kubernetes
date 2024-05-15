@@ -316,7 +316,7 @@ metadata:
     app.kubernetes.io/version: 0.1.1
   name: v1alpha1.$GROUP_NAME
 spec:
-  group: ${GROUP_NAME}
+  group: ${HA_PROXY_PORT}
   groupPriorityMinimum: 1000
   service:
     name: godaddy-webhook
