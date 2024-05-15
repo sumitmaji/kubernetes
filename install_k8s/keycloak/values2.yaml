@@ -123,7 +123,7 @@ ingress:
 #  apiVersion: ""
 #  ## @param adminIngress.hostname Default host for the admin ingress record (evaluated as template)
 #  ##
-#  hostname: kube.gokcloud.com
+#  hostname: abc.com
 #  ## @param adminIngress.path [string] Default path for the admin ingress record (evaluated as template)
 #  ##
 #  path: /keycloak/admin(/|$)(.*)
