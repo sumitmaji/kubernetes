@@ -2,7 +2,7 @@ server:
   extraFlags: # <-- added this section to specify my args manually
     - web.enable-lifecycle
     - web.route-prefix=/
-    - web.external-url=https://master.cloud.com/prometheus
+    - web.external-url=https://kube.gokcloud.com/prometheus
   ingress:
     ## If true, Prometheus server Ingress will be created
     ##
