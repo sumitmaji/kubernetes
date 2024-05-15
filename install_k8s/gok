@@ -978,17 +978,18 @@ prometheusGrafanaResetv2(){
 }
 
 prometheusGrafanaInstv2(){
-  #    --set server.extraFlags\[2\].web.external-url="$(fullDefaultUrl)/prometheus" \
+  URL=$(fullDefaultUrl)
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   helm repo add grafana https://grafana.github.io/helm-charts
   helm repo update
   helm install prometheus prometheus-community/prometheus \
+    --set server.extraFlags=\{web.enable-lifecycle,web.route-prefix=/,web.external-url=$URL/prometheus\} \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/prometheus-values.yaml \
     --namespace monitoring \
     --create-namespace
 
   helm install grafana grafana/grafana \
-    --set grafana.ini.server.root_url=https://$(fullDefaultUrl)/grafana \
+    --set grafana.ini.server.root_url=https://$URL/grafana \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
