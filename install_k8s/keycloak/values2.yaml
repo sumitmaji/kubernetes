@@ -1,7 +1,7 @@
 proxy: edge
 extraEnvVars: |
   - name: KEYCLOAK_LOG_LEVEL
-    value: INFO
+    value: DEBUG
   - name: KEYCLOAK_ADMIN
     value: admin
   - name: KEYCLOAK_ADMIN_PASSWORD
