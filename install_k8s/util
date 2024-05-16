@@ -36,7 +36,7 @@ pods(){
 }
 
 all(){
-  kubectl get all --n $RELEASE_NAME
+  kubectl get all -n $RELEASE_NAME
 }
 
 bash(){
