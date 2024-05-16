@@ -1396,8 +1396,8 @@ installRegistryWithCertMgr(){
   dockerRegistryInst
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
-  # ./gok create certificate registry registry
-  ./gok patch ingress registry-docker-registry registry letsencrypt $(registrySubdomain)
+  # gok create certificate registry registry
+  gok patch ingress registry-docker-registry registry letsencrypt $(registrySubdomain)
 
   # Let docker trust the self-signed certificates
   # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
@@ -1409,7 +1409,7 @@ installRegistryWithCertMgr(){
   #END
 
   # Restarting docker stops the haproxy, need to start it again
-  ./gok start proxy
+  gok start proxy
   docker login $(registrySubdomain).$(rootDomain)
   [[ $? -eq 0 ]] && echoSuccess "OK" || echoFailed "FAILED"
   openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)'
@@ -1421,8 +1421,8 @@ installKeycloakWithCertMgr(){
   localFsStorageClassKeycloakCreate
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
-  #./gok create certificate keycloak keycloak
-  ./gok patch ingress keycloak keycloak letsencrypt $(keycloakSubdomain)
+  #gok create certificate keycloak keycloak
+  gok patch ingress keycloak keycloak letsencrypt $(keycloakSubdomain)
 
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace keycloak
@@ -1435,9 +1435,9 @@ installPrometheusGrafanaWithCertMgr(){
 
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
-  #./gok create certificate monitoring kube
-  ./gok patch ingress prometheus-server monitoring letsencrypt $(defaultSubdomain)
-  ./gok patch ingress grafana monitoring letsencrypt $(defaultSubdomain)
+  #gok create certificate monitoring kube
+  gok patch ingress prometheus-server monitoring letsencrypt $(defaultSubdomain)
+  gok patch ingress grafana monitoring letsencrypt $(defaultSubdomain)
 
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace monitoring
@@ -1448,8 +1448,8 @@ installDashboardwithCertManager(){
   dashboardInst
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
-  #./gok create certificate kubernetes-dashboard kube
-  ./gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt $(defaultSubdomain)
+  #gok create certificate kubernetes-dashboard kube
+  gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt $(defaultSubdomain)
 
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace kubernetes-dashboard
