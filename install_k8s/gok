@@ -1369,10 +1369,6 @@ EOF
   kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io ${SUBDOMAIN}-$(sedRootDomain)
 }
 
-kcd(){
-  alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
-}
-
 helmTemplateDebug(){
   CHART_NAME=$1
   CHART_REPO=$2
@@ -1385,10 +1381,6 @@ keycloakReset(){
   kubectl delete pvc --all -n keycloak
   emptyLocalFsStorageKeycloak
   kubectl delete ns keycloak
-}
-
-k(){
-  alias k='kubectl'
 }
 
 keycloakInst(){
