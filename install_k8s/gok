@@ -1530,6 +1530,8 @@ elif [ "$CMD" == "install" ]; then
     calicoInst
     customDns
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
+    echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
+    ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
     source /etc/bash.bashrc
     cat <<EOF
 \______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
