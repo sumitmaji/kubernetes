@@ -18,6 +18,10 @@ k(){
   alias k='kubectl'
 }
 
+secrets(){
+  kubectl get secrest all -n
+}
+
 getpod() {
   pod=$(getData po)
   echo "$pod"
