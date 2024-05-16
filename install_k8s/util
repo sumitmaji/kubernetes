@@ -19,7 +19,7 @@ k(){
 }
 
 secrets(){
-  kubectl get secrest all -n
+  kubectl get secrest all -n $RELEASE_NAME
 }
 
 getpod() {
