@@ -1120,6 +1120,22 @@ subjects:
 EOF
 }
 
+oauthUser(){
+  kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=$(apiUrl) --kubeconfig=/root/oauth.conf
+  kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
+  kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
+
+  echoSuccess "OAuth kubeconfig file create in /root/oauth.conf"
+  echoSuccess "Use below command to use oauth.conf"
+  echoSuccess "kubectl --kubeconfig=/root/oauth.conf --token=__USER_TOKEN__ rest of command"
+  echoSuccess "alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=\${__USER_TOKEN__}'"
+  echoSuccess "alias kcd='kctl config set-context \$(kctl config current-context) --namespace'"
+}
+
+apiUrl(){
+  kubectl config view -o json | jq -r '.clusters[] | .cluster.server'
+}
+
 resetDockerRegistry(){
   helm uninstall registry -n registry
   emptyLocalFsStorageRegistry

@@ -9,10 +9,10 @@ apiServer:
   extraArgs:
     authorization-mode: Node,RBAC
     service-node-port-range: 80-32767
-#    oidc-issuer-url: ${OIDC_ISSUE_URL}
-#    oidc-client-id: ${OIDC_CLIENT_ID}
-#    oidc-username-claim: ${OIDC_USERNAME_CLAIM}
-#    oidc-groups-claim: ${OIDC_GROUPS_CLAIM}
+    oidc-issuer-url: ${OIDC_ISSUE_URL}
+    oidc-client-id: ${OIDC_CLIENT_ID}
+    oidc-username-claim: ${OIDC_USERNAME_CLAIM}
+    oidc-groups-claim: ${OIDC_GROUPS_CLAIM}
 #    enable-swagger-ui: "true"
   timeoutForControlPlane: 4m0s
 controllerManager:
