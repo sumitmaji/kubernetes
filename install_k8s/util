@@ -1,0 +1,246 @@
+#!/bin/bash
+
+source $MOUNT_PATH/root_config
+
+: ${RELEASE_NAME:=$(kubectl config get-contexts  | sed -e '1d' | awk '{print $5}')}
+
+release(){
+  RELEASE_NAME=$1
+}
+
+kcd(){
+  #alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
+  kubectl config set-context $(kubectl config current-context) --namespace $1
+  release $1
+}
+
+k(){
+  alias k='kubectl'
+}
+
+getpod() {
+  pod=$(getData po)
+  echo "$pod"
+}
+
+pods(){
+  kubectl get po -n $RELEASE_NAME
+}
+
+all(){
+  kubectl get all -n -n $RELEASE_NAME
+}
+
+bash(){
+  data=$(kubectl get po -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index Number to view resource"
+  read INDEX
+  name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
+  echo "Opening terminal on $name"
+  kubectl exec -it "$name" -n $RELEASE_NAME -- /bin/bash
+}
+
+desc(){
+  type=$1
+  data=$(kubectl get $type -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index Number to view resource"
+  read INDEX
+  name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
+  echo "Describing pod $name"
+  kubectl describe $type "$name" -n $RELEASE_NAME
+}
+
+logs(){
+  data=$(kubectl get po -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index Number to view resource"
+  read INDEX
+  name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
+  echo "Viewing logs of pod $name"
+  kubectl logs "$name" -n $RELEASE_NAME
+}
+
+edit(){
+  type=$1
+  data=$(kubectl get $type -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index Number to view resource"
+  read INDEX
+  name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
+  echo "Describing pod $name"
+  kubectl edit $type "$name" -n $RELEASE_NAME
+}
+
+ns(){
+  kubectl get ns
+}
+
+viewcert(){
+  content=$1
+    data=$(kubectl get secret -n $RELEASE_NAME  -o json | \
+        jq -r '[ .items[] | {name: .metadata.name, value: .data | keys | join(",")} ]' | \
+        jq -r '.[] | [.name +"     "+ .value] | @tsv' | \
+        awk '{printf "%d>>\t%s\n", NR, $0}')
+    echo "$data"
+    echo "Enter Index secret and secret data key(a,b)"
+    read input
+    IFS=','
+    read -ra arr <<< "$input"
+    index=${arr[0]}
+    key=${arr[1]}
+    name=$(echo "$data" | grep "${index}>>" | awk '{print $2}')
+    echo "decoding data for $name"
+    kubectl get secret -n $RELEASE_NAME $name -o json | jq -r '.data."'$key'"' | \
+     base64 -d | openssl x509 -noout -text
+}
+
+decode(){
+  content=$1
+  data=$(kubectl get secret -n $RELEASE_NAME  -o json | \
+      jq -r '[ .items[] | {name: .metadata.name, value: .data | keys | join(",")} ]' | \
+      jq -r '.[] | [.name +"     "+ .value] | @tsv' | \
+      awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index secret and secret data key(a,b)"
+  read input
+  IFS=','
+  read -ra arr <<< "$input"
+  index=${arr[0]}
+  key=${arr[1]}
+  name=$(echo "$data" | grep "${index}>>" | awk '{print $2}')
+  echo "decoding data for $name"
+  kubectl get secret -n $RELEASE_NAME $name -o json | jq -r '.data."'$key'"' | base64 -d
+}
+
+subDomain(){
+  if [ -z $1 ]; then
+    echo "$(defaultSubdomain)"
+  else
+    echo "$1"
+  fi
+}
+
+getLetsEncEnv(){
+  echo ${LETS_ENCRYPT_ENV}
+}
+
+getLetsEncryptUrl(){
+  [[ getLetsEncEnv = 'prod' ]] && echo "$LETS_ENCRYPT_PROD_URL" || echo "$LETS_ENCRYPT_STAGING_URL"
+}
+
+getClusterIssuerName(){
+  case "$CERTMANAGER_CHALANGE_TYPE" in
+   'dns') echo "letsencrypt-$(getLetsEncEnv)" ;;
+   'http') echo "letsencrypt-$(getLetsEncEnv)" ;;
+   'selfsigned') echo "gokselfsign-ca-cluster-issuer" ;;
+  esac
+}
+
+rootDomain(){
+  echo "$GOK_ROOT_DOMAIN"
+}
+
+sedRootDomain(){
+  rootDomain | sed 's/\./-/g'
+}
+
+registrySubdomain(){
+  echo "$REGISTRY"
+}
+
+defaultSubdomain(){
+  echo "$DEFAULT_SUBDOMAIN"
+}
+
+keycloakSubdomain(){
+  echo "$KEYCLOAK"
+}
+
+fullDefaultUrl(){
+  echo "${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}"
+}
+
+fullRegistryUrl(){
+  echo "${REGISTRY}.${GOK_ROOT_DOMAIN}"
+}
+
+fullKeycloakUrl(){
+  echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+echoSuccess(){
+  echo -e "\e[32m$1\e[0m"
+}
+
+echoFailed(){
+  echo -e "\e[31m$1\e[0m"
+}
+
+echoWarning(){
+  echo -e "\e[32m$1\e[0m"
+}
+
+replaceEnvVariable(){
+  wget -O- $1 | envsubst
+}
+
+decodeSecret(){
+  SECRET=$1
+  NS=$2
+  kubectl get secret -n $NS $SECRET -o json | jq -r '.data."tls.crt"' | base64 -d | openssl x509 -noout -text
+}
+
+patchLdapSecure() {
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/authenticate
+    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/check
+EOF
+  )" -n "$NS"
+}
+
+patchCertManager() {
+  NAME=$1
+  NS=$2
+  SUBDOMAIN=$(subDomain $3)
+
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+metadata:
+  annotations:
+    #certmanager.k8s.io/cluster-issuer: $(getClusterIssuerName)
+    cert-manager.io/cluster-issuer: $(getClusterIssuerName)
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - ${SUBDOMAIN}.$(rootDomain)
+      secretName: ${SUBDOMAIN}-$(sedRootDomain)
+EOF
+  )" -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"'$SUBDOMAIN'.'$(rootDomain)'"}]' -n "$NS"
+
+  kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io ${SUBDOMAIN}-$(sedRootDomain)
+}
+
+
+patchLocalTls() {
+  NAME=$1
+  NS=$2
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+spec:
+  tls:
+    - hosts:
+        - $APP_HOST
+      secretName: appingress-certificate
+EOF
+  )" -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"master.cloud.com"}]' -n "$NS"
+  kubectl patch ing "$NAME" --type=json -p='[{"op": "add", "path": "/metadata/annotations", "value":{"nginx.ingress.kubernetes.io/rewrite-target": "/", "kubernetes.io/ingress.class": "nginx"}}]' -n "$NS"
+}
+
