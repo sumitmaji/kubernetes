@@ -14,6 +14,10 @@ kcd(){
   release $1
 }
 
+current(){
+  kubectl config get-contexts  | sed -e '1d' | awk '{print $5}'
+}
+
 k(){
   alias k='kubectl'
 }
@@ -32,7 +36,7 @@ pods(){
 }
 
 all(){
-  kubectl get all -n -n $RELEASE_NAME
+  kubectl get all --n $RELEASE_NAME
 }
 
 bash(){
