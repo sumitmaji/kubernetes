@@ -190,11 +190,11 @@ f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
   ).json()
 
   id = resp['id']
-  print(resp)
+  print(id)
 
   # Add to admins groups
   update_settings = {
-        "groups": ["admins"],
+        "groups": "admins",
         "firstName": "Sumit",
         "email": "skmaji1@outlook.com",
         "lastName": "Maji"
