@@ -74,7 +74,7 @@ def scope():
   }
 
   resp = requests.post(
-    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients",
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
     json=group_settings,
     headers=authHeader(),
   )
