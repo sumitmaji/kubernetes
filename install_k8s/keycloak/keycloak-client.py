@@ -3,10 +3,12 @@ from os import environ as env
 from dotenv import load_dotenv, find_dotenv
 from os.path import expanduser
 
+import os
 import getpass
 import requests
 import json
 import sys
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
@@ -14,27 +16,55 @@ if ENV_FILE:
 
 HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
-keycloak_admin = "admin"
-keycloak_admin_password = "admin"
 
 def accessToken():
-  resp = requests.post(
+  sys.stderr.write("Login: ")
+  login = input()
+  password = getpass.getpass()
+  requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+  r = requests.post(
 f"{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
     data={
       "client_id": "admin-cli",
-      "username": keycloak_admin,
-      "password": keycloak_admin_password,
+      "username": login,
+      "password": password,
       "grant_type": "password"
-    }
+    },
+    verify=False
   )
-  resp.raise_for_status()
-  data = resp.json()
-  access_token = data["access_token"]
-  print(f"{access_token[:20]}...{access_token[-20:]}")
-  print(f"Expires in {data['expires_in']}s")
 
-  # Predefine authorization headers for later use.
-  auth_headers = {
-    "Authorization": f"Bearer {access_token}",
-  }
+  resp = json.loads(r.text)
 
+  if not os.path.exists(HOME+'/.keycloak'):
+    os.mkdir(HOME+'/.keycloak')
+
+
+  if 'error' in resp:
+
+    print("There was an auth0 error: "+resp['error']+": "+resp['error_description'])
+
+  else:
+
+    access_token = resp['access_token']
+    print(f"Expires in {resp['expires_in']}s")
+    with open(HOME+'/.keycloak/access_token', 'w') as f: f.write (access_token)
+
+
+def main():
+  try:
+    with open(HOME+'/.kube/access_token', 'r') as content_file: access_token = content_file.read()
+    # Predefine authorization headers for later use.
+    auth_headers = {
+      "Authorization": f"Bearer {access_token}",
+    }
+
+    resp = requests.get(
+      f"{KEYCLOAK_ROOT}/admin/realms",
+      headers=auth_headers,
+    )
+    resp.raise_for_status()
+    [r["realm"] for r in resp.json()]
+
+  except OSError as e:
+    accessToken()
