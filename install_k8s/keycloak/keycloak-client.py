@@ -24,7 +24,7 @@ def accessToken():
   requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
   r = requests.post(
-f"{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
+f"https://{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
     data={
       "client_id": "admin-cli",
       "username": login,
@@ -60,7 +60,7 @@ def main():
     }
 
     resp = requests.get(
-      f"{KEYCLOAK_ROOT}/admin/realms",
+      f"https://{KEYCLOAK_ROOT}/admin/realms",
       headers=auth_headers,
     )
     resp.raise_for_status()
