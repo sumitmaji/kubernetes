@@ -16,6 +16,7 @@ if ENV_FILE:
 
 HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
+REALM = env.get('REALM')
 
 def accessToken():
   sys.stderr.write("Login: ")
@@ -47,7 +48,6 @@ f"https://{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
   else:
 
     access_token = resp['access_token']
-    print(access_token)
     print(f"Expires in {resp['expires_in']}s")
     with open(HOME+'/.keycloak/access_token', 'w') as f: f.write (access_token)
 
@@ -64,9 +64,17 @@ def main():
       headers=auth_headers,
     )
 
-    print(resp)
+    [print(r["realm"]) for r in resp.json()]
+
+    resp = requests.post(
+      f"https://{KEYCLOAK_ROOT}/admin/realms",
+      headers=auth_headers,
+      json={
+        "realm": REALM,
+        "enabled": True
+      }
+    )
     resp.raise_for_status()
-    [r["realm"] for r in resp.json()]
 
   except OSError as e:
     accessToken()
