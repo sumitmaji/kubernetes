@@ -6,6 +6,26 @@ source "$WORKING_DIR"/config
 release=$2
 CMD=$1
 
+getOAuth0Config(){
+ IFS='' read -r -d '' OAUTH <<"EOF"
+OIDC_ISSUE_URL=https://skmaji.auth0.com/
+OIDC_CLIENT_ID=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO
+OIDC_USERNAME_CLAIM=sub
+OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
+EOF
+echo "$OAUTH"
+}
+
+getKeycloakConfig(){
+  IFS='' read -r -d '' OAUTH <<"EOF"
+OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
+OIDC_CLIENT_ID=gok-developers-client
+OIDC_USERNAME_CLAIM=sub
+OIDC_GROUPS_CLAIM=group
+EOF
+echo "$OAUTH"
+}
+
 cat <<EOF  > ${MOUNT_PATH}/root_config
 #dns, http, selfsigned
 LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
@@ -20,7 +40,17 @@ DEFAULT_SUBDOMAIN=kube
 GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
 AUTHENTICATION_METHOD=oidc
+#keycloak,oauth0
+IDENTITY_PROVIDER=keycloak
+`
+if [[ $IDENTITY_PROVIDER == "oauth0" ]]; then
+echo "$(getOAuth0Config)"
+else
+echo "$(getKeycloakConfig)"
+fi
+`
 EOF
+
 
 source ${MOUNT_PATH}/root_config
 
