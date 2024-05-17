@@ -88,7 +88,7 @@ def scope():
       "include.in.token.scope": "true",
       "gui.order": "1"
     },
-    "name": "group",
+    "name": "groups",
     "description": "User Groups",
     "type": "default",
   }
