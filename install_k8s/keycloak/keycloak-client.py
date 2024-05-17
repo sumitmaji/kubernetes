@@ -174,13 +174,13 @@ def user():
     }]
   }
 
-
   resp = requests.post(
 f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
     json=user_settings,
     headers=authHeader(),
   )
   resp.raise_for_status()
+
   location = resp.headers["Location"]
   print(location)
 
