@@ -152,7 +152,7 @@ def client():
 
 def group():
   group_settings = {
-    "name": "test"
+    "name": "admins"
   }
 
   resp = requests.post(
@@ -189,7 +189,19 @@ f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
     headers=authHeader(),
   ).json()
 
+  id = resp['id']
   print(resp)
+
+  # Add to admins groups
+  update_settings = {
+      "groups": ["admins"]
+  }
+  resp = requests.put(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users/{id}",
+    json=update_settings,
+    headers=authHeader(),
+  )
+  resp.raise_for_status()
 
 # Create realm
 def realm():
