@@ -112,7 +112,6 @@ def list():
 f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
     headers=authHeader()
   ).json()
-  resp.raise_for_status()
   print(resp)
 
 # Create client
