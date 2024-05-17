@@ -60,6 +60,27 @@ def authHeader():
   }
   return auth_headers
 
+def scope():
+  group_settings = {
+    "protocol": "openid-connect",
+    "attributes": {
+      "display.on.consent.screen": "false",
+      "include.in.token.scope": "true",
+      "gui.order": "1"
+    },
+    "name": "example",
+    "description": "example",
+    "type": "default",
+  }
+
+  resp = requests.post(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients",
+    json=group_settings,
+    headers=authHeader(),
+  )
+  resp.raise_for_status()
+  print(resp)
+
 # Create client
 def client():
   client_settings = {
@@ -168,7 +189,9 @@ def main():
     elif command == 'user':
       user()
     elif command == 'group':
-      user()
+      group()
+    elif command == 'group':
+      scope()
   except OSError as e:
     auth()
 
