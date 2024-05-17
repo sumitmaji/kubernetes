@@ -20,6 +20,7 @@ HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
 REALM = env.get('REALM')
 
+
 def auth():
   sys.stderr.write("Login: ")
   login = input()
@@ -27,7 +28,7 @@ def auth():
   requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
   r = requests.post(
-f"https://{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
+    f"https://{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
     data={
       "client_id": "admin-cli",
       "username": login,
@@ -39,26 +40,28 @@ f"https://{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
 
   resp = json.loads(r.text)
 
-  if not os.path.exists(HOME+'/.keycloak'):
-    os.mkdir(HOME+'/.keycloak')
-
+  if not os.path.exists(HOME + '/.keycloak'):
+    os.mkdir(HOME + '/.keycloak')
 
   if 'error' in resp:
 
-    print("There was an auth0 error: "+resp['error']+": "+resp['error_description'])
+    print("There was an auth0 error: " + resp['error'] + ": " + resp['error_description'])
 
   else:
 
     access_token = resp['access_token']
     print(f"Expires in {resp['expires_in']}s")
-    with open(HOME+'/.keycloak/access_token', 'w') as f: f.write (access_token)
+    with open(HOME + '/.keycloak/access_token', 'w') as f:
+      f.write(access_token)
+
 
 def authHeader():
-  with open(HOME+'/.keycloak/access_token', 'r') as content_file: access_token = content_file.read()
+  with open(HOME + '/.keycloak/access_token', 'r') as content_file: access_token = content_file.read()
   auth_headers = {
     "Authorization": f"Bearer {access_token}",
   }
   return auth_headers
+
 
 def tokens():
   sys.stderr.write("Login: ")
@@ -85,8 +88,8 @@ def scope():
       "include.in.token.scope": "true",
       "gui.order": "1"
     },
-    "name": "example",
-    "description": "example",
+    "name": "group",
+    "description": "User Groups",
     "type": "default",
   }
 
@@ -100,19 +103,32 @@ def scope():
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
     headers=authHeader()
   ).json()
-  id = [dic for dic in resp if dic['name'] == 'example'][0]['id']
+  id = [dic for dic in resp if dic['name'] == 'group'][0]['id']
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
   )
   resp.raise_for_status()
+  model_settings = {"protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
+                    "name": "User Groups",
+                    "config": {"claim.name": "group", "full.path": "true", "id.token.claim": "true",
+                               "access.token.claim": "true", "lightweight.claim": "false",
+                               "userinfo.token.claim": "true", "introspection.token.claim": "true"}}
+  resp = requests.put(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes/{id}/protocol-mappers/models",
+    json=model_settings,
+    headers=authHeader()
+  )
+  resp.raise_for_status()
+
 
 def list():
   resp = requests.get(
-f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
     headers=authHeader()
   ).json()
   print(resp)
+
 
 # Create client
 def client():
@@ -150,6 +166,7 @@ def client():
 
   print(resp)
 
+
 def group():
   group_settings = {
     "name": "admins"
@@ -176,7 +193,7 @@ def user():
   }
 
   resp = requests.post(
-f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
     json=user_settings,
     headers=authHeader(),
   )
@@ -195,10 +212,10 @@ f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
 
   # Add to admins groups
   update_settings = {
-        "firstName": "Sumit",
-        "email": "skmaji1@outlook.com",
-        "lastName": "Maji",
-        "emailVerified": True
+    "firstName": "Sumit",
+    "email": "skmaji1@outlook.com",
+    "lastName": "Maji",
+    "emailVerified": True
   }
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users/{id}",
@@ -206,6 +223,7 @@ f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
     headers=authHeader(),
   )
   resp.raise_for_status()
+
 
 # Create realm
 def realm():
@@ -223,6 +241,7 @@ def realm():
     headers=authHeader(),
   )
   [print(r["realm"]) for r in resp.json()]
+
 
 def main():
   try:
@@ -248,6 +267,7 @@ def main():
       tokens()
   except OSError as e:
     auth()
+
 
 if __name__ == '__main__':
   main()
