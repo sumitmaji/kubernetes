@@ -104,10 +104,12 @@ def scope():
     headers=authHeader()
   ).json()
   id = [dic for dic in resp if dic['name'] == 'groups'][0]['id']
+  print(id)
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
   )
+  print(resp)
   resp.raise_for_status()
   model_settings = {"protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
                     "name": "User Groups",
@@ -119,6 +121,7 @@ def scope():
     json=model_settings,
     headers=authHeader()
   )
+  print(resp)
   resp.raise_for_status()
 
 
