@@ -103,7 +103,7 @@ def scope():
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
     headers=authHeader()
   ).json()
-  id = [dic for dic in resp if dic['name'] == 'group'][0]['id']
+  id = [dic for dic in resp if dic['name'] == 'groups'][0]['id']
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
