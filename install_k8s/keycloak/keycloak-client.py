@@ -194,7 +194,10 @@ f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
 
   # Add to admins groups
   update_settings = {
-      "groups": ["admins"]
+        "groups": ["admins"],
+        "firstName": "Sumit",
+        "email": "skmaji1@outlook.com",
+        "lastName": "Maji"
   }
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users/{id}",
