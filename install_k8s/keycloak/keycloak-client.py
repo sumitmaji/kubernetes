@@ -96,6 +96,19 @@ def client():
 
   print(resp)
 
+def group():
+  group_settings = {
+    "name": "test"
+  }
+
+  resp = requests.post(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/groups",
+    json=group_settings,
+    headers=authHeader(),
+  )
+  resp.raise_for_status()
+
+
 def user():
   user_settings = {
     "username": env.get('USER_NAME'),
@@ -153,6 +166,8 @@ def main():
     elif command == 'client':
       client()
     elif command == 'user':
+      user()
+    elif command == 'group':
       user()
   except OSError as e:
     auth()
