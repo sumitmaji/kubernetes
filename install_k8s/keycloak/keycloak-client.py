@@ -229,6 +229,7 @@ def main():
       f"https://{KEYCLOAK_ROOT}/admin/realms",
       headers=authHeader(),
     )
+    resp.raise_for_status()
     # [print(r["realm"]) for r in resp.json()]
     if command == 'realm':
       realm()
@@ -242,8 +243,6 @@ def main():
       scope()
     elif command == 'list':
       list()
-    elif command == 'auth':
-      auth()
     elif command == 'token':
       tokens()
   except OSError as e:
