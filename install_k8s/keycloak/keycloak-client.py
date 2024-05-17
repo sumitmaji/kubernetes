@@ -81,6 +81,13 @@ def scope():
   resp.raise_for_status()
   print(resp)
 
+def list():
+  resp = requests.get(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
+    headers=authHeader(),
+  ).json()
+  print(resp)
+
 # Create client
 def client():
   client_settings = {
@@ -192,6 +199,8 @@ def main():
       group()
     elif command == 'scope':
       scope()
+    elif command == 'list':
+      list()
   except OSError as e:
     auth()
 
