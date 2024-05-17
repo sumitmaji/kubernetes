@@ -53,7 +53,7 @@ f"{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
 
 def main():
   try:
-    with open(HOME+'/.kube/access_token', 'r') as content_file: access_token = content_file.read()
+    with open(HOME+'/.keycloak/access_token', 'r') as content_file: access_token = content_file.read()
     # Predefine authorization headers for later use.
     auth_headers = {
       "Authorization": f"Bearer {access_token}",
