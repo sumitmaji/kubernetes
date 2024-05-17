@@ -79,12 +79,21 @@ def scope():
     headers=authHeader(),
   )
   resp.raise_for_status()
-  print(resp)
+  resp = requests.get(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
+    headers=authHeader()
+  ).json()
+  id = [dic for dic in resp if dic['name'] == 'example'][0]['id']
+  resp = requests.put(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
+    headers=authHeader()
+  )
+  resp.raise_for_status()
 
 def list():
   resp = requests.get(
-    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
-    headers=authHeader(),
+f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
+    headers=authHeader()
   ).json()
   print(resp)
 
@@ -201,6 +210,8 @@ def main():
       scope()
     elif command == 'list':
       list()
+    elif command == 'auth':
+      auth()
   except OSError as e:
     auth()
 
