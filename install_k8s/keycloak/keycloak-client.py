@@ -190,7 +190,7 @@ def main():
       user()
     elif command == 'group':
       group()
-    elif command == 'group':
+    elif command == 'scope':
       scope()
   except OSError as e:
     auth()
