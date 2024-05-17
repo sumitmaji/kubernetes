@@ -68,3 +68,6 @@ def main():
 
   except OSError as e:
     accessToken()
+
+if __name__ == '__main__':
+  main()
