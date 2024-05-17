@@ -167,7 +167,7 @@ def user():
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,
-    "groups":["admins"],
+    "groups": ["admins"],
     "credentials": [{
       "type": "password",
       "value": env.get('PASSWORD'),
@@ -195,10 +195,10 @@ f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users",
 
   # Add to admins groups
   update_settings = {
-        "groups": ["admins"],
         "firstName": "Sumit",
         "email": "skmaji1@outlook.com",
-        "lastName": "Maji"
+        "lastName": "Maji",
+        "emailVerified": True
   }
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/users/{id}",
