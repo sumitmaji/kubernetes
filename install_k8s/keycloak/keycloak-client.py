@@ -47,9 +47,9 @@ f"https://{KEYCLOAK_ROOT}/realms/master/protocol/openid-connect/token",
   else:
 
     access_token = resp['access_token']
+    print(access_token)
     print(f"Expires in {resp['expires_in']}s")
     with open(HOME+'/.keycloak/access_token', 'w') as f: f.write (access_token)
-
 
 def main():
   try:
@@ -63,6 +63,8 @@ def main():
       f"https://{KEYCLOAK_ROOT}/admin/realms",
       headers=auth_headers,
     )
+
+    print(resp)
     resp.raise_for_status()
     [r["realm"] for r in resp.json()]
 
