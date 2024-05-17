@@ -167,6 +167,7 @@ def user():
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,
+    "groups":["admins"],
     "credentials": [{
       "type": "password",
       "value": env.get('PASSWORD'),
