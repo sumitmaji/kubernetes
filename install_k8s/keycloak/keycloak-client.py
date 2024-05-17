@@ -60,11 +60,28 @@ def authHeader():
   }
   return auth_headers
 
+def tokens():
+  sys.stderr.write("Login: ")
+  login = input()
+  password = getpass.getpass()
+  resp = requests.post(
+    f"https://{KEYCLOAK_ROOT}/realms/{REALM}/protocol/openid-connect/token",
+    data={
+      "client_id": env.get("KEYCLOAK_CLIENT_ID"),
+      "username": login,
+      "password": password,
+      "grant_type": "password",
+    }
+  )
+  resp.raise_for_status()
+  print(resp.json()["access_token"])
+
+
 def scope():
   group_settings = {
     "protocol": "openid-connect",
     "attributes": {
-      "display.on.consent.screen": "false",
+      "display.on.consent.screen": "true",
       "include.in.token.scope": "true",
       "gui.order": "1"
     },
@@ -212,6 +229,8 @@ def main():
       list()
     elif command == 'auth':
       auth()
+    elif command == 'token':
+      tokens()
   except OSError as e:
     auth()
 
