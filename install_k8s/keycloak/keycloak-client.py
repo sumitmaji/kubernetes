@@ -119,7 +119,7 @@ def tokens():
 
 # Create scope
 def scope():
-  logger.info("Creating scope")
+  logger.debug("Creating scope")
   group_settings = {
     "protocol": "openid-connect",
     "attributes": {
