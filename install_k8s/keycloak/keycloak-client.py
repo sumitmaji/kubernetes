@@ -226,14 +226,14 @@ def client():
   )
   resp.raise_for_status()
   location = resp.headers["Location"]
-  print(location)
+  logger.debug(location)
 
   resp = requests.get(
     location,
     headers=authHeader(),
   ).json()
 
-  print(resp)
+  logger.debug(resp)
 
 
 def group():
