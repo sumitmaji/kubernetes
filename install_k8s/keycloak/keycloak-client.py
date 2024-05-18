@@ -19,6 +19,7 @@ if ENV_FILE:
 HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
 REALM = env.get('REALM')
+KEYCLOAK_CLIENT_ID = env.get('KEYCLOAK_CLIENT_ID')
 
 
 def auth():
@@ -63,6 +64,16 @@ def authHeader():
   return auth_headers
 
 
+# Get object id type (clients, client-scopes)
+def getId(name, type):
+  resp = requests.get(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/${type}",
+    headers=authHeader()
+  )
+  resp.raise_for_status()
+  id = [dic for dic in resp.json() if dic['name'] == name][0]['id']
+  return id
+
 def tokens():
   sys.stderr.write("Login: ")
   login = input()
@@ -79,8 +90,9 @@ def tokens():
   resp.raise_for_status()
   print(resp.json()["access_token"])
 
-
+# Create scope
 def scope():
+  print("Creating scope")
   group_settings = {
     "protocol": "openid-connect",
     "attributes": {
@@ -98,20 +110,25 @@ def scope():
     json=group_settings,
     headers=authHeader(),
   )
-
   resp.raise_for_status()
-  resp = requests.get(
-    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
-    headers=authHeader()
-  ).json()
-  id = [dic for dic in resp if dic['name'] == 'groups'][0]['id']
-  print(id)
+  print("Scope created")
+  # resp = requests.get(
+  #   f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
+  #   headers=authHeader()
+  # ).json()
+  # id = [dic for dic in resp if dic['name'] == 'groups'][0]['id']
+
+  # Make scope type default
+
+  id = getId('groups', 'client-scopes')
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
   )
-  print(resp)
   resp.raise_for_status()
+  print("Scope type is made default")
+
+  # Add group-mapper to the scope
   model_settings = {"protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
                     "name": "User Groups",
                     "config": {"claim.name": "group", "full.path": "true", "id.token.claim": "true",
@@ -122,9 +139,17 @@ def scope():
     json=model_settings,
     headers=authHeader()
   )
-  print(resp)
   resp.raise_for_status()
+  print("Added group mapper to scope")
 
+  # Add scope to client as default scope
+  clientId = getId(KEYCLOAK_CLIENT_ID, 'clients')
+  resp = requests.put(
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/${clientId}/default-client-scopes/${id}",
+    headers=authHeader()
+  )
+  resp.raise_for_status()
+  print("Added the scope to client")
 
 def list():
   resp = requests.get(
