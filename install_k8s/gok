@@ -14,6 +14,7 @@ export OIDC_USERNAME_CLAIM=sub
 export OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
 export AUTH0_DOMAIN=skmaji.auth0.com
 export APP_HOST=kube.gokcloud.com
+export JWKS_URL=$OIDC_ISSUE_URL/.well-known/jwks.json
 EOF
 echo "$OAUTH"
 }
@@ -27,6 +28,7 @@ export OIDC_GROUPS_CLAIM=groups
 export REALM=GokDevelopers
 export AUTH0_DOMAIN=keycloak.gokcloud.com
 export APP_HOST=kube.gokcloud.com
+export JWKS_URL=$OIDC_ISSUE_URL/protocol/openid-connect/certs
 EOF
 echo "$OAUTH"
 }

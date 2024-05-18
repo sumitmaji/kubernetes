@@ -29,6 +29,7 @@ APP_HOST = env.get('APP_HOST')
 HOME = expanduser("~")
 OIDC_ISSUE_URL=env.get('OIDC_ISSUE_URL')
 IDENTITY_PROVIDER=env.get('IDENTITY_PROVIDER')
+JWKS_URL=env.get('JWKS_URL')
 
 def auth():
   sys.stderr.write("Login: ")
@@ -48,7 +49,7 @@ def auth():
     id_token = resp['id_token']
     access_token = resp['access_token']
 
-    jwks = urlopen("https://"+AUTH0_DOMAIN+"/.well-known/jwks.json")
+    jwks = urlopen(JWKS_URL)
 
     with open(HOME+'/.kube/jwks.json', 'w') as f: f.write (jwks.read().decode('utf-8'))
     with open(HOME+'/.kube/id_token', 'w') as f: f.write (id_token)
