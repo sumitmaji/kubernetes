@@ -165,7 +165,7 @@ def scope():
   # Add group-mapper to the scope
   model_settings = {"protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
                     "name": "User Groups",
-                    "config": {"claim.name": "group", "full.path": "false", "id.token.claim": "true",
+                    "config": {"claim.name": "groups", "full.path": "false", "id.token.claim": "true",
                                "access.token.claim": "true", "lightweight.claim": "false",
                                "userinfo.token.claim": "true", "introspection.token.claim": "true"}}
   resp = requests.post(
