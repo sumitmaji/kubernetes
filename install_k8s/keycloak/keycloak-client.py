@@ -340,4 +340,17 @@ def main():
 
 
 if __name__ == '__main__':
-  main()
+  # main()
+  auth()
+  logger.info("Creating realm")
+  realm()
+  logger.info("Creating client")
+  client()
+  logger.info("Creating scope")
+  scope()
+  logger.info("Creating group")
+  group()
+  logger.info("Creating user")
+  user()
+  logger.info("Validating user, put the toke in jwk.io to validate")
+  tokens()
