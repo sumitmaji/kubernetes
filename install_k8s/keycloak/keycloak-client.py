@@ -2,7 +2,7 @@
 from os import environ as env
 from dotenv import load_dotenv, find_dotenv
 from os.path import expanduser
-
+import logging
 import os
 import getpass
 import requests
@@ -12,6 +12,11 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 command = sys.argv[1]
 
+DEBUG_MODE = False
+LOG_LEVEL = logging.DEBUG
+LOG_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)-8s] [LINE:%(lineno)4d] %(message)-2s")
+logger = logging.getLogger("default")
+
 ENV_FILE = find_dotenv()
 if ENV_FILE:
   load_dotenv(ENV_FILE)
@@ -20,7 +25,29 @@ HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
 REALM = env.get('REALM')
 KEYCLOAK_CLIENT_ID = env.get('KEYCLOAK_CLIENT_ID')
+LOG_FILE_PATH=HOME + '/.keycloak'
 
+def get_console_handler():
+  console_handler = logging.StreamHandler(sys.stdout)
+  console_handler.setFormatter(LOG_FORMATTER)
+  return console_handler;
+
+def get_file_handler(log_file_name):
+  if not os.path.exists(LOG_FILE_PATH):
+    os.mkdirs(LOG_FILE_PATH)
+  file_handler = logging.FileHandler(LOG_FILE_PATH + os.path.sep + log_file_name)
+  return file_handler
+
+def get_logger(lgo_file_name):
+  global logger
+  logger = logging.getLogger(lgo_file_name)
+  logger.setLevel(LOG_LEVEL)
+  logger.addHandler(get_console_handler())
+  logger.addHandler(get_file_handler())
+  logger.propagate = False
+  return logger
+
+logger = get_logger('output.log')
 
 def auth():
   sys.stderr.write("Login: ")
@@ -92,7 +119,7 @@ def tokens():
 
 # Create scope
 def scope():
-  print("Creating scope")
+  logger.info("Creating scope")
   group_settings = {
     "protocol": "openid-connect",
     "attributes": {
@@ -111,23 +138,17 @@ def scope():
     headers=authHeader(),
   )
   resp.raise_for_status()
-  print("Scope created")
-  # resp = requests.get(
-  #   f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
-  #   headers=authHeader()
-  # ).json()
-  # id = [dic for dic in resp if dic['name'] == 'groups'][0]['id']
+  logger.info("Scope created")
 
   # Make scope type default
-
   id = getId('groups', 'client-scopes', 'name')
-  print("Id fetched")
+  logger.info("Id fetched")
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
   )
   resp.raise_for_status()
-  print("Scope type is made default")
+  logger.info("Scope type is made default")
 
   # Add group-mapper to the scope
   model_settings = {"protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
@@ -141,7 +162,7 @@ def scope():
     headers=authHeader()
   )
   resp.raise_for_status()
-  print("Added group mapper to scope")
+  logger.info("Added group mapper to scope")
 
   # Add scope to client as default scope
   clientId = getId(KEYCLOAK_CLIENT_ID, 'clients', 'clientId')
@@ -150,7 +171,7 @@ def scope():
     headers=authHeader()
   )
   resp.raise_for_status()
-  print("Added the scope to client")
+  logger.info("Added the scope to client")
 
 def list():
   resp = requests.get(
