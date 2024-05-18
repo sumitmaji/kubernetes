@@ -1,5 +1,7 @@
 #!/bin/bash
 
 source configuration
-docker tag $IMAGE_NAME $REGISTRY/$REPO_NAME
-docker push $REGISTRY/$REPO_NAME
+source $MOUNT_PATH/kubernetes/install_k8s/util
+
+docker tag $IMAGE_NAME $(fullRegistryUrl)/$REPO_NAME
+docker push $(fullRegistryUrl)/$REPO_NAME
