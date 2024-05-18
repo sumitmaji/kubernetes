@@ -23,7 +23,7 @@ getKeycloakConfig(){
 OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
 OIDC_CLIENT_ID=gok-developers-client
 OIDC_USERNAME_CLAIM=sub
-OIDC_GROUPS_CLAIM=group
+OIDC_GROUPS_CLAIM=groups
 REALM=GokDevelopers
 AUTH0_DOMAIN=keycloak.gokcloud.com
 APP_HOST=kube.gokcloud.com
