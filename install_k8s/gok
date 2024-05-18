@@ -1581,10 +1581,31 @@ EOF
   kubectl patch ing "$NAME" --type=json -p='[{"op": "add", "path": "/metadata/annotations", "value":{"nginx.ingress.kubernetes.io/rewrite-target": "/", "kubernetes.io/ingress.class": "nginx"}}]' -n "$NS"
 }
 
+help(){
+  IFS='' read -r -d '' HELP <<"EOF"
+gok install kubernetes => Installing Kubernetes
+gok install ingress => Installing Ingress
+gok install dashboard => Installing Dashboard
+gok install cert-manager => Installing Cert-Manager
+gok install keycloak => Installing Keycloak
+gok install registry => Install registry
+python3 keycloak-setup.py all => Setup keycloak
+helmTemplateDebug $char_name $char_repo = Debug helm template
+apiUrl => view url for kubernetes api server
+oauthUser => Configure Kubeconfig for OAuth
+oauthDev => Create developers role for oauth
+oauthAdmin => Create administrators role for oauth
+EOF
+echo "$HELP"
+}
+
+
 if [ "$CMD" == "bash" ]; then
   pod=$(getpod)
   echo "Opening terminal on $pod"
   kubectl exec -it "$pod" -- /bin/bash
+elif [ "$CMD" == "help" ]; then
+    help
 elif [ "$CMD" == "desc" ]; then
   pod=$(getpod)
   echo "Describing pod $pod"
