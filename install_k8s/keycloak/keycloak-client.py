@@ -233,7 +233,7 @@ def client():
 
 # Create group
 def group():
-  groups = ["administrator", "developers"]
+  groups = ["administrators", "developers"]
   for group in groups:
 
     group_settings = {
@@ -253,7 +253,7 @@ def user():
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,
-    "groups": ["administrator", "developers"],
+    "groups": ["administrators", "developers"],
     "credentials": [{
       "type": "password",
       "value": password,
