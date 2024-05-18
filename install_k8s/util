@@ -4,6 +4,10 @@ source $MOUNT_PATH/root_config
 
 : ${RELEASE_NAME:=$(kubectl config get-contexts  | sed -e '1d' | awk '{print $5}')}
 
+kctl(){
+  kubectl --kubeconfig=/root/oauth.conf --token=$(python3 /root/kubernetes/install_k8s/kube-login/cli-auth.py) "$@"
+}
+
 release(){
   RELEASE_NAME=$1
 }
