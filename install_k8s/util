@@ -67,7 +67,7 @@ logs(){
   read INDEX
   name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
   echo "Viewing logs of pod $name"
-  kubectl logs "$name" -n $RELEASE_NAME
+  kubectl logs "$name" -n $RELEASE_NAME "$@"
 }
 
 edit(){
