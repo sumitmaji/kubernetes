@@ -18,7 +18,7 @@ LOG_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)-8s] [LINE:%(linen
 logger = logging.getLogger("default")
 
 MOUNT_PATH = os.environ['MOUNT_PATH']
-os.system(f"envsubst < {MOUNT_PATH}/kubernetes/install_k8s/config > {MOUNT_PATH}/kubernetes/install_k8s/.env")
+os.system(f"envsubst < {MOUNT_PATH}/kubernetes/install_k8s/keycloak/config > {MOUNT_PATH}/kubernetes/install_k8s/keycloak/.env")
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
