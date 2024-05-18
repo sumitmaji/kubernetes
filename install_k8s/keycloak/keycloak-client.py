@@ -191,24 +191,6 @@ def list():
 
 # Create client
 def client():
-  client_settings_2 = {
-    "protocol": "openid-connect",
-    "clientId": env.get('KEYCLOAK_CLIENT_ID'),
-    "enabled": True,
-    # Public: no client secret. Non-public: "confidential" client with secret.
-    "publicClient": True,
-    # Authorization Code Flow
-    "standardFlowEnabled": True,
-    # Service accounts: Client Credentials Grant
-    "serviceAccountsEnabled": False,
-    # Direct Access: Resource Owner Password Credentials Grant
-    "directAccessGrantsEnabled": True,
-    "attributes": {
-      # Device authorization grant
-      "oauth2.device.authorization.grant.enabled": True,
-    }
-  }
-
   client_settings = {"protocol": "openid-connect", "clientId": env.get('KEYCLOAK_CLIENT_ID'), "name": "Automation Client",
                        "description": "Client for Automation", "publicClient": False,
                        "authorizationServicesEnabled": False, "serviceAccountsEnabled": True,
@@ -235,25 +217,28 @@ def client():
 
   logger.debug(resp)
 
-
+# Create group
 def group():
-  group_settings = {
-    "name": "admins"
-  }
+  groups = ["administrator", "developers"]
+  for group in groups:
 
-  resp = requests.post(
-    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/groups",
-    json=group_settings,
-    headers=authHeader(),
-  )
-  resp.raise_for_status()
+    group_settings = {
+      "name": group
+    }
+    resp = requests.post(
+      f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/groups",
+      json=group_settings,
+      headers=authHeader(),
+    )
+    resp.raise_for_status()
 
 
+# Create user and assign admin and dev group
 def user():
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,
-    "groups": ["admins"],
+    "groups": ["administrator", "developers"],
     "credentials": [{
       "type": "password",
       "value": env.get('PASSWORD'),
@@ -269,7 +254,7 @@ def user():
   resp.raise_for_status()
 
   location = resp.headers["Location"]
-  print(location)
+  logger.debug(location)
 
   resp = requests.get(
     location,
@@ -277,9 +262,9 @@ def user():
   ).json()
 
   id = resp['id']
-  print(id)
+  logger.debug(id)
 
-  # Add to admins groups
+  # Update user details
   update_settings = {
     "firstName": "Sumit",
     "email": "skmaji1@outlook.com",
@@ -324,12 +309,12 @@ def main():
       realm()
     elif command == 'client':
       client()
-    elif command == 'user':
-      user()
-    elif command == 'group':
-      group()
     elif command == 'scope':
       scope()
+    elif command == 'group':
+      group()
+    elif command == 'user':
+      user()
     elif command == 'list':
       list()
     elif command == 'token':
