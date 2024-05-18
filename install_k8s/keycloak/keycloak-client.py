@@ -25,18 +25,21 @@ HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
 REALM = env.get('REALM')
 KEYCLOAK_CLIENT_ID = env.get('KEYCLOAK_CLIENT_ID')
-LOG_FILE_PATH=HOME + '/.keycloak'
+LOG_FILE_PATH = HOME + '/.keycloak'
+
 
 def get_console_handler():
   console_handler = logging.StreamHandler(sys.stdout)
   console_handler.setFormatter(LOG_FORMATTER)
   return console_handler;
 
+
 def get_file_handler(log_file_name):
   if not os.path.exists(LOG_FILE_PATH):
     os.mkdirs(LOG_FILE_PATH)
   file_handler = logging.FileHandler(LOG_FILE_PATH + os.path.sep + log_file_name)
   return file_handler
+
 
 def get_logger(log_file_name):
   global logger
@@ -47,7 +50,9 @@ def get_logger(log_file_name):
   logger.propagate = False
   return logger
 
+
 logger = get_logger('output.log')
+
 
 def auth():
   sys.stderr.write("Login: ")
@@ -101,6 +106,7 @@ def getId(name, type, key):
   id = [dic for dic in resp.json() if dic[key] == name][0]['id']
   return id
 
+
 def tokens():
   sys.stderr.write("Login: ")
   login = input()
@@ -116,6 +122,7 @@ def tokens():
   )
   resp.raise_for_status()
   print(resp.json()["access_token"])
+
 
 # Create scope
 def scope():
@@ -138,17 +145,17 @@ def scope():
     headers=authHeader(),
   )
   resp.raise_for_status()
-  logger.info("Scope created")
+  logger.debug("Scope created")
 
   # Make scope type default
   id = getId('groups', 'client-scopes', 'name')
-  logger.info("Id fetched")
+  logger.debug("Id fetched")
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
   )
   resp.raise_for_status()
-  logger.info("Scope type is made default")
+  logger.debug("Scope type is made default")
 
   # Add group-mapper to the scope
   model_settings = {"protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
@@ -162,7 +169,7 @@ def scope():
     headers=authHeader()
   )
   resp.raise_for_status()
-  logger.info("Added group mapper to scope")
+  logger.debug("Added group mapper to scope")
 
   # Add scope to client as default scope
   clientId = getId(KEYCLOAK_CLIENT_ID, 'clients', 'clientId')
@@ -171,7 +178,8 @@ def scope():
     headers=authHeader()
   )
   resp.raise_for_status()
-  logger.info("Added the scope to client")
+  logger.debug("Added the scope to client")
+
 
 def list():
   resp = requests.get(
@@ -183,7 +191,7 @@ def list():
 
 # Create client
 def client():
-  client_settings = {
+  client_settings_2 = {
     "protocol": "openid-connect",
     "clientId": env.get('KEYCLOAK_CLIENT_ID'),
     "enabled": True,
@@ -200,6 +208,16 @@ def client():
       "oauth2.device.authorization.grant.enabled": True,
     }
   }
+
+  client_settings = {"protocol": "openid-connect", "clientId": env.get('KEYCLOAK_CLIENT_ID'), "name": "Automation Client",
+                       "description": "Client for Automation", "publicClient": False,
+                       "authorizationServicesEnabled": False, "serviceAccountsEnabled": True,
+                       "implicitFlowEnabled": True, "directAccessGrantsEnabled": True, "standardFlowEnabled": True,
+                       "frontchannelLogout": True, "attributes": {"saml_idp_initiated_sso_url_name": "",
+                                                                  "oauth2.device.authorization.grant.enabled": True,
+                                                                  "oidc.ciba.grant.enabled": True},
+                       "alwaysDisplayInConsole": True, "rootUrl": "", "baseUrl": "",
+                       "redirectUris": ["https://kube.gokcloud.com/callback"]}
 
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients",
