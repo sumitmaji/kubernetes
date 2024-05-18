@@ -17,7 +17,7 @@ import sys
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 MOUNT_PATH = os.environ['MOUNT_PATH']
-os.system(f"envsubst < {MOUNT_PATH}/kubernetes/install_k8s/config > {MOUNT_PATH}/kubernetes/install_k8s/.env")
+os.system(f"envsubst < {MOUNT_PATH}/kubernetes/install_k8s/kube-login/config > {MOUNT_PATH}/kubernetes/install_k8s/kube-login/.env")
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
