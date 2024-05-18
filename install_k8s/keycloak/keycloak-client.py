@@ -67,7 +67,7 @@ def authHeader():
 # Get object id type (clients, client-scopes)
 def getId(name, type):
   resp = requests.get(
-    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/${type}",
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/{type}",
     headers=authHeader()
   )
   resp.raise_for_status()
@@ -121,6 +121,7 @@ def scope():
   # Make scope type default
 
   id = getId('groups', 'client-scopes')
+  print("Id fetched")
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
     headers=authHeader()
