@@ -65,13 +65,13 @@ def authHeader():
 
 
 # Get object id type (clients, client-scopes)
-def getId(name, type):
+def getId(name, type, key):
   resp = requests.get(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/{type}",
     headers=authHeader()
   )
   resp.raise_for_status()
-  id = [dic for dic in resp.json() if dic['name'] == name][0]['id']
+  id = [dic for dic in resp.json() if dic[key] == name][0]['id']
   return id
 
 def tokens():
@@ -120,7 +120,7 @@ def scope():
 
   # Make scope type default
 
-  id = getId('groups', 'client-scopes')
+  id = getId('groups', 'client-scopes', 'name')
   print("Id fetched")
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/default-default-client-scopes/{id}",
@@ -144,7 +144,7 @@ def scope():
   print("Added group mapper to scope")
 
   # Add scope to client as default scope
-  clientId = getId(KEYCLOAK_CLIENT_ID, 'clients')
+  clientId = getId(KEYCLOAK_CLIENT_ID, 'clients', 'clientId')
   resp = requests.put(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/${clientId}/default-client-scopes/${id}",
     headers=authHeader()
