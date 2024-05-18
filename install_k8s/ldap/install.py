@@ -10,7 +10,7 @@ def main():
   sys.stderr.write("Docker Password: ")
   dockerPwd = input()
 
-  os.chmod('./run_kubeauth.sh', 0o700)
+  os.chmod('./run_ldap.sh', 0o700)
 
   os.system("./run_ldap.sh -u "+dockerUser+" -p "+dockerPwd)
 
