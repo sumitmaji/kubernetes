@@ -6,21 +6,56 @@ source "$WORKING_DIR"/config
 release=$2
 CMD=$1
 
+getOAuth0Config(){
+ IFS='' read -r -d '' OAUTH <<"EOF"
+export OIDC_ISSUE_URL=https://skmaji.auth0.com/
+export OIDC_CLIENT_ID=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO
+export OIDC_USERNAME_CLAIM=sub
+export OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
+export AUTH0_DOMAIN=skmaji.auth0.com
+export APP_HOST=kube.gokcloud.com
+export JWKS_URL=$OIDC_ISSUE_URL/.well-known/jwks.json
+EOF
+echo "$OAUTH"
+}
+
+getKeycloakConfig(){
+  IFS='' read -r -d '' OAUTH <<"EOF"
+export OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
+export OIDC_CLIENT_ID=gok-developers-client
+export OIDC_USERNAME_CLAIM=sub
+export OIDC_GROUPS_CLAIM=groups
+export REALM=GokDevelopers
+export AUTH0_DOMAIN=keycloak.gokcloud.com
+export APP_HOST=kube.gokcloud.com
+export JWKS_URL=$OIDC_ISSUE_URL/protocol/openid-connect/certs
+EOF
+echo "$OAUTH"
+}
+
 cat <<EOF  > ${MOUNT_PATH}/root_config
 #dns, http, selfsigned
-LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
-LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
-CERTMANAGER_CHALANGE_TYPE=selfsigned
+export LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
+export LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
+export CERTMANAGER_CHALANGE_TYPE=selfsigned
 #staging, prod
-LETS_ENCRYPT_ENV=staging
-GOK_ROOT_DOMAIN=gokcloud.com
-REGISTRY=registry
-KEYCLOAK=keycloak
-DEFAULT_SUBDOMAIN=kube
-GROUP_NAME=$GOK_ROOT_DOMAIN
+export LETS_ENCRYPT_ENV=staging
+export REGISTRY=registry
+export KEYCLOAK=keycloak
+export DEFAULT_SUBDOMAIN=kube
+export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
-AUTHENTICATION_METHOD=oidc
+export AUTHENTICATION_METHOD=oidc
+export IDENTITY_PROVIDER=${IDENTITY_PROVIDER}
+`
+if [[ $IDENTITY_PROVIDER == "oauth0" ]]; then
+echo "$(getOAuth0Config)"
+else
+echo "$(getKeycloakConfig)"
+fi
+`
 EOF
+
 
 source ${MOUNT_PATH}/root_config
 
@@ -1118,6 +1153,22 @@ subjects:
   kind: Group
   name: administrators
 EOF
+}
+
+oauthUser(){
+  kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=$(apiUrl) --kubeconfig=/root/oauth.conf
+  kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
+  kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
+
+  echoSuccess "OAuth kubeconfig file create in /root/oauth.conf"
+  echoSuccess "Use below command to use oauth.conf"
+  echoSuccess "kubectl --kubeconfig=/root/oauth.conf --token=__USER_TOKEN__ rest of command"
+  echoSuccess "alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=\${__USER_TOKEN__}'"
+  echoSuccess "alias kcd='kctl config set-context \$(kctl config current-context) --namespace'"
+}
+
+apiUrl(){
+  kubectl config view -o json | jq -r '.clusters[] | .cluster.server'
 }
 
 resetDockerRegistry(){

@@ -10,7 +10,12 @@ Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashbo
 ./gok create certificate keycloak keycloak
 ./gok patch ingress keycloak keycloak letsencrypt keycloak
 ```
+### Gok Alternate
+```console
+gok install keycloak
+```
 
+### Uninstall
 ```console
 ./gok reset keycloak
 ```
@@ -36,6 +41,20 @@ SELECT * FROM credential;
 
 **User Console**
 1. Url: https://keycloak.gokcloud.com/realms/{realm_name}/account
+
+## Automation to create Realm, Client, Scope, Group, User
+
+- Install python
+```console
+apt-get install python3
+apt-get install python3-pip
+pip3 install -r requirements-cli.txt
+```
+- Install Keycloak objects
+```commandline
+cd ${MOUNT_PATH}/kubernetes/install_k8s/keycloak
+python3 keycloak-client.py all
+```
 
 ## Adding a new Realm
 1. Click on `Create Realm`
