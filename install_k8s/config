@@ -10,3 +10,5 @@ export LOAD_BALANCER_URL=${HA_PROXY_HOSTNAME}:${HA_PROXY_PORT}
 export APP_HOST=master.cloud.com
 export GRAFANA_HOST=grafana.cloud.com
 export API_SERVERS="$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')":master.cloud.com
+#keycloak,oauth0
+IDENTITY_PROVIDER=keycloak

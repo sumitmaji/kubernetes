@@ -40,8 +40,6 @@ DEFAULT_SUBDOMAIN=kube
 GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
 AUTHENTICATION_METHOD=oidc
-#keycloak,oauth0
-IDENTITY_PROVIDER=keycloak
 `
 if [[ $IDENTITY_PROVIDER == "oauth0" ]]; then
 echo "$(getOAuth0Config)"
