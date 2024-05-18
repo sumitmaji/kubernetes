@@ -213,7 +213,7 @@ def client():
                                                                   "oauth2.device.authorization.grant.enabled": True,
                                                                   "oidc.ciba.grant.enabled": True},
                        "alwaysDisplayInConsole": True, "rootUrl": "", "baseUrl": "",
-                       "redirectUris": [{CALLBACK_URL}]}
+                       "redirectUris": [CALLBACK_URL]}
 
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients",
