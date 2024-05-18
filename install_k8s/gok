@@ -8,42 +8,42 @@ CMD=$1
 
 getOAuth0Config(){
  IFS='' read -r -d '' OAUTH <<"EOF"
-OIDC_ISSUE_URL=https://skmaji.auth0.com/
-OIDC_CLIENT_ID=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO
-OIDC_USERNAME_CLAIM=sub
-OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
-AUTH0_DOMAIN=skmaji.auth0.com
-APP_HOST=kube.gokcloud.com
+export OIDC_ISSUE_URL=https://skmaji.auth0.com/
+export OIDC_CLIENT_ID=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO
+export OIDC_USERNAME_CLAIM=sub
+export OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
+export AUTH0_DOMAIN=skmaji.auth0.com
+export APP_HOST=kube.gokcloud.com
 EOF
 echo "$OAUTH"
 }
 
 getKeycloakConfig(){
   IFS='' read -r -d '' OAUTH <<"EOF"
-OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
-OIDC_CLIENT_ID=gok-developers-client
-OIDC_USERNAME_CLAIM=sub
-OIDC_GROUPS_CLAIM=groups
-REALM=GokDevelopers
-AUTH0_DOMAIN=keycloak.gokcloud.com
-APP_HOST=kube.gokcloud.com
+export OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
+export OIDC_CLIENT_ID=gok-developers-client
+export OIDC_USERNAME_CLAIM=sub
+export OIDC_GROUPS_CLAIM=groups
+export REALM=GokDevelopers
+export AUTH0_DOMAIN=keycloak.gokcloud.com
+export APP_HOST=kube.gokcloud.com
 EOF
 echo "$OAUTH"
 }
 
 cat <<EOF  > ${MOUNT_PATH}/root_config
 #dns, http, selfsigned
-LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
-LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
-CERTMANAGER_CHALANGE_TYPE=selfsigned
+export LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
+export LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
+export CERTMANAGER_CHALANGE_TYPE=selfsigned
 #staging, prod
-LETS_ENCRYPT_ENV=staging
-REGISTRY=registry
-KEYCLOAK=keycloak
-DEFAULT_SUBDOMAIN=kube
-GROUP_NAME=$GOK_ROOT_DOMAIN
+export LETS_ENCRYPT_ENV=staging
+export REGISTRY=registry
+export KEYCLOAK=keycloak
+export DEFAULT_SUBDOMAIN=kube
+export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
-AUTHENTICATION_METHOD=oidc
+export AUTHENTICATION_METHOD=oidc
 `
 if [[ $IDENTITY_PROVIDER == "oauth0" ]]; then
 echo "$(getOAuth0Config)"
