@@ -44,6 +44,7 @@ export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
 export AUTHENTICATION_METHOD=oidc
+export IDENTITY_PROVIDER=${IDENTITY_PROVIDER}
 `
 if [[ $IDENTITY_PROVIDER == "oauth0" ]]; then
 echo "$(getOAuth0Config)"
