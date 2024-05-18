@@ -111,17 +111,19 @@ def tokens():
   sys.stderr.write("Login: ")
   login = input()
   password = getpass.getpass()
+  secret = getpass.getpass("Client Secret: ")
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/realms/{REALM}/protocol/openid-connect/token",
     data={
       "client_id": env.get("KEYCLOAK_CLIENT_ID"),
+      "client_secret": secret,
       "username": login,
       "password": password,
       "grant_type": "password",
     }
   )
   resp.raise_for_status()
-  print(resp.json()["access_token"])
+  logger.info(resp.json()["access_token"])
 
 
 # Create scope
@@ -299,26 +301,27 @@ def realm():
 
 def main():
   try:
-    resp = requests.get(
-      f"https://{KEYCLOAK_ROOT}/admin/realms",
-      headers=authHeader(),
-    )
-    resp.raise_for_status()
-    # [print(r["realm"]) for r in resp.json()]
-    if command == 'realm':
-      realm()
-    elif command == 'client':
-      client()
-    elif command == 'scope':
-      scope()
-    elif command == 'group':
-      group()
-    elif command == 'user':
-      user()
-    elif command == 'list':
-      list()
-    elif command == 'token':
+    if command == 'token':
       tokens()
+    else:
+      resp = requests.get(
+        f"https://{KEYCLOAK_ROOT}/admin/realms",
+        headers=authHeader(),
+      )
+      resp.raise_for_status()
+      # [print(r["realm"]) for r in resp.json()]
+      if command == 'realm':
+        realm()
+      elif command == 'client':
+        client()
+      elif command == 'scope':
+        scope()
+      elif command == 'group':
+        group()
+      elif command == 'user':
+        user()
+      elif command == 'list':
+        list()
   except OSError as e:
     auth()
 
