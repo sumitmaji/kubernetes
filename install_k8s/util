@@ -32,11 +32,11 @@ getpod() {
 }
 
 pods(){
-  kubectl get po -n $RELEASE_NAME
+  kubectl get po -n $RELEASE_NAME "$@"
 }
 
 all(){
-  kubectl get all -n $RELEASE_NAME
+  kubectl get all -n $RELEASE_NAME "$@"
 }
 
 bash(){
