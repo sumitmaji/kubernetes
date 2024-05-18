@@ -98,6 +98,7 @@ def scope():
     json=group_settings,
     headers=authHeader(),
   )
+
   resp.raise_for_status()
   resp = requests.get(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes",
@@ -116,7 +117,7 @@ def scope():
                     "config": {"claim.name": "group", "full.path": "true", "id.token.claim": "true",
                                "access.token.claim": "true", "lightweight.claim": "false",
                                "userinfo.token.claim": "true", "introspection.token.claim": "true"}}
-  resp = requests.put(
+  resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/client-scopes/{id}/protocol-mappers/models",
     json=model_settings,
     headers=authHeader()
