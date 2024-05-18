@@ -26,7 +26,7 @@ KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
 REALM = env.get('REALM')
 KEYCLOAK_CLIENT_ID = env.get('KEYCLOAK_CLIENT_ID')
 LOG_FILE_PATH = HOME + '/.keycloak'
-
+CALLBACK_URL=env.get('CALLBACK_URL')
 
 def get_console_handler():
   console_handler = logging.StreamHandler(sys.stdout)
@@ -210,7 +210,7 @@ def client():
                                                                   "oauth2.device.authorization.grant.enabled": True,
                                                                   "oidc.ciba.grant.enabled": True},
                        "alwaysDisplayInConsole": True, "rootUrl": "", "baseUrl": "",
-                       "redirectUris": ["https://kube.gokcloud.com/callback"]}
+                       "redirectUris": [{CALLBACK_URL}]}
 
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients",
