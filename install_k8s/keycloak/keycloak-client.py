@@ -146,7 +146,7 @@ def scope():
   # Add scope to client as default scope
   clientId = getId(KEYCLOAK_CLIENT_ID, 'clients', 'clientId')
   resp = requests.put(
-    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/${clientId}/default-client-scopes/${id}",
+    f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/{clientId}/default-client-scopes/{id}",
     headers=authHeader()
   )
   resp.raise_for_status()
