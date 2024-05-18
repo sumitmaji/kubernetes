@@ -350,7 +350,7 @@ if __name__ == '__main__':
   scope()
   logger.info("Creating group")
   group()
-  logger.info("Creating user")
+  logger.info("Creating user %s", env.get('USER_NAME'))
   user()
   logger.info("Validating user, put the toke in jwk.io to validate")
   tokens()
