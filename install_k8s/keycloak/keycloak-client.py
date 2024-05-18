@@ -38,12 +38,12 @@ def get_file_handler(log_file_name):
   file_handler = logging.FileHandler(LOG_FILE_PATH + os.path.sep + log_file_name)
   return file_handler
 
-def get_logger(lgo_file_name):
+def get_logger(log_file_name):
   global logger
-  logger = logging.getLogger(lgo_file_name)
+  logger = logging.getLogger(log_file_name)
   logger.setLevel(LOG_LEVEL)
   logger.addHandler(get_console_handler())
-  logger.addHandler(get_file_handler())
+  logger.addHandler(get_file_handler(log_file_name))
   logger.propagate = False
   return logger
 
