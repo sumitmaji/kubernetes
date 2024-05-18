@@ -194,10 +194,19 @@ def list():
 # Create client
 def client():
   client_settings = {"protocol": "openid-connect", "clientId": env.get('KEYCLOAK_CLIENT_ID'), "name": "Automation Client",
-                       "description": "Client for Automation", "publicClient": False,
-                       "authorizationServicesEnabled": False, "serviceAccountsEnabled": True,
-                       "implicitFlowEnabled": True, "directAccessGrantsEnabled": True, "standardFlowEnabled": True,
+                       "description": "Client for Automation",
+                       # Public: no client secret. Non-public: "confidential" client with secret.
+                       "publicClient": False,
+                       "authorizationServicesEnabled": False,
+                       # Service accounts: Client Credentials Grant
+                       "serviceAccountsEnabled": True,
+                       "implicitFlowEnabled": True,
+                       # Direct Access: Resource Owner Password Credentials Grant
+                       "directAccessGrantsEnabled": True,
+                       # Authorization Code Flow
+                       "standardFlowEnabled": True,
                        "frontchannelLogout": True, "attributes": {"saml_idp_initiated_sso_url_name": "",
+                                                                  # Device authorization grant
                                                                   "oauth2.device.authorization.grant.enabled": True,
                                                                   "oidc.ciba.grant.enabled": True},
                        "alwaysDisplayInConsole": True, "rootUrl": "", "baseUrl": "",
