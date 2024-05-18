@@ -68,7 +68,7 @@ def main():
     if IDENTITY_PROVIDER == 'keycloak':
       payload = jwt.decode(id_token, jwks, algorithms=['RS256'],
                        audience=AUTH0_CLIENT_ID, issuer=OIDC_ISSUE_URL,access_token=access_token)
-      print(access_token)
+      print(id_token)
     else:
       payload = jwt.decode(id_token, jwks, algorithms=['RS256'],
                            audience=AUTH0_CLIENT_ID, issuer=OIDC_ISSUE_URL)
