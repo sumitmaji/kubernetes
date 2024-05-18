@@ -1608,6 +1608,7 @@ edit $resouce => Edit resource in current namespace
 logs => View logs of pod in current namespace
 bash => Get terminal in pod
 all => Show all resource in current namespace
+kctl => Execute kubectl command with oauth authentication, create dev and admin role
 EOF
 echo "$HELP"
 }
