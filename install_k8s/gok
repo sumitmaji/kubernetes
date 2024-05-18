@@ -1595,6 +1595,19 @@ apiUrl => view url for kubernetes api server
 oauthUser => Configure Kubeconfig for OAuth
 oauthDev => Create developers role for oauth
 oauthAdmin => Create administrators role for oauth
+
+kcd $namespace => switch namespace
+k => short form for kubectl
+current => Show current namespace
+pods => show pods in current namespace
+secrets => show secrets in current namespace
+viewcert => View certificate in secret in current namespace
+decode => Base64 decode content in secret in current namespace
+ns => Show all namespaces
+edit $resouce => Edit resource in current namespace
+logs => View logs of pod in current namespace
+bash => Get terminal in pod
+all => Show all resource in current namespace
 EOF
 echo "$HELP"
 }
