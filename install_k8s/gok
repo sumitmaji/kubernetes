@@ -12,6 +12,8 @@ OIDC_ISSUE_URL=https://skmaji.auth0.com/
 OIDC_CLIENT_ID=C3UHISO3z60iF1JLG8L7VPUSWOASrJfO
 OIDC_USERNAME_CLAIM=sub
 OIDC_GROUPS_CLAIM=http://localhost:8080/claims/groups
+AUTH0_DOMAIN=skmaji.auth0.com
+APP_HOST=kube.gokcloud.com
 EOF
 echo "$OAUTH"
 }
@@ -22,6 +24,9 @@ OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
 OIDC_CLIENT_ID=gok-developers-client
 OIDC_USERNAME_CLAIM=sub
 OIDC_GROUPS_CLAIM=group
+REALM=GokDevelopers
+AUTH0_DOMAIN=keycloak.gokcloud.com
+APP_HOST=kube.gokcloud.com
 EOF
 echo "$OAUTH"
 }
@@ -33,7 +38,6 @@ LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
 CERTMANAGER_CHALANGE_TYPE=selfsigned
 #staging, prod
 LETS_ENCRYPT_ENV=staging
-GOK_ROOT_DOMAIN=gokcloud.com
 REGISTRY=registry
 KEYCLOAK=keycloak
 DEFAULT_SUBDOMAIN=kube

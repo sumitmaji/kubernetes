@@ -17,6 +17,9 @@ LOG_LEVEL = logging.INFO
 LOG_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)-8s] [LINE:%(lineno)4d] %(message)-2s")
 logger = logging.getLogger("default")
 
+MOUNT_PATH = os.environ['MOUNT_PATH']
+os.system(f"envsubst < {MOUNT_PATH}/kubernetes/install_k8s/config > {MOUNT_PATH}/kubernetes/install_k8s/.env")
+
 ENV_FILE = find_dotenv()
 if ENV_FILE:
   load_dotenv(ENV_FILE)

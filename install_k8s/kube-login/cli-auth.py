@@ -9,11 +9,15 @@ from jose import jwt
 from six.moves.urllib.request import urlopen
 from os.path import expanduser
 
+import os
 import getpass
 import requests
 import json
 import sys
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+MOUNT_PATH = os.environ['MOUNT_PATH']
+os.system(f"envsubst < {MOUNT_PATH}/kubernetes/install_k8s/config > {MOUNT_PATH}/kubernetes/install_k8s/.env")
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
@@ -23,6 +27,8 @@ AUTH0_CLIENT_ID = env.get('AUTH0_CLIENT_ID')
 AUTH0_DOMAIN = env.get('AUTH0_DOMAIN')
 APP_HOST = env.get('APP_HOST')
 HOME = expanduser("~")
+OIDC_ISSUE_URL=env.get('OIDC_ISSUE_URL')
+IDENTITY_PROVIDER=env.get('IDENTITY_PROVIDER')
 
 def auth():
   sys.stderr.write("Login: ")
@@ -40,11 +46,14 @@ def auth():
   else:
 
     id_token = resp['id_token']
+    access_token = resp['access_token']
 
     jwks = urlopen("https://"+AUTH0_DOMAIN+"/.well-known/jwks.json")
 
     with open(HOME+'/.kube/jwks.json', 'w') as f: f.write (jwks.read().decode('utf-8'))
     with open(HOME+'/.kube/id_token', 'w') as f: f.write (id_token)
+    if IDENTITY_PROVIDER == 'keycloak':
+      with open(HOME+'/.kube/access_token', 'w') as f: f.write (access_token)
 
     print(id_token)
 
@@ -52,11 +61,18 @@ def main():
   try:
     with open(HOME+'/.kube/jwks.json', 'r') as content_file: jwks = content_file.read()
     with open(HOME+'/.kube/id_token', 'r') as content_file: id_token = content_file.read()
+    if IDENTITY_PROVIDER == 'keycloak':
+      with open(HOME+'/.kube/access_token', 'r') as content_file: access_token = content_file.read()
 
-    payload = jwt.decode(id_token, jwks, algorithms=['RS256'],
-                       audience=AUTH0_CLIENT_ID, issuer="https://"+AUTH0_DOMAIN+"/")
+    if IDENTITY_PROVIDER == 'keycloak':
+      payload = jwt.decode(id_token, jwks, algorithms=['RS256'],
+                       audience=AUTH0_CLIENT_ID, issuer=OIDC_ISSUE_URL,access_token=access_token)
+      print(access_token)
+    else:
+      payload = jwt.decode(id_token, jwks, algorithms=['RS256'],
+                           audience=AUTH0_CLIENT_ID, issuer=OIDC_ISSUE_URL)
+      print(id_token)
 
-    print(id_token)
   except OSError as e:
     auth()
   except jwt.ExpiredSignatureError as e:
