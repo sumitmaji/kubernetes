@@ -28,17 +28,4 @@ done
 #fi
 
 
-helm uninstall $RELEASE_NAME -n $RELEASE_NAME
-kubectl delete ns $RELEASE_NAME
-SECRET_NAME=regcred
-kubectl create ns $RELEASE_NAME
-kubectl get secret $SECRET_NAME >/dev/null 2>&1 || kubectl create secret docker-registry \
-    $SECRET_NAME --docker-server=$(fullRegistryUrl) --docker-username=$DOCKER_USER --docker-password=$DOCKER_PASSWORD -n $RELEASE_NAME
-kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "regcred"}]}'   -n $RELEASE_NAME
-helm install $RELEASE_NAME $PATH_TO_CHART \
-  --set image.repository=$(fullRegistryUrl)/ldap \
-  --namespace $RELEASE_NAME
-
-echo "Waiting for services to be up!!!!"
-kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace "$RELEASE_NAME"
-echoSuccess "ldap service is up!!"
+helmInst $RELEASE_NAME $REPO_NAME
