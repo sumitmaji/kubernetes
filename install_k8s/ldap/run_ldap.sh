@@ -28,4 +28,4 @@ done
 #fi
 
 
-helmInst $RELEASE_NAME $REPO_NAME
+helmInst $RELEASE_NAME $REPO_NAME default
