@@ -1171,6 +1171,23 @@ apiUrl(){
   kubectl config view -o json | jq -r '.clusters[] | .cluster.server'
 }
 
+opensearchReset(){
+  helm uninstall opensearch -n opensearch
+  kubectl delete ns opensearch
+}
+
+opensearchInst(){
+  helm repo add openSearch https://opensearch-project.github.io/helm-charts/
+  helm repo update
+  helm install opensearch \
+    --namespace fluentd \
+    --create-namespace \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
+    opensearch/opensearch
+
+  gok patch ingress opensearch opensearch letsencrypt opensearch
+}
+
 fluentdReset(){
   helm uninstall fluentd -n fluentd
   kubectl delete ns fluentd
@@ -1671,6 +1688,8 @@ elif [ "$CMD" == "install" ]; then
         installRegistryWithCertMgr
   elif [ "$COMPONENT" == "fluentd" ]; then
         fluentdInst
+  elif [ "$COMPONENT" == "opensearch" ]; then
+      opensearchInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
@@ -1722,6 +1741,8 @@ EOF
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
     fluentdReset
+  elif [ "$COMPONENT" == "opensearch" ]; then
+    opensearchReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
