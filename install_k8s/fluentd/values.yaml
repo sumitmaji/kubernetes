@@ -10,7 +10,7 @@ ingress:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
   hosts:
     - host: master.cloud.com
-    - port: 24231
+      port: 24231
   tls:
    - secretName: appingress-certificate
      hosts:
