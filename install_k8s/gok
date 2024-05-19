@@ -1669,6 +1669,8 @@ elif [ "$CMD" == "install" ]; then
     ingressInst
   elif [ "$COMPONENT" == "registry" ]; then
         installRegistryWithCertMgr
+  elif [ "$COMPONENT" == "fluentd" ]; then
+        fluentdInst
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
@@ -1718,6 +1720,8 @@ EOF
     ingressUnInst
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
+  elif [ "$COMPONENT" == "fluentd" ]; then
+    fluentdReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
