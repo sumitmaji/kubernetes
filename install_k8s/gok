@@ -1184,6 +1184,8 @@ fluentdInst(){
         --create-namespace \
         --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/fluentd/values.yaml \
         fluent/fluentd
+
+  gok patch ingress fluentd fluentd letsencrypt fluentd
 }
 
 
