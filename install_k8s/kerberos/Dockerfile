@@ -1,4 +1,5 @@
-FROM master.cloud.com:5000/base-trusty
+ARG REGISTRY
+FROM $REGISTRY/base-trusty
 MAINTAINER Sumit Kumar Maji
 
 ARG DEBIAN_FRONTEND=noninteractive

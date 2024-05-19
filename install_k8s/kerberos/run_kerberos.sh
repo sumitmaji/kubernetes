@@ -1,13 +1,26 @@
 #!/bin/bash
 
 source configuration
+source $MOUNT_PATH/kubernetes/install_k8s/util
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -u | --user)
+        shift
+        DOCKER_USER=$1
+        ;;
+        -p | --password)
+        shift
+        DOCKER_PASSWORD=$1
+        ;;
+    esac
+shift
+done
+
 
 : ${PATH_TO_CHART:=chart}
 
-#if [[ "$(docker images -q $REPO_NAME 2> /dev/null)" == "" ]]; then
 ./build.sh
 ./tag_push.sh
-#fi
 
-helm uninstall $RELEASE_NAME
-helm install $RELEASE_NAME $PATH_TO_CHART
+helmInst $RELEASE_NAME $REPO_NAME
