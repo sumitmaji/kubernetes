@@ -10,7 +10,7 @@ ingress:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
   hosts:
     - host: master.cloud.com
-    - port: 9880
+      port: 9880
   tls:
    - secretName: appingress-certificate
      hosts:
