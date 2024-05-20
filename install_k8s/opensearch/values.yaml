@@ -1,6 +1,12 @@
 extraEnvs:
   - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
     value: sumit@0989
+
+resources:
+  requests:
+    cpu: "1000m" # Not sufficient cpu available, reducing it.
+    memory: "100Mi"
+
 persistence:
   enabled: true
   # Set to false to disable the `fsgroup-volume` initContainer that will update permissions on the persistent disk.
