@@ -854,6 +854,13 @@ emptyLocalFsStorageRegistry(){
   rm -rf /data/volumes/pv4
 }
 
+emptyLocalFsStorageOpensearch(){
+  kubectl delete pvc --all -n opensearch
+  kubectl delete pv opensearch-pv
+  kubectl delete sc opensearch-storage
+  rm -rf /data/volumes/pv5
+}
+
 emptyLocalFsStorageMonotring(){
   kubectl delete pv prometheus-pv
   kubectl delete pv alertmanager-pv
@@ -1012,6 +1019,45 @@ spec:
 EOF
 
 }
+
+localFsStorageClassOpensearchCreate(){
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: opensearch-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+  mkdir -p /data/volumes/pv5
+  chmod 777 /data/volumes/pv5
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: opensearch-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: opensearch-storage
+  local:
+    path: /data/volumes/pv5
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+}
+
 
 prometheusGrafanaResetv2(){
   helm -n monitoring delete prometheus
@@ -1174,18 +1220,20 @@ apiUrl(){
 opensearchReset(){
   helm uninstall opensearch -n opensearch
   kubectl delete ns opensearch
+  emptyLocalFsStorageOpensearch
 }
 
 opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
   helm install opensearch \
-    --namespace fluentd \
+    --namespace opensearch \
     --create-namespace \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
     opensearch/opensearch
 
-  gok patch ingress opensearch opensearch letsencrypt opensearch
+  localFsStorageClassOpensearchCreate
+  #gok patch ingress opensearch opensearch letsencrypt opensearch
 }
 
 fluentdReset(){
