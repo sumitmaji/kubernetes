@@ -5,8 +5,8 @@ extraEnvs:
 resources:
   requests:
     # Not sufficient cpu available, reducing it.
-    #cpu: "1000m"
-    memory: "100Mi"
+    cpu: "100m"
+    memory: "50Mi"
 
 persistence:
   enabled: true
