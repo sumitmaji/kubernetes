@@ -30,6 +30,24 @@ then
 	exit 0
 fi
 
+getIp(){
+  if [ "$ENV" == "LOCAL" ]
+  then
+    echo "11.0.0."
+  else
+    echo "192.169.0"
+  fi
+}
+
+getRevIp(){
+  if [ "$ENV" == "LOCAL" ]
+  then
+    echo "0.0.11."
+  else
+    echo "0.169.192"
+  fi
+}
+
 echo 'Installing the master node!!!!!!!!!'
 
 
@@ -84,8 +102,25 @@ EOF
 Name=eth2
 Kind=dummy
 EOF
-    systemctl restart systemd-networkd
-
+  systemctl restart systemd-networkd
+  cat <<EOF > /etc/netplan/00-private-ethernet.yaml
+network:
+  version: 2
+  ethernets:
+    eth2:                          # Private network interface
+      addresses:
+        - $(getIp).1/24
+      routes:
+        - to: default
+          via: $(getIp).254
+      mtu: 1500
+      dhcp4: no
+      nameservers:
+        addresses:
+          - $(getIp).1            # Private IP for ns1
+        search: [ cloud.com ]    # DNS zone
+EOF
+  netplan apply
 fi
 
 STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
@@ -99,7 +134,7 @@ zone "cloud.com" {
 	allow-update { key rndc-key; };
 };
 
-zone "0.0.11.in-addr.arpa" {
+zone "$(getRevIp).in-addr.arpa" {
 	type master;
 	file "/etc/bind/cloud.com.rev";
 	allow-update { key rndc-key; };
@@ -141,7 +176,7 @@ cat >> /etc/bind/cloud.com.fwd << EOF
 	86400	;minimum
 )
 @	IN		NS		master.cloud.com.
-master		IN		A	11.0.0.1
+master		IN		A	$(getIp).1
 EOF
 fi
 
@@ -160,7 +195,7 @@ cat >> /etc/bind/cloud.com.rev << EOF
         86400           ;minimum ttl
 )
 @       IN      NS      master.cloud.com
-master.cloud.com  IN      A       11.0.0.1
+master.cloud.com  IN      A       $(getIp).1
 1       IN      PTR     master.cloud.com
 EOF
 fi
@@ -183,7 +218,7 @@ zone cloud.com. {
         key rndc-key;
 }
 
-zone 0.0.11.in-addr.arpa. {
+zone $(getRevIp).in-addr.arpa. {
         primary 127.0.0.1;
         key rndc-key;
 }
@@ -195,13 +230,13 @@ sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
 sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
 sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
 sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
-sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers 11.0.0.1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
-sed -i '/^max-lease-time 7200;/ a\subnet 11.0.0.0 netmask 255.255.255.0 {' /etc/dhcp/temp-local-zones
-sed -i '/subnet 11.0.0.0 netmask 255.255.255.0 {/ a\option routers 11.0.0.1;'  /etc/dhcp/temp-local-zones
-sed -i '/option routers 11.0.0.1;/ a\option subnet-mask 255.255.255.0;' /etc/dhcp/temp-local-zones
+sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers $(getIp).1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
+sed -i '/^max-lease-time 7200;/ a\subnet $(getIp).0 netmask 255.255.255.0 {' /etc/dhcp/temp-local-zones
+sed -i '/subnet $(getIp).0 netmask 255.255.255.0 {/ a\option routers $(getIp).1;'  /etc/dhcp/temp-local-zones
+sed -i '/option routers $(getIp).1;/ a\option subnet-mask 255.255.255.0;' /etc/dhcp/temp-local-zones
 sed -i '/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;' /etc/dhcp/temp-local-zones
-sed -i '/option time-offset -18000;/ a\range 11.0.0.1 11.0.0.254;' /etc/dhcp/temp-local-zones
-sed -i '/range 11.0.0.1 11.0.0.254;/ a\}' /etc/dhcp/temp-local-zones
+sed -i '/option time-offset -18000;/ a\range $(getIp).1 $(getIp).254;' /etc/dhcp/temp-local-zones
+sed -i '/range $(getIp).1 $(getIp).254;/ a\}' /etc/dhcp/temp-local-zones
 
 cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf
 fi
@@ -209,8 +244,8 @@ fi
 service isc-dhcp-server restart
 
 chattr -i /etc/resolv.conf
-sed -i '/nameserver/ i nameserver 11.0.0.1' /etc/resolv.conf
-sed -i '/nameserver 11.0.0.1/ a\nameserver 192.168.0.1' /etc/resolv.conf
+sed -i '/nameserver/ i nameserver $(getIp).1' /etc/resolv.conf
+sed -i '/nameserver $(getIp).1/ a\nameserver 192.168.0.1' /etc/resolv.conf
 sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
 chattr +i /etc/resolv.conf
 
@@ -256,7 +291,7 @@ fi
 #################################
 #################################
 
-sed -i '/^restrict ::1$/a\ restrict 11.0.0.0 mask 255.255.255.0 nomodify notrap' /etc/ntp.conf
+sed -i '/^restrict ::1$/a\ restrict $(getIp).0 mask 255.255.255.0 nomodify notrap' /etc/ntp.conf
 service ntp start
 
 
@@ -269,13 +304,13 @@ service ntp start
 
 apt-get install -y nfs-kernel-server
 
-echo "/export 11.0.0.0/24(rw,async,no_root_squash)" >> /etc/exports
+echo "/export $(getIp).0/24(rw,async,no_root_squash)" >> /etc/exports
 mkdir -p /export
 chmod 777 /export
 exportfs -va
 systemctl start nfs-kernel-server
 systemctl enable nfs-kernel-server
-mount 11.0.0.1:/export /export
+mount $(getIp).1:/export /export
 
 
 echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
