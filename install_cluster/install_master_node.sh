@@ -41,6 +41,20 @@ getRevIp(){
 echo 'Installing the master node!!!!!!!!!'
 
 
+echoSuccess(){
+  echo -e "\e[32m$1\e[0m"
+}
+
+echoFailed(){
+  echo -e "\e[31m$1\e[0m"
+}
+
+echoWarning(){
+  echo -e "\e[32m$1\e[0m"
+}
+
+
+
 # Keep upstart from complaining
 dpkg-divert --local --rename --add /sbin/initctl
 ln -sf /bin/true /sbin/initctl
@@ -217,6 +231,10 @@ EOF
   chown -R bind /etc/bind
   service bind9 restart
 
+  named-checkzone cloud.com /etc/bind/cloud.com.fwd
+  [[ $? -eq 0 ]] && echoSuccess "Forward Bind looking good!!" || echoFailed "Bind Installation Failed!!"
+  named-checkzone 0.0.11.in-addr.arpa /etc/bind/cloud.com.rev
+  [[ $? -eq 0 ]] && echoSuccess "Reverse Bind looking good!!" || echoFailed "Bind Installation Failed!!"
 }
 
 dhcpInst(){
@@ -370,5 +388,18 @@ EOF
 
 if [ "$ENV" == "CLOUD" ]; then
   bindInst
+  nameserver
+  natInst
+  ntpInst
+  nfsInst
+  sshdInst
+elif [ "$ENV" == "LOCAL" ]; then
+  bindInst
+  dhcpInst
+  nameserver
+  natInst
+  ntpInst
+  nfsInst
+  sshdInst
 fi
 
