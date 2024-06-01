@@ -313,7 +313,7 @@ EOF
     ssh-keygen -q -N "" -t rsa -f ~/.ssh/id_rsa
     cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
 
-    useradd -m admin
+    useradd -m -g admin admin
     cp ~/.ssh/ /home/admin/ -r
     chown -R admin /home/admin/
   fi
@@ -368,7 +368,6 @@ sshdInst(){
   # SSH login fix. Otherwise user is kicked off after login
   sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 
-  cp /container/scripts/ssh_config /root/.ssh/
   cat > /root/.ssh/config <<EOF
 Host *
   UserKnownHostsFile /dev/null
