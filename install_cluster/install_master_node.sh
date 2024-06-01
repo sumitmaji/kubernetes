@@ -31,21 +31,11 @@ then
 fi
 
 getIp(){
-  if [ "$ENV" == "LOCAL" ]
-  then
-    echo "11.0.0."
-  else
-    echo "192.169.0"
-  fi
+  echo "11.0.0."
 }
 
 getRevIp(){
-  if [ "$ENV" == "LOCAL" ]
-  then
-    echo "0.0.11."
-  else
-    echo "0.169.192"
-  fi
+  echo "0.0.11."
 }
 
 echo 'Installing the master node!!!!!!!!!'
@@ -164,10 +154,10 @@ EOF
   if [ "$ENV" == "CLOUD" ]; then
   cat <<EOF >> /etc/bind/named.conf.options
 acl "trusted" {
-        11.0.0.1;  # ns1 - master
-        11.0.0.2;  # node01
-        11.0.0.3;  # node02
-        11.0.0.4;  # node03
+        $(getIp).1;  # ns1 - master
+        $(getIp).2;  # node01
+        $(getIp).3;  # node02
+        $(getIp).4;  # node03
 };
 EOF
   fi
@@ -175,12 +165,7 @@ EOF
   sed -i 's_/etc/bind/\*\* r,_/etc/bind/\*\* rw,_' /etc/apparmor.d/usr.sbin.named
   service apparmor restart
 
-  if [ -f /etc/bind/cloud.com.fwd ]
-  then
-    echo "The forward exits"
-  else
-  touch /etc/bind/cloud.com.fwd
-  cat >> /etc/bind/cloud.com.fwd << EOF
+  cat > /etc/bind/cloud.com.fwd << EOF
 \$TTL	86400
 @	IN 		SOA 	master.cloud.com.		root.cloud.com. (
 	1		;Serial
@@ -191,15 +176,21 @@ EOF
 )
 @	IN		NS		master.cloud.com.
 master		IN		A	$(getIp).1
+`
+IFS=','
+counter=1
+for server in 'node01:2,node02:3,node03:4'; do
+oifs=$IFS
+IFS=':'
+read -r node ip <<< "$server"
+echo "$node		IN		A	$(getIp).$ip"
+IFS=$oifs
+done
+unset IFS
+`
 EOF
-  fi
 
-  if [ -f /etc/bind/cloud.com.rev ]
-  then
-    echo "The reverse exists"
-  else
-  touch /etc/bind/cloud.com.rev
-  cat >> /etc/bind/cloud.com.rev << EOF
+  cat > /etc/bind/cloud.com.rev << EOF
 \$TTL    86400
 @       IN              SOA     master.cloud.com.         root.cloud.com. (
         1               ;Serial
@@ -211,8 +202,19 @@ EOF
 @       IN      NS      master.cloud.com
 master.cloud.com  IN      A       $(getIp).1
 1       IN      PTR     master.cloud.com
+`
+IFS=','
+counter=1
+for server in 'node01:2,node02:3,node03:4'; do
+oifs=$IFS
+IFS=':'
+read -r node ip <<< "$server"
+echo "$ip       IN      PTR     ${node}.cloud.com"
+IFS=$oifs
+done
+unset IFS
+`
 EOF
-  fi
 
   chmod 775 -R /etc/bind
   chown -R bind /etc/bind
