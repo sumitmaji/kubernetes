@@ -392,6 +392,7 @@ if [ "$ENV" == "CLOUD" ]; then
   ntpInst
   nfsInst
   sshdInst
+  reboot
 elif [ "$ENV" == "LOCAL" ]; then
   bindInst
   dhcpInst
@@ -400,5 +401,6 @@ elif [ "$ENV" == "LOCAL" ]; then
   ntpInst
   nfsInst
   sshdInst
+  reboot
 fi
 
