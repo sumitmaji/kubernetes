@@ -101,6 +101,7 @@ network:
         search: [ cloud.com ]    # DNS zone
 EOF
   netplan apply
+  route add -net 11.0.0.0 netmask 255.255.255.0 gw 10.108.0.2
 fi
 
 
