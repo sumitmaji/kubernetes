@@ -151,8 +151,10 @@ EOF
     sed -i '$r ./rndc-key' /etc/bind/named.conf.options
   fi
 
-  if [ "$ENV" == "CLOUD" ]; then
+  STATUS="$(grep "#trusted acl" /etc/bind/named.conf.options)"
+  if [[ "$ENV" == "CLOUD" && -z "$STATUS" ]]; then
   cat <<EOF >> /etc/bind/named.conf.options
+#trusted acl
 acl "trusted" {
         $(getIp).1;  # ns1 - master
         $(getIp).2;  # node01
