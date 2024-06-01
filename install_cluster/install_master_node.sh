@@ -31,11 +31,11 @@ then
 fi
 
 getIp(){
-  echo "11.0.0."
+  echo "11.0.0"
 }
 
 getRevIp(){
-  echo "0.0.11."
+  echo "0.0.11"
 }
 
 echo 'Installing the master node!!!!!!!!!'
@@ -114,7 +114,6 @@ EOF
   netplan apply
 fi
 
-
 bindInst(){
   STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
   if [ -z "$STATUS" ]
@@ -179,14 +178,13 @@ EOF
 @	IN		NS		master.cloud.com.
 master		IN		A	$(getIp).1
 `
-IFS=','
-counter=1
-for server in 'node01:2,node02:3,node03:4'; do
-oifs=$IFS
-IFS=':'
-read -r node ip <<< "$server"
-echo "$node		IN		A	$(getIp).$ip"
-IFS=$oifs
+arr=("node01:2" "node02:3" "node03:4")
+
+for server in ${arr[@]}; do
+  IFS=':'
+  read -r node ip <<< $server
+  echo "$node		IN		A	$(getIp).$ip"
+  IFS=$oifs
 done
 unset IFS
 `
@@ -205,14 +203,11 @@ EOF
 master.cloud.com  IN      A       $(getIp).1
 1       IN      PTR     master.cloud.com
 `
-IFS=','
-counter=1
-for server in 'node01:2,node02:3,node03:4'; do
-oifs=$IFS
+arr=("node01:2" "node02:3" "node03:4")
+for server in ${arr[@]}; do
 IFS=':'
 read -r node ip <<< "$server"
 echo "$ip       IN      PTR     ${node}.cloud.com"
-IFS=$oifs
 done
 unset IFS
 `
