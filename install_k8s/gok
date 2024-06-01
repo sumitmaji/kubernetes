@@ -429,7 +429,7 @@ EOF
     sudo systemctl enable kubelet
 
     envsubst <"$WORKING_DIR"/cluster-config-master.yaml >"$WORKING_DIR"/config.yaml
-    kubeadm init --config="$WORKING_DIR"/config.yaml
+    kubeadm init --config="$WORKING_DIR"/config.yaml --upload-certs
     export KUBECONFIG=/etc/kubernetes/admin.conf
 
     mkdir -p "$HOME"/.kube
@@ -440,6 +440,9 @@ EOF
       echo "Kubectl command execution failed, please check!!!!!"
       exit 1
     fi
+  elif [ $1 == "kubernetes-worker" ]; then
+    echo "kubectl join ...."
+    echo "kubectl label node node01 node-role.kubernetes.io/worker=worker"
   fi
 
 }

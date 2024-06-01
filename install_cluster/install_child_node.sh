@@ -11,6 +11,10 @@ while [ $# -gt 0 ]; do
     shift
     IP_ADDRESS=$1
     ;;
+  -e | --env)
+    shift
+    ENV=$1
+    ;;
   esac
   shift
 done
@@ -77,7 +81,7 @@ elif [ "$ENV" == "CLOUD" ]; then
 [Match]
 Name=eth2
 [Network]
-Address=$(getIp).1
+Address=$(getIp)
 Mask=255.255.255.0
 EOF
     cat <<EOF >/etc/systemd/network/eth2.netdev
