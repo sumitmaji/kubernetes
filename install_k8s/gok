@@ -419,25 +419,27 @@ EOF
   sudo apt-get update
   sudo apt-get install -y kubectl kubeadm kubelet
 
-  kubeadm version
-  kubeadm config images pull
+  if [ $1 == "kubernetes" ]; then
+    kubeadm version
+    kubeadm config images pull
 
-  sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
-  sudo swapoff -a
+    sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    sudo swapoff -a
 
-  sudo systemctl enable kubelet
+    sudo systemctl enable kubelet
 
-  envsubst <"$WORKING_DIR"/cluster-config-master.yaml >"$WORKING_DIR"/config.yaml
-  kubeadm init --config="$WORKING_DIR"/config.yaml
-  export KUBECONFIG=/etc/kubernetes/admin.conf
+    envsubst <"$WORKING_DIR"/cluster-config-master.yaml >"$WORKING_DIR"/config.yaml
+    kubeadm init --config="$WORKING_DIR"/config.yaml
+    export KUBECONFIG=/etc/kubernetes/admin.conf
 
-  mkdir -p "$HOME"/.kube
-  sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
+    mkdir -p "$HOME"/.kube
+    sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
 
-  # shellcheck disable=SC2181
-  if [ $? -ne 0 ]; then
-    echo "Kubectl command execution failed, please check!!!!!"
-    exit 1
+    # shellcheck disable=SC2181
+    if [ $? -ne 0 ]; then
+      echo "Kubectl command execution failed, please check!!!!!"
+      exit 1
+    fi
   fi
 
 }
@@ -1738,10 +1740,13 @@ elif [ "$CMD" == "install" ]; then
         fluentdInst
   elif [ "$COMPONENT" == "opensearch" ]; then
       opensearchInst
+  elif [ "$COMPONENT" == "kubernetes-worker" ]; then
+    dockrInst
+    k8sInst "kubernetes-worker"
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
-    k8sInst
+    k8sInst "kubernetes"
     helmInst
     taintNode
     calicoInst
