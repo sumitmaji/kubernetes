@@ -108,6 +108,27 @@ EOF
   route add -net 11.0.0.0 netmask 255.255.255.0 gw 10.108.0.2
 fi
 
+addRoutes(){
+  IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+  if [ $IP == "11.0.0.1" ]; then
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.2" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.3" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.4" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+  fi
+}
+
 
 chattr -i /etc/resolv.conf
 sed -i '/nameserver/ i nameserver 11.0.0.1' /etc/resolv.conf
@@ -190,5 +211,9 @@ echo "UsePAM no" >>/etc/ssh/sshd_config
 
 export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >>/etc/profile
+
+if [ $ENV == "CLOUD" ]; then
+    addRoutes
+fi
 
 reboot

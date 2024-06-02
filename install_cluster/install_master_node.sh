@@ -128,6 +128,28 @@ EOF
   netplan apply
 fi
 
+addRoutes(){
+  IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+  if [ $IP == "11.0.0.1" ]; then
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.2" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.3" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.4" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+  fi
+}
+
+
 bindInst(){
   STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
   if [ -z "$STATUS" ]
@@ -392,6 +414,7 @@ if [ "$ENV" == "CLOUD" ]; then
   ntpInst
   nfsInst
   sshdInst
+  addRoutes
   reboot
 elif [ "$ENV" == "LOCAL" ]; then
   bindInst
