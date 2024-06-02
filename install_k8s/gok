@@ -183,7 +183,7 @@ spec:
     command: ["sleep", "9999999"]
 EOF
   echo "Commands"
-  echo "kubectl exec -i -t dnsutils -- nslookup kubernetes.default.svc.cloud.uat"
+  echo "kubectl exec -i -t curl -- curl -kv https://kubernetes"
 }
 
 dnsUtils(){
@@ -204,7 +204,8 @@ spec:
   restartPolicy: Always
 EOF
   echo "Commands"
-  echo "kubectl exec -i -t curl -- curl -kv https://kubernetes"
+  echo "kubectl exec -i -t dnsutils -- nslookup kubernetes.default.svc.cloud.uat"
+
 }
 
 getpod() {
