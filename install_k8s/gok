@@ -516,6 +516,7 @@ certmanagerInst() {
     cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
+    --set serviceAccount.automountServiceAccountToken=false \
     --version v1.14.5
 }
 
