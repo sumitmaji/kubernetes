@@ -512,11 +512,12 @@ certmanagerInst() {
   helm repo update
   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
 
+  #--set serviceAccount.automountServiceAccountToken=false \
   helm install \
     cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
-    --set serviceAccount.automountServiceAccountToken=false \
+    --set startupapicheck.timeout=10m --set webhook.timeoutSeconds=30 --debug \
     --version v1.14.5
 }
 
