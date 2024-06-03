@@ -129,6 +129,10 @@ addRoutes(){
   fi
 }
 
+if [ $ENV == "CLOUD" ]; then
+    addRoutes
+fi
+
 
 chattr -i /etc/resolv.conf
 sed -i '/nameserver/ i nameserver 11.0.0.1' /etc/resolv.conf
@@ -211,9 +215,5 @@ echo "UsePAM no" >>/etc/ssh/sshd_config
 
 export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >>/etc/profile
-
-if [ $ENV == "CLOUD" ]; then
-    addRoutes
-fi
 
 reboot
