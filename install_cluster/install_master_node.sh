@@ -306,7 +306,6 @@ EOF
 nameserver(){
   chattr -i /etc/resolv.conf
   sed -i "/nameserver/ i nameserver $(getIp).1" /etc/resolv.conf
-  sed -i "/nameserver $(getIp).1/ a\nameserver 192.168.0.1" /etc/resolv.conf
   sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
   chattr +i /etc/resolv.conf
 }
