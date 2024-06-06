@@ -75,7 +75,11 @@ apt-get -y dist-upgrade
 apt-get update
 echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-tools"
 apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc \
-        ntp gcc make ifupdown net-tools openssh-server openssh-client
+        gcc make ifupdown net-tools openssh-server openssh-client
+
+if [ "$ENV" == "LOCAL" ]; then
+    apt-get install ntp
+fi
 
 
 hostnamectl set-hostname master.cloud.com
