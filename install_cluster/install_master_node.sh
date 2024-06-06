@@ -425,7 +425,7 @@ if [ "$ENV" == "CLOUD" ]; then
   ntpInst
   nfsInst
   sshdInst
-  addRoutes
+#  addRoutes
   reboot
 elif [ "$ENV" == "LOCAL" ]; then
   setupPrivateNetwork
