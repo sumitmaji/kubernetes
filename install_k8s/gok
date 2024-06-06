@@ -513,12 +513,13 @@ certmanagerInst() {
 #  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
 
   #--set serviceAccount.automountServiceAccountToken=false \
+  #--set webhook.timeoutSeconds=30
   helm install \
     cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
     --set installCRDs=true \
-    --set startupapicheck.timeout=10m --set webhook.timeoutSeconds=30 --debug \
+    --set startupapicheck.timeout=10m --set global.leaderElection.namespace=cert-manager --debug \
     --version v1.14.5
 }
 
@@ -714,7 +715,7 @@ certManagerReset() {
   kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces
   helm --namespace cert-manager delete cert-manager
   kubectl delete namespace cert-manager
-  kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+  #kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
 
   if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then godaddyWebhook; fi
 }
