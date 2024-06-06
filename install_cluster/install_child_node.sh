@@ -15,6 +15,10 @@ while [ $# -gt 0 ]; do
     shift
     ENV=$1
     ;;
+  -m | --master)
+     shift
+     MASTER_NODE=$1
+     ;;
   esac
   shift
 done
@@ -47,7 +51,11 @@ getIp(){
   echo "$IP_ADDRESS"
 }
 
+getMasterNodeIp(){
+  echo "$MASTER_NODE"
+}
 
+setupPrivateNetwork(){
 if [ "$ENV" == "LOCAL" ]
 then
   rm /etc/netplan/00-installer-config.yaml
@@ -107,6 +115,9 @@ EOF
   netplan apply
   route add -net 11.0.0.0 netmask 255.255.255.0 gw 10.108.0.2
 fi
+}
+
+
 
 addRoutes(){
   IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
@@ -134,10 +145,13 @@ if [ $ENV == "CLOUD" ]; then
 fi
 
 
-chattr -i /etc/resolv.conf
-sed -i '/nameserver/ i nameserver 11.0.0.1' /etc/resolv.conf
-sed -i 's/serach.*/serach cloud.com ./' /etc/resolv.conf
-chattr +i /etc/resolv.conf
+nameserver(){
+  chattr -i /etc/resolv.conf
+  sed -i "/nameserver/ i nameserver $(getMasterNodeIp)" /etc/resolv.conf
+  sed -i 's/serach.*/serach cloud.com ./' /etc/resolv.conf
+  chattr +i /etc/resolv.conf
+}
+
 
 useradd -m -g admin admin
 
@@ -216,3 +230,7 @@ export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >>/etc/profile
 
 reboot
+
+if [ "$ENV" == "LOCAL" ]; then
+    setupPrivateNetwork
+fi

@@ -238,7 +238,7 @@ setupDockerRegistry(){
       then
         echo "The file is present, not creating it!!!!!"
       else
-        createCertificate -i 11.0.0.1 -h master.cloud.com -t server -f registry
+        createCertificate -i 10.108.0.2 -h master.cloud.com -t server -f registry
       fi
 
       docker stop registry
@@ -390,7 +390,7 @@ data:
     cloud.com:53 {
         errors
         cache 30
-        forward . 11.0.0.1
+        forward . 10.108.0.2
     }
 kind: ConfigMap
 metadata:
@@ -403,7 +403,7 @@ EOF
 
 taintNode() {
   echo "Going to taint node for scheduling in master"
-  : ${IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+  : ${IP:=$(ifconfig eth1 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   if [ -z "$IP" ]; then
     : ${IP:=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   fi

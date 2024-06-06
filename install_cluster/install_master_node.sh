@@ -30,6 +30,8 @@ then
 	exit 0
 fi
 
+CHILD_NODES=("node01:10.108.0.3" "node02:10.108.0.4" "node03:10.108.0.5")
+
 getIp(){
   echo "11.0.0"
 }
@@ -37,6 +39,11 @@ getIp(){
 getRevIp(){
   echo "0.0.11"
 }
+
+getMasterIp(){
+  echo "10.108.0.2"
+}
+
 
 echo 'Installing the master node!!!!!!!!!'
 
@@ -73,6 +80,7 @@ apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc \
 
 hostnamectl set-hostname master.cloud.com
 
+setupPrivateNetwork(){
 if [ "$ENV" == "LOCAL" ]
 then
 rm /etc/netplan/00-installer-config.yaml
@@ -127,6 +135,7 @@ network:
 EOF
   netplan apply
 fi
+}
 
 addRoutes(){
   IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
@@ -191,10 +200,15 @@ EOF
   cat <<EOF >> /etc/bind/named.conf.options
 #trusted acl
 acl "trusted" {
-        $(getIp).1;  # ns1 - master
-        $(getIp).2;  # node01
-        $(getIp).3;  # node02
-        $(getIp).4;  # node03
+`
+for server in ${CHILD_NODES[@]}; do
+  IFS=':'
+  read -r node ip <<< $server
+  echo "        $ip;"
+  IFS=$oifs
+done
+unset IFS
+`
 };
 EOF
   fi
@@ -212,14 +226,13 @@ EOF
 	86400	;minimum
 )
 @	IN		NS		master.cloud.com.
-master		IN		A	$(getIp).1
+master		IN		A	$(getMasterIp)
 `
-arr=("node01:2" "node02:3" "node03:4")
 
-for server in ${arr[@]}; do
+for server in ${CHILD_NODES[@]}; do
   IFS=':'
   read -r node ip <<< $server
-  echo "$node		IN		A	$(getIp).$ip"
+  echo "$node		IN		A	$ip"
   IFS=$oifs
 done
 unset IFS
@@ -236,11 +249,10 @@ EOF
         86400           ;minimum ttl
 )
 @       IN      NS      master.cloud.com
-master.cloud.com  IN      A       $(getIp).1
+master.cloud.com  IN      A       $(getMasterIp)
 1       IN      PTR     master.cloud.com
 `
-arr=("node01:2" "node02:3" "node03:4")
-for server in ${arr[@]}; do
+for server in ${CHILD_NODES[@]}; do
 IFS=':'
 read -r node ip <<< "$server"
 echo "$ip       IN      PTR     ${node}.cloud.com"
@@ -255,7 +267,7 @@ EOF
 
   named-checkzone cloud.com /etc/bind/cloud.com.fwd
   [[ $? -eq 0 ]] && echoSuccess "Forward Bind looking good!!" || echoFailed "Bind Installation Failed!!"
-  named-checkzone 0.0.11.in-addr.arpa /etc/bind/cloud.com.rev
+  named-checkzone $(getIp).in-addr.arpa /etc/bind/cloud.com.rev
   [[ $? -eq 0 ]] && echoSuccess "Reverse Bind looking good!!" || echoFailed "Bind Installation Failed!!"
 }
 
@@ -305,7 +317,7 @@ EOF
 
 nameserver(){
   chattr -i /etc/resolv.conf
-  sed -i "/nameserver/ i nameserver $(getIp).1" /etc/resolv.conf
+  sed -i "/nameserver/ i nameserver $(getMasterIp)" /etc/resolv.conf
   sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
   chattr +i /etc/resolv.conf
 }
@@ -347,7 +359,7 @@ EOF
 #################################
 
 ntpInst(){
-  sed -i "/^restrict ::1$/a\ restrict $(getIp).0 mask 255.255.255.0 nomodify notrap" /etc/ntp.conf
+  sed -i "/^restrict ::1$/a\ restrict $(getMasterIp) mask 255.255.255.0 nomodify notrap" /etc/ntp.conf
   service ntp start
 }
 
@@ -360,13 +372,13 @@ ntpInst(){
 nfsInst(){
   apt-get install -y nfs-kernel-server
 
-  echo "/export $(getIp).0/24(rw,async,no_root_squash)" >> /etc/exports
+  echo "/export $(getMasterIp)/24(rw,async,no_root_squash)" >> /etc/exports
   mkdir -p /export
   chmod 777 /export
   exportfs -va
   systemctl start nfs-kernel-server
   systemctl enable nfs-kernel-server
-  mount $(getIp).1:/export /export
+  mount $(getMasterIp):/export /export
 
 
   echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
@@ -416,6 +428,7 @@ if [ "$ENV" == "CLOUD" ]; then
   addRoutes
   reboot
 elif [ "$ENV" == "LOCAL" ]; then
+  setupPrivateNetwork
   bindInst
   dhcpInst
   nameserver
