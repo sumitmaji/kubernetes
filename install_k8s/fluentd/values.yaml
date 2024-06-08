@@ -147,7 +147,7 @@ fileConfigs:
     <label @OUTPUT>
       <match **>
         @type opensearch
-        host "opensearch-cluster-master.opensearch.svc"
+        host "opensearch-cluster-master"
         port 9200
         path ""
         user elastic
