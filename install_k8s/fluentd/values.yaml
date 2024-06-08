@@ -11,7 +11,7 @@ env:
   - name:  FLUENT_OPENSEARCH_PORT
     value: "9200"
   - name: FLUENT_OPENSEARCH_SCHEME
-    value: "https"
+    value: "http"
   # Option to configure OpenSearch plugin with self signed certs
   # ================================================================
   - name: FLUENT_OPENSEARCH_SSL_VERIFY
