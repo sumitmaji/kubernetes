@@ -7,7 +7,7 @@ env:
       fieldRef:
         fieldPath: spec.nodeName
   - name: FLUENT_OPENSEARCH_HOST
-    value: "opensearch-logging"
+    value: "opensearch-cluster-master.opensearch.svc"
   - name:  FLUENT_OPENSEARCH_PORT
     value: "9200"
   - name: FLUENT_OPENSEARCH_SCHEME

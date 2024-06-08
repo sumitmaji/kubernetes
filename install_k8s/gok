@@ -1304,6 +1304,10 @@ opensearchInst(){
     openSearch/opensearch
 
   localFsStorageClassOpensearchCreate
+  echo "Waiting for services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
+  [[ $? -eq 0 ]] && echoSuccess "Opensearch services are now up!" || echoFailed "Opensearch services timed-out, plaese check!!"
+  checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u 'admin:Sumit@0989' --insecure
   #gok patch ingress opensearch opensearch letsencrypt opensearch
 }
 
@@ -1821,6 +1825,8 @@ elif [ "$CMD" == "install" ]; then
     calicoInst
     #disabling custom dns as normal dns (internal to kubernetes cluster stops working if custom dns is enabled.)
     #customDns
+    dnsUtils
+    kcurl
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
