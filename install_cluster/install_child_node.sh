@@ -150,10 +150,11 @@ fi
 nameserver(){
   chattr -i /etc/resolv.conf
   sed -i "/nameserver/ i nameserver $(getMasterNodeIp)" /etc/resolv.conf
-  sed -i 's/serach.*/serach cloud.com ./' /etc/resolv.conf
+  sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
   chattr +i /etc/resolv.conf
 }
 
+nameserver
 
 useradd -m -g admin admin
 
