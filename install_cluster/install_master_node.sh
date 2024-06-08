@@ -257,7 +257,7 @@ EOF
 @	IN		NS		master.cloud.com.
 master		IN		A	$(getMasterIp)
 `
-
+if [[ "$ENV" == "CLOUD" ]]; then
 for server in ${CHILD_NODES[@]}; do
   IFS=':'
   read -r node ip <<< $server
@@ -265,6 +265,7 @@ for server in ${CHILD_NODES[@]}; do
   IFS=$oifs
 done
 unset IFS
+fi
 `
 EOF
 
@@ -281,12 +282,14 @@ EOF
 master.cloud.com  IN      A       $(getMasterIp)
 1       IN      PTR     master.cloud.com
 `
+if [[ "$ENV" == "CLOUD" ]]; then
 for server in ${CHILD_NODES[@]}; do
 IFS=':'
 read -r node ip <<< "$server"
 echo "$ip       IN      PTR     ${node}.cloud.com"
 done
 unset IFS
+fi
 `
 EOF
 
