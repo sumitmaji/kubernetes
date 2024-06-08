@@ -77,10 +77,7 @@ echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-too
 apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc \
         gcc make ifupdown net-tools openssh-server openssh-client
 
-if [ "$ENV" == "LOCAL" ]; then
-    apt-get install ntp
-fi
-
+apt-get -y install ntp
 
 hostnamectl set-hostname master.cloud.com
 
@@ -391,7 +388,7 @@ EOF
 #################################
 
 ntpInst(){
-  sed -i "/^restrict ::1$/a\ restrict $(getMasterIp) mask 255.255.255.0 nomodify notrap" /etc/ntp.conf
+  sed -i "/^restrict ::1$/a\ restrict $(getMasterIp) mask 255.255.255.0 nomodify notrap" /etc/ntpsec/ntp.conf
   service ntp start
 }
 
