@@ -1322,7 +1322,7 @@ fluentdInst(){
   helm install fluentd \
         --namespace fluentd \
         --create-namespace \
-        --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/fluentd/values.yaml \
+        --values $MOUNT_PATH/kubernetes/install_k8s/fluentd/values.yaml \
         fluent/fluentd
 
   gok patch ingress fluentd fluentd letsencrypt fluentd
