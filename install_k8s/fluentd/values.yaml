@@ -150,8 +150,8 @@ fileConfigs:
         host "opensearch-cluster-master"
         port 9200
         path ""
-        user elastic
-        password changeme
+        user admin
+        password Sumit@0989
         # Don't wait for elastic to start up.
         verify_es_version_at_startup false
       </match>
