@@ -1300,8 +1300,8 @@ opensearchInst(){
   helm install opensearch \
     --namespace opensearch \
     --create-namespace \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
-    opensearch/opensearch
+    --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/opensearch/values.yaml \
+    openSearch
 
   localFsStorageClassOpensearchCreate
   #gok patch ingress opensearch opensearch letsencrypt opensearch
@@ -1318,7 +1318,7 @@ fluentdInst(){
   helm install fluentd \
         --namespace fluentd \
         --create-namespace \
-        --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/fluentd/values.yaml \
+        --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/fluentd/values.yaml \
         fluent/fluentd
 
   gok patch ingress fluentd fluentd letsencrypt fluentd
