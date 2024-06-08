@@ -1301,7 +1301,7 @@ opensearchInst(){
     --namespace opensearch \
     --create-namespace \
     --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/opensearch/values.yaml \
-    openSearch
+    openSearch/opensearch
 
   localFsStorageClassOpensearchCreate
   #gok patch ingress opensearch opensearch letsencrypt opensearch
