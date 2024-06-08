@@ -141,7 +141,9 @@ addRoutes(){
 }
 
 if [ $ENV == "CLOUD" ]; then
-    addRoutes
+    echo "Dummy log"
+    #Using routes of private network provided by cloud
+    #addRoutes
 fi
 
 
