@@ -141,6 +141,30 @@ EOF
 fi
 }
 
+#Remove eth
+rmEth(){
+  eth=$1
+  sudo ip link delete $eth type dummy
+  sudo rmmod dummy
+}
+
+#Add Route for a subnet
+addSubRoute(){
+  #All the request for ips 192.168.0.0 to 192.168.0.255 will go via 10.108.0.2 gateway(vm that know how to reach the target)
+  echo "route add -net 192.168.0.0 netmask 255.255.255.0 gw 10.108.0.2"
+}
+
+#Add route for an ip
+addIpRoute(){
+  #All request for ip 11.0.0.2 will go via 10.108.0.2 gateway(vm that knows how to reach the target)
+  echo "route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3"
+}
+
+#Delete route for subnet
+delSubRoute(){
+  echo "ip route del 11.0.0.0/24"
+}
+
 addRoutes(){
   IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
   if [ $IP == "11.0.0.1" ]; then
@@ -162,7 +186,8 @@ addRoutes(){
   fi
 }
 
-
+#https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-18-04
+#https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-14-04
 bindInst(){
   STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
   if [ -z "$STATUS" ]

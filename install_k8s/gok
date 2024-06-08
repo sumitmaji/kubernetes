@@ -183,7 +183,23 @@ spec:
     command: ["sleep", "9999999"]
 EOF
   echo "Commands"
-  echo "kubectl exec -i -t curl -- curl -kv https://kubernetes"
+  echo "checkCurl https://kubernetes"
+}
+
+checkCurl(){
+  kubectl exec -i -t curl -n default -- curl -kv "$@"
+}
+
+checkCMWebhook(){
+  kubectl exec -i -t curl -n default -- curl -kv \
+      --cacert <(kubectl -n cert-manager get secret cert-manager-webhook-ca -ojsonpath='{.data.ca\.crt}' | base64 -d) \
+      https://cert-manager-webhook.cert-manager.svc:443/validate 2>&1 -d@- <<'EOF' | sed '/^* /d; /bytes data]$/d; s/> //; s/< //'
+{"kind":"AdmissionReview","apiVersion":"admission.k8s.io/v1","request":{"requestKind":{"group":"cert-manager.io","version":"v1","kind":"Certificate"},"requestResource":{"group":"cert-manager.io","version":"v1","resource":"certificates"},"name":"foo","namespace":"default","operation":"CREATE","object":{"apiVersion":"cert-manager.io/v1","kind":"Certificate","spec":{"dnsNames":["foo"],"issuerRef":{"group":"cert-manager.io","kind":"Issuer","name":"letsencrypt"},"secretName":"foo","usages":["digital signature"]}}}}
+EOF
+}
+
+join(){
+  kubeadm token create --print-join-command
 }
 
 dnsUtils(){
@@ -204,8 +220,12 @@ spec:
   restartPolicy: Always
 EOF
   echo "Commands"
-  echo "kubectl exec -i -t dnsutils -- nslookup kubernetes.default.svc.cloud.uat"
+  echo "checkDns kubernetes.default.svc.cloud.uat"
 
+}
+
+checkDns(){
+  kubectl exec -i -t dnsutils -n default -- nslookup "$@"
 }
 
 getpod() {
@@ -1799,7 +1819,8 @@ elif [ "$CMD" == "install" ]; then
     helmInst
     taintNode
     calicoInst
-    customDns
+    #disabling custom dns as normal dns (internal to kubernetes cluster stops working if custom dns is enabled.)
+    #customDns
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
