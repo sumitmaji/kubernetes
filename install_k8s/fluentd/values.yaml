@@ -1,47 +1,9 @@
 variant: opensearch
 env:
-  - name: "FLUENTD_CONF"
-    value: "../../../etc/fluent/fluent.conf"
   - name: K8S_NODE_NAME
     valueFrom:
       fieldRef:
         fieldPath: spec.nodeName
-  - name: FLUENT_OPENSEARCH_HOST
-    value: "opensearch-logging"
-  - name:  FLUENT_OPENSEARCH_PORT
-    value: "9200"
-  - name: FLUENT_OPENSEARCH_SCHEME
-    value: "https"
-  # Option to configure OpenSearch plugin with self signed certs
-  # ================================================================
-  - name: FLUENT_OPENSEARCH_SSL_VERIFY
-    value: "true"
-  # Option to configure OpenSearch plugin with tls
-  # ================================================================
-  - name: FLUENT_OPENSEARCH_SSL_VERSION
-    value: "TLSv1_2"
-  # Authentication
-  # =====================
-  - name: FLUENT_OPENSEARCH_USER
-    value: "username"
-  - name: FLUENT_OPENSEARCH_PASSWORD
-    value: "changeme"
-  # Certificate
-  # =====================
-  - name: FLUENT_OPENSEARCH_CA_PATH
-    value: "/path/to/file.ca"
-  - name: FLUENT_OPENSEARCH_CLIENT_CERT
-    value: "/path/to/file.cert"
-  - name: FLUENT_OPENSEARCH_CLIENT_KEY
-    value: "/path/to/file.key"
-  - name: FLUENT_OPENSEARCH_CLIENT_KEY_PASS
-    value: "changeme"
-  # Fluentd Parser
-  # =====================
-  - name: FLUENT_CONTAINER_TAIL_PARSER_TYPE
-    value: "cri"
-  - name: FLUENT_CONTAINER_TAIL_PARSER_TIME_FORMAT
-    value: "%Y-%m-%dT%H:%M:%S.%N%:z"
 ingress:
   enabled: true
   ingressClassName: "nginx"
@@ -59,3 +21,116 @@ ingress:
    - secretName: appingress-certificate
      hosts:
        - master.cloud.com
+#https://www.cloudthat.com/resources/blog/a-guide-to-set-up-fluentd-on-amazon-eks-for-efficient-logging
+#https://github.com/fluent/helm-charts/blob/main/charts/fluentd/values.yaml
+fileConfigs:
+  01_sources.conf: |-
+    <system>
+      log_level info
+    </system>
+    ## logs from podman
+    <source>
+      @type tail
+      # @log_level debug
+      @id in_tail_container_logs
+      @label @KUBERNETES
+      path /var/log/containers/*.log
+      pos_file /var/log/fluentd-containers.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type multi_format
+        <pattern>
+          format json
+          time_key time
+          time_type string
+          time_format "%Y-%m-%dT%H:%M:%S.%NZ"
+          keep_time_key false
+        </pattern>
+        <pattern>
+          format regexp
+          expression /^(?<time>.+) (?<stream>stdout|stderr)( (.))? (?<log>.*)$/
+          time_format '%Y-%m-%dT%H:%M:%S.%NZ'
+          keep_time_key false
+        </pattern>
+      </parse>
+      emit_unmatched_lines true
+    </source>
+    
+    # expose metrics in prometheus format
+    <source>
+      @type prometheus
+      # @log_level debug
+      bind 0.0.0.0
+      port 24231
+      metrics_path /metrics
+    </source>
+
+  02_filters.conf: |-
+    <label @KUBERNETES>
+      # Filter out specific namespaces
+      <match kubernetes.var.log.containers.fluentd**>
+        @type relabel
+        @label @FLUENT_LOG
+      </match>
+      
+      # Add more filters for namespaces you want to ignore
+      # <match kubernetes.var.log.containers.**_kube-system_**>
+      #   @type null
+      #   @id ignore_kube_system_logs
+      # </match>
+
+      <filter kubernetes.**>
+        @type kubernetes_metadata
+        @id filter_kube_metadata
+        skip_labels false
+        skip_container_metadata false
+        skip_namespace_metadata true
+        skip_master_url true
+      </filter>
+
+      <match **>
+        @type relabel
+        @label @DISPATCH
+      </match>
+    </label>
+
+  03_dispatch.conf: |-
+    <label @DISPATCH>
+      <filter **>
+        @type prometheus
+        <metric>
+          name fluentd_input_status_num_records_total
+          type counter
+          desc The total number of incoming records
+          <labels>
+            tag ${tag}
+            hostname ${hostname}
+          </labels>
+        </metric>
+      </filter>
+
+      <match **>
+        @type relabel
+        @label @OUTPUT
+      </match>
+    </label>
+
+  04_outputs.conf: |-
+    <label @OUTPUT>
+      <match **>
+        @type opensearch
+        # @log_level debug
+        host "opensearch-cluster-master.opensearch.svc"
+        port 9200
+        path ""
+        user admin
+        password Sumit@0989
+        scheme https
+        ssl_verify false
+        ssl_version TLSv1_2
+        # Don't wait for elastic to start up.
+        verify_es_version_at_startup false
+      </match>
+    </label>
+

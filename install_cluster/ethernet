@@ -1,9 +1,0 @@
-##ethernet setup begin
-#Private network interface
-auto eth0
-iface eth0 inet static
- address 11.0.0.1
- netmask 255.255.255.0
- network 11.0.0.0
- broadcast 11.0.0.254
-##ethernet setup end

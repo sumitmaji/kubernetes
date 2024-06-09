@@ -74,6 +74,27 @@ logs(){
   kubectl logs "$name" -n $RELEASE_NAME "$@"
 }
 
+ktail(){
+  data=$(kubectl get po -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index Number to view resource"
+  read INDEX
+  name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
+  echo "Viewing logs of pod $name"
+  kubectl logs "$name" -n $RELEASE_NAME "$@" --follow
+}
+
+kless(){
+  data=$(kubectl get po -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')
+  echo "$data"
+  echo "Enter Index Number to view resource"
+  read INDEX
+  name=$(echo "$data" | grep "${INDEX}>>" | awk '{print $2}')
+  echo "Viewing logs of pod $name"
+  kubectl logs "$name" -n $RELEASE_NAME "$@"  | less
+}
+
+
 edit(){
   type=$1
   data=$(kubectl get $type -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')

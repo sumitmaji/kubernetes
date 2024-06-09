@@ -169,6 +169,65 @@ spec:
 EOF
 }
 
+kcurl(){
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl
+  namespace: default
+spec:
+  containers:
+  - name: main
+    image: curlimages/curl
+    command: ["sleep", "9999999"]
+EOF
+  echo "Commands"
+  echo "checkCurl https://kubernetes"
+}
+
+checkCurl(){
+  kubectl exec -i -t curl -n default -- curl -kv "$@"
+}
+
+checkCMWebhook(){
+  kubectl exec -i -t curl -n default -- curl -kv \
+      --cacert <(kubectl -n cert-manager get secret cert-manager-webhook-ca -ojsonpath='{.data.ca\.crt}' | base64 -d) \
+      https://cert-manager-webhook.cert-manager.svc:443/validate 2>&1 -d@- <<'EOF' | sed '/^* /d; /bytes data]$/d; s/> //; s/< //'
+{"kind":"AdmissionReview","apiVersion":"admission.k8s.io/v1","request":{"requestKind":{"group":"cert-manager.io","version":"v1","kind":"Certificate"},"requestResource":{"group":"cert-manager.io","version":"v1","resource":"certificates"},"name":"foo","namespace":"default","operation":"CREATE","object":{"apiVersion":"cert-manager.io/v1","kind":"Certificate","spec":{"dnsNames":["foo"],"issuerRef":{"group":"cert-manager.io","kind":"Issuer","name":"letsencrypt"},"secretName":"foo","usages":["digital signature"]}}}}
+EOF
+}
+
+join(){
+  kubeadm token create --print-join-command
+}
+
+dnsUtils(){
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dnsutils
+  namespace: default
+spec:
+  containers:
+  - name: dnsutils
+    image: k8s.gcr.io/e2e-test-images/jessie-dnsutils:1.3
+    command:
+      - sleep
+      - "3600"
+    imagePullPolicy: IfNotPresent
+  restartPolicy: Always
+EOF
+  echo "Commands"
+  echo "checkDns kubernetes.default.svc.cloud.uat"
+
+}
+
+checkDns(){
+  kubectl exec -i -t dnsutils -n default -- nslookup "$@"
+}
+
 getpod() {
   pod=$(kubectl get po -l app.kubernetes.io/name="$release" 2>/dev/null | awk "/${release}/" | awk '{print $1}' | head -n 1)
   echo "$pod"
@@ -199,7 +258,7 @@ setupDockerRegistry(){
       then
         echo "The file is present, not creating it!!!!!"
       else
-        createCertificate -i 11.0.0.1 -h master.cloud.com -t server -f registry
+        createCertificate -i 10.108.0.2 -h master.cloud.com -t server -f registry
       fi
 
       docker stop registry
@@ -242,7 +301,7 @@ installDeps() {
 ingressUnInst() {
   output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length')
   if [ "$output" == "1" ]; then
-    helm uninstall ingress-nginx
+    helm uninstall ingress-nginx -n ingress-nginx
     kubectl delete ns ingress-nginx
   fi
 }
@@ -351,7 +410,7 @@ data:
     cloud.com:53 {
         errors
         cache 30
-        forward . 11.0.0.1
+        forward . 10.108.0.2
     }
 kind: ConfigMap
 metadata:
@@ -364,7 +423,7 @@ EOF
 
 taintNode() {
   echo "Going to taint node for scheduling in master"
-  : ${IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+  : ${IP:=$(ifconfig eth1 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   if [ -z "$IP" ]; then
     : ${IP:=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
   fi
@@ -419,25 +478,30 @@ EOF
   sudo apt-get update
   sudo apt-get install -y kubectl kubeadm kubelet
 
-  kubeadm version
-  kubeadm config images pull
+  if [ $1 == "kubernetes" ]; then
+    kubeadm version
+    kubeadm config images pull
 
-  sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
-  sudo swapoff -a
+    sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    sudo swapoff -a
 
-  sudo systemctl enable kubelet
+    sudo systemctl enable kubelet
 
-  envsubst <"$WORKING_DIR"/cluster-config-master.yaml >"$WORKING_DIR"/config.yaml
-  kubeadm init --config="$WORKING_DIR"/config.yaml
-  export KUBECONFIG=/etc/kubernetes/admin.conf
+    envsubst <"$WORKING_DIR"/cluster-config-master.yaml >"$WORKING_DIR"/config.yaml
+    kubeadm init --config="$WORKING_DIR"/config.yaml --upload-certs
+    export KUBECONFIG=/etc/kubernetes/admin.conf
 
-  mkdir -p "$HOME"/.kube
-  sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
+    mkdir -p "$HOME"/.kube
+    sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
 
-  # shellcheck disable=SC2181
-  if [ $? -ne 0 ]; then
-    echo "Kubectl command execution failed, please check!!!!!"
-    exit 1
+    # shellcheck disable=SC2181
+    if [ $? -ne 0 ]; then
+      echo "Kubectl command execution failed, please check!!!!!"
+      exit 1
+    fi
+  elif [ $1 == "kubernetes-worker" ]; then
+    echo "kubectl join ...."
+    echo "kubectl label node node01 node-role.kubernetes.io/worker=worker"
   fi
 
 }
@@ -466,13 +530,20 @@ helmInst() {
 certmanagerInst() {
   helm repo add jetstack https://charts.jetstack.io
   helm repo update
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
+  #kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
 
+  #--set serviceAccount.automountServiceAccountToken=false \
+  #--set webhook.timeoutSeconds=30
+  #--set startupapicheck.timeout=10m
+  # --debug
   helm install \
     cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
-    --version v1.14.5
+    --set installCRDs=true \
+    --set global.leaderElection.namespace=cert-manager \
+    --version v1.14.5 \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/cert-manager/values.yaml
 }
 
 subDomain(){
@@ -667,7 +738,7 @@ certManagerReset() {
   kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces
   helm --namespace cert-manager delete cert-manager
   kubectl delete namespace cert-manager
-  kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+  #kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
 
   if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then godaddyWebhook; fi
 }
@@ -1223,6 +1294,24 @@ opensearchReset(){
   emptyLocalFsStorageOpensearch
 }
 
+opensearchDashReset(){
+  helm uninstall opensearch-dashboard -n opensearch
+}
+
+opensearchDashInst(){
+  helm repo add openSearch https://opensearch-project.github.io/helm-charts/
+  helm repo update
+  helm install opensearch-dashboard \
+      --namespace opensearch \
+      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values-dashboard.yaml \
+      openSearch/opensearch-dashboards
+
+  gok patch ingress opensearch-dashboard-opensearch-dashboards opensearch letsencrypt opensearch
+  echo "Waiting for dashboard service to be up!!!!"
+    kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
+    [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
+}
+
 opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
@@ -1230,9 +1319,13 @@ opensearchInst(){
     --namespace opensearch \
     --create-namespace \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
-    opensearch/opensearch
+    openSearch/opensearch
 
   localFsStorageClassOpensearchCreate
+  echo "Waiting for services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
+  [[ $? -eq 0 ]] && echoSuccess "Opensearch services are now up!" || echoFailed "Opensearch services timed-out, plaese check!!"
+  checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u 'admin:Sumit@0989' --insecure
   #gok patch ingress opensearch opensearch letsencrypt opensearch
 }
 
@@ -1247,7 +1340,7 @@ fluentdInst(){
   helm install fluentd \
         --namespace fluentd \
         --create-namespace \
-        --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/fluentd/values.yaml \
+        --values $MOUNT_PATH/kubernetes/install_k8s/fluentd/values.yaml \
         fluent/fluentd
 
   gok patch ingress fluentd fluentd letsencrypt fluentd
@@ -1738,14 +1831,21 @@ elif [ "$CMD" == "install" ]; then
         fluentdInst
   elif [ "$COMPONENT" == "opensearch" ]; then
       opensearchInst
+      opensearchDashInst
+  elif [ "$COMPONENT" == "kubernetes-worker" ]; then
+    dockrInst
+    k8sInst "kubernetes-worker"
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
-    k8sInst
+    k8sInst "kubernetes"
     helmInst
     taintNode
     calicoInst
-    customDns
+    #disabling custom dns as normal dns (internal to kubernetes cluster stops working if custom dns is enabled.)
+    #customDns
+    dnsUtils
+    kcurl
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
@@ -1790,6 +1890,7 @@ EOF
   elif [ "$COMPONENT" == "fluentd" ]; then
     fluentdReset
   elif [ "$COMPONENT" == "opensearch" ]; then
+    opensearchDashReset
     opensearchReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset

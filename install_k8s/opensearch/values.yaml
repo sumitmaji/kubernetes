@@ -1,6 +1,6 @@
 extraEnvs:
   - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
-    value: sumit@0989
+    value: Sumit@0989
 
 resources:
   requests:

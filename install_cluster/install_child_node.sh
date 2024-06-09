@@ -11,6 +11,14 @@ while [ $# -gt 0 ]; do
     shift
     IP_ADDRESS=$1
     ;;
+  -e | --env)
+    shift
+    ENV=$1
+    ;;
+  -m | --master)
+     shift
+     MASTER_NODE=$1
+     ;;
   esac
   shift
 done
@@ -39,9 +47,20 @@ sed -i "s@node@${NODE_NAME}@" /etc/hosts
 apt-get update
 apt-get install -y net-tools ifupdown openssh-client openssh-server
 
-rm /etc/netplan/00-installer-config.yaml
-touch /etc/netplan/00-installer-config.yaml
-cat >>/etc/netplan/00-installer-config.yaml <<EOF
+getIp(){
+  echo "$IP_ADDRESS"
+}
+
+getMasterNodeIp(){
+  echo "$MASTER_NODE"
+}
+
+setupPrivateNetwork(){
+if [ "$ENV" == "LOCAL" ]
+then
+  rm /etc/netplan/00-installer-config.yaml
+  touch /etc/netplan/00-installer-config.yaml
+  cat >>/etc/netplan/00-installer-config.yaml <<EOF
 network:
   renderer: networkd
   ethernets:
@@ -50,28 +69,94 @@ network:
       optional: true
   version: 2
 EOF
-netplan generate
-netplan apply
+  netplan generate
+  netplan apply
+  if [ ! -f /etc/dhcp/dhclient-enp0s3.conf ]; then
+    touch /etc/dhcp/dhclient-enp0s3.conf
+  fi
 
-if [ ! -f /etc/dhcp/dhclient-enp0s3.conf ]; then
-  touch /etc/dhcp/dhclient-enp0s3.conf
+  STATUS=$(grep -i "send fqdn.fqdn "$NODE_NAME";" /etc/dhcp/dhclient-enp0s3.conf)
+  if [ -z "$STATUS" ]; then
+    echo "send fqdn.fqdn \"$NODE_NAME\";" >/etc/dhcp/dhclient-enp0s3.conf
+    echo "send fqdn.encoded on;" >>/etc/dhcp/dhclient-enp0s3.conf
+    echo "send fqdn.server-update off;" >>/etc/dhcp/dhclient-enp0s3.conf
+    echo "also request fqdn.fqdn;" >>/etc/dhcp/dhclient-enp0s3.conf
+  fi
+elif [ "$ENV" == "CLOUD" ]; then
+    sudo touch /etc/systemd/network/eth2.netdev
+    sudo touch /etc/systemd/network/eth2.network
+    cat <<EOF >/etc/systemd/network/eth2.network
+[Match]
+Name=eth2
+[Network]
+Address=$(getIp)
+Mask=255.255.255.0
+EOF
+    cat <<EOF >/etc/systemd/network/eth2.netdev
+[NetDev]
+Name=eth2
+Kind=dummy
+EOF
+  systemctl restart systemd-networkd
+  cat <<EOF > /etc/netplan/00-private-ethernet.yaml
+network:
+  version: 2
+  ethernets:
+    eth2:                          # Private network interface
+      addresses:
+        - $(getIp)/24
+      mtu: 1500
+      dhcp4: no
+      nameservers:
+        addresses:
+          - 11.0.0.1            # Private IP for ns1
+        search: [ cloud.com ]    # DNS zone
+EOF
+  netplan apply
+  route add -net 11.0.0.0 netmask 255.255.255.0 gw 10.108.0.2
+fi
+}
+
+
+
+addRoutes(){
+  IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+  if [ $IP == "11.0.0.1" ]; then
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.2" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.3" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
+  elif [ $IP == "11.0.0.4" ]; then
+    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
+    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
+    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+  fi
+}
+
+if [ $ENV == "CLOUD" ]; then
+    echo "Dummy log"
+    #Using routes of private network provided by cloud
+    #addRoutes
 fi
 
-STATUS=$(grep -i "send fqdn.fqdn "$NODE_NAME";" /etc/dhcp/dhclient-enp0s3.conf)
-if [ -z "$STATUS" ]; then
-  echo "send fqdn.fqdn \"$NODE_NAME\";" >/etc/dhcp/dhclient-enp0s3.conf
-  echo "send fqdn.encoded on;" >>/etc/dhcp/dhclient-enp0s3.conf
-  echo "send fqdn.server-update off;" >>/etc/dhcp/dhclient-enp0s3.conf
-  echo "also request fqdn.fqdn;" >>/etc/dhcp/dhclient-enp0s3.conf
-fi
 
-chattr -i /etc/resolv.conf
-sed -i '/nameserver/ i nameserver 11.0.0.1' /etc/resolv.conf
-sed -i '/nameserver 11.0.0.1/ a\nameserver 192.168.0.1' /etc/resolv.conf
-sed -i 's/serach.*/serach cloud.com ./' /etc/resolv.conf
-chattr +i /etc/resolv.conf
+nameserver(){
+  chattr -i /etc/resolv.conf
+  sed -i "/nameserver/ i nameserver $(getMasterNodeIp)" /etc/resolv.conf
+  sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
+  chattr +i /etc/resolv.conf
+}
 
-useradd -m admin
+nameserver
+
+useradd -m -g admin admin
 
 if [ ! -d ~/.ssh ]; then
   scp -r admin@master:/home/admin/.ssh .
@@ -86,12 +171,13 @@ fi
 apt-get update
 apt-get install -y sntp libopts25 ntp
 
-STATUS=$(grep "server master.cloud.com" /etc/ntp.conf)
+STATUS=$(grep "server master.cloud.com" /etc/ntpsec/ntp.conf)
 if [ -z "$STATUS" ]; then
-  $(sed -i 's/server 0.ubuntu.pool.ntp.org/server master.cloud.com/' /etc/ntp.conf)
-  $(sed -i 's/server 1.ubuntu.pool.ntp.org//' /etc/ntp.conf)
-  $(sed -i 's/server 2.ubuntu.pool.ntp.org//' /etc/ntp.conf)
-  $(sed -i 's/server 3.ubuntu.pool.ntp.org//' /etc/ntp.conf)
+  $(sed -i 's/server ntp.ubuntu.com/server master.cloud.com/' /etc/ntpsec/ntp.conf)
+  $(sed -i 's/pool 0.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
+  $(sed -i 's/pool 1.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
+  $(sed -i 's/pool 2.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
+  $(sed -i 's/pool 3.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
 fi
 
 service ntp start
@@ -129,7 +215,7 @@ sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_
 # SSH login fix. Otherwise user is kicked off after login
 sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 
-cp /container/scripts/ssh_config /root/.ssh/
+
 cat >/root/.ssh/config <<EOF
 Host *
   UserKnownHostsFile /dev/null
@@ -147,3 +233,7 @@ export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >>/etc/profile
 
 reboot
+
+if [ "$ENV" == "LOCAL" ]; then
+    setupPrivateNetwork
+fi

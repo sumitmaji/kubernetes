@@ -39,7 +39,7 @@ def get_console_handler():
 
 def get_file_handler(log_file_name):
   if not os.path.exists(LOG_FILE_PATH):
-    os.mkdirs(LOG_FILE_PATH)
+    os.mkdir(LOG_FILE_PATH)
   file_handler = logging.FileHandler(LOG_FILE_PATH + os.path.sep + log_file_name)
   return file_handler
 
