@@ -13,7 +13,7 @@ env:
   # Option to configure OpenSearch plugin with self signed certs
   # ================================================================
   - name: FLUENT_OPENSEARCH_SSL_VERIFY
-    value: "true"
+    value: "false"
   # Option to configure OpenSearch plugin with tls
   # ================================================================
   - name: FLUENT_OPENSEARCH_SSL_VERSION
@@ -21,9 +21,9 @@ env:
   # Authentication
   # =====================
   - name: FLUENT_OPENSEARCH_USER
-    value: "username"
+    value: "admin"
   - name: FLUENT_OPENSEARCH_PASSWORD
-    value: "changeme"
+    value: "Sumit@0989"
   # Certificate
   # =====================
   - name: FLUENT_OPENSEARCH_CA_PATH
