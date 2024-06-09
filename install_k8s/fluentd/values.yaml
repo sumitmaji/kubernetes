@@ -26,7 +26,7 @@ ingress:
 fileConfigs:
   01_sources.conf: |-
     <system>
-      log_level error
+      log_level info
     </system>
     ## logs from podman
     <source>
