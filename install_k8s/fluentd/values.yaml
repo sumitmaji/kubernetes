@@ -91,13 +91,13 @@ fileConfigs:
 
   02_filters.conf: |-
     <label @KUBERNETES>
-      <!-- Filter out specific namespaces -->
+      # Filter out specific namespaces
       <match kubernetes.var.log.containers.fluentd**>
         @type relabel
         @label @FLUENT_LOG
       </match>
       
-      <!-- Add more filters for namespaces you want to ignore -->
+      # Add more filters for namespaces you want to ignore
       # <match kubernetes.var.log.containers.**_kube-system_**>
       #   @type null
       #   @id ignore_kube_system_logs
