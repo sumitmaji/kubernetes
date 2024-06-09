@@ -64,6 +64,7 @@ fileConfigs:
     ## logs from podman
     <source>
       @type tail
+      @log_level debug
       @id in_tail_container_logs
       @label @KUBERNETES
       path /var/log/containers/*.log
@@ -92,6 +93,7 @@ fileConfigs:
     # expose metrics in prometheus format
     <source>
       @type prometheus
+      @log_level debug
       bind 0.0.0.0
       port 24231
       metrics_path /metrics
@@ -151,6 +153,7 @@ fileConfigs:
     <label @OUTPUT>
       <match **>
         @type opensearch
+        @log_level debug
         host "opensearch-cluster-master.opensearch.svc"
         port 9200
         path ""
