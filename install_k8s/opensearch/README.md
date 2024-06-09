@@ -4,7 +4,23 @@
 - [Opensearch](https://opensearch.org/docs/latest/install-and-configure/install-opensearch/helm/)
 - [Opensearch Dashboard](https://artifacthub.io/packages/helm/opensearch-project-helm-charts/opensearch-dashboards)
 
+## Install
+
+```shell
+./gok install opensearch
+```
+
+![img_5.png](img_5.png)
+
+## Uninstall
+
+```shell
+./gok reset opensearch
+```
+
 ## Setup
+
+**Note:** Before beginning setup, make sure [fluentd](../fluentd/README.md) service has been started.
 
 - Switch tenant as Admin
 - Click on `Discover`
