@@ -120,6 +120,7 @@ fileConfigs:
     <label @OUTPUT>
       <match **>
         @type opensearch
+        include_timestamp true
         # @log_level debug
         host "opensearch-cluster-master.opensearch.svc"
         port 9200
