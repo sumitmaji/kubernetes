@@ -1303,7 +1303,10 @@ opensearchDashInst(){
   helm repo update
   helm install opensearch-dashboard \
       --namespace opensearch \
+      --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/opensearch/values-dashboard.yaml \
       openSearch/opensearch-dashboards
+
+  gok patch ingress opensearch opensearch letsencrypt opensearch
 }
 
 opensearchInst(){
