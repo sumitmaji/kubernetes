@@ -1307,6 +1307,9 @@ opensearchDashInst(){
       openSearch/opensearch-dashboards
 
   gok patch ingress opensearch-dashboard-opensearch-dashboards opensearch letsencrypt opensearch
+  echo "Waiting for dashboard service to be up!!!!"
+    kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
+    [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
 }
 
 opensearchInst(){
