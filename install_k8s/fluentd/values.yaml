@@ -23,6 +23,7 @@ ingress:
        - master.cloud.com
 #https://www.cloudthat.com/resources/blog/a-guide-to-set-up-fluentd-on-amazon-eks-for-efficient-logging
 #https://github.com/fluent/helm-charts/blob/main/charts/fluentd/values.yaml
+#https://github.com/fluent/fluent-plugin-opensearch/tree/main
 fileConfigs:
   01_sources.conf: |-
     <system>
@@ -120,6 +121,7 @@ fileConfigs:
     <label @OUTPUT>
       <match **>
         @type opensearch
+        logstash_format true
         include_timestamp true
         # @log_level debug
         host "opensearch-cluster-master.opensearch.svc"
