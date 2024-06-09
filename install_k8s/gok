@@ -543,7 +543,7 @@ certmanagerInst() {
     --set installCRDs=true \
     --set global.leaderElection.namespace=cert-manager \
     --version v1.14.5 \
-    --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/cert-manager/values.yaml
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/cert-manager/values.yaml
 }
 
 subDomain(){
@@ -1303,7 +1303,7 @@ opensearchDashInst(){
   helm repo update
   helm install opensearch-dashboard \
       --namespace opensearch \
-      --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/opensearch/values-dashboard.yaml \
+      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values-dashboard.yaml \
       openSearch/opensearch-dashboards
 
   gok patch ingress opensearch-dashboard-opensearch-dashboards opensearch letsencrypt opensearch
@@ -1318,7 +1318,7 @@ opensearchInst(){
   helm install opensearch \
     --namespace opensearch \
     --create-namespace \
-    --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/opensearch/values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
     openSearch/opensearch
 
   localFsStorageClassOpensearchCreate
