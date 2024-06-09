@@ -61,3 +61,5 @@ Architecture Diagram
 **Exporters:** They are used to promoting metrics data to the prometheus server.
 
 **Alertmanager:** Used to send notifications to various communication channels like slack, email to notify users.
+
+https://www.youtube.com/watch?v=h4Sl21AKiDg
