@@ -1294,6 +1294,18 @@ opensearchReset(){
   emptyLocalFsStorageOpensearch
 }
 
+opensearchDashReset(){
+  helm uninstall opensearch-dashboard -n opensearch
+}
+
+opensearchDashInst(){
+  helm repo add openSearch https://opensearch-project.github.io/helm-charts/
+  helm repo update
+  helm install opensearch-dashboard \
+      --namespace opensearch \
+      openSearch/opensearch-dashboards
+}
+
 opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
@@ -1813,6 +1825,7 @@ elif [ "$CMD" == "install" ]; then
         fluentdInst
   elif [ "$COMPONENT" == "opensearch" ]; then
       opensearchInst
+      opensearchDashInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -1871,6 +1884,7 @@ EOF
   elif [ "$COMPONENT" == "fluentd" ]; then
     fluentdReset
   elif [ "$COMPONENT" == "opensearch" ]; then
+    opensearchDashReset
     opensearchReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
