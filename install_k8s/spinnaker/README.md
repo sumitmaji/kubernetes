@@ -3,3 +3,6 @@ https://www.opsmx.com/blog/how-to-install-spinnaker-into-kubernetes-using-helm-c
 https://github.com/OpsMx/spinnaker-helm
 https://artifacthub.io/packages/helm/opsmx/spinnaker
 https://asherl.com/how-to-install-spinnaker-in-a-kubernetes-cluster
+https://medium.com/velotio-perspectives/know-everything-about-spinnaker-how-to-deploy-using-kubernetes-engine-57090881c78f
+https://github.com/justmeandopensource/kubernetes/blob/master/docs/setup-spinnaker.md
+https://www.youtube.com/watch?v=9EUyMjR6jSc
