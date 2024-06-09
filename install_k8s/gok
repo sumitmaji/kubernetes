@@ -1306,7 +1306,7 @@ opensearchDashInst(){
       --values https://github.com/sumitmaji/kubernetes/raw/q4/install_k8s/opensearch/values-dashboard.yaml \
       openSearch/opensearch-dashboards
 
-  gok patch ingress opensearch opensearch letsencrypt opensearch
+  gok patch ingress opensearch-dashboard-opensearch-dashboards opensearch letsencrypt opensearch
 }
 
 opensearchInst(){
