@@ -90,3 +90,10 @@ Inorder to access apps via ingress
 ```console
 http://master.cloud.com:32028/nginx_status
 ```
+
+# Integate with Keycloak
+https://stackoverflow.com/questions/75694040/how-to-configure-nginx-ingress-rules-with-keycloak
+https://docs.syseleven.de/metakube/de/tutorials/setup-ingress-auth-to-use-keycloak-oauth
+https://www.keycloak.org/server/reverseproxy
+https://medium.com/@ankit.wal/authenticate-requests-to-apps-on-kubernetes-using-nginx-ingress-and-an-authservice-37bf189670ee
+https://www.gresearch.com/news/securing-kubernetes-services-with-oauth2-oidc/
