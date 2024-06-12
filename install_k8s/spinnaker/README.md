@@ -22,3 +22,6 @@ https://spinnaker.io/docs/reference/halyard/commands/#hal-config-security-authn-
 https://spinnaker.io/docs/setup/other_config/security/authentication/oauth/config/
 https://spinnaker.io/docs/setup/other_config/security/authentication/oauth/
 https://www.opsmx.com/blog/how-to-install-spinnaker-into-kubernetes-using-helm-charts/
+https://www.digitalocean.com/community/tutorials/how-to-set-up-a-cd-pipeline-with-spinnaker-on-digitalocean-kubernetes
+https://stackoverflow.com/questions/78087469/how-to-apply-custom-profiles-setting-to-spinnaker-to-make-it-deploy-with-one-com
+https://github.com/spinnaker/spinnaker/issues/6498

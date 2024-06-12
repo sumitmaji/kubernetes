@@ -1754,6 +1754,8 @@ spinnakerInst(){
   docker run --name halyard -v /home/spinnaker/.hal:/home/spinnaker/.hal -v /home/spinnaker/.kube/config:/home/spinnaker/.kube/config \
     -d gcr.io/spinnaker-marketplace/halyard:stable
 
+  echo "Waiting for the service to be up for 30 Seconds"
+  sleep 30
   docker exec -it halyard kubectl cluster-info
   docker exec -it halyard hal config provider kubernetes enable
   docker exec -it halyard hal config provider kubernetes account add gok-k8s --provider-version v2 \
@@ -1765,6 +1767,31 @@ spinnakerInst(){
     --set persistence.enabled=false stable/minio
   docker exec -it halyard bash -c 'mkdir /home/spinnaker/.hal/default/profiles'
   docker exec -it halyard echo "spinnaker.s3.versioning: false" > /home/spinnaker/.hal/default/profiles/front50-local.yml
+  cat <<EOF > /home/spinnaker/.hal/default/profiles/spinnaker-local.yml
+logging:
+  level:
+    # Enable debug logging by changing level to DEBUG
+    root: DEBUG  # default
+EOF
+
+  cat <<EOF > /home/spinnaker/.hal/default/profiles/fiat-local.yml
+fiat.restrictApplicationCreation: true #Allows to restrict permissions
+auth.permissions.provider.application: aggregate
+auth.permissions.source.application.prefix: #Allows to work with
+  enabled: true                          # applications prefixes
+  prefixes:
+  - prefix: "*" # All applications
+    permissions:
+      READ:
+      - "administrator"
+      WRITE:
+      - "administrator"
+      EXECUTE:
+      - "administrator"
+      CREATE:
+      - "administrator"
+EOF
+
   docker exec -it halyard hal config storage s3 edit --endpoint http://minio:9000 --access-key-id "myaccesskey" --secret-access-key "mysecretkey"
   docker exec -it halyard hal config storage s3 edit --path-style-access true
   docker exec -it halyard hal config storage edit --type s3
@@ -1786,7 +1813,9 @@ security:
       clientSecret: yo8OEmnPUsw3Ohc6YZibLxpqoNYKb1Xb
       userAuthorizationUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
       accessTokenUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
-      scope: roles,email,profile
+      scope: openid,email,profile,groups,roles
+      preEstablishedRedirectUri: https://spin-gate.gokcloud.com/login
+      clientAuthenticationScheme: header
     resource:
       userInfoUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
     userInfoMapping:
@@ -1794,6 +1823,7 @@ security:
       firstName: given_name
       lastName: family_name
       username: preferred_username
+      roles: groups
 EOF
 
   cat <<EOF | kubectl apply -f -
@@ -1860,9 +1890,9 @@ EOF
   docker exec -it halyard hal config security ui edit --override-base-url "https://spinnaker.gokcloud.com"
   docker exec -it halyard hal config security api edit --override-base-url "https://spin-gate.gokcloud.com"
   docker exec -it halyard hal config security api edit --cors-access-pattern "https://spinnaker.gokcloud.com"
-  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret yo8OEmnPUsw3Ohc6YZibLxpqoNYKb1Xb
+  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret yo8OEmnPUsw3Ohc6YZibLxpqoNYKb1Xb -provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
   docker exec -it halyard hal config security authn oauth2 enable
-  docker exec -it halyard hal config security authn oauth2 edit --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
+  docker exec -it halyard hal config security authz enable
   #docker exec -it halyard hal deploy apply
 
   docker exec -it halyard hal config artifact github account add sumitmaji
