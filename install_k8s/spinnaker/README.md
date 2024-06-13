@@ -25,3 +25,4 @@ https://www.opsmx.com/blog/how-to-install-spinnaker-into-kubernetes-using-helm-c
 https://www.digitalocean.com/community/tutorials/how-to-set-up-a-cd-pipeline-with-spinnaker-on-digitalocean-kubernetes
 https://stackoverflow.com/questions/78087469/how-to-apply-custom-profiles-setting-to-spinnaker-to-make-it-deploy-with-one-com
 https://github.com/spinnaker/spinnaker/issues/6498
+https://stackoverflow.com/questions/39792385/keycloak-openid-connect-userinfo
