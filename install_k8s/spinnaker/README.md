@@ -1,3 +1,17 @@
+# Spinnaker
+
+## Installation
+
+Before installation make sure [`keycloak`](../keycloak/README.md) is installed.
+```shell
+./gok install spinnaker
+```
+
+## UnInstallation
+```shell
+./gok reset spinnaker
+```
+
 ## Documentation
 https://www.opsmx.com/blog/how-to-install-spinnaker-into-kubernetes-using-helm-charts/
 https://github.com/OpsMx/spinnaker-helm
@@ -25,4 +39,8 @@ https://www.opsmx.com/blog/how-to-install-spinnaker-into-kubernetes-using-helm-c
 https://www.digitalocean.com/community/tutorials/how-to-set-up-a-cd-pipeline-with-spinnaker-on-digitalocean-kubernetes
 https://stackoverflow.com/questions/78087469/how-to-apply-custom-profiles-setting-to-spinnaker-to-make-it-deploy-with-one-com
 https://github.com/spinnaker/spinnaker/issues/6498
-https://stackoverflow.com/questions/39792385/keycloak-openid-connect-userinfo
+https://spinnaker.io/docs/reference/halyard/custom/
+
+
+## Create a sample application and run pipeline
+https://www.digitalocean.com/community/tutorials/how-to-set-up-a-cd-pipeline-with-spinnaker-on-digitalocean-kubernetes#step-4-creating-an-application-and-running-a-pipeline

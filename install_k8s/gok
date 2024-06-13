@@ -1776,12 +1776,14 @@ kubernetes:
     type: secret
 EOF
 
+  ##https://github.com/spinnaker/spinnaker/issues/6498
   cat <<EOF > /home/spinnaker/.hal/permission.yml
 users:
  - username: skmaji1
    roles:
    - admin
 EOF
+
   cat <<EOF > /home/spinnaker/.hal/default/profiles/spinnaker-local.yml
 logging:
   level:
@@ -1789,6 +1791,7 @@ logging:
     root: TRACE  # default
 EOF
 
+  #https://stackoverflow.com/questions/78087469/how-to-apply-custom-profiles-setting-to-spinnaker-to-make-it-deploy-with-one-com
   cat <<EOF > /home/spinnaker/.hal/default/profiles/fiat-local.yml
 fiat.restrictApplicationCreation: true #Allows to restrict permissions
 auth.permissions.provider.application: aggregate
@@ -1816,7 +1819,8 @@ EOF
   docker exec -it halyard hal config storage edit --type s3
   docker exec -it halyard hal version list
   docker exec -it halyard hal config version edit --version 1.34.2
-  #docker exec -it halyard hal deploy apply
+
+  #https://spinnaker.io/docs/reference/halyard/custom/
   cat <<EOF > /home/spinnaker/.hal/default/service-settings/gate.yml
 kubernetes:
   volumes:
@@ -1928,6 +1932,7 @@ EOF
 
   #Authorization
   #Roles will be fetched from keycloak
+  #https://github.com/spinnaker/spinnaker/issues/6498
   #docker exec -it halyard hal config security authz file edit --file-path /home/spinnaker/.hal/permission.yml
   docker exec -it halyard hal config security authz enable
 
