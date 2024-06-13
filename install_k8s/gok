@@ -1144,6 +1144,12 @@ prometheusGrafanaResetv2(){
 
 prometheusGrafanaInstv2(){
   URL=$(fullDefaultUrl)
+  kubectl create ns monitoring
+  kubectl create secret generic kube-prometheus-stack-grafana-oauth \
+    --from-literal GF_AUTH_KEYCLOAK_CLIENT_ID="gok-developers-client" \
+    --from-literal GF_AUTH_KEYCLOAK_CLIENT_SECRET="sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV" \
+    --namespace monitoring
+
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   helm repo add grafana https://grafana.github.io/helm-charts
   helm repo update

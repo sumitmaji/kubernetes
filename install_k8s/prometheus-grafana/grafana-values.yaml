@@ -1,11 +1,12 @@
+envFromSecret: kube-prometheus-stack-grafana-oauth
 #adminUser: admin
 #adminPassword: admin
 grafana.ini:
   auth.generic_oauth:
     name: Keycloak-OAuth
     enabled: true
-    client_id: gok-developers-client
-    client_secret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
+    client_id: $__env{GF_AUTH_KEYCLOAK_CLIENT_ID}
+    client_secret: $__env{GF_AUTH_KEYCLOAK_CLIENT_SECRET}
     scopes: openid email profile offline_access groups
     auth_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
     token_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
