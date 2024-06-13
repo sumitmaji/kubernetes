@@ -28,7 +28,7 @@ grafana.ini:
     login_attribute_path: preferred_username
     name_attribute_path: given_name
     allow_sign_up: true
-    role_attribute_path: contains(roles[*], 'administrators') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
+    role_attribute_path: contains(groups[*], 'administrators') && 'Admin' || contains(groups[*], 'editor') && 'Editor' || 'Viewer'
   server:
     domain: kube.gokcloud.com
     root_url: https://kube.gokcloud.com/grafana
