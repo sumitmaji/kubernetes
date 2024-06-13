@@ -1,4 +1,16 @@
 envFromSecret: kube-prometheus-stack-grafana-oauth
+extraConfigmapMounts:
+  - name: keycloak-configmap
+    mountPath: /etc/ssl/certs/
+    subPath: keycloak.crt
+    configMap: certs-configmap
+    readOnly: true
+  - name: issuer-configmap
+    mountPath: /etc/ssl/certs/
+    subPath: issuer.crt
+    configMap: certs-configmap
+    readOnly: true
+
 #adminUser: admin
 #adminPassword: admin
 grafana.ini:

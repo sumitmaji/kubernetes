@@ -1150,6 +1150,11 @@ prometheusGrafanaInstv2(){
     --from-literal GF_AUTH_KEYCLOAK_CLIENT_SECRET="sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV" \
     --namespace monitoring
 
+  kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/issuer.crt
+  kubectl get secrets -n keycloak keycloak-gokcloud-com -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/keycloak.crt
+  kubectl create configmap certs-configmap -n monitoring --from-file=/root/issuer.crt --from-file=/root/keycloak.crt
+  rm /root/issuer.crt
+  rm /rrot/keycloak.crt
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   helm repo add grafana https://grafana.github.io/helm-charts
   helm repo update
