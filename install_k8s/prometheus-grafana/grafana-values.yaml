@@ -17,8 +17,8 @@ grafana.ini:
     name_attribute_path: given_name
     allow_sign_up: true
     role_attribute_path: contains(roles[*], 'administrators') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
-  server:
-    root_url: https://master.cloud.com/grafana
+#  server:
+#    root_url: https://master.cloud.com/grafana
 ingress:
   enabled: true
   # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
