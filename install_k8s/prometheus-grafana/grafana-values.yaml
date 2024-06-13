@@ -1,6 +1,4 @@
 envFromSecret: kube-prometheus-stack-grafana-oauth
-envFromConfigMaps:
-  - env-data
 extraConfigmapMounts:
   - name: keycloak-configmap
     mountPath: /etc/ssl/certs/keycloak.crt
