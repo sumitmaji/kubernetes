@@ -1817,7 +1817,7 @@ EOF
   docker exec -it halyard hal version list
   docker exec -it halyard hal config version edit --version 1.34.2
   #docker exec -it halyard hal deploy apply
-  cat <<EOF > /home/spinnaker/.hal/default/profiles/gate.yml
+  cat <<EOF > /home/spinnaker/.hal/default/service-settings/gate.yml
 kubernetes:
   volumes:
   - id: internal-trust-store
@@ -1828,7 +1828,7 @@ EOF
 kubernetes:
   volumes:
   - id: internal-trust-store
-    mountPath: /etc/ssl/certs/java
+    mountPath: /etc/ssl/certs
     type: secret
 server:
   tomcat:
@@ -1841,14 +1841,14 @@ security:
     enabled: true
     client:
       clientId: gok-developers-client
-      clientSecret: yo8OEmnPUsw3Ohc6YZibLxpqoNYKb1Xb
+      clientSecret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
       userAuthorizationUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
-      accessTokenUri: http://keycloak.keycloak.svc/realms/GokDevelopers/protocol/openid-connect/token
-      scope: openid,email,profile,groups,roles
+      accessTokenUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
+      scope: openid,email,profile,groups
       preEstablishedRedirectUri: https://spin-gate.gokcloud.com/login
       clientAuthenticationScheme: form
     resource:
-      userInfoUri: http://keycloak.keycloak.svc/realms/GokDevelopers/protocol/openid-connect/userinfo
+      userInfoUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
     userInfoMapping:
       email: email
       firstName: given_name
@@ -1923,7 +1923,7 @@ EOF
   docker exec -it halyard hal config security api edit --cors-access-pattern "https://spinnaker.gokcloud.com"
 
   #Authentication
-  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret yo8OEmnPUsw3Ohc6YZibLxpqoNYKb1Xb --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
+  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
   docker exec -it halyard hal config security authn oauth2 enable
 
   #Authorization
