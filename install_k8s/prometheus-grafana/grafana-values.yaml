@@ -19,12 +19,12 @@ grafana.ini:
     enabled: true
     client_id: $__env{GF_AUTH_KEYCLOAK_CLIENT_ID}
     client_secret: $__env{GF_AUTH_KEYCLOAK_CLIENT_SECRET}
-    scopes: openid profile offline_access groups
+    scopes: openid email profile offline_access groups
     auth_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
     token_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
     api_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
     allowed_domains: gokcloud.com
-#    email_attribute_path: email
+    email_attribute_path: email
     login_attribute_path: preferred_username
     name_attribute_path: given_name
     allow_sign_up: true
