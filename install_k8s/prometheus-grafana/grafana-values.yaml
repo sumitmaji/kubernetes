@@ -1,12 +1,12 @@
 envFromSecret: kube-prometheus-stack-grafana-oauth
 extraConfigmapMounts:
   - name: keycloak-configmap
-    mountPath: /etc/ssl/certs/
+    mountPath: /etc/ssl/certs/keycloak.crt
     subPath: keycloak.crt
     configMap: certs-configmap
     readOnly: true
   - name: issuer-configmap
-    mountPath: /etc/ssl/certs/
+    mountPath: /etc/ssl/certs/issuer.crt
     subPath: issuer.crt
     configMap: certs-configmap
     readOnly: true
