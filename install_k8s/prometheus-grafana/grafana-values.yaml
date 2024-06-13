@@ -1,16 +1,14 @@
 envFromSecret: kube-prometheus-stack-grafana-oauth
+envFromConfigMaps:
+  - env-data
 extraConfigmapMounts:
   - name: keycloak-configmap
     mountPath: /etc/ssl/certs/keycloak.crt
     subPath: keycloak.crt
     configMap: certs-configmap
     readOnly: true
-#  - name: issuer-configmap
-#    mountPath: /etc/ssl/certs/issuer.crt
-#    subPath: issuer.crt
-#    configMap: certs-configmap
-#    readOnly: true
 
+#Authenticating using keycloak
 #adminUser: admin
 #adminPassword: admin
 grafana.ini:
@@ -20,18 +18,18 @@ grafana.ini:
     client_id: $__env{GF_AUTH_KEYCLOAK_CLIENT_ID}
     client_secret: $__env{GF_AUTH_KEYCLOAK_CLIENT_SECRET}
     scopes: openid email profile offline_access groups
-    auth_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
-    token_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
-    api_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
-    allowed_domains: gokcloud.com outlook.com gmail.com
+    auth_url: $__env{OAUTH_AUTH_URL}
+    token_url: $__env{OAUTH_TOKEN_URL}
+    api_url: $__env{OAUTH_API_URL}
+    allowed_domains: gokcloud.com outlook.com gmail.com master.cloud.com
     email_attribute_path: email
     login_attribute_path: preferred_username
     name_attribute_path: given_name
     allow_sign_up: true
     role_attribute_path: contains(groups[*], 'administrators') && 'Admin' || contains(groups[*], 'editor') && 'Editor' || 'Viewer'
   server:
-    domain: kube.gokcloud.com
-    root_url: https://kube.gokcloud.com/grafana
+    domain: $__env{GRAFANA_DOMAIN}
+    root_url: $__env{GRAFANA_ROOT_URL}
 ingress:
   enabled: true
   # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName

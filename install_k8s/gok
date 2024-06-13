@@ -1150,6 +1150,13 @@ prometheusGrafanaInstv2(){
     --from-literal GF_AUTH_KEYCLOAK_CLIENT_SECRET="sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV" \
     --namespace monitoring
 
+  kubectl create configmap -n monitoring env-data \
+    --from-literal=OAUTH_AUTH_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth" \
+    --from-literal=OAUTH_TOKEN_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token" \
+    --from-literal=OAUTH_API_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo" \
+    --from-literal=GRAFANA_DOMAIN="kube.gokcloud.com" \
+    --from-literal=GRAFANA_ROOT_URL="https://kube.gokcloud.com/grafana"
+
   kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/issuer.crt
   kubectl get secrets -n keycloak keycloak-gokcloud-com -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/keycloak.crt
   kubectl create configmap certs-configmap -n monitoring --from-file=/root/issuer.crt --from-file=/root/keycloak.crt
