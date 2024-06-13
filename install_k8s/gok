@@ -1798,16 +1798,16 @@ auth.permissions.source.application.prefix: #Allows to work with
   - prefix: "*" # All applications
     permissions:
       READ:
-      - "administrator"
+      - "administrators"
       - "admin"
       WRITE:
-      - "administrator"
+      - "administrators"
       - "admin"
       EXECUTE:
-      - "administrator"
+      - "administrators"
       - "admin"
       CREATE:
-      - "administrator"
+      - "administrators"
       - "admin"
 EOF
 
@@ -1927,7 +1927,8 @@ EOF
   docker exec -it halyard hal config security authn oauth2 enable
 
   #Authorization
-  docker exec -it halyard hal config security authz file edit --file-path /home/spinnaker/.hal/permission.yml
+  #Roles will be fetched from keycloak
+  #docker exec -it halyard hal config security authz file edit --file-path /home/spinnaker/.hal/permission.yml
   docker exec -it halyard hal config security authz enable
 
   docker exec -it halyard hal config artifact github account add sumitmaji
