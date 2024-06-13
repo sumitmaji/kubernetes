@@ -69,3 +69,4 @@ https://medium.com/@charled.breteche/securing-grafana-with-keycloak-sso-d01fec05
 https://medium.com/@iamestelleyu/using-keycloak-in-grafana-228010ef3735
 https://scottaubrey.info/blog/2024-03-05-grafana-oauth2-proxy/
 https://stackoverflow.com/questions/70975460/is-there-a-way-to-configure-sso-oauth2-prometheus-via-nginx-ingress-and-oauth2-p
+https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/keycloak/

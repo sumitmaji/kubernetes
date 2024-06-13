@@ -1186,7 +1186,6 @@ prometheusGrafanaInstv2(){
   kubectl -n kube-system patch ds kube-proxy -p \
       '{"spec":{"template":{"metadata":{"labels":{"updateTime":"'`date +'%s'`'"}}}}}'
 
-
 }
 
 prometheusGrafanaInst() {
@@ -1743,6 +1742,7 @@ installPrometheusGrafanaWithCertMgr(){
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
   #gok create certificate monitoring kube
+  #No need for prometheus to be externalized, removing the ingress as well.
   gok patch ingress prometheus-server monitoring letsencrypt $(defaultSubdomain)
   gok patch ingress grafana monitoring letsencrypt $(defaultSubdomain)
 
