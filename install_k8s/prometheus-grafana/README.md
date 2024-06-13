@@ -63,3 +63,9 @@ Architecture Diagram
 **Alertmanager:** Used to send notifications to various communication channels like slack, email to notify users.
 
 https://www.youtube.com/watch?v=h4Sl21AKiDg
+
+## Keycloak integration
+https://medium.com/@charled.breteche/securing-grafana-with-keycloak-sso-d01fec05d984
+https://medium.com/@iamestelleyu/using-keycloak-in-grafana-228010ef3735
+https://scottaubrey.info/blog/2024-03-05-grafana-oauth2-proxy/
+https://stackoverflow.com/questions/70975460/is-there-a-way-to-configure-sso-oauth2-prometheus-via-nginx-ingress-and-oauth2-p

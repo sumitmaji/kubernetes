@@ -42,6 +42,7 @@ export CERTMANAGER_CHALANGE_TYPE=selfsigned
 export LETS_ENCRYPT_ENV=staging
 export REGISTRY=registry
 export KEYCLOAK=keycloak
+export SPINNAKER=spinnaker
 export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
@@ -89,6 +90,10 @@ fullRegistryUrl(){
 
 fullKeycloakUrl(){
   echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+fullSpinnakerUrl(){
+  echo "${SPINNAKER}.${GOK_ROOT_DOMAIN}"
 }
 
 echoSuccess(){
@@ -1667,7 +1672,7 @@ keycloakInst(){
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/keycloak/values2.yaml
+        -f https://github.com/sumitmaji/kubernetes/raw/spinnaker/install_k8s/keycloak/values2.yaml
 }
 
 installRegistryWithCertMgr(){
@@ -1739,6 +1744,249 @@ decodeSecret(){
   SECRET=$1
   NS=$2
   kubectl get secret -n $NS $SECRET -o json | jq -r '.data."tls.crt"' | base64 -d | openssl x509 -noout -text
+}
+
+getPasswordPromt(){
+  #!/bin/python
+  import getpass
+  password = getpass.getpass()
+}
+
+
+spinnakerInst(){
+
+  echo "Enter client secret:"
+  read CLIENT_SECRET
+  useradd -m -g root spinnaker
+  mkdir -p /home/spinnaker/.hal && chmod -R 777 /home/spinnaker/.hal
+  mkdir -p /home/spinnaker/.kube/ && cp ~/.kube/config /home/spinnaker/.kube/config && chmod 755 /home/spinnaker/.kube/config
+  docker run --name halyard -v /home/spinnaker/.hal:/home/spinnaker/.hal -v /home/spinnaker/.kube/config:/home/spinnaker/.kube/config \
+    -d gcr.io/spinnaker-marketplace/halyard:stable
+
+  echo "Waiting for the service to be up for 30 Seconds"
+  sleep 30
+  docker exec -it halyard kubectl cluster-info
+  docker exec -it halyard hal config provider kubernetes enable
+  docker exec -it halyard hal config provider kubernetes account add gok-k8s --provider-version v2 \
+    --context $(kubectl config current-context)
+  docker exec -it halyard hal config features edit --artifacts true
+  docker exec -it halyard hal config deploy edit --type distributed --account-name gok-k8s
+  kubectl create ns spinnaker
+  helm install minio --namespace spinnaker --set accessKey="myaccesskey" --set secretKey="mysecretkey" \
+    --set persistence.enabled=false stable/minio
+  docker exec -it halyard bash -c 'mkdir /home/spinnaker/.hal/default/profiles'
+  docker exec -it halyard echo "spinnaker.s3.versioning: false" > /home/spinnaker/.hal/default/profiles/front50-local.yml
+
+  cat <<EOF > /home/spinnaker/.hal/default/profiles/front50-local.yml
+kubernetes:
+  volumes:
+  - id: internal-trust-store
+    mountPath: /etc/ssl/certs/java
+    type: secret
+EOF
+
+  ##https://github.com/spinnaker/spinnaker/issues/6498
+  cat <<EOF > /home/spinnaker/.hal/permission.yml
+users:
+ - username: skmaji1
+   roles:
+   - admin
+EOF
+
+  cat <<EOF > /home/spinnaker/.hal/default/profiles/spinnaker-local.yml
+logging:
+  level:
+    # Enable debug logging by changing level to DEBUG
+    root: TRACE  # default
+EOF
+
+  #https://stackoverflow.com/questions/78087469/how-to-apply-custom-profiles-setting-to-spinnaker-to-make-it-deploy-with-one-com
+  cat <<EOF > /home/spinnaker/.hal/default/profiles/fiat-local.yml
+fiat.restrictApplicationCreation: true #Allows to restrict permissions
+auth.permissions.provider.application: aggregate
+auth.permissions.source.application.prefix: #Allows to work with
+  enabled: true                          # applications prefixes
+  prefixes:
+  - prefix: "*" # All applications
+    permissions:
+      READ:
+      - "administrators"
+      - "admin"
+      WRITE:
+      - "administrators"
+      - "admin"
+      EXECUTE:
+      - "administrators"
+      - "admin"
+      CREATE:
+      - "administrators"
+      - "admin"
+EOF
+
+  docker exec -it halyard hal config storage s3 edit --endpoint http://minio:9000 --access-key-id "myaccesskey" --secret-access-key "mysecretkey"
+  docker exec -it halyard hal config storage s3 edit --path-style-access true
+  docker exec -it halyard hal config storage edit --type s3
+  docker exec -it halyard hal version list
+  docker exec -it halyard hal config version edit --version 1.34.2
+
+  #https://spinnaker.io/docs/reference/halyard/custom/
+  cat <<EOF > /home/spinnaker/.hal/default/service-settings/gate.yml
+kubernetes:
+  volumes:
+  - id: internal-trust-store
+    mountPath: /etc/ssl/certs/java
+    type: secret
+EOF
+  cat <<EOF > /home/spinnaker/.hal/default/profiles/gate-local.yml
+kubernetes:
+  volumes:
+  - id: internal-trust-store
+    mountPath: /etc/ssl/certs
+    type: secret
+server:
+  tomcat:
+    protocolHeader: X-Forwarded-Proto
+    remoteIpHeader: X-Forwarded-For
+    internalProxies: .*
+    httpsServerPort: X-Forwarded-Port
+security:
+  oauth2:
+    enabled: true
+    client:
+      clientId: gok-developers-client
+      clientSecret: $CLIENT_SECRET
+      userAuthorizationUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
+      accessTokenUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
+      scope: openid,email,profile,groups
+      preEstablishedRedirectUri: https://spin-gate.gokcloud.com/login
+      clientAuthenticationScheme: form
+    resource:
+      userInfoUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
+    userInfoMapping:
+      email: email
+      firstName: given_name
+      lastName: family_name
+      username: preferred_username
+      roles: groups
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.allow-http: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+  name: spin-deck
+  namespace: spinnaker
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: spinnaker.cloud.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: spin-deck
+            port:
+              number: 9000
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+    - secretName: appingress-certificate
+      hosts:
+        - spinnaker.cloud.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.allow-http: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+  name: spin-gate
+  namespace: spinnaker
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: spin-gate.cloud.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: spin-gate
+            port:
+              number: 8084
+        path: /
+        pathType: ImplementationSpecific
+  tls:
+    - secretName: appingress-certificate
+      hosts:
+        - spin-gate.cloud.com
+EOF
+
+  gok patch ingress spin-deck spinnaker letsencrypt spinnaker
+  gok patch ingress spin-gate spinnaker letsencrypt spin-gate
+
+  docker exec -it halyard hal config security ui edit --override-base-url "https://spinnaker.gokcloud.com"
+  docker exec -it halyard hal config security api edit --override-base-url "https://spin-gate.gokcloud.com"
+  docker exec -it halyard hal config security api edit --cors-access-pattern "https://spinnaker.gokcloud.com"
+
+  #Authentication
+  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret $CLIENT_SECRET --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
+  docker exec -it halyard hal config security authn oauth2 enable
+
+  #Authorization
+  #Roles will be fetched from keycloak
+  #https://github.com/spinnaker/spinnaker/issues/6498
+  #docker exec -it halyard hal config security authz file edit --file-path /home/spinnaker/.hal/permission.yml
+  docker exec -it halyard hal config security authz enable
+
+  docker exec -it halyard hal config artifact github account add sumitmaji
+
+  kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /home/spinnaker/.hal/issuer.crt
+  kubectl get secrets -n keycloak keycloak-gokcloud-com -o json | jq -r '.data["tls.crt"]' | base64 -d > /home/spinnaker/.hal/keycloak.crt
+
+  docker exec -it halyard  cp /etc/ssl/certs/java/cacerts /home/spinnaker/.hal/
+  chmod +w /home/spinnaker/.hal/cacerts
+  #password is changeid
+  docker exec -it halyard keytool -import -noprompt -trustcacerts -alias ca -file /home/spinnaker/.hal/issuer.crt -keystore /home/spinnaker/.hal/cacerts
+  docker exec -it halyard keytool -import -noprompt -trustcacerts -alias keycloak -file /home/spinnaker/.hal/keycloak.crt -keystore /home/spinnaker/.hal/cacerts
+  kubectl create secret generic -n spinnaker internal-trust-store \
+  	--from-file /home/spinnaker/.hal/cacerts
+
+  docker exec -it halyard hal deploy apply
+}
+
+getUserInfo(){
+  curl https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth?client_id=gok-developers-client&redirect_uri=https://localhost/login&response_type=code&scope=openid%20email%20profile&state=eLUwT2
+
+  TOKEN=$(curl --location --request POST 'https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token' \
+     --header 'Content-Type: application/x-www-form-urlencoded' \
+     --data-urlencode 'grant_type=authorization_code' \
+     --data-urlencode 'client_id=gok-developers-client' \
+     --data-urlencode 'client_secret=sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV' \
+     --data-urlencode 'redirect_uri=https://localhost/login' \
+     --data-urlencode 'scope=roles email profile openid' \
+     --data-urlencode 'code=2a34daeb-4bba-48fb-9531-69f55104ab62.69c4c286-f2c9-4455-8368-7a8723ad60cf.f79ef798-e122-403f-8626-ad3793bf3f44' | jq -r '.["access_token"]')
+
+  curl -kv 'https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo' \
+  --header 'Content-Type: application/x-www-form-urlencoded' \
+  --header "Authorization: Bearer $TOKEN"
+
+}
+
+
+spinnakerReset(){
+  kubectl delete all --all -n spinnaker
+  kubectl delete ns spinnaker
+  docker stop halyard
+  docker rm halyard
+  rm -rf /home/spinnaker/.hal
+  rm -rf /home/spinnaker/.kube
 }
 
 patchLocalTls() {
@@ -1832,6 +2080,8 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "opensearch" ]; then
       opensearchInst
       opensearchDashInst
+  elif [ "$COMPONENT" == "spinnaker" ]; then
+      spinnakerInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -1892,6 +2142,8 @@ EOF
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset
+  elif [ "$COMPONENT" == "spinnaker" ]; then
+    spinnakerReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
