@@ -18,6 +18,7 @@ grafana.ini:
     allow_sign_up: true
     role_attribute_path: contains(roles[*], 'administrators') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
   server:
+    domain: kube.gokcloud.com
     root_url: https://kube.gokcloud.com/grafana
 ingress:
   enabled: true
