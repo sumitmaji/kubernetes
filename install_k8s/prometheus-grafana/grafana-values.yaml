@@ -23,7 +23,7 @@ grafana.ini:
     auth_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
     token_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
     api_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
-    allowed_domains: gokcloud.com
+    allowed_domains: gokcloud.com outlook.com gmail.com
     email_attribute_path: email
     login_attribute_path: preferred_username
     name_attribute_path: given_name
