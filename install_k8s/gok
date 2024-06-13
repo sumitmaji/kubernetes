@@ -1746,13 +1746,6 @@ decodeSecret(){
   kubectl get secret -n $NS $SECRET -o json | jq -r '.data."tls.crt"' | base64 -d | openssl x509 -noout -text
 }
 
-getPasswordPromt(){
-  #!/bin/python
-  import getpass
-  password = getpass.getpass()
-}
-
-
 spinnakerInst(){
 
   echo "Enter client secret:"
