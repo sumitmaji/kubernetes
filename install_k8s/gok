@@ -1746,8 +1746,17 @@ decodeSecret(){
   kubectl get secret -n $NS $SECRET -o json | jq -r '.data."tls.crt"' | base64 -d | openssl x509 -noout -text
 }
 
+getPasswordPromt(){
+  #!/bin/python
+  import getpass
+  password = getpass.getpass()
+}
+
 
 spinnakerInst(){
+
+  echo "Enter client secret:"
+  read CLIENT_SECRET
   useradd -m -g root spinnaker
   mkdir -p /home/spinnaker/.hal && chmod -R 777 /home/spinnaker/.hal
   mkdir -p /home/spinnaker/.kube/ && cp ~/.kube/config /home/spinnaker/.kube/config && chmod 755 /home/spinnaker/.kube/config
@@ -1845,7 +1854,7 @@ security:
     enabled: true
     client:
       clientId: gok-developers-client
-      clientSecret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
+      clientSecret: $CLIENT_SECRET
       userAuthorizationUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
       accessTokenUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
       scope: openid,email,profile,groups
@@ -1927,7 +1936,7 @@ EOF
   docker exec -it halyard hal config security api edit --cors-access-pattern "https://spinnaker.gokcloud.com"
 
   #Authentication
-  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
+  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret $CLIENT_SECRET --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
   docker exec -it halyard hal config security authn oauth2 enable
 
   #Authorization
