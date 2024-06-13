@@ -1,6 +1,21 @@
-adminUser: admin
-adminPassword: admin
+#adminUser: admin
+#adminPassword: admin
 grafana.ini:
+  auth.generic_oauth:
+    name: Keycloak-OAuth
+    enabled: true
+    client_id: gok-developers-client
+    client_secret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
+    scopes: openid email profile offline_access groups
+    auth_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
+    token_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
+    api_url: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
+    allowed_domains: gokcloud.com
+    email_attribute_path: email
+    login_attribute_path: preferred_username
+    name_attribute_path: given_name
+    allow_sign_up: true
+    role_attribute_path: contains(roles[*], 'administrators') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
   server:
     root_url: https://master.cloud.com/grafana
 ingress:

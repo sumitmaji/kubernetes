@@ -1672,7 +1672,7 @@ keycloakInst(){
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/spinnaker/install_k8s/keycloak/values2.yaml
+        -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/keycloak/values2.yaml
 }
 
 installRegistryWithCertMgr(){
