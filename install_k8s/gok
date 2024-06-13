@@ -1155,7 +1155,7 @@ prometheusGrafanaInstv2(){
 
   helm install grafana grafana/grafana \
     --set grafana.ini.server.root_url=https://$URL/grafana \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
   kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
