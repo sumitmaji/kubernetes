@@ -15,3 +15,5 @@
 
 ## Documentation
 https://oauth2-proxy.github.io/oauth2-proxy/configuration/providers/keycloak
+https://oauth2-proxy.github.io/oauth2-proxy/installation
+https://docs.syseleven.de/metakube/de/tutorials/setup-ingress-auth-to-use-keycloak-oauth
