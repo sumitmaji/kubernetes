@@ -14,3 +14,9 @@ global:
 
 extraArgs:
   - "--provider=keycloak"
+  - "--login-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth"
+  - "--redeem-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token"
+  - "--profile-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
+  - "--validate-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
+  - "--keycloak-group=groups"
+  - "--scope=openid email profile groups"

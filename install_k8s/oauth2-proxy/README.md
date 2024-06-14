@@ -12,3 +12,6 @@
 5. Keycloak redirects user to OAuth2 Proxy
 6. Oauth2 Proxy redirects user to https://apache.contoso.com
 7. The user receive a session cookie which will enable him to authenticate for future requests
+
+## Documentation
+https://oauth2-proxy.github.io/oauth2-proxy/configuration/providers/keycloak
