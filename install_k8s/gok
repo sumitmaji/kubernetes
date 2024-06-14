@@ -2110,7 +2110,7 @@ elif [ "$CMD" == "install" ]; then
       opensearchDashInst
   elif [ "$COMPONENT" == "spinnaker" ]; then
       spinnakerInst
-  elif [ "$COMPONENT" == "oath2" ]; then
+  elif [ "$COMPONENT" == "oauth2" ]; then
       oauth2ProxyInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
@@ -2174,7 +2174,7 @@ EOF
     opensearchReset
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerReset
-  elif [ "$COMPONENT" == "oath2" ]; then
+  elif [ "$COMPONENT" == "oauth2" ]; then
       oauth2ProxyReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
