@@ -1,0 +1,10 @@
+extraEnvVars:
+  - name: LOG_LEVEL
+    value: debug
+
+configuration:
+  clientID: gok-developers-client
+  clientSecret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
+  cookieSecret: mycookie
+  oidcIssuerUrl: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
+  redirectUrl: kube*.

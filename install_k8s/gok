@@ -1763,6 +1763,13 @@ installDashboardwithCertManager(){
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+oauth2ProxyInst(){
+  helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
+    --namespace oauth2 \
+    --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/oauth2-proxy/values.yaml \
+    --create-namespace
+}
+
 decodeSecret(){
   SECRET=$1
   NS=$2
