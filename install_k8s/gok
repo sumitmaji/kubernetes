@@ -1770,6 +1770,11 @@ oauth2ProxyInst(){
     --create-namespace
 }
 
+oauth2ProxyReset(){
+  helm uninstall oauth2proxy -n oauth2
+  kubectl delete ns oauth2
+}
+
 decodeSecret(){
   SECRET=$1
   NS=$2
@@ -2105,6 +2110,8 @@ elif [ "$CMD" == "install" ]; then
       opensearchDashInst
   elif [ "$COMPONENT" == "spinnaker" ]; then
       spinnakerInst
+  elif [ "$COMPONENT" == "oath2" ]; then
+      oauth2ProxyInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -2167,6 +2174,8 @@ EOF
     opensearchReset
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerReset
+  elif [ "$COMPONENT" == "oath2" ]; then
+      oauth2ProxyReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
