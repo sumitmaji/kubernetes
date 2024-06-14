@@ -5,7 +5,7 @@ extraEnvVars:
 configuration:
   clientID: gok-developers-client
   clientSecret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
-  cookieSecret: mycookie
+  cookieSecret: mycookiesumit123
   oidcIssuerUrl: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
   redirectUrl: kube*.
 
