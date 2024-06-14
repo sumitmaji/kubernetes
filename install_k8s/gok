@@ -946,8 +946,8 @@ emptyLocalFsStorageMonotring(){
 }
 
 emptyLocalFsStorageOAuth2(){
-  kubectl delete pv oauth2-pv
-  kubectl delete sc oauth2-storage
+  kubectl delete pv oauth-pv
+  kubectl delete sc oauth-storage
   rm -rf /data/volumes/pv6
 }
 
@@ -1005,14 +1005,14 @@ EOF
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: oauth2-pv
+  name: oauth-pv
 spec:
   capacity:
     storage: 10Gi
   accessModes:
   - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: oauth2-storage
+  storageClassName: oauth-storage
   local:
     path: /data/volumes/pv6
   nodeAffinity:
