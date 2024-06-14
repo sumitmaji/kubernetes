@@ -983,6 +983,43 @@ spec:
 EOF
 }
 
+localFsStorageClassOAuth2Create(){
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: oauth-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+  mkdir -p /data/volumes/pv6
+  chmod 777 /data/volumes/pv6
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: oauth2-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: oauth2-storage
+  local:
+    path: /data/volumes/pv6
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+}
+
 localFsStorageClassMonitoringCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
@@ -1764,6 +1801,7 @@ installDashboardwithCertManager(){
 }
 
 oauth2ProxyInst(){
+  localFsStorageClassOAuth2Create
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
     --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/oauth2-proxy/values.yaml \

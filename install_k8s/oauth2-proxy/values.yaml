@@ -8,3 +8,6 @@ configuration:
   cookieSecret: mycookie
   oidcIssuerUrl: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
   redirectUrl: kube*.
+
+global:
+  storageClass: "oauth-storage"
