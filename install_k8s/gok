@@ -945,6 +945,12 @@ emptyLocalFsStorageMonotring(){
   rm -rf /data/volumes/{pv1,pv2}
 }
 
+emptyLocalFsStorageOAuth2(){
+  kubectl delete pv oauth2-pv
+  kubectl delete sc oauth2-storage
+  rm -rf /data/volumes/pv6
+}
+
 localFsStorageClassKeycloakCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
@@ -1810,6 +1816,7 @@ oauth2ProxyInst(){
 
 oauth2ProxyReset(){
   helm uninstall oauth2proxy -n oauth2
+  emptyLocalFsStorageOAuth2
   kubectl delete ns oauth2
 }
 
