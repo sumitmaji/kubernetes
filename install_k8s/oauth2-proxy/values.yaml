@@ -13,4 +13,4 @@ global:
   storageClass: "oauth-storage"
 
 extraArgs:
-  - --provider=keycloak
+  - provider: "keycloak"
