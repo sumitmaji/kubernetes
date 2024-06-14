@@ -946,6 +946,7 @@ emptyLocalFsStorageMonotring(){
 }
 
 emptyLocalFsStorageOAuth2(){
+  kubectl delete pvc --all -n oauth2
   kubectl delete pv oauth-pv
   kubectl delete sc oauth-storage
   rm -rf /data/volumes/pv6
