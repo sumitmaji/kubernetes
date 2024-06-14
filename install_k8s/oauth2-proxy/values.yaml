@@ -11,3 +11,6 @@ configuration:
 
 global:
   storageClass: "oauth-storage"
+
+extraArgs:
+  - provider: keycloak
