@@ -133,3 +133,8 @@ https://keycloak.gokcloud.com/realms/kubedevelopers/protocol/openid-connect/auth
 https://keycloak.gokcloud.com/realms/kubedevelopers/protocol/openid-connect/token
 
 ![img_15.png](images/img_15.png)
+
+
+## Documentation
+- Add custom theme
+https://www.youtube.com/watch?v=myJLRt4ppS4

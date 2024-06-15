@@ -945,6 +945,13 @@ emptyLocalFsStorageMonotring(){
   rm -rf /data/volumes/{pv1,pv2}
 }
 
+emptyLocalFsStorageOAuth2(){
+  kubectl delete pvc --all -n oauth2
+  kubectl delete pv oauth-pv
+  kubectl delete sc oauth-storage
+  rm -rf /data/volumes/pv6
+}
+
 localFsStorageClassKeycloakCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
@@ -972,6 +979,43 @@ spec:
   storageClassName: keycloak-storage
   local:
     path: /data/volumes/pv3
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+}
+
+localFsStorageClassOAuth2Create(){
+  cat << EOF | kubectl apply -f -
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: oauth-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+  mkdir -p /data/volumes/pv6
+  chmod 777 /data/volumes/pv6
+
+  cat << EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: oauth-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: oauth-storage
+  local:
+    path: /data/volumes/pv6
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -1144,6 +1188,29 @@ prometheusGrafanaResetv2(){
 
 prometheusGrafanaInstv2(){
   URL=$(fullDefaultUrl)
+  kubectl create ns monitoring
+  kubectl create secret generic kube-prometheus-stack-grafana-oauth \
+    --from-literal GF_AUTH_KEYCLOAK_CLIENT_ID="gok-developers-client" \
+    --from-literal GF_AUTH_KEYCLOAK_CLIENT_SECRET="sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV" \
+    --from-literal=OAUTH_AUTH_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth" \
+    --from-literal=OAUTH_TOKEN_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token" \
+    --from-literal=OAUTH_API_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo" \
+    --from-literal=GRAFANA_DOMAIN="kube.gokcloud.com" \
+    --from-literal=GRAFANA_ROOT_URL="https://kube.gokcloud.com/grafana" \
+    --namespace monitoring
+
+  kubectl create configmap -n monitoring env-data \
+    --from-literal=OAUTH_AUTH_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth" \
+    --from-literal=OAUTH_TOKEN_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token" \
+    --from-literal=OAUTH_API_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo" \
+    --from-literal=GRAFANA_DOMAIN="kube.gokcloud.com" \
+    --from-literal=GRAFANA_ROOT_URL="https://kube.gokcloud.com/grafana"
+
+  kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/issuer.crt
+  kubectl get secrets -n keycloak keycloak-gokcloud-com -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/keycloak.crt
+  kubectl create configmap certs-configmap -n monitoring --from-file=/root/issuer.crt --from-file=/root/keycloak.crt
+  rm /root/issuer.crt
+  rm /root/keycloak.crt
   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
   helm repo add grafana https://grafana.github.io/helm-charts
   helm repo update
@@ -1155,14 +1222,13 @@ prometheusGrafanaInstv2(){
 
   helm install grafana grafana/grafana \
     --set grafana.ini.server.root_url=https://$URL/grafana \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
   kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
 
   kubectl -n kube-system patch ds kube-proxy -p \
       '{"spec":{"template":{"metadata":{"labels":{"updateTime":"'`date +'%s'`'"}}}}}'
-
 
 }
 
@@ -1672,7 +1738,7 @@ keycloakInst(){
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/spinnaker/install_k8s/keycloak/values2.yaml
+        -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/keycloak/values2.yaml
 }
 
 installRegistryWithCertMgr(){
@@ -1720,6 +1786,7 @@ installPrometheusGrafanaWithCertMgr(){
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
   #gok create certificate monitoring kube
+  #No need for prometheus to be externalized, removing the ingress as well.
   gok patch ingress prometheus-server monitoring letsencrypt $(defaultSubdomain)
   gok patch ingress grafana monitoring letsencrypt $(defaultSubdomain)
 
@@ -1738,6 +1805,20 @@ installDashboardwithCertManager(){
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace kubernetes-dashboard
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
+}
+
+oauth2ProxyInst(){
+  localFsStorageClassOAuth2Create
+  helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
+    --namespace oauth2 \
+    --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/oauth2-proxy/values.yaml \
+    --create-namespace
+}
+
+oauth2ProxyReset(){
+  helm uninstall oauth2proxy -n oauth2
+  emptyLocalFsStorageOAuth2
+  kubectl delete ns oauth2
 }
 
 decodeSecret(){
@@ -2075,6 +2156,8 @@ elif [ "$CMD" == "install" ]; then
       opensearchDashInst
   elif [ "$COMPONENT" == "spinnaker" ]; then
       spinnakerInst
+  elif [ "$COMPONENT" == "oauth2" ]; then
+      oauth2ProxyInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -2137,6 +2220,8 @@ EOF
     opensearchReset
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerReset
+  elif [ "$COMPONENT" == "oauth2" ]; then
+      oauth2ProxyReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
