@@ -49,14 +49,19 @@ export GROUP_NAME=$GOK_ROOT_DOMAIN
 export AUTHENTICATION_METHOD=oidc
 export IDENTITY_PROVIDER=${IDENTITY_PROVIDER}
 `
-if [[ $IDENTITY_PROVIDER == "oauth0" ]]; then
-echo "$(getOAuth0Config)"
-else
-echo "$(getKeycloakConfig)"
-fi
+case ${IDENTITY_PROVIDER} in
+  "oauth0")
+    echo "$(getOAuth0Config)"
+    ;;
+  "keycloak")
+    echo "$(getKeycloakConfig)"
+    ;;
+  *)
+    echo "Unsupported identity provider: ${IDENTITY_PROVIDER}"
+    ;;
+esac
 `
 EOF
-
 
 source ${MOUNT_PATH}/root_config
 
@@ -2111,29 +2116,52 @@ EOF
 echo "$HELP"
 }
 
-
-if [ "$CMD" == "bash" ]; then
+function bashCmd() {
   pod=$(getpod)
   echo "Opening terminal on $pod"
   kubectl exec -it "$pod" -- /bin/bash
-elif [ "$CMD" == "help" ]; then
-    help
-elif [ "$CMD" == "desc" ]; then
+}
+
+function helpCmd() {
+    echo "Available commands:"
+    echo "1. gok install <component>: Install a component. Supported components are docker, cert-manager, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, kubernetes-worker, and kubernetes."
+    echo "2. gok start <component>: Start a component. Supported components are kubernetes, proxy, and kubelet."
+    echo "3. gok reset <component>: Reset a component. Supported components are kubernetes, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, and cert-manager."
+    echo "4. gok deploy <component>: Deploy a component. Currently, only app1 is supported."
+    echo "5. gok patch <resource> <name> <namespace> <options> <subdomain>: Patch resources. Currently, only ingress resource is supported. The options can be letsencrypt, ldap, or localtls."
+    echo "6. gok create <resource> <name> <additional>: Create resources. Currently, secret and certificate resources are supported. For secret, only apphost is supported. For certificate, it creates a certificate request for a namespace."
+    echo "7. gok bash: Open a terminal in a pod."
+    echo "8. gok desc: Describe a pod."
+    echo "9. gok logs: Show the logs of a pod."
+    echo "10. gok status: Show the status of a helm release."
+    echo "11. gok taint-node: Taint a node."
+    echo "12. gok help: Show this help document."
+}
+
+function descCmd() {
   pod=$(getpod)
   echo "Describing pod $pod"
   kubectl describe po "$pod"
-elif [ "$CMD" == "logs" ]; then
+}
+
+function logsCmd() {
   pod=$(getpod)
   echo "Viewing logs of pod $pod"
   kubectl logs "$pod"
-elif [ "$CMD" == "status" ]; then
+}
+
+function statusCmd() {
   helm status "$release"
-elif [ "$CMD" == "taint-node" ]; then
+}
+
+function taintNodeCmd() {
   taintNode
-elif [ "$CMD" == "install" ]; then
+}
+
+function installCmd() {
   updateSys
   installDeps
-  COMPONENT=$2
+  COMPONENT=$1
   if [ "$COMPONENT" == "docker" ]; then
     dockrInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
@@ -2148,16 +2176,16 @@ elif [ "$CMD" == "install" ]; then
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressInst
   elif [ "$COMPONENT" == "registry" ]; then
-        installRegistryWithCertMgr
+    installRegistryWithCertMgr
   elif [ "$COMPONENT" == "fluentd" ]; then
-        fluentdInst
+    fluentdInst
   elif [ "$COMPONENT" == "opensearch" ]; then
-      opensearchInst
-      opensearchDashInst
+    opensearchInst
+    opensearchDashInst
   elif [ "$COMPONENT" == "spinnaker" ]; then
-      spinnakerInst
+    spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
-      oauth2ProxyInst
+    oauth2ProxyInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -2168,8 +2196,6 @@ elif [ "$CMD" == "install" ]; then
     helmInst
     taintNode
     calicoInst
-    #disabling custom dns as normal dns (internal to kubernetes cluster stops working if custom dns is enabled.)
-    #customDns
     dnsUtils
     kcurl
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
@@ -2184,8 +2210,10 @@ elif [ "$CMD" == "install" ]; then
                     \/     \/     \/     \/               \/                                            \/        \/  \/
 EOF
   fi
-elif [ "$CMD" == "start" ]; then
-  COMPONENT=$2
+}
+
+function startCmd() {
+  COMPONENT=$1
   if [ "$COMPONENT" == "kubernetes" ]; then
     disableSwap
     startHa
@@ -2195,14 +2223,15 @@ elif [ "$CMD" == "start" ]; then
   elif [ "$COMPONET" == "kubelet" ]; then
     startKubelet
   fi
-elif [ "$CMD" == "reset" ]; then
-  COMPONENT=$2
+}
+
+function resetCmd() {
+  COMPONENT=$1
   if [ "$COMPONENT" == "kubernetes" ]; then
     kubeadm reset <<EOF
 y
 EOF
   elif [ "$COMPONENT" == "monitoring" ]; then
-    #prometheusGrafanaReset
     prometheusGrafanaResetv2
     emptyLocalFsStorageMonotring
   elif [ "$COMPONENT" == "dashboard" ]; then
@@ -2221,21 +2250,25 @@ EOF
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerReset
   elif [ "$COMPONENT" == "oauth2" ]; then
-      oauth2ProxyReset
+    oauth2ProxyReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
   fi
-elif [ "$CMD" == "deploy" ]; then
+}
+
+function deployCmd() {
   COMPONENT=$2
   if [ "$COMPONENT" == "app1" ]; then
     createApp1
   fi
-elif [ "$CMD" == "patch" ]; then
-  RESOURCE=$2
-  NAME=$3
-  NS=$4
-  OPTIONS=$5
-  SUBDOMAIN=$6
+}
+
+function patchCmd() {
+  RESOURCE=$1
+  NAME=$2
+  NS=$3
+  OPTIONS=$4
+  SUBDOMAIN=$5
   if [ "$RESOURCE" == "ingress" ]; then
     if [ "$OPTIONS" == "letsencrypt" ]; then
       patchLetsEncrypt "$NAME" "$NS" "$SUBDOMAIN"
@@ -2245,10 +2278,12 @@ elif [ "$CMD" == "patch" ]; then
       patchLocalTls "$NAME" "$NS"
     fi
   fi
-elif [ "$CMD" == "create" ]; then
-  RESOURCE=$2
-  NAME=$3
-  ADDITIONAL=$4
+}
+
+function createCmd() {
+  RESOURCE=$1
+  NAME=$2
+  ADDITIONAL=$3
   if [ "$RESOURCE" == "secret" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
@@ -2258,4 +2293,31 @@ elif [ "$CMD" == "create" ]; then
   elif [ "$RESOURCE" == "kubeconfig" ]; then
     createKubeConfig "$NAME"
   fi
+}
+
+# Call the appropriate function based on the command
+if [ "$CMD" == "bash" ]; then
+  bashCmd
+elif [ "$CMD" == "help" ]; then
+  helpCmd
+elif [ "$CMD" == "desc" ]; then
+  descCmd
+elif [ "$CMD" == "logs" ]; then
+  logsCmd
+elif [ "$CMD" == "status" ]; then
+  statusCmd
+elif [ "$CMD" == "taint-node" ]; then
+  taintNodeCmd
+elif [ "$CMD" == "install" ]; then
+  installCmd "$2"
+elif [ "$CMD" == "start" ]; then
+  startCmd "$2"
+elif [ "$CMD" == "reset" ]; then
+  resetCmd "$2"
+elif [ "$CMD" == "deploy" ]; then
+  deployCmd "$2"
+elif [ "$CMD" == "patch" ]; then
+  patchCmd "$2" "$3" "$4" "$5" "$6"
+elif [ "$CMD" == "create" ]; then
+  createCmd "$2" "$3" "$4"
 fi
