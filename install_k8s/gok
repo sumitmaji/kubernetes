@@ -1829,7 +1829,7 @@ print(client_secret)
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
     --set-string "extraArgs.provider=${PROVIDER},extraArgs.login-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/auth,extraArgs.redeem-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/token,extraArgs.profile-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo,extraArgs.validate-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo,extraArgs.keycloak-group=groups,extraArgs.scope=openid email profile groups" \
-    --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/oauth2-proxy/values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/help/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
 }
 
