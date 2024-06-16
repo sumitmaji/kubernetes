@@ -1821,11 +1821,15 @@ print(client_secret)
   OAUTH2_PROXY_CLIENT_ID=gok-developers-client
   REALM=GokDevelopers
   OAUTH2_HOST=$(fullKeycloakUrl)
-
+  OAUTH2_OIDC_ISSUE_URL=https://$(fullKeycloakUrl)/realms/GokDevelopers/protocol/openid-connect/auth
   localFsStorageClassOAuth2Create
   kubectl create ns oauth2
   kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret=${client_secret} -n oauth2
-  kubectl create configmap oauth2-proxy-config --from-literal=clientID=${OAUTH2_PROXY_CLIENT_ID} -n oauth2
+  kubectl create configmap oauth2-proxy-config \
+      --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
+      --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
+      --from-literal=redirectUrl=kube*. \
+      -n oauth2
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
     --set "extraArgs[0]=--provider=keycloak" \
