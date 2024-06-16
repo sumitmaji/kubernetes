@@ -1820,21 +1820,21 @@ print(client_secret)
 ")
   OAUTH2_PROXY_CLIENT_ID=gok-developers-client
   REALM=GokDevelopers
-  OATUH2_HOST=$(fullKeycloakUrl)
-  PROVIDER=keycloak
+  OAUTH2_HOST=$(fullKeycloakUrl)
+
   localFsStorageClassOAuth2Create
   kubectl create ns oauth2
   kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret=${client_secret} -n oauth2
   kubectl create configmap oauth2-proxy-config --from-literal=clientID=${OAUTH2_PROXY_CLIENT_ID} -n oauth2
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
-    --set 'extraArgs[0]=--provider=keycloak' \
-    --set 'extraArgs[1]=--login-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth' \
-    --set 'extraArgs[2]=--redeem-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token' \
-    --set 'extraArgs[3]=--profile-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo' \
-    --set 'extraArgs[4]=--validate-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo' \
-    --set 'extraArgs[5]=--keycloak-group=groups' \
-    --set 'extraArgs[6]=--scope=openid email profile groups' \
+    --set "extraArgs[0]=--provider=keycloak" \
+    --set "extraArgs[1]=--login-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
+    --set "extraArgs[2]=--redeem-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
+    --set "extraArgs[3]=--profile-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[5]=--keycloak-group=groups" \
+    --set "extraArgs[6]=--scope=openid email profile groups" \
     --values https://github.com/sumitmaji/kubernetes/raw/help/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
 }
