@@ -1820,19 +1820,25 @@ installDashboardwithCertManager(){
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+oauth2ProxyReset(){
+  helm uninstall oauth2proxy -n oauth2
+  emptyLocalFsStorageOAuth2
+  kubectl delete ns oauth2
+}
+
 oauth2ProxyInst(){
   client_secret=$(python3 -c "
 import getpass
 client_secret = getpass.getpass('Please enter your client secret: ')
 print(client_secret)
 ")
-  OAUTH2_PROXY_CLIENT_ID=gok-developers-client
-  REALM=GokDevelopers
-  OAUTH2_HOST=$(fullKeycloakUrl)
-  OAUTH2_OIDC_ISSUE_URL=https://$(fullKeycloakUrl)/realms/GokDevelopers/protocol/openid-connect/auth
+  OAUTH2_PROXY_CLIENT_ID="gok-developers-client"
+  REALM="GokDevelopers"
+  OAUTH2_HOST="$(fullKeycloakUrl)"
+  OAUTH2_OIDC_ISSUE_URL="https://$(fullKeycloakUrl)/realms/GokDevelopers/protocol/openid-connect/auth"
   localFsStorageClassOAuth2Create
   kubectl create ns oauth2
-  kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret=${client_secret} -n oauth2
+  kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret="${client_secret}" -n oauth2
   kubectl create configmap oauth2-proxy-config \
       --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
       --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
@@ -1849,12 +1855,15 @@ print(client_secret)
     --set "extraArgs[6]=--scope=openid email profile groups" \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
+
+    waitForServiceAvailable oauth2
 }
 
-oauth2ProxyReset(){
-  helm uninstall oauth2proxy -n oauth2
-  emptyLocalFsStorageOAuth2
-  kubectl delete ns oauth2
+waitForServiceAvailable(){
+  NS=$1
+  echo "Waiting for services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace "$NS"
+  [[ $? -eq 0 ]] && echoSuccess "Service is now up!" || echoFailed "Service timed-out, please check!!"
 }
 
 decodeSecret(){
