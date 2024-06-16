@@ -331,16 +331,7 @@ ingressInst() {
     --set defaultBackend.enabled=true
   #    -f charts/values.yaml
 
-  echo "Waiting for services to be up!!!!"
-  kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace ingress-nginx
-  [[ $? -eq 0 ]] && echoSuccess "Ingress controller service is up" || echoFailed "Ingress controller services timed-out, please check!!"
-
-#  output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
-#  while [ "$output" != "true" ]; do
-#    echo "Ingress controller service is not up, will check again after 5seconds"
-#    sleep 5
-#    output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -ojsonpath='{.items[0].status.containerStatuses[0].ready}')
-#  done
+  waitForServiceAvailable ingress-nginx
 }
 
 dockrInst() {
@@ -435,14 +426,38 @@ EOF
 
 taintNode() {
   echo "Going to taint node for scheduling in master"
-  : ${IP:=$(ifconfig eth1 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+
+  # Define a function to get IP address
+  getIP() {
+    ifconfig eth1 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://'
+  }
+
+  # Get the IP address
+  IP=$(getIP)
+
+  # If IP is empty, try another network interface
   if [ -z "$IP" ]; then
-    : ${IP:=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')}
+    IP=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
   fi
+
+  # If IP is still empty, print an error message and exit
+  if [ -z "$IP" ]; then
+    echo "Error: Could not determine IP address"
+    return 1
+  fi
+
+  # Get the node name
   JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
   NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
-  kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/control-plane:NoSchedule-
 
+  # If node name is empty, print an error message and exit
+  if [ -z "$NODE_NAME" ]; then
+    echo "Error: Could not determine node name"
+    return 1
+  fi
+
+  # Taint the node
+  kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/control-plane:NoSchedule-
 }
 
 k8sInst() {
@@ -924,256 +939,53 @@ prometheusGrafanaReset() {
   kubectl delete ns db
 }
 
-emptyLocalFsStorageKeycloak(){
-  kubectl delete pv keycloak-pv
-  kubectl delete sc keycloak-storage
-  rm -rf /data/volumes/pv3
+emptyLocalFsStorage() {
+  local service=$1
+  local pvName=$2
+  local scName=$3
+  local volumePath=$4
+  local namespace=$5
+
+  if [[ -n $namespace ]]; then
+    kubectl delete pvc --all -n $namespace
+  fi
+
+  kubectl delete pv $pvName
+  kubectl delete sc $scName
+  rm -rf $volumePath
 }
 
-emptyLocalFsStorageRegistry(){
-  kubectl delete pvc --all -n regisry
-  kubectl delete pv registry-pv
-  kubectl delete sc registry-storage
-  rm -rf /data/volumes/pv4
-}
+createLocalStorageClassAndPV() {
+  local storageClassName=$1
+  local pvName=$2
+  local volumePath=$3
 
-emptyLocalFsStorageOpensearch(){
-  kubectl delete pvc --all -n opensearch
-  kubectl delete pv opensearch-pv
-  kubectl delete sc opensearch-storage
-  rm -rf /data/volumes/pv5
-}
-
-emptyLocalFsStorageMonotring(){
-  kubectl delete pv prometheus-pv
-  kubectl delete pv alertmanager-pv
-  kubectl delete sc prometheus-storage
-  kubectl delete sc alertmanager-storage
-  rm -rf /data/volumes/{pv1,pv2}
-}
-
-emptyLocalFsStorageOAuth2(){
-  kubectl delete pvc --all -n oauth2
-  kubectl delete pv oauth-pv
-  kubectl delete sc oauth-storage
-  rm -rf /data/volumes/pv6
-}
-
-localFsStorageClassKeycloakCreate(){
   cat << EOF | kubectl apply -f -
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
-  name: keycloak-storage
+  name: ${storageClassName}
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 EOF
 
-  mkdir -p /data/volumes/pv3
-  chmod 777 /data/volumes/pv3
+  mkdir -p "${volumePath}"
+  chmod 777 "${volumePath}"
 
   cat << EOF | kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: keycloak-pv
+  name: ${pvName}
 spec:
   capacity:
     storage: 10Gi
   accessModes:
   - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: keycloak-storage
+  storageClassName: ${storageClassName}
   local:
-    path: /data/volumes/pv3
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - master.cloud.com
-EOF
-}
-
-localFsStorageClassOAuth2Create(){
-  cat << EOF | kubectl apply -f -
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: oauth-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-EOF
-  mkdir -p /data/volumes/pv6
-  chmod 777 /data/volumes/pv6
-
-  cat << EOF | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: oauth-pv
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: oauth-storage
-  local:
-    path: /data/volumes/pv6
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - master.cloud.com
-EOF
-}
-
-localFsStorageClassMonitoringCreate(){
-  cat << EOF | kubectl apply -f -
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: prometheus-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-EOF
-
-  cat << EOF | kubectl apply -f -
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: alertmanager-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-EOF
-
-  mkdir -p /data/volumes/pv1
-  chmod 777 /data/volumes/pv1
-  mkdir -p /data/volumes/pv2
-  chmod 777 /data/volumes/pv2
-
-  cat << EOF | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: prometheus-pv
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: prometheus-storage
-  local:
-    path: /data/volumes/pv1
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - master.cloud.com
-EOF
-
-  cat << EOF | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: alertmanager-pv
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: alertmanager-storage
-  local:
-    path: /data/volumes/pv2
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - master.cloud.com
-EOF
-
-}
-
-localFsStorageClassRegistryCreate(){
-  cat << EOF | kubectl apply -f -
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: registry-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-EOF
-
-  mkdir -p /data/volumes/pv4
-  chmod 777 /data/volumes/pv4
-
-  cat << EOF | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: registry-pv
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: registry-storage
-  local:
-    path: /data/volumes/pv4
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: kubernetes.io/hostname
-          operator: In
-          values:
-          - master.cloud.com
-EOF
-
-}
-
-localFsStorageClassOpensearchCreate(){
-  cat << EOF | kubectl apply -f -
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: opensearch-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-EOF
-
-  mkdir -p /data/volumes/pv5
-  chmod 777 /data/volumes/pv5
-
-  cat << EOF | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: opensearch-pv
-spec:
-  capacity:
-    storage: 10Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: opensearch-storage
-  local:
-    path: /data/volumes/pv5
+    path: ${volumePath}
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -1376,8 +1188,8 @@ apiUrl(){
 
 opensearchReset(){
   helm uninstall opensearch -n opensearch
+  emptyLocalFsStorage "Opensearch" "opensearch-pv" "opensearch-storage" "/data/volumes/pv5" "opensearch"
   kubectl delete ns opensearch
-  emptyLocalFsStorageOpensearch
 }
 
 opensearchDashReset(){
@@ -1407,7 +1219,7 @@ opensearchInst(){
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
     openSearch/opensearch
 
-  localFsStorageClassOpensearchCreate
+  createLocalStorageClassAndPV "opensearch-storage" "opensearch-pv" "/data/volumes/pv5"
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
   [[ $? -eq 0 ]] && echoSuccess "Opensearch services are now up!" || echoFailed "Opensearch services timed-out, plaese check!!"
@@ -1435,7 +1247,8 @@ fluentdInst(){
 
 resetDockerRegistry(){
   helm uninstall registry -n registry
-  emptyLocalFsStorageRegistry
+
+  emptyLocalFsStorage "Registry" "registry-pv" "registry-storage" "/data/volumes/pv4" "registry"
   kubectl delete ns registry
 }
 
@@ -1746,7 +1559,8 @@ helmTemplateDebug(){
 keycloakReset(){
   helm uninstall keycloak -n keycloak
   kubectl delete pvc --all -n keycloak
-  emptyLocalFsStorageKeycloak
+
+  emptyLocalFsStorage "Keycloak" "keycloak-pv" "keycloak-storage" "/data/volumes/pv3"
   kubectl delete ns keycloak
 }
 
@@ -1759,7 +1573,7 @@ keycloakInst(){
 }
 
 installRegistryWithCertMgr(){
-  localFsStorageClassRegistryCreate
+  createLocalStorageClassAndPV "registry-storage" "registry-pv" "/data/volumes/pv4"
   dockerRegistryInst
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
@@ -1785,7 +1599,8 @@ installRegistryWithCertMgr(){
 
 installKeycloakWithCertMgr(){
   keycloakInst
-  localFsStorageClassKeycloakCreate
+
+  createLocalStorageClassAndPV "keycloak-storage" "keycloak-pv" "/data/volumes/pv3"
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
   #gok create certificate keycloak keycloak
@@ -1797,7 +1612,9 @@ installKeycloakWithCertMgr(){
 }
 
 installPrometheusGrafanaWithCertMgr(){
-  localFsStorageClassMonitoringCreate
+
+  createLocalStorageClassAndPV "prometheus-storage" "prometheus-pv" "/data/volumes/pv1"
+  createLocalStorageClassAndPV "alertmanager-storage" "alertmanager-pv" "/data/volumes/pv2"
   prometheusGrafanaInstv2
 
   # No need to generate the certificate.
@@ -1826,7 +1643,8 @@ installDashboardwithCertManager(){
 
 oauth2ProxyReset(){
   helm uninstall oauth2proxy -n oauth2
-  emptyLocalFsStorageOAuth2
+
+  emptyLocalFsStorage "OAuth2" "oauth-pv" "oauth-storage" "/data/volumes/pv6" "oauth2"
   kubectl delete ns oauth2
 }
 
@@ -1840,7 +1658,8 @@ print(client_secret)
   REALM="GokDevelopers"
   OAUTH2_HOST="$(fullKeycloakUrl)"
   OAUTH2_OIDC_ISSUE_URL="https://$(fullKeycloakUrl)/realms/GokDevelopers/protocol/openid-connect/auth"
-  localFsStorageClassOAuth2Create
+
+  createLocalStorageClassAndPV "oauth-storage" "oauth-pv" "/data/volumes/pv6"
   kubectl create ns oauth2
   kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret="${client_secret}" -n oauth2
   kubectl create configmap oauth2-proxy-config \
@@ -2280,7 +2099,9 @@ y
 EOF
   elif [ "$COMPONENT" == "monitoring" ]; then
     prometheusGrafanaResetv2
-    emptyLocalFsStorageMonotring
+
+    emptyLocalFsStorage "Monitoring" "prometheus-pv" "prometheus-storage" "/data/volumes/pv1"
+    emptyLocalFsStorage "Monitoring" "alertmanager-pv" "alertmanager-storage" "/data/volumes/pv2"
   elif [ "$COMPONENT" == "dashboard" ]; then
     dashboardReset
   elif [ "$COMPONENT" == "keycloak" ]; then
