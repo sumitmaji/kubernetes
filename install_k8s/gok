@@ -1828,7 +1828,7 @@ print(client_secret)
   kubectl create configmap oauth2-proxy-config --from-literal=clientID=${OAUTH2_PROXY_CLIENT_ID} -n oauth2
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
-    --set-string "extraArgs\.provider=keycloak,extraArgs\.login-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth,extraArgs\.redeem-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token,extraArgs\.profile-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo,extraArgs\.validate-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo,extraArgs\.keycloak-group=groups,extraArgs\.scope=openid email profile groups" \
+    --set-string extraArgs.provider=keycloak \
     --values https://github.com/sumitmaji/kubernetes/raw/help/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
 }
