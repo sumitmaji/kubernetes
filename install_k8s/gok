@@ -248,16 +248,17 @@ updateSys() {
 }
 
 setupDockerRegistry(){
+  # shellcheck disable=SC2078
   [[ "TRACE" ]] && set -x
 
   EXPORTDIR=$MOUNT_PATH
 
-  if [ $(hostname) == 'master.cloud.com' ]; then
+  if [ "$(hostname)" == 'master.cloud.com' ]; then
       mkdir -p "$EXPORTDIR"/certs
       mkdir -p /mnt/registry
       rm -rf /mnt/registry/config.yml
       wget https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/config.yml -P /mnt/registry/
-      pushd "$EXPORTDIR"
+      pushd "$EXPORTDIR" || exit
       USERNAME=master.cloud.com
       FILENAME=registry
       CERTIFICATE_KEY_NAME=$USERNAME
@@ -290,7 +291,7 @@ setupDockerRegistry(){
 
       cp "$EXPORTDIR"/certs/${CERTIFICATE_KEY_NAME}.crt /etc/docker/certs.d/master.cloud.com:5000/${CERTIFICATE_KEY_NAME}.crt
 
-      popd
+      popd || exit
   else
       mkdir -p /etc/docker/certs.d/master.cloud.com:5000
       cp "$EXPORTDIR"/certs/${USERNAME}.crt /etc/docker/certs.d/master.cloud.com:5000/${USERNAME}.crt
@@ -588,15 +589,15 @@ EOF
   echo "Certificate request for NS $NS created, executing below command to know current status"
   echo "kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces"
   kubectl get Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all-namespaces
-  kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io ${SUBDOMAIN}-$(sedRootDomain)-tls
+  kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io "${SUBDOMAIN}"-"$(sedRootDomain)"-tls
 }
 
 getLetsEncryptUrl(){
-  [[ getLetsEncEnv = 'prod' ]] && echo "https://acme-v02.api.letsencrypt.org/directory " || echo "https://acme-staging-v02.api.letsencrypt.org/directory"
+  [[ $(getLetsEncEnv) == 'prod' ]] && echo "https://acme-v02.api.letsencrypt.org/directory " || echo "https://acme-staging-v02.api.letsencrypt.org/directory"
 }
 
 getLetsEncEnv(){
-  echo ${LETS_ENCRYPT_ENV}
+  echo "${LETS_ENCRYPT_ENV}"
 }
 
 getClusterIssuerName(){
@@ -713,7 +714,7 @@ spec:
   ca:
     secretName: gokselfsign-ca
 EOYAML
-  kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io $(getClusterIssuerName)
+  kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io "$(getClusterIssuerName)"
 
   # Add the self signed issuer(ca) certificate to authorized certificates
   kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt
@@ -1357,7 +1358,7 @@ EOF
 }
 
 oauthUser(){
-  kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server=$(apiUrl) --kubeconfig=/root/oauth.conf
+  kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server="$(apiUrl)" --kubeconfig=/root/oauth.conf
   kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
   kubectl config --kubeconfig=/root/oauth.conf use-context oauthuser@cloud.com
 
@@ -1465,11 +1466,11 @@ verifyRegistyrInst(){
 
   curl -kiv -H \
     "Authorization: Basic $(echo -n "${USER}:${PASSWORD}" | base64)" \
-    https://$(registrySubdomain).$(rootDomain)/v2/_catalog
+    https://"$(registrySubdomain).$(rootDomain)"/v2/_catalog
 
   wget --no-check-certificate --header \
     "Authorization: Basic $(echo -n "${USER}:${PASSWORD}" | base64)" \
-    https://$(registrySubdomain).$(rootDomain)/v2/_catalog
+    https://"$(registrySubdomain).$(rootDomain)"/v2/_catalog
 
   unset USER PASSWORD
 }
@@ -1487,7 +1488,7 @@ dockerRegistryInst(){
       --set persistence.size=10Gi \
       --set persistence.deleteEnabled=true \
       --set persistence.storageClass=registry-storage \
-      --set secrets.htpasswd=$(cat ${DESTINATION_FOLDER}/htpasswd) \
+      --set secrets.htpasswd="$(cat ${DESTINATION_FOLDER}/htpasswd)" \
       --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/values.yaml \
       twuni/docker-registry
 
@@ -1496,6 +1497,7 @@ dockerRegistryInst(){
 # It is used to generate both client/server certificate using
 # Kubernetes ca certificate in /etc/kubernetes/pki/ca.crt
 createCertificate(){
+  # shellcheck disable=SC2078
   [[ "TRACE" ]] && set -x
 
   : ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_k8s}
