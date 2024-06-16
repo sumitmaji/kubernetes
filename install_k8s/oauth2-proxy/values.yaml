@@ -1,22 +1,43 @@
 extraEnvVars:
   - name: LOG_LEVEL
     value: debug
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: oauth2-proxy-secrets
+        key: clientSecret
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: oauth2-proxy-config
+        key: clientID
+  - name: OAUTH2_OIDC_ISSUER_URL
+    valueFrom:
+      configMapKeyRef:
+        name: oauth2-proxy-config
+        key: oidcIssuerUrl
+  - name: OAUTH2_REDIRECT_URL
+    valueFrom:
+      configMapKeyRef:
+        name: oauth2-proxy-config
+        key: oidcIssuerUrl
 
 configuration:
-  clientID: gok-developers-client
-  clientSecret: sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV
+  clientID: ${OAUTH2_PROXY_CLIENT_ID}
+  clientSecretFile: /etc/secrets/clientSecret
   cookieSecret: mycookiesumit123
-  oidcIssuerUrl: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
-  redirectUrl: kube*.
+  oidcIssuerUrl: $(OAUTH2_OIDC_ISSUER_URL)
+  redirectUrl: $(OAUTH2_REDIRECT_URL)
 
 global:
   storageClass: "oauth-storage"
 
-extraArgs:
-  - "--provider=keycloak"
-  - "--login-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth"
-  - "--redeem-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token"
-  - "--profile-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
-  - "--validate-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
-  - "--keycloak-group=groups"
-  - "--scope=openid email profile groups"
+extraVolumes:
+  - name: secrets
+    secret:
+      secretName: oauth2-proxy-secrets
+
+extraVolumeMounts:
+  - name: secrets
+    mountPath: /etc/secrets
+    readOnly: true
