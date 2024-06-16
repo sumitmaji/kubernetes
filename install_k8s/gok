@@ -755,7 +755,7 @@ certManagerReset() {
 
 #Godday api calls are disabled, hence going to remove this call.
 godaddyWebhook() {
-  replaceEnvVariable  https://github.com/sumitmaji/kubernetes/raw/q2/install_k8s/godaddy-cert-webhook/webhook-all.yml | kubectl create -f - --validate=false
+  replaceEnvVariable  https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml | kubectl create -f - --validate=false
 #  kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
   echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
   # shellcheck disable=SC2162
@@ -1847,7 +1847,7 @@ print(client_secret)
     --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[5]=--keycloak-group=groups" \
     --set "extraArgs[6]=--scope=openid email profile groups" \
-    --values https://github.com/sumitmaji/kubernetes/raw/help/install_k8s/oauth2-proxy/values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
 }
 
