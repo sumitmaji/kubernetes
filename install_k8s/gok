@@ -248,8 +248,9 @@ updateSys() {
 }
 
 setupDockerRegistry(){
-  # shellcheck disable=SC2078
-  [[ "TRACE" ]] && set -x
+  if [[ -n $TRACE ]]; then
+    set -x
+  fi
 
   EXPORTDIR=$MOUNT_PATH
 
@@ -1497,8 +1498,9 @@ dockerRegistryInst(){
 # It is used to generate both client/server certificate using
 # Kubernetes ca certificate in /etc/kubernetes/pki/ca.crt
 createCertificate(){
-  # shellcheck disable=SC2078
-  [[ "TRACE" ]] && set -x
+  if [[ -n $TRACE ]]; then
+    set -x
+  fi
 
   : ${INSTALL_PATH:=$MOUNT_PATH/kubernetes/install_k8s}
 
