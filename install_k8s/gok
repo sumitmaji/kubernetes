@@ -1192,24 +1192,32 @@ prometheusGrafanaResetv2(){
 }
 
 prometheusGrafanaInstv2(){
+  CLIENT_SECRET=$(python3 -c "
+import getpass
+client_secret = getpass.getpass('Please enter your client secret: ')
+print(client_secret)
+")
+  CLIENT_ID=gok-developers-client
   URL=$(fullDefaultUrl)
+  OAUTH2_HOST=$(fullKeycloakUrl)
+  REALM=GokDevelopers
   kubectl create ns monitoring
   kubectl create secret generic kube-prometheus-stack-grafana-oauth \
-    --from-literal GF_AUTH_KEYCLOAK_CLIENT_ID="gok-developers-client" \
-    --from-literal GF_AUTH_KEYCLOAK_CLIENT_SECRET="sC1hHm9c2qHjwYtfumcQnEwyH7NOqkaV" \
-    --from-literal=OAUTH_AUTH_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth" \
-    --from-literal=OAUTH_TOKEN_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token" \
-    --from-literal=OAUTH_API_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo" \
-    --from-literal=GRAFANA_DOMAIN="kube.gokcloud.com" \
-    --from-literal=GRAFANA_ROOT_URL="https://kube.gokcloud.com/grafana" \
+    --from-literal GF_AUTH_KEYCLOAK_CLIENT_ID="${CLIENT_ID}" \
+    --from-literal GF_AUTH_KEYCLOAK_CLIENT_SECRET="${CLIENT_SECRET}" \
+    --from-literal=OAUTH_AUTH_URL="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
+    --from-literal=OAUTH_TOKEN_URL="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
+    --from-literal=OAUTH_API_URL="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --from-literal=GRAFANA_DOMAIN="${URL}" \
+    --from-literal=GRAFANA_ROOT_URL="https://${URL}/grafana" \
     --namespace monitoring
 
   kubectl create configmap -n monitoring env-data \
-    --from-literal=OAUTH_AUTH_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth" \
-    --from-literal=OAUTH_TOKEN_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token" \
-    --from-literal=OAUTH_API_URL="https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo" \
-    --from-literal=GRAFANA_DOMAIN="kube.gokcloud.com" \
-    --from-literal=GRAFANA_ROOT_URL="https://kube.gokcloud.com/grafana"
+    --from-literal=OAUTH_AUTH_URL="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
+    --from-literal=OAUTH_TOKEN_URL="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
+    --from-literal=OAUTH_API_URL="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --from-literal=GRAFANA_DOMAIN="${URL}" \
+    --from-literal=GRAFANA_ROOT_URL="https://${URL}/grafana"
 
   kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/issuer.crt
   kubectl get secrets -n keycloak keycloak-gokcloud-com -o json | jq -r '.data["tls.crt"]' | base64 -d > ~/keycloak.crt
@@ -1227,7 +1235,7 @@ prometheusGrafanaInstv2(){
 
   helm install grafana grafana/grafana \
     --set grafana.ini.server.root_url=https://$URL/grafana \
-    --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
   kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
@@ -1856,9 +1864,12 @@ decodeSecret(){
 }
 
 spinnakerInst(){
+  CLIENT_SECRET=$(python3 -c "
+import getpass
+client_secret = getpass.getpass('Please enter your client secret: ')
+print(client_secret)
+")
 
-  echo "Enter client secret:"
-  read CLIENT_SECRET
   useradd -m -g root spinnaker
   mkdir -p /home/spinnaker/.hal && chmod -R 777 /home/spinnaker/.hal
   mkdir -p /home/spinnaker/.kube/ && cp ~/.kube/config /home/spinnaker/.kube/config && chmod 755 /home/spinnaker/.kube/config
