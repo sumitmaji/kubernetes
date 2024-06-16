@@ -1213,6 +1213,9 @@ opensearchDashInst(){
 opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
+  kubectl create ns opensearch
+  kubectl create secret generic opensearch-password \
+      --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD=Sumit@7656 -n opensearch
   helm install opensearch \
     --namespace opensearch \
     --create-namespace \
@@ -1223,7 +1226,7 @@ opensearchInst(){
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
   [[ $? -eq 0 ]] && echoSuccess "Opensearch services are now up!" || echoFailed "Opensearch services timed-out, plaese check!!"
-  checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u 'admin:Sumit@0989' --insecure
+  checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u 'admin:Sumit@7656' --insecure
   #gok patch ingress opensearch opensearch letsencrypt opensearch
 }
 
