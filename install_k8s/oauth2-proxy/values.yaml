@@ -26,8 +26,8 @@ configuration:
   clientID: ${OAUTH2_PROXY_CLIENT_ID}
   clientSecretFile: /etc/secrets/clientSecret
   cookieSecret: mycookiesumit123
-  oidcIssuerUrl: ${OAUTH2_OIDC_ISSUER_URL}
-  redirectUrl: ${OAUTH2_REDIRECT_URL}
+  oidcIssuerUrl: $(OAUTH2_OIDC_ISSUER_URL)
+  redirectUrl: $(OAUTH2_REDIRECT_URL)
 
 global:
   storageClass: "oauth-storage"
