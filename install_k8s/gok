@@ -1814,10 +1814,10 @@ installDashboardwithCertManager(){
 
 oauth2ProxyInst(){
   client_secret=$(python3 -c "
-  import getpass
-  client_secret = getpass.getpass('Please enter your client secret: ')
-  print(client_secret)
-  ")
+import getpass
+client_secret = getpass.getpass('Please enter your client secret: ')
+print(client_secret)
+")
   OAUTH2_PROXY_CLIENT_ID=gok-developers-client
   REALM=GokDevelopers
   OATUH2_HOST=$(fullKeycloakUrl)
