@@ -1813,9 +1813,22 @@ installDashboardwithCertManager(){
 }
 
 oauth2ProxyInst(){
+  client_secret=$(python3 -c "
+  import getpass
+  client_secret = getpass.getpass('Please enter your client secret: ')
+  print(client_secret)
+  ")
+  OAUTH2_PROXY_CLIENT_ID=gok-developers-client
+  REALM=GokDevelopers
+  OATUH2_HOST=$(fullKeycloakUrl)
+  PROVIDER=keycloak
   localFsStorageClassOAuth2Create
+  kubectl create ns oauth2
+  kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret=${client_secret} -n oauth2
+  kubectl create configmap oauth2-proxy-config --from-literal=clientID=${OAUTH2_PROXY_CLIENT_ID} -n oauth2
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
+    --set-string "extraArgs.provider=${PROVIDER},extraArgs.login-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/auth,extraArgs.redeem-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/token,extraArgs.profile-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo,extraArgs.validate-url=https://${OATUH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo,extraArgs.keycloak-group=groups,extraArgs.scope=openid email profile groups" \
     --values https://github.com/sumitmaji/kubernetes/raw/oauth/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
 }
