@@ -225,7 +225,7 @@ EOF
     cat ./rndc-key >> /etc/bind/named.conf.options
   fi
 
-  if [[ "$ENV" == "CLOUD" && ! grep -q "#trusted acl" /etc/bind/named.conf.options ]]; then
+  if [[ "${ENV}" == "CLOUD" ]] && ! grep -q "#trusted acl" /etc/bind/named.conf.options; then
     cat <<EOF >> /etc/bind/named.conf.options
 #trusted acl
 acl "trusted" {
