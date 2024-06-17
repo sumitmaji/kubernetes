@@ -52,7 +52,7 @@ installPkg(){
 
 }
 
-: ${CLOUD_HOST_IP:=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
+: ${CLOUD_HOST_IP:=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
 
 if [ -z "$CLOUD_HOST_IP" ]; then
     CLOUD_HOST_IP=$(ip -4 addr show enp0s8 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
