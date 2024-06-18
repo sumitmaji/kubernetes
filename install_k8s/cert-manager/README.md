@@ -146,3 +146,6 @@ kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download
 ```shell
 utils/patch-ingress.sh -i $INGRESS_NAME -n $NAMESPACE
 ```
+
+### Enable Certificate with LetsEncrypt
+Refer to `HTTPS Setup with Kubernetes`
