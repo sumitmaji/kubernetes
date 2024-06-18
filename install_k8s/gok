@@ -8,6 +8,8 @@ CMD=$1
 
 export ADMIN_ID=admin
 export ADMIN_PASSWORD=admin
+export POSTGRESQL_PASSWORD=postgres045
+export POSTGRESQL_USERNAME=postgres
 
 getOAuth0Config(){
  IFS='' read -r -d '' OAUTH <<"EOF"
@@ -1590,6 +1592,10 @@ keycloakInst(){
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
     --from-literal=KEYCLOAK_ADMIN="${ADMIN_ID}" \
     --from-literal=KEYCLOAK_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n keycloak
+
+  kubectl create secret generic postgresql-secrets \
+    --from-literal=POSTGRESQL_USERNAME="${POSTGRESQL_USERNAME}" \
+    --from-literal=POSTGRESQL_PASSWORD="${POSTGRESQL_PASSWORD}" -n keycloak
 
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \

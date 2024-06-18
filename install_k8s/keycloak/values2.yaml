@@ -74,13 +74,27 @@ ingress:
   ##
   selfSigned: true
 
+username: sumit_keycloak
+password: "sumit123"
 
 postgresql:
   enabled: true
   auth:
-    postgresPassword: "sumit123"
-    username: sumit_keycloak
-    password: "sumit123"
+    postgresPassword:
+      valueFrom:
+        secretKeyRef:
+          name: postgresql-secrets
+          key: POSTGRESQL_PASSWORD
+    username:
+        valueFrom:
+            secretKeyRef:
+            name: postgresql-secrets
+            key: POSTGRESQL_USERNAME
+    password:
+        valueFrom:
+            secretKeyRef:
+            name: postgresql-secrets
+            key: POSTGRESQL_PASSWORD
   primary:
     persistence:
       storageClass: "keycloak-storage"
