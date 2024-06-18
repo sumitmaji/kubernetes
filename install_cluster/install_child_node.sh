@@ -1,5 +1,5 @@
 #!/bin/bash
-[[ "TRACE" ]] && set -x
+[[ "$TRACE" ]] && set -x
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -77,9 +77,9 @@ EOF
     touch /etc/dhcp/dhclient-enp0s3.conf
   fi
 
-  STATUS=$(grep -i "send fqdn.fqdn "$NODE_NAME";" /etc/dhcp/dhclient-enp0s3.conf)
+  STATUS=$(grep -i "send fqdn.fqdn $NODE_NAME;" /etc/dhcp/dhclient-enp0s3.conf)
   if [ -z "$STATUS" ]; then
-    echo "send fqdn.fqdn \"$NODE_NAME\";" >/etc/dhcp/dhclient-enp0s3.conf
+    echo "send fqdn.fqdn $NODE_NAME;" >/etc/dhcp/dhclient-enp0s3.conf
     echo "send fqdn.encoded on;" >>/etc/dhcp/dhclient-enp0s3.conf
     echo "send fqdn.server-update off;" >>/etc/dhcp/dhclient-enp0s3.conf
     echo "also request fqdn.fqdn;" >>/etc/dhcp/dhclient-enp0s3.conf
@@ -124,27 +124,27 @@ if [ "$ENV" == "LOCAL" ]; then
 fi
 
 addRoutes(){
-  IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
-  if [ $IP == "11.0.0.1" ]; then
+  IP=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+  if [ "$IP" == "11.0.0.1" ]; then
     route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
     route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
     route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.2" ]; then
+  elif [ "$IP" == "11.0.0.2" ]; then
     route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
     route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
     route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.3" ]; then
+  elif [ "$IP" == "11.0.0.3" ]; then
     route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
     route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
     route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.4" ]; then
+  elif [ "$IP" == "11.0.0.4" ]; then
     route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
     route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
     route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
   fi
 }
 
-if [ $ENV == "CLOUD" ]; then
+if [ "$ENV" == "CLOUD" ]; then
     echo "Dummy log"
     #Using routes of private network provided by cloud
     #addRoutes
