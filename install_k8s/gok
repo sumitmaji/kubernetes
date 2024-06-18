@@ -6,6 +6,9 @@ source "$WORKING_DIR"/config
 release=$2
 CMD=$1
 
+export ADMIN_ID=admin
+export ADMIN_PASSWORD=admin
+
 getOAuth0Config(){
  IFS='' read -r -d '' OAUTH <<"EOF"
 export OIDC_ISSUE_URL=https://skmaji.auth0.com/
@@ -1582,10 +1585,16 @@ keycloakReset(){
 
 keycloakInst(){
 
+  kubectl create ns keycloak
+  kubectl create secret generic keycloak-secrets \
+    --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+    --from-literal=KEYCLOAK_ADMIN="${ADMIN_ID}" \
+    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n keycloak
+
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/keycloak/values2.yaml
+        --values $MOUNT_PATH/kubernetes/install_k8s/keycloak/values2.yaml
 }
 
 installRegistryWithCertMgr(){
