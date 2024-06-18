@@ -17,7 +17,7 @@ shift
 done
 
 
-source util
+source ../install_k8s/util
 
 installPkg(){
   apt-get update
@@ -456,8 +456,8 @@ EOF
 
 case "$ENV" in
   "CLOUD")
-    figlet "Master Node Installation"
     installPkg
+    figlet "Master Node Installation"
     bindInst
     nameserver
     natInst
@@ -468,8 +468,8 @@ case "$ENV" in
     reboot
     ;;
   "LOCAL")
-    figlet "Master Node Installation"
     installPkg
+    figlet "Master Node Installation"
     setupPrivateNetwork
     bindInst
     dhcpInst
