@@ -16,18 +16,51 @@ while [ $# -gt 0 ]; do
 shift
 done
 
-apt-get update
-apt-get install -y net-tools
+cat << EOF
+  _____           _        _ _ _                                _
+  \_   \_ __  ___| |_ __ _| | (_)_ __   __ _    /\/\   __ _ ___| |_ ___ _ __
+   / /\/ '_ \/ __| __/ _  | | | | '_ \ / _  |  /    \ / _  / __| __/ _ \ '__|
+/\/ /_ | | | \__ \ || (_| | | | | | | | (_| | / /\/\ \ (_| \__ \ ||  __/ |
+\____/ |_| |_|___/\__\__,_|_|_|_|_| |_|\__, | \/    \/\__,_|___/\__\___|_|
+                                       |___/
+ ______            _
+|  ___ \          | |
+| |   | | ___   _ | | ____
+| |   | |/ _ \ / || |/ _  )
+| |   | | |_| ( (_| ( (/ /
+|_|   |_|\___/ \____|\____)
+EOF
 
-: ${CLOUD_HOST_IP:=$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+installPkg(){
+  apt-get update
+  apt-get install -y net-tools
+  # Keep upstart from complaining
+  dpkg-divert --local --rename --add /sbin/initctl
+  ln -sf /bin/true /sbin/initctl
+  DEBIAN_FRONTEND noninteractive
+  apt-get update
+  apt-get install -yq apt debconf
+  apt-get upgrade -yq
+  apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
+  apt-get -y dist-upgrade
+
+  apt-get update
+  apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc \
+          gcc make ifupdown net-tools openssh-server openssh-client
+  apt-get -y install ntp
+  hostnamectl set-hostname master.cloud.com
+
+}
+
+: ${CLOUD_HOST_IP:=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
+
 if [ -z "$CLOUD_HOST_IP" ]; then
-    : ${CLOUD_HOST_IP:=$(ifconfig enp0s8 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')}
+    CLOUD_HOST_IP=$(ip -4 addr show enp0s8 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
 fi
 
-if [ -z "$CLOUD_HOST_IP" ]
-then
-	echo "Please provide master host ip"
-	exit 0
+if [ -z "$CLOUD_HOST_IP" ]; then
+    echo "Please provide master host ip"
+    exit 1
 fi
 
 CHILD_NODES=("node01:10.108.0.3" "node02:10.108.0.4" "node03:10.108.0.5")
@@ -45,7 +78,6 @@ getMasterIp(){
 }
 
 
-echo 'Installing the master node!!!!!!!!!'
 
 
 echoSuccess(){
@@ -59,27 +91,6 @@ echoFailed(){
 echoWarning(){
   echo -e "\e[32m$1\e[0m"
 }
-
-
-
-# Keep upstart from complaining
-dpkg-divert --local --rename --add /sbin/initctl
-ln -sf /bin/true /sbin/initctl
-DEBIAN_FRONTEND noninteractive
-apt-get update
-apt-get install -yq apt debconf
-apt-get upgrade -yq
-apt-get -y -o Dpkg::Options::="--force-confdef" upgrade
-apt-get -y dist-upgrade
-
-apt-get update
-echo "Installing dhcp server wget nfs-common bind9 ntp gcc make ifupdown net-tools"
-apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc \
-        gcc make ifupdown net-tools openssh-server openssh-client
-
-apt-get -y install ntp
-
-hostnamectl set-hostname master.cloud.com
 
 setupPrivateNetwork(){
 if [ "$ENV" == "LOCAL" ]
@@ -163,33 +174,39 @@ delSubRoute(){
 }
 
 addRoutes(){
-  IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
-  if [ $IP == "11.0.0.1" ]; then
-    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
-    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
-    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.2" ]; then
-    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
-    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
-    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.3" ]; then
-    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
-    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
-    route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.4" ]; then
-    route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
-    route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
-    route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
+  IP=$(ip -4 addr show eth2 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+  if [ "$IP" == "11.0.0.1" ]; then
+    ip route add 11.0.0.2/32 via 10.108.0.3
+    ip route add 11.0.0.3/32 via 10.108.0.4
+    ip route add 11.0.0.4/32 via 10.108.0.5
+  elif [ "$IP" == "11.0.0.2" ]; then
+    ip route add 11.0.0.1/32 via 10.108.0.2
+    ip route add 11.0.0.3/32 via 10.108.0.4
+    ip route add 11.0.0.4/32 via 10.108.0.5
+  elif [ "$IP" == "11.0.0.3" ]; then
+    ip route add 11.0.0.1/32 via 10.108.0.2
+    ip route add 11.0.0.2/32 via 10.108.0.3
+    ip route add 11.0.0.4/32 via 10.108.0.5
+  elif [ "$IP" == "11.0.0.4" ]; then
+    ip route add 11.0.0.1/32 via 10.108.0.2
+    ip route add 11.0.0.3/32 via 10.108.0.4
+    ip route add 11.0.0.2/32 via 10.108.0.3
   fi
 }
 
 #https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-18-04
 #https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-14-04
 bindInst(){
-  STATUS="$(grep "##zone append end" /etc/bind/named.conf.default-zones)"
-  if [ -z "$STATUS" ]
-  then
-  cat >>  /etc/bind/named.conf.default-zones << EOF
+  cat <<EOF
+ ____       _   _   _               ____  _   _ ____
+/ ___|  ___| |_| |_(_)_ __   __ _  |  _ \| \ | / ___|
+\___ \ / _ \ __| __| | '_ \ / _  | | | | |  \| \___ \\
+ ___) |  __/ |_| |_| | | | | (_| | | |_| | |\  |___) |
+|____/ \___|\__|\__|_|_| |_|\__, | |____/|_| \_|____/
+                            |___/
+EOF
+  if ! grep -q "##zone append end" /etc/bind/named.conf.default-zones; then
+    cat >>  /etc/bind/named.conf.default-zones << EOF
 ##zone append begin
 zone "cloud.com" {
 	type master;
@@ -206,35 +223,26 @@ zone "$(getRevIp).in-addr.arpa" {
 EOF
   fi
 
-  touch ./rndc-key
-  STATUS="$(grep "##rndc-key copy end" ./rndc-key)"
-  if [ -z "$STATUS" ]
-  then
+  if ! grep -q "##rndc-key copy end" ./rndc-key; then
     echo '##rndc-key copy begin' >  ./rndc-key
     grep -A 3 "key \"rndc-key\"" /etc/bind/rndc.key >> ./rndc-key
-    sed -i '$a\##rndc-key copy end' ./rndc-key
+    echo '##rndc-key copy end' >> ./rndc-key
   fi
 
-  STATUS="$(grep "##rndc-key copy end" /etc/bind/named.conf.options)"
-  if [ -z "$STATUS" ]
-  then
-    sed -i '$r ./rndc-key' /etc/bind/named.conf.options
+  if ! grep -q "##rndc-key copy end" /etc/bind/named.conf.options; then
+    cat ./rndc-key >> /etc/bind/named.conf.options
   fi
 
-  STATUS="$(grep "#trusted acl" /etc/bind/named.conf.options)"
-  if [[ "$ENV" == "CLOUD" && -z "$STATUS" ]]; then
-  cat <<EOF >> /etc/bind/named.conf.options
+  if [[ "${ENV}" == "CLOUD" ]] && ! grep -q "#trusted acl" /etc/bind/named.conf.options; then
+    cat <<EOF >> /etc/bind/named.conf.options
 #trusted acl
 acl "trusted" {
-`
-for server in ${CHILD_NODES[@]}; do
+$(for server in ${CHILD_NODES[@]}; do
   IFS=':'
   read -r node ip <<< $server
   echo "        $ip;"
   IFS=$oifs
-done
-unset IFS
-`
+done)
 };
 EOF
   fi
@@ -253,17 +261,14 @@ EOF
 )
 @	IN		NS		master.cloud.com.
 master		IN		A	$(getMasterIp)
-`
-if [[ "$ENV" == "CLOUD" ]]; then
+$(if [[ "$ENV" == "CLOUD" ]]; then
 for server in ${CHILD_NODES[@]}; do
   IFS=':'
   read -r node ip <<< $server
   echo "$node		IN		A	$ip"
   IFS=$oifs
 done
-unset IFS
-fi
-`
+fi)
 EOF
 
   cat > /etc/bind/cloud.com.rev << EOF
@@ -278,16 +283,13 @@ EOF
 @       IN      NS      master.cloud.com
 master.cloud.com  IN      A       $(getMasterIp)
 1       IN      PTR     master.cloud.com
-`
-if [[ "$ENV" == "CLOUD" ]]; then
+$(if [[ "$ENV" == "CLOUD" ]]; then
 for server in ${CHILD_NODES[@]}; do
 IFS=':'
 read -r node ip <<< "$server"
 echo "$ip       IN      PTR     ${node}.cloud.com"
 done
-unset IFS
-fi
-`
+fi)
 EOF
 
   chmod 775 -R /etc/bind
@@ -301,6 +303,14 @@ EOF
 }
 
 dhcpInst(){
+  cat <<EOF
+ ____       _   _   _               ____  _   _  ____ ____
+/ ___|  ___| |_| |_(_)_ __   __ _  |  _ \| | | |/ ___|  _ \\
+\___ \ / _ \ __| __| | '_ \ / _  | | | | | |_| | |   | |_) |
+ ___) |  __/ |_| |_| | | | | (_| | | |_| |  _  | |___|  __/
+|____/ \___|\__|\__|_|_| |_|\__, | |____/|_| |_|\____|_|
+                            |___/
+EOF
   if [ -f /etc/dhcp/dhcpd.conf_tmp ]
   then
     echo "Dhcp Temp file exists."
@@ -351,13 +361,16 @@ nameserver(){
   chattr +i /etc/resolv.conf
 }
 
-###########################
-###########################
-######SETTING NAT##########
-###########################
-###########################
-###########################
+
 natInst(){
+  cat <<EOF
+ ____       _   _   _               _   _    _  _____
+/ ___|  ___| |_| |_(_)_ __   __ _  | \ | |  / \|_   _|
+\___ \ / _ \ __| __| | '_ \ / _  | |  \| | / _ \ | |
+ ___) |  __/ |_| |_| | | | | (_| | | |\  |/ ___ \| |
+|____/ \___|\__|\__|_|_| |_|\__, | |_| \_/_/   \_\_|
+                            |___/
+EOF
   apt-get install -y iptables-persistent <<EOF
 YES
 YES
@@ -381,24 +394,30 @@ EOF
   fi
 }
 
-#################################
-#################################
-##########SETTING NTP############
-#################################
-#################################
-
 ntpInst(){
+  cat <<EOF
+ ____       _   _   _               _   _ _____ ____
+/ ___|  ___| |_| |_(_)_ __   __ _  | \ | |_   _|  _ |
+\___ \ / _ \ __| __| | '_ \ / _ | |  \| | | | | |_) |
+ ___) |  __/ |_| |_| | | | | (_| | | |\  | | | |  __|
+|____/ \___|\__|\__|_|_| |_|\__, | |_| \_| |_| |_|
+                            |___/
+EOF
+
   sed -i "/^restrict ::1$/a\ restrict $(getMasterIp) mask 255.255.255.0 nomodify notrap" /etc/ntpsec/ntp.conf
   service ntp start
 }
 
-#################################
-#################################
-##########SETTING NFS############
-#################################
-#################################
-
 nfsInst(){
+  cat <<EOF
+ ____       _   _   _               _   _ _____ ____
+/ ___|  ___| |_| |_(_)_ __   __ _  | \ | |  ___/ ___|
+\___ \ / _ \ __| __| | '_ \ / _  | |  \| | |_  \___ \\
+ ___) |  __/ |_| |_| | | | | (_| | | |\  |  _|  ___) |
+|____/ \___|\__|\__|_|_| |_|\__, | |_| \_|_|   |____/
+                            |___/
+EOF
+
   apt-get install -y nfs-kernel-server
 
   echo "/export $(getMasterIp)/24(rw,async,no_root_squash)" >> /etc/exports
@@ -416,13 +435,15 @@ nfsInst(){
   rm -rf rndc-key
 }
 
-#################################
-#################################
-##########SETTING SSHD############
-#################################
-#################################
-
 sshdInst(){
+cat <<EOF
+ ____       _   _   _               ____ ____  _   _ ____
+/ ___|  ___| |_| |_(_)_ __   __ _  / ___/ ___|| | | |  _ \\
+\___ \ / _ \ __| __| | '_ \ / _  | \___ \___ \| |_| | | | |
+ ___) |  __/ |_| |_| | | | | (_| |  ___) |__) |  _  | |_| |
+|____/ \___|\__|\__|_|_| |_|\__, | |____/____/|_| |_|____/
+                            |___/
+EOF
   mkdir -p /var/run/sshd
   echo 'root:root' | chpasswd
   sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -447,24 +468,32 @@ EOF
   echo "export VISIBLE=now" >> /etc/profile
 }
 
-if [ "$ENV" == "CLOUD" ]; then
-  bindInst
-  nameserver
-  natInst
-  ntpInst
-  nfsInst
-  sshdInst
-#  addRoutes
-  reboot
-elif [ "$ENV" == "LOCAL" ]; then
-  setupPrivateNetwork
-  bindInst
-  dhcpInst
-  nameserver
-  natInst
-  ntpInst
-  nfsInst
-  sshdInst
-  reboot
-fi
+case "$ENV" in
+  "CLOUD")
+    installPkg
+    bindInst
+    nameserver
+    natInst
+    ntpInst
+    nfsInst
+    sshdInst
+    # addRoutes
+    reboot
+    ;;
+  "LOCAL")
+    installPkg
+    setupPrivateNetwork
+    bindInst
+    dhcpInst
+    nameserver
+    natInst
+    ntpInst
+    nfsInst
+    sshdInst
+    reboot
+    ;;
+  *)
+    echo "Invalid environment. Please set ENV to either 'CLOUD' or 'LOCAL'."
+    ;;
+esac
 
