@@ -234,6 +234,19 @@ EOF
 
 }
 
+istioInst(){
+  helm repo add istio https://istio-release.storage.googleapis.com/charts
+  helm repo update
+  helm install istio-base istio/base -n istio-system \
+    --create-namespace \
+    --set defaultRevision=default
+
+  helm install istiod istio/istiod -n istio-system --wait
+  helm ls -n istio-system
+
+}
+
+
 checkDns(){
   kubectl exec -i -t dnsutils -n default -- nslookup "$@"
 }
@@ -2071,13 +2084,7 @@ function installCmd() {
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
     source /etc/bash.bashrc
-    cat <<EOF
-\______   |  |   ____ _____    ______ ____   __  _  ______  |___/  |_  _/ _______________  /_   |   _____ |__| ____
- |     ___|  | _/ __ \\__  \  /  ____/ __ \  \ \/ \/ \__  \ |  \   __\ \   __/  _ \_  __ \  |   |  /     \|  |/    \
- |    |   |  |_\  ___/ / __ \_\___ \\  ___/   \     / / __ \|  ||  |    |  |(  <_> |  | \/  |   | |  Y Y  |  |   |  \
- |____|   |____/\___  (____  /____  >\___  >   \/\_/ (____  |__||__|    |__| \____/|__|     |___| |__|_|  |__|___|  / /\
-                    \/     \/     \/     \/               \/                                            \/        \/  \/
-EOF
+    figlet "Please wait for 1 minute"
   fi
 }
 

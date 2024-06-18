@@ -45,7 +45,7 @@ echo "${NODE_NAME}".cloud.com > /etc/hostname
 sed -i "s@node@${NODE_NAME}@" /etc/hosts
 
 apt-get update
-apt-get install -y net-tools ifupdown openssh-client openssh-server
+apt-get install -y net-tools ifupdown openssh-client openssh-server figlet
 
 getIp(){
   echo "$IP_ADDRESS"

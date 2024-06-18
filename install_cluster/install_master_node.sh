@@ -16,20 +16,6 @@ while [ $# -gt 0 ]; do
 shift
 done
 
-cat << EOF
-  _____           _        _ _ _                                _
-  \_   \_ __  ___| |_ __ _| | (_)_ __   __ _    /\/\   __ _ ___| |_ ___ _ __
-   / /\/ '_ \/ __| __/ _  | | | | '_ \ / _  |  /    \ / _  / __| __/ _ \ '__|
-/\/ /_ | | | \__ \ || (_| | | | | | | | (_| | / /\/\ \ (_| \__ \ ||  __/ |
-\____/ |_| |_|___/\__\__,_|_|_|_|_| |_|\__, | \/    \/\__,_|___/\__\___|_|
-                                       |___/
- ______            _
-|  ___ \          | |
-| |   | | ___   _ | | ____
-| |   | |/ _ \ / || |/ _  )
-| |   | | |_| ( (_| ( (/ /
-|_|   |_|\___/ \____|\____)
-EOF
 
 installPkg(){
   apt-get update
@@ -45,12 +31,14 @@ installPkg(){
   apt-get -y dist-upgrade
 
   apt-get update
-  apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc \
+  apt-get install -y isc-dhcp-server wget nfs-common bind9 bind9utils bind9-doc figlet \
           gcc make ifupdown net-tools openssh-server openssh-client
   apt-get -y install ntp
   hostnamectl set-hostname master.cloud.com
 
 }
+
+figlet "Master Node Installation"
 
 : ${CLOUD_HOST_IP:=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
 
@@ -197,14 +185,7 @@ addRoutes(){
 #https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-18-04
 #https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-14-04
 bindInst(){
-  cat <<EOF
- ____       _   _   _               ____  _   _ ____
-/ ___|  ___| |_| |_(_)_ __   __ _  |  _ \| \ | / ___|
-\___ \ / _ \ __| __| | '_ \ / _  | | | | |  \| \___ \\
- ___) |  __/ |_| |_| | | | | (_| | | |_| | |\  |___) |
-|____/ \___|\__|\__|_|_| |_|\__, | |____/|_| \_|____/
-                            |___/
-EOF
+  figlet "Setting DNS Server"
   if ! grep -q "##zone append end" /etc/bind/named.conf.default-zones; then
     cat >>  /etc/bind/named.conf.default-zones << EOF
 ##zone append begin
@@ -303,14 +284,7 @@ EOF
 }
 
 dhcpInst(){
-  cat <<EOF
- ____       _   _   _               ____  _   _  ____ ____
-/ ___|  ___| |_| |_(_)_ __   __ _  |  _ \| | | |/ ___|  _ \\
-\___ \ / _ \ __| __| | '_ \ / _  | | | | | |_| | |   | |_) |
- ___) |  __/ |_| |_| | | | | (_| | | |_| |  _  | |___|  __/
-|____/ \___|\__|\__|_|_| |_|\__, | |____/|_| |_|\____|_|
-                            |___/
-EOF
+  figlet "Setting DHCP Server"
   if [ -f /etc/dhcp/dhcpd.conf_tmp ]
   then
     echo "Dhcp Temp file exists."
@@ -363,14 +337,7 @@ nameserver(){
 
 
 natInst(){
-  cat <<EOF
- ____       _   _   _               _   _    _  _____
-/ ___|  ___| |_| |_(_)_ __   __ _  | \ | |  / \|_   _|
-\___ \ / _ \ __| __| | '_ \ / _  | |  \| | / _ \ | |
- ___) |  __/ |_| |_| | | | | (_| | | |\  |/ ___ \| |
-|____/ \___|\__|\__|_|_| |_|\__, | |_| \_/_/   \_\_|
-                            |___/
-EOF
+  figlet "Setting NAT"
   apt-get install -y iptables-persistent <<EOF
 YES
 YES
@@ -395,28 +362,15 @@ EOF
 }
 
 ntpInst(){
-  cat <<EOF
- ____       _   _   _               _   _ _____ ____
-/ ___|  ___| |_| |_(_)_ __   __ _  | \ | |_   _|  _ |
-\___ \ / _ \ __| __| | '_ \ / _ | |  \| | | | | |_) |
- ___) |  __/ |_| |_| | | | | (_| | | |\  | | | |  __|
-|____/ \___|\__|\__|_|_| |_|\__, | |_| \_| |_| |_|
-                            |___/
-EOF
+
+  figlet "Setting NTP"
 
   sed -i "/^restrict ::1$/a\ restrict $(getMasterIp) mask 255.255.255.0 nomodify notrap" /etc/ntpsec/ntp.conf
   service ntp start
 }
 
 nfsInst(){
-  cat <<EOF
- ____       _   _   _               _   _ _____ ____
-/ ___|  ___| |_| |_(_)_ __   __ _  | \ | |  ___/ ___|
-\___ \ / _ \ __| __| | '_ \ / _  | |  \| | |_  \___ \\
- ___) |  __/ |_| |_| | | | | (_| | | |\  |  _|  ___) |
-|____/ \___|\__|\__|_|_| |_|\__, | |_| \_|_|   |____/
-                            |___/
-EOF
+  figlet "Setting NFS"
 
   apt-get install -y nfs-kernel-server
 
@@ -436,14 +390,7 @@ EOF
 }
 
 sshdInst(){
-cat <<EOF
- ____       _   _   _               ____ ____  _   _ ____
-/ ___|  ___| |_| |_(_)_ __   __ _  / ___/ ___|| | | |  _ \\
-\___ \ / _ \ __| __| | '_ \ / _  | \___ \___ \| |_| | | | |
- ___) |  __/ |_| |_| | | | | (_| |  ___) |__) |  _  | |_| |
-|____/ \___|\__|\__|_|_| |_|\__, | |____/____/|_| |_|____/
-                            |___/
-EOF
+  figlet "Setting SSHD"
   mkdir -p /var/run/sshd
   echo 'root:root' | chpasswd
   sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
