@@ -38,8 +38,6 @@ installPkg(){
 
 }
 
-figlet "Master Node Installation"
-
 : ${CLOUD_HOST_IP:=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
 
 if [ -z "$CLOUD_HOST_IP" ]; then
@@ -417,6 +415,7 @@ EOF
 
 case "$ENV" in
   "CLOUD")
+    figlet "Master Node Installation"
     installPkg
     bindInst
     nameserver
@@ -428,6 +427,7 @@ case "$ENV" in
     reboot
     ;;
   "LOCAL")
+    figlet "Master Node Installation"
     installPkg
     setupPrivateNetwork
     bindInst

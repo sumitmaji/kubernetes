@@ -47,6 +47,8 @@ sed -i "s@node@${NODE_NAME}@" /etc/hosts
 apt-get update
 apt-get install -y net-tools ifupdown openssh-client openssh-server figlet
 
+figlet "Worker Node Installation"
+
 getIp(){
   echo "$IP_ADDRESS"
 }
