@@ -185,13 +185,21 @@ fi
 apt-get update
 apt-get install -y sntp libopts25 ntp
 
+replace_ntp_server() {
+  local file=$1
+  local old_server=$2
+  local new_server=$3
+
+  sed -i "s/$old_server/$new_server/" "$file"
+}
+
 STATUS=$(grep "server master.cloud.com" /etc/ntpsec/ntp.conf)
 if [ -z "$STATUS" ]; then
-  $(sed -i 's/server ntp.ubuntu.com/server master.cloud.com/' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 0.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 1.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 2.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 3.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "server ntp.ubuntu.com" "server master.cloud.com"
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 0.ubuntu.pool.ntp.org iburst" ""
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 1.ubuntu.pool.ntp.org iburst" ""
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 2.ubuntu.pool.ntp.org iburst" ""
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 3.ubuntu.pool.ntp.org iburst" ""
 fi
 
 service ntp start
