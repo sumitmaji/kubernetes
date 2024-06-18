@@ -196,6 +196,12 @@ def list():
 
 # Create client
 def client():
+  # Split the string based on comma
+  parts = CALLBACK_URL.split(',')
+
+  # Convert the list into a dictionary where keys are indices
+  dict_parts = {i: part for i, part in enumerate(parts)}
+
   client_settings = {"protocol": "openid-connect", "clientId": env.get('KEYCLOAK_CLIENT_ID'), "name": "Automation Client",
                        "description": "Client for Automation",
                        # Public: no client secret. Non-public: "confidential" client with secret.
@@ -213,7 +219,7 @@ def client():
                                                                   "oauth2.device.authorization.grant.enabled": True,
                                                                   "oidc.ciba.grant.enabled": True},
                        "alwaysDisplayInConsole": True, "rootUrl": "", "baseUrl": "",
-                       "redirectUris": [CALLBACK_URL]}
+                       "redirectUris": [dict_parts]}
 
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients",
