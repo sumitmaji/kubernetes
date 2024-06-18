@@ -80,21 +80,7 @@ password: "sumit123"
 postgresql:
   enabled: true
   auth:
-    postgresPassword:
-      valueFrom:
-        secretKeyRef:
-          name: postgresql-secrets
-          key: POSTGRESQL_PASSWORD
-    username:
-        valueFrom:
-            secretKeyRef:
-            name: postgresql-secrets
-            key: POSTGRESQL_USERNAME
-    password:
-        valueFrom:
-            secretKeyRef:
-            name: postgresql-secrets
-            key: POSTGRESQL_PASSWORD
+    existingSecret: keycloak-postgresql
   primary:
     persistence:
       storageClass: "keycloak-storage"
