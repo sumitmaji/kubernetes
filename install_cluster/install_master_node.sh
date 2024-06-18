@@ -17,6 +17,8 @@ shift
 done
 
 
+source util
+
 installPkg(){
   apt-get update
   apt-get install -y net-tools
@@ -38,33 +40,84 @@ installPkg(){
 
 }
 
-: ${CLOUD_HOST_IP:=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
+CLOUD_HOST_IP=""
+CHILD_NODES=("node01" "node02" "node03")
 
-if [ -z "$CLOUD_HOST_IP" ]; then
-    CLOUD_HOST_IP=$(ip -4 addr show enp0s8 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-fi
+#: ${CLOUD_HOST_IP:=$(ip -4 addr show eth1 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')}
+#
+#if [ -z "$CLOUD_HOST_IP" ]; then
+#    CLOUD_HOST_IP=$(ip -4 addr show enp0s8 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+#fi
+#
+#if [ -z "$CLOUD_HOST_IP" ]; then
+#    echo "Please provide master host ip"
+#    exit 1
+#fi
 
-if [ -z "$CLOUD_HOST_IP" ]; then
-    echo "Please provide master host ip"
-    exit 1
-fi
 
-CHILD_NODES=("node01:10.108.0.3" "node02:10.108.0.4" "node03:10.108.0.5")
+getHostIp(){
+  # Get the list of interfaces and their IP addresses
+  data=$(ip -br addr show | awk '{print $1, $3}')
+
+  # Print the list with index numbers
+  echo "$data" | awk '{printf "%d>>\t%s\n", NR, $0}'
+
+  # Ask the user to enter an index number
+  echo "Enter Index Number to view resource"
+  read INDEX
+
+  # Check if the entered index is a number
+  if ! [[ "$INDEX" =~ ^[0-9]+$ ]]; then
+    echo "Invalid index. Please enter a number."
+    return 1
+  fi
+
+  # Get the IP address corresponding to the entered index
+  ip=$(echo "$data" | awk "NR==$INDEX {print \$2}" | cut -d '/' -f 1)
+
+  # Check if an IP address was found
+  if [ -z "$ip" ]; then
+    echo "No IP address found for the entered index."
+    return 1
+  fi
+
+  CLOUD_HOST_IP=$ip
+}
+
+
+getChildNodes(){
+  # Split the IP address into octets
+  IFS='.' read -r -a octets <<< "$CLOUD_HOST_IP"
+
+  for i in "${!CHILD_NODES[@]}"; do
+    # Read the node name
+    node="${CHILD_NODES[$i]}"
+
+    # Increment the last octet
+    ((octets[3]++))
+
+    # Reassemble the IP address
+    new_ip="${octets[0]}.${octets[1]}.${octets[2]}.${octets[3]}"
+
+    # Update the IP address in the array
+    CHILD_NODES[$i]="$node:$new_ip"
+  done
+}
+
+getHostIp
+getChildNodes
 
 getIp(){
-  echo "11.0.0"
+  echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3`
 }
 
 getRevIp(){
-  echo "0.0.11"
+  echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3 | awk -F. '{for(i=NF; i>1; i--) printf("%s.",$i); print $1}'`
 }
 
 getMasterIp(){
-  echo "10.108.0.2"
+  echo $(getHostIp)
 }
-
-
-
 
 echoSuccess(){
   echo -e "\e[32m$1\e[0m"
