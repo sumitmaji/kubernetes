@@ -105,9 +105,6 @@ getChildNodes(){
   done
 }
 
-getHostIp
-getChildNodes
-
 getIp(){
   echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3`
 }
@@ -121,6 +118,8 @@ getMasterIp(){
 }
 
 setupPrivateNetwork(){
+  echo "Enter IP address of private network"
+  read PRIVATE_IP
 if [ "$ENV" == "LOCAL" ]
 then
 rm /etc/netplan/00-installer-config.yaml
@@ -130,7 +129,7 @@ network:
   ethernets:
     enp0s3:
       dhcp4: false
-      addresses: [$(getIp).1/24]
+      addresses: [${PRIVATE_IP}/24]
       nameservers:
         addresses: [8.8.8.8,8.8.4.4]
     enp0s8:
@@ -147,7 +146,7 @@ elif [ "$ENV" == "CLOUD" ]; then
 [Match]
 Name=eth2
 [Network]
-Address=$(getIp).1
+Address=${PRIVATE_IP}
 Mask=255.255.255.0
 EOF
     cat <<EOF >/etc/systemd/network/eth2.netdev
@@ -162,15 +161,15 @@ network:
   ethernets:
     eth2:                          # Private network interface
       addresses:
-        - $(getIp).1/24
+        - ${PRIVATE_IP}/24
       routes:
         - to: default
-          via: $(getIp).254
+          via: $(echo ${PRIVATE_IP} | cut -d '.' -f 1-3).254
       mtu: 1500
       dhcp4: no
       nameservers:
         addresses:
-          - $(getIp).1            # Private IP for ns1
+          - ${PRIVATE_IP}            # Private IP for ns1
         search: [ cloud.com ]    # DNS zone
 EOF
   netplan apply
@@ -459,6 +458,8 @@ case "$ENV" in
   "CLOUD")
     installPkg
     figlet "Master Node Installation"
+    getHostIp
+    getChildNodes
     bindInst
     nameserver
     natInst
@@ -472,6 +473,8 @@ case "$ENV" in
     installPkg
     figlet "Master Node Installation"
     setupPrivateNetwork
+    getHostIp
+    getChildNodes
     bindInst
     dhcpInst
     nameserver
