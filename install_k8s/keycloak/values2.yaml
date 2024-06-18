@@ -74,9 +74,6 @@ ingress:
   ##
   selfSigned: true
 
-username: sumit_keycloak
-password: "sumit123"
-
 postgresql:
   enabled: true
   auth:
