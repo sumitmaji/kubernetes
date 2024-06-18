@@ -283,7 +283,7 @@ setupDockerRegistry(){
       then
         echo "The file is present, not creating it!!!!!"
       else
-        createCertificate -i 10.108.0.2 -h master.cloud.com -t server -f registry
+        createCertificate -i "${MASTER_HOST_IP}" -h master.cloud.com -t server -f registry
       fi
 
       docker stop registry
@@ -426,7 +426,7 @@ data:
     cloud.com:53 {
         errors
         cache 30
-        forward . 10.108.0.2
+        forward . ${MASTER_HOST_IP}
     }
 kind: ConfigMap
 metadata:

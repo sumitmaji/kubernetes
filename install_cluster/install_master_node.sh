@@ -82,6 +82,7 @@ getHostIp(){
   fi
 
   CLOUD_HOST_IP=$ip
+  echo "export MASTER_HOST_IP=${CLOUD_HOST_IP}" > vm_config
 }
 
 
