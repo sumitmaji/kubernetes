@@ -8,10 +8,18 @@ TODO
 
 ## Installation Steps
 
-```console
+```shell
 cd /root/kubernetes/install_k8s/
-./install_dashboard.sh
+./gok install dashboard
 ```
+
+## Uninstallation Steps
+```shell
+cd /root/kubernetes/install_k8s/
+./gok reset dashboard
+```
+
+```console
 
 Note: [`Ingress Controller`](../ingress/README.md) should be installed if dashboard need to be accessible from outside the cluster.
 

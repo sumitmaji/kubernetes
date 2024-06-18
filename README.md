@@ -27,39 +27,46 @@ The following table lists the configurable parameters of the kubernetes cluster 
 
 # Installation steps:
 
-- Install Cluster
+- Install Cluster in Digital Ocean
 
 ```console
 cd /root/kubernetes/install_cluster
-./install_master_node.sh
+./install_master_node.sh -e CLOUD
+```
+
+- Install Cluster in Local Ubuntu Cluster
+
+```shell
+cd /root/kubernetes/install_cluster
+./install_master_node.sh -e LOCAL
 ```
 
 - Install kubernetes:
 
   - Master:
 
-  ```console
+  ```shell
   cd /root/kubernetes/install_k8s
-  ./install-k8s.sh
+  ./gok install kubernetes
   ```
 
   - Worker:
 
-  ```console
+  ```shell
   cd /root/kubernetes/install_k8s
-  ./install-k8s-worker.sh
+  ./gok install kubernetes-worker
   ```
 
   - To join a worker node:
   
-  ```shell script
-  sodo kubeadm join master_ip:master_port --token token_id --discovery-token-ca-cert-hash hash_cert
+  ```shell
+  join
   ```
 
-  - To remoave a kubernetes setup:
+  - To remove a kubernetes setup:
   
   ```shell script
-  kubeadm reset
+  ./gok reset kubernetes
   ```
   
   - To create a new join token
@@ -70,9 +77,10 @@ cd /root/kubernetes/install_cluster
   
 When installation of master is completed you should see below components in kube-system
 namespace
-![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/images/img.png)
+![alt text](install_k8s/images/img.png)
 
 When you reboot the vms, the kubelet service may not run, you need to restart the kubelet.
+
 ```shell
 sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 sudo swapoff -a
@@ -82,10 +90,12 @@ syatemctl start kubelet
 ```
 
 Or Execute below command
+
 ```shell
-./start_cluster.sh
+./gok start proxy
 ```
 ### Other debugging steps
+
 ```shell
 systemctl status kubelet
 journalctl -u kubelet
@@ -95,8 +105,7 @@ journalctl -u kubelet
 
 - To change namespace
 
-```console
-alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
+```shell
 kcd name_space
 ```
 
@@ -107,7 +116,7 @@ alias kctl='kubectl --kubeconfig=/root/oauth.conf --token=$(python3 /root/kubern
 ```
 
 In order to use the above approach, you must install and run
-1. Ingress [Instress ReadME](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ingress/README.md)
+1. Ingress [Instress ReadME](install_k8s/ingress/README.md)
 2. Kubeauthentication service [KubeAuth ReadME](https://github.com/sumitmaji/kubeauthentication/blob/main/README.md)
 
 
@@ -131,20 +140,20 @@ kubectl get componentstatus
 ```
 
 # Automation of build and deployment
-### Note: [`Ingress`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ingress) should be installed before this can begin.
+### Note: [`Ingress`](install_k8s/ingress) should be installed before this can begin.
 
 - Execute below command to install ci/cd pipeline
 ```console
 cd /root/kubernetes/install_k8s/
 ./setuUp-devops.sh 
 ```
-This would install local [`docker registry`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/registry),
-[`Git webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook), 
-[`Docker webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook)
-and [`Helm webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
+This would install local [`docker registry`](install_k8s/registry),
+[`Git webhook`](install_k8s/githook), 
+[`Docker webhook`](install_k8s/dockerhook)
+and [`Helm webhook`](install_k8s/reghook)
 
 Architecture of the pipeline
-![alt text](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/images/img_1.png)
+![alt text](install_k8s/images/img_1.png)
 
 In order to test the pipeline use [`hlw`](https://github.com/sumitmaji/hlw) repository, make a sample change and commit.
 
@@ -152,16 +161,23 @@ Application would be accessible in https://master.cloud.com:32028/hlw
 
 
 # Installing components
-1. [`Ingress Controller`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_ingress.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ingress)
-2. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
-3. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh): [`Githook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook),
-[`Dockerhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook),[`Reghook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
-4. [`Kubernetes Dashboard`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/install_dashboard.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dashboard)
-5. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
-6. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldap)
-7. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos)
-8. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient1)
-9. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient2)
+1. [`Ingress Controller`](install_k8s/ingress/README.md)
+2. [`Cert Manager`](install_k8s/cert-manager/README.md)
+3. [`Keycloak`](install_k8s/keycloak/README.md)
+4. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
+5. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh): [`Githook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook),
+    [`Dockerhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook),[`Reghook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
+6. [`Kubernetes Dashboard`](install_k8s/dashboard)
+7. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
+8. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldap)
+9. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos)
+10. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient1)
+11. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient2)
+12. [`Spinnaer`](install_k8s/spinnaker/README.md)
+13. [`Opensearch`](install_k8s/opensearch/README.md)
+14. [`Prometheus-Grafana`](install_k8s/prometheus-grafana/README.md)
+15. [`Oauth2 Proxy`](install_k8s/oauth2-proxy/README.md)
+16. [`Fluentd`](install_k8s/fluentd/README.md)
 
 - Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
 - Add `ip_address master.cloud.com` to windows host file located in C:\Windows\System32\drivers\etc. e.g. `192.168.1.5 master.cloud.com` >> host file.

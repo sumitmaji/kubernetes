@@ -17,7 +17,7 @@ The following table lists the configurable parameters of the ingress nginx contr
 
 ```console
 cd /root/kubernetes/install_k8s/
-./install_ingress.sh
+./gok install ingress
 ```
 
 ## To enable authentication in Ingress

@@ -9,6 +9,17 @@
 Installation of Cert-Manager
 
 ### Install commands
+- Install cert-manager
+```shell
+./gok install cert-manager
+```
+
+- Uninstall cert-manager
+```shell
+./gok reset cert-manager
+```
+
+### Manual Installation of Cert-Manager
 ```shell
 helm repo add jetstack https://charts.jetstack.io
 
@@ -129,9 +140,9 @@ kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download
 ![img.png](img.png)
 
 ### Setup at DNS provider(Godaddy)
-![img_1.png](img_1.png)
+![img_1.png](img_2.png)
 
-### Changes in ingress resouce
+### Changes in ingress resource
 ```shell
 utils/patch-ingress.sh -i $INGRESS_NAME -n $NAMESPACE
 ```
