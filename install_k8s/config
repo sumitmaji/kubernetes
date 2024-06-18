@@ -1,4 +1,4 @@
-source ../install_cluster/vm_config
+source $MOUNT_PATH/kubernetes/install_cluster/vm_config
 export NUMBER_OF_HOSTS=1
 export CLUSTER_NAME=cloud.com
 export DNS_DOMAIN=cloud.uat
