@@ -116,19 +116,7 @@ getRevIp(){
 }
 
 getMasterIp(){
-  echo $(getHostIp)
-}
-
-echoSuccess(){
-  echo -e "\e[32m$1\e[0m"
-}
-
-echoFailed(){
-  echo -e "\e[31m$1\e[0m"
-}
-
-echoWarning(){
-  echo -e "\e[32m$1\e[0m"
+  echo "${CLOUD_HOST_IP}"
 }
 
 setupPrivateNetwork(){
