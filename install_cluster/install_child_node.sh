@@ -57,6 +57,15 @@ getMasterNodeIp(){
   echo "$MASTER_NODE"
 }
 
+append_if_not_exists() {
+  local file=$1
+  local line=$2
+
+  if ! grep -q "$line" "$file"; then
+    echo "$line" >> "$file"
+  fi
+}
+
 setupPrivateNetwork(){
 if [ "$ENV" == "LOCAL" ]
 then
@@ -77,12 +86,13 @@ EOF
     touch /etc/dhcp/dhclient-enp0s3.conf
   fi
 
+
   STATUS=$(grep -i "send fqdn.fqdn $NODE_NAME;" /etc/dhcp/dhclient-enp0s3.conf)
   if [ -z "$STATUS" ]; then
-    echo "send fqdn.fqdn $NODE_NAME;" >/etc/dhcp/dhclient-enp0s3.conf
-    echo "send fqdn.encoded on;" >>/etc/dhcp/dhclient-enp0s3.conf
-    echo "send fqdn.server-update off;" >>/etc/dhcp/dhclient-enp0s3.conf
-    echo "also request fqdn.fqdn;" >>/etc/dhcp/dhclient-enp0s3.conf
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "send fqdn.fqdn $NODE_NAME;"
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "send fqdn.encoded on;"
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "send fqdn.server-update off;"
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "also request fqdn.fqdn;"
   fi
 elif [ "$ENV" == "CLOUD" ]; then
     sudo touch /etc/systemd/network/eth2.netdev
