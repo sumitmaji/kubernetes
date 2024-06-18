@@ -1594,6 +1594,8 @@ keycloakInst(){
     --from-literal=KEYCLOAK_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n keycloak
 
   kubectl create secret generic keycloak-postgresql \
+    --from-literal=username="${POSTGRESQL_USERNAME}" \
+    --from-literal=password="${POSTGRESQL_PASSWORD}" \
     --from-literal=postgresql-password="${POSTGRESQL_PASSWORD}" -n keycloak
 
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
