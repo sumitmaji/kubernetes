@@ -2078,6 +2078,7 @@ function installCmd() {
     helmInst
     taintNode
     calicoInst
+    waitForServiceAvailable kube-system
     dnsUtils
     kcurl
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
