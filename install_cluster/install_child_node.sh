@@ -119,7 +119,9 @@ EOF
 fi
 }
 
-
+if [ "$ENV" == "LOCAL" ]; then
+    setupPrivateNetwork
+fi
 
 addRoutes(){
   IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
@@ -235,7 +237,3 @@ export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >>/etc/profile
 
 reboot
-
-if [ "$ENV" == "LOCAL" ]; then
-    setupPrivateNetwork
-fi
