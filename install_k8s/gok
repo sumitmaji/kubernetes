@@ -1224,8 +1224,8 @@ opensearchDashInst(){
 
   gok patch ingress opensearch-dashboard-opensearch-dashboards opensearch letsencrypt opensearch
   echo "Waiting for dashboard service to be up!!!!"
-    kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
-    [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
+    kubectl --timeout=240s wait --for=condition=Ready pods --all --namespace opensearch
+    [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!\n You can access the service using https://opensearch.gokcloud.com" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
 }
 
 opensearchInst(){
