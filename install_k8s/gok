@@ -253,6 +253,11 @@ istioInst(){
 
 }
 
+enableIstio(){
+  NAMESPACE=$1
+  kubectl label namespace $NAMESPACE istio-injection=enabled
+}
+
 istioReset(){
   helm -n istio-system delete istiod
   helm -n istio-system delete istio-base
