@@ -253,6 +253,12 @@ istioInst(){
 
 }
 
+istioReset(){
+  helm -n istio-system delete istiod
+  helm -n istio-system delete istio-base
+  kubectl delete ns istio-system
+}
+
 checkDns(){
   kubectl exec -i -t dnsutils -n default -- nslookup "$@"
 }
@@ -2143,6 +2149,8 @@ function installCmd() {
     spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
     oauth2ProxyInst
+  elif [ "$COMPONENT" == "istio" ]; then
+    istioInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -2207,6 +2215,12 @@ EOF
     oauth2ProxyReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
+  elif [ "$COMPONENT" == "istio" ]; then
+    istioReset
+  elif [ "$COMPONENT" == "kubernetes-worker" ]; then
+    kubeadm reset <<EOF
+y
+EOF
   fi
 }
 
