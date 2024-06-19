@@ -1595,7 +1595,7 @@ helmTemplateDebug(){
   CHART_NAME=$1
   CHART_REPO=$2
   helm install $CHART_NAME $CHART_REPO  \
-    --dry-run --debug | less
+    --dry-run --debug
 }
 
 keycloakReset(){
