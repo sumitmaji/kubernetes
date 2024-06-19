@@ -1072,13 +1072,13 @@ print(client_secret)
   helm repo update
   helm install prometheus prometheus-community/prometheus \
     --set server.extraFlags=\{web.enable-lifecycle,web.route-prefix=/,web.external-url=prometheus\} \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/prometheus-values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/prometheus-grafana/prometheus-values.yaml \
     --namespace monitoring \
     --create-namespace
 
   helm install grafana grafana/grafana \
     --set grafana.ini.server.root_url=https://$URL/grafana \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
   kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
