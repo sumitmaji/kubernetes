@@ -192,13 +192,14 @@ kind: Pod
 metadata:
   name: curl
   namespace: default
+  labels:
+    app: curl
 spec:
   containers:
   - name: main
     image: curlimages/curl
     command: ["sleep", "9999999"]
 EOF
-  kubectl label po curl app=curl
   echo "Commands"
   echo "checkCurl https://kubernetes"
 }
