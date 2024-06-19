@@ -1122,7 +1122,7 @@ prometheusGrafanaInst() {
 
 dashboardReset() {
   helm uninstall kubernetes-dashboard -n kubernetes-dashboard
-  kubernetes delete ns kubernetes-dashboard
+  kubectl delete ns kubernetes-dashboard
 }
 
 #This creates a cluster-role-binding for admin user
