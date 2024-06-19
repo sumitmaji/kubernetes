@@ -767,6 +767,8 @@ EOYAML
 
   # Add the self signed issuer(ca) certificate to authorized certificates
   kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt
+
+  # Add the issuer.crt to export directory so that the worker nodes can add the same to their trusted certificates.
   mkdir -p /export/certs
   cp /usr/local/share/ca-certificates/issuer.crt /export/certs/issuer.crt
   update-ca-certificates
