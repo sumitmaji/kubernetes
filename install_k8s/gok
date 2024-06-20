@@ -2317,6 +2317,8 @@ function installCmd() {
     oauth2ProxyInst
   elif [ "$COMPONENT" == "istio" ]; then
     istioInst
+  elif [ "$COMPONENT" == "kyverno" ]; then
+    kyvernoInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -2383,6 +2385,8 @@ EOF
     certManagerReset
   elif [ "$COMPONENT" == "istio" ]; then
     istioReset
+  elif [ "$COMPONENT" == "istio" ]; then
+    kyvernoReset
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     kubeadm reset <<EOF
 y
