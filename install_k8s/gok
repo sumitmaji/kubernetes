@@ -1190,6 +1190,7 @@ roleRef:
 EOF
 }
 
+# Run kubectl command on pod
 runKubectlOnPod(){
 
   # The container will run will priveledges that are provided in the service account
@@ -1343,9 +1344,9 @@ resetDockerRegistry(){
 
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 # Generate User & Password
-genRegistyrPassword(){
-  export REGISTRY_USER="${ADMIN_ID}"
-  export REGISTRY_PASS="${ADMIN_PASSWORD}"
+genRegistryPassword(){
+  export REGISTRY_USER="$1"
+  export REGISTRY_PASS="$2"
   export DESTINATION_FOLDER=./registry-creds
 
   # Backup credentials to local files (in case you'll forget them later on)
@@ -1358,11 +1359,34 @@ genRegistyrPassword(){
       > ${DESTINATION_FOLDER}/htpasswd
 
   unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
+  imagePullSecrets
+}
+
+imagePullSecrets(){
+  echo "Enter User Id: "
+  DOCKER_USERNAME=$(python3 -c "
+import sys
+DOCKER_USERNAME=sys.stderr.write('Please enter docker user id: ')
+print(DOCKER_USERNAME)
+")
+  DOCKER_PASSWORD=$(python3 -c "
+import getpass
+DOCKER_PASSWORD = getpass.getpass('Please enter your docker password: ')
+print(DOCKER_PASSWORD)
+")
+  DOCKER_EMAIL="skmaji@outlook.com"
+  kubectl get secret docker-registry regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
+    --docker-server=$(fullRegistryUrl) \
+    --docker-username=$DOCKER_USERNAME \
+    --docker-password=$DOCKER_PASSWORD \
+    --docker-email=$DOCKER_EMAIL -n kube-system
+
+  genRegistryPassword DOCKER_USERNAME DOCKER_PASSWORD
 }
 
 # https://blog.zachinachshon.com/docker-registry/
 # Verify access to the registry
-verifyRegistyrInst(){
+verifyRegistryInst(){
   export DESTINATION_FOLDER=./registry-creds
   export USER=$(cat ${DESTINATION_FOLDER}/registry-user.txt)
   export PASSWORD=$(cat ${DESTINATION_FOLDER}/registry-pass.txt)
@@ -1380,7 +1404,7 @@ verifyRegistyrInst(){
 
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 dockerRegistryInst(){
-  genRegistyrPassword
+  imagePullSecrets
   helm repo add twuni https://helm.twun.io
   export DESTINATION_FOLDER=./registry-creds
   helm upgrade --install registry \
@@ -1650,7 +1674,7 @@ helmShowAll(){
   helm get all $CHART_NAME
 }
 
-helmShowTemplate(){
+helmTemplate(){
   CHART_REPO=$1
   helm template $CHART_REPO -g
 }
@@ -1661,6 +1685,29 @@ helmShowTemplate(){
   helm install $CHART_REPO  -g \
     --dry-run
 }
+
+oauth2Secret(){
+  echo "Enter Client Id: "
+  read CLIENT_ID
+  client_secret=$(python3 -c "
+import getpass
+client_secret = getpass.getpass('Please enter your client secret: ')
+print(client_secret)
+")
+  echo "Enter Realm (GokDevelopers): "
+  read REALM
+
+  echo "Enter Active Profile (keycloak): "
+  read ACTIVE_PROFILE
+
+  kubectl get secret oauth-secrets >/dev/null 2>&1 || kubectl create secret generic oauth-secrets \
+    --from-literal=OAUTH_REALM="${REALM}" \
+    --from-literal=ACTIVE_PROFILE="${ACTIVE_PROFILE}" \
+    --from-literal=CLIENT_ID="${CLIENT_ID}" \
+    --from-literal=CLIENT_SECRET="${client_secret}" -n kube-system
+
+}
+
 
 keycloakReset(){
   helm uninstall keycloak -n keycloak
@@ -1727,6 +1774,11 @@ installKeycloakWithCertMgr(){
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace keycloak
   [[ $? -eq 0 ]] && echoSuccess "Keycloak services are now up!\nAccess it using https://$(keycloakSubdomain).$(rootDomain)/" || echoFailed "Keycloak services timed-out, plaese check!!"
+  echo "Wait for 10 seconds"
+  sleep 10
+  apt install python3-dotenv python3-requests python3-jose -y
+  python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all
+  oauth2Secret
 }
 
 installPrometheusGrafanaWithCertMgr(){
@@ -2123,45 +2175,6 @@ kubeloginInst(){
   brew update
   brew upgrade Azure/kubelogin/kubelogin
 }
-
-oauth2Secret(){
-  echo "Enter Client Id: "
-  read CLIENT_ID
-  client_secret=$(python3 -c "
-import getpass
-client_secret = getpass.getpass('Please enter your client secret: ')
-print(client_secret)
-")
-  echo "Enter Realm (GokDevelopers): "
-  read REALM
-
-  echo "Enter Active Profile (keycloak): "
-  read ACTIVE_PROFILE
-
-  kubectl get secret oauth-secrets >/dev/null 2>&1 || kubectl create secret generic oauth-secrets \
-    --from-literal=OAUTH_REALM="${REALM}" \
-    --from-literal=ACTIVE_PROFILE="${ACTIVE_PROFILE}" \
-    --from-literal=CLIENT_ID="${CLIENT_ID}" \
-    --from-literal=CLIENT_SECRET="${client_secret}" -n kube-system
-
-}
-
-imagePullSecrets(){
-  echo "Enter User Id: "
-  read DOCKER_USERNAME
-  DOCKER_PASSWORD=$(python3 -c "
-import getpass
-DOCKER_PASSWORD = getpass.getpass('Please enter your docker password: ')
-print(DOCKER_PASSWORD)
-")
-  DOCKER_EMAIL="skmaji@outlook.com"
-  kubectl get secret docker-registry regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
-    --docker-server=$(fullRegistryUrl) \
-    --docker-username=$DOCKER_USERNAME \
-    --docker-password=$DOCKER_PASSWORD \
-    --docker-email=$DOCKER_EMAIL -n kube-system
-}
-
 
 kyvernoInst(){
   helm repo add kyverno https://kyverno.github.io/kyverno/
