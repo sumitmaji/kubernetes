@@ -2168,6 +2168,7 @@ kyvernoInst(){
   helm repo update
   helm install kyverno --namespace kyverno kyverno/kyverno --create-namespace
   waitForServiceAvailable kyverno
+  sleep 10
 cat <<EOF | kubectl apply -f -
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
