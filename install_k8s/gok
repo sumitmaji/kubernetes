@@ -1190,6 +1190,51 @@ roleRef:
 EOF
 }
 
+runKubectlOnPod(){
+
+  # The container will run will priveledges that are provided in the service account
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: internal-deployer
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: internal-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: internal-deployer
+    namespace: default
+EOF
+  # Execute the container as job as it will execute the kubectl command and exit
+  cat <<EOF | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubectl-executor
+  namespace: default
+spec:
+  template:
+    metadata:
+      name: kubectl-executor
+    spec:
+      # The service account that will be used to run the container
+      serviceAccountName: internal-deployer
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl:latest
+        args: ["cluster-info"]
+      restartPolicy: Never
+EOF
+}
+
 #Creating user role administrators which would allow users authenticated with oauth and
 #having administrators role to connect with cluster
 oauthAdmin(){
@@ -2078,17 +2123,95 @@ kubeloginInst(){
   brew upgrade Azure/kubelogin/kubelogin
 }
 
+oauth2Secret(){
+  echo "Enter Client Id: "
+  read CLIENT_ID
+  client_secret=$(python3 -c "
+import getpass
+client_secret = getpass.getpass('Please enter your client secret: ')
+print(client_secret)
+")
+  echo "Enter Realm (GokDevelopers): "
+  read REALM
+
+  echo "Enter Active Profile (keycloak): "
+  read ACTIVE_PROFILE
+
+  kubectl get secret oauth-secrets >/dev/null 2>&1 || kubectl create secret generic oauth-secrets \
+    --from-literal=OAUTH_REALM="${REALM}" \
+    --from-literal=ACTIVE_PROFILE="${ACTIVE_PROFILE}" \
+    --from-literal=CLIENT_ID="${CLIENT_ID}" \
+    --from-literal=CLIENT_SECRET="${client_secret}" -n kube-system
+
+}
+
+imagePullSecrets(){
+  echo "Enter User Id: "
+  read DOCKER_USERNAME
+  DOCKER_PASSWORD=$(python3 -c "
+import getpass
+DOCKER_PASSWORD = getpass.getpass('Please enter your docker password: ')
+print(DOCKER_PASSWORD)
+")
+  DOCKER_EMAIL="skmaji@outlook.com"
+  kubectl get secret regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
+    --docker-server=$(fullRegistryUrl) \
+    --docker-username=$DOCKER_USERNAME \
+    --docker-password=$DOCKER_PASSWORD \
+    --docker-email=$DOCKER_EMAIL -n kube-system
+}
+
+
 kyvernoInst(){
   helm repo add kyverno https://kyverno.github.io/kyverno/
   helm repo update
   helm install kyverno --namespace kyverno kyverno/kyverno --create-namespace
+  waitForServiceAvailable kyverno
+cat <<EOF | kubectl apply -f -
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: sync-secrets
+spec:
+  rules:
+  - name: sync-image-pull-secret
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    generate:
+      apiVersion: v1
+      kind: Secret
+      name: regcred
+      namespace: "{{request.object.metadata.name}}"
+      synchronize: true
+      clone:
+        namespace: kube-system
+        name: regcred
+  - name: sync-keycloak-secrets
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    generate:
+      apiVersion: v1
+      kind: Secret
+      name: keycloak-secrets
+      namespace: "{{request.object.metadata.name}}"
+      synchronize: true
+      clone:
+        namespace: kube-system
+        name: keycloak-secrets
+EOF
 }
 
 kyvernoReset(){
   helm uninstall kyverno -n kyverno
   kubectl delete ns kyverno
+  kubectl delete clusterpolicy --all
 }
-
 
 help(){
   IFS='' read -r -d '' HELP <<"EOF"
