@@ -1365,7 +1365,8 @@ imagePullSecrets(){
   echo "Enter User Id: "
   DOCKER_USERNAME=$(python3 -c "
 import sys
-DOCKER_USERNAME=sys.stderr.write('Please enter docker user id: ')
+sys.stderr.write('Please enter docker user id: ')
+DOCKER_USERNAME=input()
 print(DOCKER_USERNAME)
 ")
   DOCKER_PASSWORD=$(python3 -c "
@@ -1720,15 +1721,18 @@ keycloakInst(){
 
   keycloak_adminid=$(python3 -c "
 import sys
-keycloak_adminid=input('Please enter keycloak admin id: ')
+sys.stderr.write('Please enter keycloak admin id: ')
+keycloak_adminid=input()
 print(keycloak_adminid)
 ")
-
+  echo "$keycloak_adminid"
   keycloak_adminpwd=$(python3 -c "
 import getpass
 keycloak_adminpwd = getpass.getpass('Please enter keycloak admin pwd: ')
 print(keycloak_adminpwd)
 ")
+
+  echo "$keycloak_adminpwd"
 
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
