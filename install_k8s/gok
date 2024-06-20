@@ -2154,7 +2154,7 @@ DOCKER_PASSWORD = getpass.getpass('Please enter your docker password: ')
 print(DOCKER_PASSWORD)
 ")
   DOCKER_EMAIL="skmaji@outlook.com"
-  kubectl get secret regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
+  kubectl get secret docker-registry regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
     --docker-server=$(fullRegistryUrl) \
     --docker-username=$DOCKER_USERNAME \
     --docker-password=$DOCKER_PASSWORD \
