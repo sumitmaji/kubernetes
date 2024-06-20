@@ -10,7 +10,16 @@ import json
 import sys
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-command = sys.argv[1]
+command = None
+adminId = None
+adminPwd = None
+clientId = None
+realm = None
+
+if len(sys.argv) < 2:
+  print("No command provided")
+else:
+  command, adminId, adminPwd, clientId, realm = (sys.argv[1:] + [None]*5)[:5]
 
 DEBUG_MODE = False
 LOG_LEVEL = logging.INFO
@@ -26,8 +35,8 @@ if ENV_FILE:
 
 HOME = expanduser("~")
 KEYCLOAK_ROOT = env.get('KEYCLOAK_ROOT')
-REALM = env.get('REALM')
-KEYCLOAK_CLIENT_ID = env.get('KEYCLOAK_CLIENT_ID')
+REALM = realm if realm else env.get('REALM')
+KEYCLOAK_CLIENT_ID = clientId if clientId else env.get('KEYCLOAK_CLIENT_ID')
 LOG_FILE_PATH = HOME + '/.keycloak'
 CALLBACK_URL=env.get('CALLBACK_URL')
 
@@ -58,9 +67,9 @@ logger = get_logger('output.log')
 
 
 def auth():
-  sys.stderr.write("Login: ")
-  login = input()
-  password = getpass.getpass()
+  login = adminId if adminId else input("Login: ")
+  password = adminPwd if adminPwd else getpass.getpass()
+
   requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
   r = requests.post(

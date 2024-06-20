@@ -1359,7 +1359,6 @@ genRegistryPassword(){
       > ${DESTINATION_FOLDER}/htpasswd
 
   unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
-  imagePullSecrets
 }
 
 imagePullSecrets(){
@@ -1719,11 +1718,25 @@ keycloakReset(){
 
 keycloakInst(){
 
+  keycloak_adminid=$(python3 -c "
+import sys
+keycloak_adminid=input('Please enter keycloak admin id: ')
+print(keycloak_adminid)
+")
+
+  keycloak_adminpwd=$(python3 -c "
+import getpass
+keycloak_adminpwd = getpass.getpass('Please enter keycloak admin pwd: ')
+print(keycloak_adminpwd)
+")
+
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="${ADMIN_ID}" \
-    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n keycloak
+    --from-literal=KEYCLOAK_ADMIN="${keycloak_adminid}" \
+    --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
+    --from-literal=OAUTH_REALM="${REALM}" \
+    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
 
   kubectl create secret generic keycloak-postgresql \
     --from-literal=username="${POSTGRESQL_USERNAME}" \
@@ -1777,7 +1790,12 @@ installKeycloakWithCertMgr(){
   echo "Wait for 10 seconds"
   sleep 10
   apt install python3-dotenv python3-requests python3-jose -y
-  python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all
+  ADMIN_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
+  ADMIN_PWD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN_PASSWORD']}" | base64 --decode)
+  CLIENT_ID=$(kubectl get secret oauth-secrets -n kube-system -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
+  REALM=$(kubectl get secret oauth-secrets -n kube-system -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
+
+  python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
   oauth2Secret
 }
 
