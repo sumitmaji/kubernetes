@@ -1300,12 +1300,13 @@ opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
   kubectl create ns opensearch
+
   kubectl create secret generic opensearch-password \
-      --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n opensearch
+        --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n opensearch
   helm install opensearch \
     --namespace opensearch \
     --create-namespace \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/opensearch/values.yaml \
     openSearch/opensearch
 
   createLocalStorageClassAndPV "opensearch-storage" "opensearch-pv" "/data/volumes/pv5"
