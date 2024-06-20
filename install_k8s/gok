@@ -6,6 +6,11 @@ source "$WORKING_DIR"/config
 release=$2
 CMD=$1
 
+export ADMIN_ID=admin
+export ADMIN_PASSWORD=Greek@0456
+export POSTGRESQL_PASSWORD=postgres045
+export POSTGRESQL_USERNAME=postgres
+
 getOAuth0Config(){
  IFS='' read -r -d '' OAUTH <<"EOF"
 export OIDC_ISSUE_URL=https://skmaji.auth0.com/
@@ -179,6 +184,7 @@ spec:
 EOF
 }
 
+#This deploys a pod that has curl installed
 kcurl(){
   cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -186,6 +192,8 @@ kind: Pod
 metadata:
   name: curl
   namespace: default
+  labels:
+    app: curl
 spec:
   containers:
   - name: main
@@ -208,6 +216,7 @@ checkCMWebhook(){
 EOF
 }
 
+#This gives token to join a new node to kubernetes cluster
 join(){
   kubeadm token create --print-join-command
 }
@@ -246,6 +255,16 @@ istioInst(){
 
 }
 
+enableIstio(){
+  NAMESPACE=$1
+  kubectl label namespace $NAMESPACE istio-injection=enabled
+}
+
+istioReset(){
+  helm -n istio-system delete istiod
+  helm -n istio-system delete istio-base
+  kubectl delete ns istio-system
+}
 
 checkDns(){
   kubectl exec -i -t dnsutils -n default -- nslookup "$@"
@@ -283,7 +302,7 @@ setupDockerRegistry(){
       then
         echo "The file is present, not creating it!!!!!"
       else
-        createCertificate -i 10.108.0.2 -h master.cloud.com -t server -f registry
+        createCertificate -i "${MASTER_HOST_IP}" -h master.cloud.com -t server -f registry
       fi
 
       docker stop registry
@@ -426,7 +445,7 @@ data:
     cloud.com:53 {
         errors
         cache 30
-        forward . 10.108.0.2
+        forward . ${MASTER_HOST_IP}
     }
 kind: ConfigMap
 metadata:
@@ -540,8 +559,11 @@ EOF
       exit 1
     fi
   elif [ $1 == "kubernetes-worker" ]; then
+    cp /export/certs/issuer.crt /usr/local/share/ca-certificates/issuer.crt
+    update-ca-certificates
     echo "kubectl join ...."
     echo "kubectl label node node01 node-role.kubernetes.io/worker=worker"
+    echo "reboot the vm to make the changes ca certificates"
   fi
 
 }
@@ -747,6 +769,10 @@ EOYAML
 
   # Add the self signed issuer(ca) certificate to authorized certificates
   kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt
+
+  # Add the issuer.crt to export directory so that the worker nodes can add the same to their trusted certificates.
+  mkdir -p /export/certs
+  cp /usr/local/share/ca-certificates/issuer.crt /export/certs/issuer.crt
   update-ca-certificates
   #Need to restart the container
 fi
@@ -1010,7 +1036,6 @@ spec:
 EOF
 }
 
-
 prometheusGrafanaResetv2(){
   helm -n monitoring delete prometheus
   helm -n monitoring delete grafana
@@ -1056,13 +1081,13 @@ print(client_secret)
   helm repo update
   helm install prometheus prometheus-community/prometheus \
     --set server.extraFlags=\{web.enable-lifecycle,web.route-prefix=/,web.external-url=prometheus\} \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/prometheus-values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/prometheus-grafana/prometheus-values.yaml \
     --namespace monitoring \
     --create-namespace
 
   helm install grafana grafana/grafana \
     --set grafana.ini.server.root_url=https://$URL/grafana \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/grafana-values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/prometheus-grafana/grafana-values.yaml \
     --namespace monitoring
 
   kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
@@ -1106,9 +1131,10 @@ prometheusGrafanaInst() {
 
 dashboardReset() {
   helm uninstall kubernetes-dashboard -n kubernetes-dashboard
-  helm delete ns kubernetes-dashboard
+  kubectl delete ns kubernetes-dashboard
 }
 
+#This creates a cluster-role-binding for admin user
 adminRole() {
   WC=$(kubectl get clusterrolebinding cloud-cluster-admin 2>/dev/null | wc -l)
   if [ "$WC" == "0" ]; then
@@ -1164,6 +1190,51 @@ roleRef:
 EOF
 }
 
+runKubectlOnPod(){
+
+  # The container will run will priveledges that are provided in the service account
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: internal-deployer
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: internal-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: internal-deployer
+    namespace: default
+EOF
+  # Execute the container as job as it will execute the kubectl command and exit
+  cat <<EOF | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kubectl-executor
+  namespace: default
+spec:
+  template:
+    metadata:
+      name: kubectl-executor
+    spec:
+      # The service account that will be used to run the container
+      serviceAccountName: internal-deployer
+      containers:
+      - name: kubectl
+        image: bitnami/kubectl:latest
+        args: ["cluster-info"]
+      restartPolicy: Never
+EOF
+}
+
 #Creating user role administrators which would allow users authenticated with oauth and
 #having administrators role to connect with cluster
 oauthAdmin(){
@@ -1183,6 +1254,7 @@ subjects:
 EOF
 }
 
+#Create kubeconfig file for oauth user used with kube-login
 oauthUser(){
   kubectl config set-cluster cloud.com --certificate-authority=/etc/kubernetes/pki/ca.crt --embed-certs=true --server="$(apiUrl)" --kubeconfig=/root/oauth.conf
   kubectl config --kubeconfig=/root/oauth.conf set-context oauthuser@cloud.com --cluster=cloud.com --user=oauthuser
@@ -1195,6 +1267,7 @@ oauthUser(){
   echoSuccess "alias kcd='kctl config set-context \$(kctl config current-context) --namespace'"
 }
 
+#This gives api server url
 apiUrl(){
   kubectl config view -o json | jq -r '.clusters[] | .cluster.server'
 }
@@ -1219,27 +1292,28 @@ opensearchDashInst(){
 
   gok patch ingress opensearch-dashboard-opensearch-dashboards opensearch letsencrypt opensearch
   echo "Waiting for dashboard service to be up!!!!"
-    kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
-    [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
+    kubectl --timeout=240s wait --for=condition=Ready pods --all --namespace opensearch
+    [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!\n You can access the service using https://opensearch.gokcloud.com" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
 }
 
 opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
   kubectl create ns opensearch
+
   kubectl create secret generic opensearch-password \
-      --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD=Sumit@7656 -n opensearch
+        --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n opensearch
   helm install opensearch \
     --namespace opensearch \
     --create-namespace \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/opensearch/values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/opensearch/values.yaml \
     openSearch/opensearch
 
   createLocalStorageClassAndPV "opensearch-storage" "opensearch-pv" "/data/volumes/pv5"
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace opensearch
   [[ $? -eq 0 ]] && echoSuccess "Opensearch services are now up!" || echoFailed "Opensearch services timed-out, plaese check!!"
-  checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u 'admin:Sumit@7656' --insecure
+  checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u "admin:${ADMIN_PASSWORD}" --insecure
   #gok patch ingress opensearch opensearch letsencrypt opensearch
 }
 
@@ -1260,7 +1334,6 @@ fluentdInst(){
   gok patch ingress fluentd fluentd letsencrypt fluentd
 }
 
-
 resetDockerRegistry(){
   helm uninstall registry -n registry
 
@@ -1271,8 +1344,8 @@ resetDockerRegistry(){
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 # Generate User & Password
 genRegistyrPassword(){
-  export REGISTRY_USER=sumit
-  export REGISTRY_PASS=sumit
+  export REGISTRY_USER="${ADMIN_ID}"
+  export REGISTRY_PASS="${ADMIN_PASSWORD}"
   export DESTINATION_FOLDER=./registry-creds
 
   # Backup credentials to local files (in case you'll forget them later on)
@@ -1565,11 +1638,28 @@ EOF
   kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io ${SUBDOMAIN}-$(sedRootDomain)
 }
 
-helmTemplateDebug(){
+# Is is used see the values that would be generated by helm
+helmShowValues(){
   CHART_NAME=$1
-  CHART_REPO=$2
-  helm install $1 $2  \
-    --dry-run --debug | less
+  helm get values $CHART_NAME -a
+}
+
+# Is is used to see all the resources that would be generated by helm
+helmShowAll(){
+  CHART_NAME=$1
+  helm get all $CHART_NAME
+}
+
+helmShowTemplate(){
+  CHART_REPO=$1
+  helm template $CHART_REPO -g
+}
+
+# Is is used see the template that would be generated by helm
+helmShowTemplate(){
+  CHART_REPO=$1
+  helm install $CHART_REPO  -g \
+    --dry-run
 }
 
 keycloakReset(){
@@ -1582,10 +1672,21 @@ keycloakReset(){
 
 keycloakInst(){
 
+  kubectl create ns keycloak
+  kubectl create secret generic keycloak-secrets \
+    --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+    --from-literal=KEYCLOAK_ADMIN="${ADMIN_ID}" \
+    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n keycloak
+
+  kubectl create secret generic keycloak-postgresql \
+    --from-literal=username="${POSTGRESQL_USERNAME}" \
+    --from-literal=password="${POSTGRESQL_PASSWORD}" \
+    --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak
+
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --create-namespace \
-        -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/keycloak/values2.yaml
+        --values $MOUNT_PATH/kubernetes/install_k8s/keycloak/values2.yaml
 }
 
 installRegistryWithCertMgr(){
@@ -1602,6 +1703,7 @@ installRegistryWithCertMgr(){
   rm /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
   mkdir -p /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/
   kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
+  kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['ca\.crt']}" | base64 --decode >> /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
   systemctl restart docker
   #END
 
@@ -1703,12 +1805,6 @@ waitForServiceAvailable(){
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace "$NS"
   [[ $? -eq 0 ]] && echoSuccess "Service is now up!" || echoFailed "Service timed-out, please check!!"
-}
-
-decodeSecret(){
-  SECRET=$1
-  NS=$2
-  kubectl get secret -n $NS $SECRET -o json | jq -r '.data."tls.crt"' | base64 -d | openssl x509 -noout -text
 }
 
 spinnakerInst(){
@@ -1940,7 +2036,6 @@ getUserInfo(){
 
 }
 
-
 spinnakerReset(){
   kubectl delete all --all -n spinnaker
   kubectl delete ns spinnaker
@@ -1964,6 +2059,160 @@ EOF
   )" -n "$NS"
   kubectl patch ing "$NAME" --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"master.cloud.com"}]' -n "$NS"
   kubectl patch ing "$NAME" --type=json -p='[{"op": "add", "path": "/metadata/annotations", "value":{"nginx.ingress.kubernetes.io/rewrite-target": "/", "kubernetes.io/ingress.class": "nginx"}}]' -n "$NS"
+}
+
+#Enable debug logs for Api Server and Kubelet
+debugLog(){
+  kcd default
+  cat << EOT | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: edit-debug-flags-v
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes/proxy
+  verbs:
+  - update
+- nonResourceURLs:
+  - /debug/flags/v
+  verbs:
+  - put
+EOT
+
+  cat << EOT | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: edit-debug-flags-v
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit-debug-flags-v
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+EOT
+  TOKEN=$(kubectl create token default)
+
+  # Change the log level to 5 (trace) for Api Server
+  APISERVER=$(apiUrl)
+  curl -s -X PUT -d '5' $APISERVER/debug/flags/v --header "Authorization: Bearer $TOKEN" -k
+
+  # Change the log level to 5 (trace) for Kubelet : Currently not working
+  docker exec kind-control-plane curl -s -X PUT -d '5' https://localhost:10250/debug/flags/v --header "Authorization: Bearer $TOKEN" -k
+
+}
+
+kubeloginInst(){
+  useradd -m -g root linuxbrew
+  cd /home/linuxbrew
+  su - linuxbrew
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/linuxbrew/.profile
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+  brew install kubelogin
+  echo 'export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"' >> /home/linuxbrew/.profile
+  echo 'export PATH="/home/linuxbrew/.linuxbrew/sbin:$PATH"' >> /home/linuxbrew/.profile
+  brew doctor
+  brew install Azure/kubelogin/kubelogin
+  # upgrade
+  brew update
+  brew upgrade Azure/kubelogin/kubelogin
+}
+
+oauth2Secret(){
+  echo "Enter Client Id: "
+  read CLIENT_ID
+  client_secret=$(python3 -c "
+import getpass
+client_secret = getpass.getpass('Please enter your client secret: ')
+print(client_secret)
+")
+  echo "Enter Realm (GokDevelopers): "
+  read REALM
+
+  echo "Enter Active Profile (keycloak): "
+  read ACTIVE_PROFILE
+
+  kubectl get secret oauth-secrets >/dev/null 2>&1 || kubectl create secret generic oauth-secrets \
+    --from-literal=OAUTH_REALM="${REALM}" \
+    --from-literal=ACTIVE_PROFILE="${ACTIVE_PROFILE}" \
+    --from-literal=CLIENT_ID="${CLIENT_ID}" \
+    --from-literal=CLIENT_SECRET="${client_secret}" -n kube-system
+
+}
+
+imagePullSecrets(){
+  echo "Enter User Id: "
+  read DOCKER_USERNAME
+  DOCKER_PASSWORD=$(python3 -c "
+import getpass
+DOCKER_PASSWORD = getpass.getpass('Please enter your docker password: ')
+print(DOCKER_PASSWORD)
+")
+  DOCKER_EMAIL="skmaji@outlook.com"
+  kubectl get secret docker-registry regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
+    --docker-server=$(fullRegistryUrl) \
+    --docker-username=$DOCKER_USERNAME \
+    --docker-password=$DOCKER_PASSWORD \
+    --docker-email=$DOCKER_EMAIL -n kube-system
+}
+
+
+kyvernoInst(){
+  helm repo add kyverno https://kyverno.github.io/kyverno/
+  helm repo update
+  helm install kyverno --namespace kyverno kyverno/kyverno --create-namespace
+  waitForServiceAvailable kyverno
+  sleep 10
+cat <<EOF | kubectl apply -f -
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: sync-secrets
+spec:
+  rules:
+  - name: sync-image-pull-secret
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    generate:
+      apiVersion: v1
+      kind: Secret
+      name: regcred
+      namespace: "{{request.object.metadata.name}}"
+      synchronize: true
+      clone:
+        namespace: kube-system
+        name: regcred
+  - name: sync-oauth-secrets
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    generate:
+      apiVersion: v1
+      kind: Secret
+      name: oauth-secrets
+      namespace: "{{request.object.metadata.name}}"
+      synchronize: true
+      clone:
+        namespace: kube-system
+        name: oauth-secrets
+EOF
+}
+
+kyvernoReset(){
+  helm uninstall kyverno -n kyverno
+  kubectl delete ns kyverno
+  kubectl delete clusterpolicy --all
 }
 
 help(){
@@ -2068,6 +2317,10 @@ function installCmd() {
     spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
     oauth2ProxyInst
+  elif [ "$COMPONENT" == "istio" ]; then
+    istioInst
+  elif [ "$COMPONENT" == "kyverno" ]; then
+    kyvernoInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
@@ -2078,6 +2331,7 @@ function installCmd() {
     helmInst
     taintNode
     calicoInst
+    waitForServiceAvailable kube-system
     dnsUtils
     kcurl
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
@@ -2131,6 +2385,14 @@ EOF
     oauth2ProxyReset
   elif [ "$COMPONENT" == "cert-manager" ]; then
     certManagerReset
+  elif [ "$COMPONENT" == "istio" ]; then
+    istioReset
+  elif [ "$COMPONENT" == "kyverno" ]; then
+    kyvernoReset
+  elif [ "$COMPONENT" == "kubernetes-worker" ]; then
+    kubeadm reset <<EOF
+y
+EOF
   fi
 }
 

@@ -5,7 +5,7 @@ clusterName: ${CLUSTER_NAME}
 apiServer:
   certSANs:
   - "master.cloud.com"
-  - "10.108.0.2"
+  - "${MASTER_HOST_IP}"
   extraArgs:
     authorization-mode: Node,RBAC
     service-node-port-range: 80-32767

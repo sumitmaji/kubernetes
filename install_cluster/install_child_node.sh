@@ -1,5 +1,5 @@
 #!/bin/bash
-[[ "TRACE" ]] && set -x
+[[ "$TRACE" ]] && set -x
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -57,6 +57,15 @@ getMasterNodeIp(){
   echo "$MASTER_NODE"
 }
 
+append_if_not_exists() {
+  local file=$1
+  local line=$2
+
+  if ! grep -q "$line" "$file"; then
+    echo "$line" >> "$file"
+  fi
+}
+
 setupPrivateNetwork(){
 if [ "$ENV" == "LOCAL" ]
 then
@@ -77,12 +86,13 @@ EOF
     touch /etc/dhcp/dhclient-enp0s3.conf
   fi
 
-  STATUS=$(grep -i "send fqdn.fqdn "$NODE_NAME";" /etc/dhcp/dhclient-enp0s3.conf)
+
+  STATUS=$(grep -i "send fqdn.fqdn $NODE_NAME;" /etc/dhcp/dhclient-enp0s3.conf)
   if [ -z "$STATUS" ]; then
-    echo "send fqdn.fqdn \"$NODE_NAME\";" >/etc/dhcp/dhclient-enp0s3.conf
-    echo "send fqdn.encoded on;" >>/etc/dhcp/dhclient-enp0s3.conf
-    echo "send fqdn.server-update off;" >>/etc/dhcp/dhclient-enp0s3.conf
-    echo "also request fqdn.fqdn;" >>/etc/dhcp/dhclient-enp0s3.conf
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "send fqdn.fqdn $NODE_NAME;"
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "send fqdn.encoded on;"
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "send fqdn.server-update off;"
+    append_if_not_exists "/etc/dhcp/dhclient-enp0s3.conf" "also request fqdn.fqdn;"
   fi
 elif [ "$ENV" == "CLOUD" ]; then
     sudo touch /etc/systemd/network/eth2.netdev
@@ -119,30 +129,32 @@ EOF
 fi
 }
 
-
+if [ "$ENV" == "LOCAL" ]; then
+    setupPrivateNetwork
+fi
 
 addRoutes(){
-  IP:=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
-  if [ $IP == "11.0.0.1" ]; then
+  IP=$(ifconfig eth2 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+  if [ "$IP" == "11.0.0.1" ]; then
     route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
     route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
     route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.2" ]; then
+  elif [ "$IP" == "11.0.0.2" ]; then
     route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
     route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
     route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.3" ]; then
+  elif [ "$IP" == "11.0.0.3" ]; then
     route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
     route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
     route add -net 11.0.0.4 netmask 255.255.255.255 gw 10.108.0.5
-  elif [ $IP == "11.0.0.4" ]; then
+  elif [ "$IP" == "11.0.0.4" ]; then
     route add -net 11.0.0.1 netmask 255.255.255.255 gw 10.108.0.2
     route add -net 11.0.0.3 netmask 255.255.255.255 gw 10.108.0.4
     route add -net 11.0.0.2 netmask 255.255.255.255 gw 10.108.0.3
   fi
 }
 
-if [ $ENV == "CLOUD" ]; then
+if [ "$ENV" == "CLOUD" ]; then
     echo "Dummy log"
     #Using routes of private network provided by cloud
     #addRoutes
@@ -173,13 +185,21 @@ fi
 apt-get update
 apt-get install -y sntp libopts25 ntp
 
+replace_ntp_server() {
+  local file=$1
+  local old_server=$2
+  local new_server=$3
+
+  sed -i "s/$old_server/$new_server/" "$file"
+}
+
 STATUS=$(grep "server master.cloud.com" /etc/ntpsec/ntp.conf)
 if [ -z "$STATUS" ]; then
-  $(sed -i 's/server ntp.ubuntu.com/server master.cloud.com/' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 0.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 1.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 2.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
-  $(sed -i 's/pool 3.ubuntu.pool.ntp.org iburst//' /etc/ntpsec/ntp.conf)
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "server ntp.ubuntu.com" "server master.cloud.com"
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 0.ubuntu.pool.ntp.org iburst" ""
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 1.ubuntu.pool.ntp.org iburst" ""
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 2.ubuntu.pool.ntp.org iburst" ""
+  replace_ntp_server "/etc/ntpsec/ntp.conf" "pool 3.ubuntu.pool.ntp.org iburst" ""
 fi
 
 service ntp start
@@ -235,7 +255,3 @@ export NOTVISIBLE="in users profile"
 echo "export VISIBLE=now" >>/etc/profile
 
 reboot
-
-if [ "$ENV" == "LOCAL" ]; then
-    setupPrivateNetwork
-fi
