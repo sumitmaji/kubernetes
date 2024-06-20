@@ -2385,7 +2385,7 @@ EOF
     certManagerReset
   elif [ "$COMPONENT" == "istio" ]; then
     istioReset
-  elif [ "$COMPONENT" == "istio" ]; then
+  elif [ "$COMPONENT" == "kyverno" ]; then
     kyvernoReset
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     kubeadm reset <<EOF
