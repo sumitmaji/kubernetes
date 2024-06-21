@@ -34,9 +34,9 @@ echo "$OAUTH"
 }
 
 cat <<EOF  > ${MOUNT_PATH}/root_config
-#dns, http, selfsigned
 export LETS_ENCRYPT_PROD_URL=https://acme-v02.api.letsencrypt.org/directory
 export LETS_ENCRYPT_STAGING_URL=https://acme-staging-v02.api.letsencrypt.org/directory
+#dns, http, selfsigned
 export CERTMANAGER_CHALANGE_TYPE=selfsigned
 #staging, prod
 export LETS_ENCRYPT_ENV=staging
@@ -668,12 +668,16 @@ EOF
   kubectl --timeout=10s -n ${NS} wait --for=condition=Ready certificates.cert-manager.io "${SUBDOMAIN}"-"$(sedRootDomain)"-tls
 }
 
+getLetsEncEnv(){
+  echo "${LETS_ENCRYPT_ENV}"
+}
+
 getLetsEncryptUrl(){
   [[ $(getLetsEncEnv) == 'prod' ]] && echo "https://acme-v02.api.letsencrypt.org/directory " || echo "https://acme-staging-v02.api.letsencrypt.org/directory"
 }
 
-getLetsEncEnv(){
-  echo "${LETS_ENCRYPT_ENV}"
+isProd(){
+  [[ $(getLetsEncEnv) == 'prod' ]] && echo "true" || echo "false"
 }
 
 getClusterIssuerName(){
@@ -682,6 +686,77 @@ getClusterIssuerName(){
    'http') echo "letsencrypt-$(getLetsEncEnv)" ;;
    'selfsigned') echo "gokselfsign-ca-cluster-issuer" ;;
   esac
+}
+
+#Godday api calls are disabled, hence going to remove this call.
+godaddyWebhook() {
+  replaceEnvVariable  https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml | kubectl create -f - --validate=false
+  echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
+  API_KEY=$(promptSecret "Provide godaddy apikey and secret <API_KEY:SECRET>")
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: godaddy-api-key-secret
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-key: ${API_KEY}
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: $(getClusterIssuerName)
+spec:
+  acme:
+    email: majisumitkumar@gmail.com
+    server: $(getLetsEncryptUrl)
+    privateKeySecretRef:
+      name: letsencrypt-$(getLetsEncEnv)
+    solvers:
+    - dns01:
+        webhook:
+          config:
+            apiKeySecretRef:
+              name: godaddy-api-key-secret
+              key: api-key
+            production: $(isProd)
+            ttl: 600
+          groupName: $(rootDomain)
+          solverName: godaddy
+      selector:
+       dnsNames:
+       - '$(defaultSubdomain).$(rootDomain)'
+       - '*.$(rootDomain)'
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: $(sedRootDomain)-tls
+  namespace: default
+spec:
+  secretName: $(sedRootDomain)
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: $(defaultSubdomain).$(rootDomain)
+  dnsNames:
+    - $(defaultSubdomain).$(rootDomain)
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+EOF
+
+}
+
+godaddyWebhookReset() {
+  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml
+  kubectl delete secret godaddy-api-key-secret -n cert-manager
 }
 
 setupCertiIssuers() {
@@ -705,9 +780,9 @@ spec:
             apiKeySecretRef:
               name: godaddy-api-key-secret
               key: api-key
-            production: true
+            production: $(isProd)
             ttl: 600
-          groupName: acme.mycompany.com
+          groupName: $(rootDomain)
           solverName: godaddy
       selector:
        dnsNames:
@@ -827,84 +902,9 @@ echoWarning "Selfsigned certificate is added to root ca, please reboot the syste
 
 certManagerReset() {
   kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces
+  if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then godaddyWebhookReset; fi
   helm --namespace cert-manager delete cert-manager
   kubectl delete namespace cert-manager
-  #kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
-
-  if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then godaddyWebhook; fi
-}
-
-#Godday api calls are disabled, hence going to remove this call.
-godaddyWebhook() {
-  replaceEnvVariable  https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml | kubectl create -f - --validate=false
-#  kubectl apply -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml --validate=false
-  echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
-  # shellcheck disable=SC2162
-  read API_KEY
-
-  cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: godaddy-api-key-secret
-  namespace: cert-manager
-type: Opaque
-stringData:
-  api-key: ${API_KEY}
-EOF
-
-  cat <<EOF | kubectl apply -f -
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    email: majisumitkumar@gmail.com
-    server: https://acme-v02.api.letsencrypt.org/directory
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-    - dns01:
-        webhook:
-          config:
-            apiKeySecretRef:
-              name: godaddy-api-key-secret
-              key: api-key
-            production: true
-            ttl: 600
-          groupName: $(rootDomain)
-          solverName: godaddy
-      selector:
-       dnsNames:
-       - '$(defaultSubdomain).$(rootDomain)'
-       - '*.$(rootDomain)'
-EOF
-
-  cat <<EOF | kubectl apply -f -
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: $(sedRootDomain)-tls
-  namespace: default
-spec:
-  secretName: $(sedRootDomain)
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  commonName: $(defaultSubdomain).$(rootDomain)
-  dnsNames:
-    - $(defaultSubdomain).$(rootDomain)
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-EOF
-
-}
-
-godaddyWebhookReset() {
-  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml
-  kubectl delete secret godaddy-api-key-secret -n cert-manager
 }
 
 haInst() {
