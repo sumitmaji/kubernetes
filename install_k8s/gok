@@ -6,9 +6,6 @@ source "$WORKING_DIR"/config
 release=$2
 CMD=$1
 
-export POSTGRESQL_PASSWORD=postgres045
-export POSTGRESQL_USERNAME=postgres
-
 getOAuth0Config(){
  IFS='' read -r -d '' OAUTH <<"EOF"
 export OIDC_ISSUE_URL=https://skmaji.auth0.com/
@@ -1072,15 +1069,12 @@ prometheusGrafanaResetv2(){
 }
 
 prometheusGrafanaInstv2(){
-  CLIENT_SECRET=$(python3 -c "
-import getpass
-client_secret = getpass.getpass('Please enter your client secret: ')
-print(client_secret)
-")
-  CLIENT_ID=gok-developers-client
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
   URL=$(fullDefaultUrl)
   OAUTH2_HOST=$(fullKeycloakUrl)
-  REALM=GokDevelopers
+  REALM=$(dataFromSecret oauth-secrets kube-system OIDC_REALM)
+
   kubectl create ns monitoring
   kubectl create secret generic kube-prometheus-stack-grafana-oauth \
     --from-literal GF_AUTH_KEYCLOAK_CLIENT_ID="${CLIENT_ID}" \
@@ -1728,7 +1722,7 @@ oauth2Secret(){
   AUTH0_DOMAIN=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")
   APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
   JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
-
+  OAUTH_SERVER_URI="https://$(fullKeycloakUrl)"
 
   # If secret already exists then delete it
   kubectl get secret oauth-secrets -n kube-system 2>/dev/null && kubectl delete secret oauth-secrets -n kube-system
@@ -1742,6 +1736,7 @@ oauth2Secret(){
     --from-literal=AUTH0_DOMAIN="${AUTH0_DOMAIN}" \
     --from-literal=APP_HOST="${APP_HOST}" \
     --from-literal=JWKS_URL="${JWKS_URL}" \
+    --from-literal=OAUTH_SERVER_URI="${OAUTH_SERVER_URI}" \
     --from-literal=OIDC_CLIENT_SECRET="${client_secret}" -n kube-system
 }
 
