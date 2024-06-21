@@ -6,8 +6,6 @@ source "$WORKING_DIR"/config
 release=$2
 CMD=$1
 
-export ADMIN_ID=admin
-export ADMIN_PASSWORD=Greek@0456
 export POSTGRESQL_PASSWORD=postgres045
 export POSTGRESQL_USERNAME=postgres
 
@@ -120,6 +118,36 @@ echoWarning(){
 
 replaceEnvVariable(){
   wget -O- $1 | envsubst
+}
+
+promptUserInput(){
+ MSG=$1
+ DEFAULT=$2
+id=$(python3 -c "
+import sys
+sys.stderr.write('${MSG}')
+id=input()
+print(id)
+")
+output=${id:-$DEFAULT}
+echo $output
+}
+
+promptSecret(){
+  MSG=$1
+  secret=$(python3 -c "
+import getpass
+secret = getpass.getpass('${MSG}')
+print(secret)
+")
+  echo $secret
+}
+
+dataFromSecret(){
+  NAME=$1
+  NS=$2
+  KEY=$3
+  kubectl get secret $NAME -n $NS -o jsonpath="{['data']['$KEY']}" | base64 --decode
 }
 
 createApp1() {
@@ -1301,7 +1329,7 @@ opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
   kubectl create ns opensearch
-
+  ADMIN_PASSWORD=$(promptSecret "Enter Admin Password: ")
   kubectl create secret generic opensearch-password \
         --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n opensearch
   helm install opensearch \
@@ -1316,6 +1344,7 @@ opensearchInst(){
   [[ $? -eq 0 ]] && echoSuccess "Opensearch services are now up!" || echoFailed "Opensearch services timed-out, plaese check!!"
   checkCurl curl -XGET https://opensearch-cluster-master.opensearch.svc:9200 -u "admin:${ADMIN_PASSWORD}" --insecure
   #gok patch ingress opensearch opensearch letsencrypt opensearch
+  opensearchSecret $ADMIN_PASSWORD
 }
 
 fluentdReset(){
@@ -1326,12 +1355,20 @@ fluentdReset(){
 fluentdInst(){
   helm repo add fluent https://fluent.github.io/helm-charts
   helm repo update
+  kubectl create ns fluentd
+
+  # Workaround for now before permanent solution is identified, Begin
+  ADMIN_PASSWORD=$(kubectl get secret opensearch-secrets -n kube-system -o=jsonpath='{.data.OPENSEARCH_INITIAL_ADMIN_PASSWORD}' | base64 -d)
+  cat $MOUNT_PATH/kubernetes/install_k8s/fluentd/values.yaml | \
+    sed "s|__PASSWORD__|${ADMIN_PASSWORD}|g" > $MOUNT_PATH/kubernetes/install_k8s/fluentd/values_temp.yaml
+  # End
+
   helm install fluentd \
         --namespace fluentd \
         --create-namespace \
-        --values $MOUNT_PATH/kubernetes/install_k8s/fluentd/values.yaml \
+        --values $MOUNT_PATH/kubernetes/install_k8s/fluentd/values_temp.yaml \
         fluent/fluentd
-
+  rm $MOUNT_PATH/kubernetes/install_k8s/fluentd/values_temp.yaml
   gok patch ingress fluentd fluentd letsencrypt fluentd
 }
 
@@ -1362,26 +1399,20 @@ genRegistryPassword(){
 }
 
 imagePullSecrets(){
-  echo "Enter User Id: "
-  DOCKER_USERNAME=$(python3 -c "
-import sys
-sys.stderr.write('Please enter docker user id: ')
-DOCKER_USERNAME=input()
-print(DOCKER_USERNAME)
-")
-  DOCKER_PASSWORD=$(python3 -c "
-import getpass
-DOCKER_PASSWORD = getpass.getpass('Please enter your docker password: ')
-print(DOCKER_PASSWORD)
-")
+  # Create a secret for the registry
+  DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
+  DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
   DOCKER_EMAIL="skmaji@outlook.com"
-  kubectl get secret docker-registry regcred >/dev/null 2>&1 || kubectl create secret docker-registry regcred \
+
+  # Delete the secret if it already exists
+  kubectl get secret regcred -n kube-system 2>/dev/null && kubectl delete secret regcred -n kube-system
+  kubectl create secret docker-registry regcred \
     --docker-server=$(fullRegistryUrl) \
     --docker-username=$DOCKER_USERNAME \
     --docker-password=$DOCKER_PASSWORD \
     --docker-email=$DOCKER_EMAIL -n kube-system
 
-  genRegistryPassword DOCKER_USERNAME DOCKER_PASSWORD
+  genRegistryPassword $DOCKER_USERNAME $DOCKER_PASSWORD
 }
 
 # https://blog.zachinachshon.com/docker-registry/
@@ -1687,25 +1718,39 @@ helmShowTemplate(){
 }
 
 oauth2Secret(){
-  echo "Enter Client Id: "
-  read CLIENT_ID
-  client_secret=$(python3 -c "
-import getpass
-client_secret = getpass.getpass('Please enter your client secret: ')
-print(client_secret)
-")
-  echo "Enter Realm (GokDevelopers): "
-  read REALM
+  CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
+  REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
+  client_secret=$(promptSecret "Enter Client Secret: ")
+  ACTIVE_PROFILE=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")
+  OIDC_ISSUE_URL=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")
+  OIDC_USERNAME_CLAIM=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")
+  OIDC_GROUPS_CLAIM=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")
+  AUTH0_DOMAIN=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")
+  APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
+  JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
 
-  echo "Enter Active Profile (keycloak): "
-  read ACTIVE_PROFILE
 
-  kubectl get secret oauth-secrets >/dev/null 2>&1 || kubectl create secret generic oauth-secrets \
+  # If secret already exists then delete it
+  kubectl get secret oauth-secrets -n kube-system 2>/dev/null && kubectl delete secret oauth-secrets -n kube-system
+  kubectl create secret generic oauth-secrets \
     --from-literal=OAUTH_REALM="${REALM}" \
     --from-literal=ACTIVE_PROFILE="${ACTIVE_PROFILE}" \
-    --from-literal=CLIENT_ID="${CLIENT_ID}" \
-    --from-literal=CLIENT_SECRET="${client_secret}" -n kube-system
+    --from-literal=OIDC_CLIENT_ID="${CLIENT_ID}" \
+    --from-literal=OIDC_ISSUE_URL="${OIDC_ISSUE_URL}" \
+    --from-literal=OIDC_USERNAME_CLAIM="${OIDC_USERNAME_CLAIM}" \
+    --from-literal=OIDC_GROUPS_CLAIM="${OIDC_GROUPS_CLAIM}" \
+    --from-literal=AUTH0_DOMAIN="${AUTH0_DOMAIN}" \
+    --from-literal=APP_HOST="${APP_HOST}" \
+    --from-literal=JWKS_URL="${JWKS_URL}" \
+    --from-literal=OIDC_CLIENT_SECRET="${client_secret}" -n kube-system
+}
 
+opensearchSecret(){
+  ADMIN_PASSWORD=$1
+  # If secret already exists then delete it
+  kubectl get secret opensearch-secrets -n kube-system 2>/dev/null && kubectl delete secret opensearch-secrets -n kube-system
+  kubectl create secret generic opensearch-secrets \
+    --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n kube-system
 }
 
 
@@ -1715,24 +1760,16 @@ keycloakReset(){
 
   emptyLocalFsStorage "Keycloak" "keycloak-pv" "keycloak-storage" "/data/volumes/pv3"
   kubectl delete ns keycloak
+  kubectl get secret oauth-secrets >/dev/null 2>&1
 }
 
 keycloakInst(){
-
-  keycloak_adminid=$(python3 -c "
-import sys
-sys.stderr.write('Please enter keycloak admin id: ')
-keycloak_adminid=input()
-print(keycloak_adminid)
-")
-  echo "$keycloak_adminid"
-  keycloak_adminpwd=$(python3 -c "
-import getpass
-keycloak_adminpwd = getpass.getpass('Please enter keycloak admin pwd: ')
-print(keycloak_adminpwd)
-")
-
-  echo "$keycloak_adminpwd"
+  keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
+  keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
+  POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
+  POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+  OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
+  REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
 
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
@@ -1796,8 +1833,8 @@ installKeycloakWithCertMgr(){
   apt install python3-dotenv python3-requests python3-jose -y
   ADMIN_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
   ADMIN_PWD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN_PASSWORD']}" | base64 --decode)
-  CLIENT_ID=$(kubectl get secret oauth-secrets -n kube-system -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
-  REALM=$(kubectl get secret oauth-secrets -n kube-system -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
+  CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
+  REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
   oauth2Secret
@@ -1840,20 +1877,18 @@ oauth2ProxyReset(){
   kubectl delete ns oauth2
 }
 
+
+
 oauth2ProxyInst(){
-  client_secret=$(python3 -c "
-import getpass
-client_secret = getpass.getpass('Please enter your client secret: ')
-print(client_secret)
-")
-  OAUTH2_PROXY_CLIENT_ID="gok-developers-client"
-  REALM="GokDevelopers"
-  OAUTH2_HOST="$(fullKeycloakUrl)"
-  OAUTH2_OIDC_ISSUE_URL="https://$(fullKeycloakUrl)/realms/GokDevelopers/protocol/openid-connect/auth"
 
   createLocalStorageClassAndPV "oauth-storage" "oauth-pv" "/data/volumes/pv6"
   kubectl create ns oauth2
-  kubectl create secret generic oauth2-proxy-secrets --from-literal=clientSecret="${client_secret}" -n oauth2
+
+  OAUTH2_PROXY_CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
+  OAUTH2_HOST="$(fullKeycloakUrl)"
+  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)/protocol/openid-connect/auth"
+
   kubectl create configmap oauth2-proxy-config \
       --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
       --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
@@ -1868,7 +1903,7 @@ print(client_secret)
     --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[5]=--keycloak-group=groups" \
     --set "extraArgs[6]=--scope=openid email profile groups" \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/oauth2-proxy/values.yaml \
+    --values $MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
 
     waitForServiceAvailable oauth2
@@ -1882,11 +1917,9 @@ waitForServiceAvailable(){
 }
 
 spinnakerInst(){
-  CLIENT_SECRET=$(python3 -c "
-import getpass
-client_secret = getpass.getpass('Please enter your client secret: ')
-print(client_secret)
-")
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  OIDC_ISSUE_URL=$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)
 
   useradd -m -g root spinnaker
   mkdir -p /home/spinnaker/.hal && chmod -R 777 /home/spinnaker/.hal
@@ -1960,14 +1993,6 @@ EOF
   docker exec -it halyard hal version list
   docker exec -it halyard hal config version edit --version 1.34.2
 
-  #https://spinnaker.io/docs/reference/halyard/custom/
-  cat <<EOF > /home/spinnaker/.hal/default/service-settings/gate.yml
-kubernetes:
-  volumes:
-  - id: internal-trust-store
-    mountPath: /etc/ssl/certs/java
-    type: secret
-EOF
   cat <<EOF > /home/spinnaker/.hal/default/profiles/gate-local.yml
 kubernetes:
   volumes:
@@ -1986,13 +2011,13 @@ security:
     client:
       clientId: gok-developers-client
       clientSecret: $CLIENT_SECRET
-      userAuthorizationUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth
-      accessTokenUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token
+      userAuthorizationUri: $OIDC_ISSUE_URL/protocol/openid-connect/auth
+      accessTokenUri: $OIDC_ISSUE_URL/protocol/openid-connect/token
       scope: openid,email,profile,groups
       preEstablishedRedirectUri: https://spin-gate.gokcloud.com/login
       clientAuthenticationScheme: form
     resource:
-      userInfoUri: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo
+      userInfoUri: $OIDC_ISSUE_URL/protocol/openid-connect/userinfo
     userInfoMapping:
       email: email
       firstName: given_name
@@ -2067,7 +2092,7 @@ EOF
   docker exec -it halyard hal config security api edit --cors-access-pattern "https://spinnaker.gokcloud.com"
 
   #Authentication
-  docker exec -it halyard hal config security authn oauth2 edit --client-id gok-developers-client --client-secret $CLIENT_SECRET --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
+  docker exec -it halyard hal config security authn oauth2 edit --client-id $CLIENT_ID --client-secret $CLIENT_SECRET --provider OTHER --pre-established-redirect-uri https://spin-gate.gokcloud.com/login
   docker exec -it halyard hal config security authn oauth2 enable
 
   #Authorization
@@ -2083,11 +2108,21 @@ EOF
 
   docker exec -it halyard  cp /etc/ssl/certs/java/cacerts /home/spinnaker/.hal/
   chmod +w /home/spinnaker/.hal/cacerts
-  #password is changeid
+  #password is changeit
   docker exec -it halyard keytool -import -noprompt -trustcacerts -alias ca -file /home/spinnaker/.hal/issuer.crt -keystore /home/spinnaker/.hal/cacerts
   docker exec -it halyard keytool -import -noprompt -trustcacerts -alias keycloak -file /home/spinnaker/.hal/keycloak.crt -keystore /home/spinnaker/.hal/cacerts
   kubectl create secret generic -n spinnaker internal-trust-store \
   	--from-file /home/spinnaker/.hal/cacerts
+
+  #https://spinnaker.io/docs/reference/halyard/custom/
+  mkdir -p /home/spinnaker/.hal/default/service-settings/
+  cat <<EOF > /home/spinnaker/.hal/default/service-settings/gate.yml
+kubernetes:
+  volumes:
+  - id: internal-trust-store
+    mountPath: /etc/ssl/certs/java
+    type: secret
+EOF
 
   docker exec -it halyard hal deploy apply
 }
@@ -2241,6 +2276,21 @@ spec:
       clone:
         namespace: kube-system
         name: oauth-secrets
+  - name: sync-opensearch-secrets
+    match:
+      any:
+      - resources:
+          kinds:
+          - Namespace
+    generate:
+      apiVersion: v1
+      kind: Secret
+      name: opensearch-secrets
+      namespace: "{{request.object.metadata.name}}"
+      synchronize: true
+      clone:
+        namespace: kube-system
+        name: opensearch-secrets
 EOF
 }
 
