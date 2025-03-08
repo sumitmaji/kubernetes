@@ -373,10 +373,9 @@ dhcpInst(){
     cp /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf_tmp
   fi
 
-  if [[ ! -f /etc/dhcp/temp-local-zones ]]
-  then
-    cat ./rndc-key > /etc/dhcp/temp-local-zones
-    cat >> /etc/dhcp/temp-local-zones << EOF
+
+  cat ./rndc-key > /etc/dhcp/temp-local-zones
+  cat >> /etc/dhcp/temp-local-zones << EOF
 zone cloud.com. {
         primary 127.0.0.1;
         key rndc-key;
@@ -387,23 +386,22 @@ zone $(getRevIp).in-addr.arpa. {
         key rndc-key;
 }
 EOF
-    cat /etc/dhcp/dhcpd.conf_tmp >> /etc/dhcp/temp-local-zones
-    sed -i 's/ddns-update-style none/ddns-update-style interim/' /etc/dhcp/temp-local-zones
-    sed -i '/ddns-update-style interim/ a\autorotive;' /etc/dhcp/temp-local-zones
-    sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
-    sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
-    sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
-    sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
-    sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers $(getIp).1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
-    sed -i "/^max-lease-time 7200;/ a\subnet $(getIp).0 netmask 255.255.255.0 {" /etc/dhcp/temp-local-zones
-    sed -i "/subnet $(getIp).0 netmask 255.255.255.0 {/ a\option routers $(getIp).1;"  /etc/dhcp/temp-local-zones
-    sed -i "/option routers $(getIp).1;/ a\option subnet-mask 255.255.255.0;" /etc/dhcp/temp-local-zones
-    sed -i "/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;" /etc/dhcp/temp-local-zones
-    sed -i "/option time-offset -18000;/ a\range $(getIp).1 $(getIp).254;" /etc/dhcp/temp-local-zones
-    sed -i "/range $(getIp).1 $(getIp).254;/ a\}" /etc/dhcp/temp-local-zones
+  cat /etc/dhcp/dhcpd.conf_tmp >> /etc/dhcp/temp-local-zones
+  sed -i 's/ddns-update-style none/ddns-update-style interim/' /etc/dhcp/temp-local-zones
+  sed -i '/ddns-update-style interim/ a\autorotive;' /etc/dhcp/temp-local-zones
+  sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
+  sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
+  sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
+  sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
+  sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers $(getIp).1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
+  sed -i "/^max-lease-time 7200;/ a\subnet $(getIp).0 netmask 255.255.255.0 {" /etc/dhcp/temp-local-zones
+  sed -i "/subnet $(getIp).0 netmask 255.255.255.0 {/ a\option routers $(getIp).1;"  /etc/dhcp/temp-local-zones
+  sed -i "/option routers $(getIp).1;/ a\option subnet-mask 255.255.255.0;" /etc/dhcp/temp-local-zones
+  sed -i "/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;" /etc/dhcp/temp-local-zones
+  sed -i "/option time-offset -18000;/ a\range $(getIp).1 $(getIp).254;" /etc/dhcp/temp-local-zones
+  sed -i "/range $(getIp).1 $(getIp).254;/ a\}" /etc/dhcp/temp-local-zones
 
-    cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf
-  fi
+  cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf
 
   service isc-dhcp-server restart
 }
