@@ -239,6 +239,11 @@ addRoutes(){
 #https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-14-04
 bindInst(){
   figlet "Setting DNS Server"
+  
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
+  
   if ! grep -q "##zone append end" /etc/bind/named.conf.default-zones; then
     cat >>  /etc/bind/named.conf.default-zones << EOF
 ##zone append begin
