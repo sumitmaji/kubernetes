@@ -565,7 +565,7 @@ if [ -n "$METHOD" ]; then
       dhcpInst
       ;;
     *)
-      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork|dhcpInst}"
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|LOCAL>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork|dhcpInst}"
       exit 1
       ;;
   esac
@@ -574,11 +574,11 @@ else
     "CLOUD")
       install_cloud
       ;;
-    "ONPREM")
+    "LOCAL")
       install_local
       ;;
     *)
-      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork|dhcpInst}"
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|LOCAL>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork|dhcpInst}"
       exit 1
       ;;
   esac
