@@ -361,6 +361,11 @@ EOF
 
 dhcpInst(){
   figlet "Setting DHCP Server"
+  
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
+  
   if [ -f /etc/dhcp/dhcpd.conf_tmp ]
   then
     echo "Dhcp Temp file exists."
