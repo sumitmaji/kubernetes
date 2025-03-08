@@ -2,6 +2,7 @@
 [[ "TRACE" ]] && set -x
 
 : ${ENV:="LOCAL"}
+METHOD=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -h | --host)
@@ -11,6 +12,9 @@ while [ $# -gt 0 ]; do
         -e | --env)
         shift
         ENV=$1
+        ;;
+        *)
+        METHOD=$1
         ;;
     esac
 shift
@@ -454,38 +458,82 @@ EOF
   echo "export VISIBLE=now" >> /etc/profile
 }
 
-case "$ENV" in
-  "CLOUD")
-    installPkg
-    figlet "Master Node Installation"
-    getHostIp
-    getChildNodes
-    bindInst
-    nameserver
-    natInst
-    ntpInst
-    nfsInst
-    sshdInst
-    # addRoutes
-    reboot
-    ;;
-  "LOCAL")
-    installPkg
-    figlet "Master Node Installation"
-    setupPrivateNetwork
-    getHostIp
-    getChildNodes
-    bindInst
-    dhcpInst
-    nameserver
-    natInst
-    ntpInst
-    nfsInst
-    sshdInst
-    reboot
-    ;;
-  *)
-    echo "Invalid environment. Please set ENV to either 'CLOUD' or 'LOCAL'."
-    ;;
-esac
+install_cloud(){
+  installPkg
+  figlet "Master Node Installation"
+  getHostIp
+  getChildNodes
+  bindInst
+  nameserver
+  natInst
+  ntpInst
+  nfsInst
+  sshdInst
+  reboot
+}
 
+install_local(){
+  installPkg
+  figlet "Master Node Installation"
+  setupPrivateNetwork
+  getHostIp
+  getChildNodes
+  bindInst
+  dhcpInst
+  nameserver
+  natInst
+  ntpInst
+  nfsInst
+  sshdInst
+  reboot
+}
+
+# Main script execution based on ENV variable or individual method call
+if [ -n "$METHOD" ]; then
+  case "$METHOD" in
+    "installPkg")
+      installPkg
+      ;;
+    "getHostIp")
+      getHostIp
+      ;;
+    "getChildNodes")
+      getChildNodes
+      ;;
+    "bindInst")
+      bindInst
+      ;;
+    "nameserver")
+      nameserver
+      ;;
+    "natInst")
+      natInst
+      ;;
+    "ntpInst")
+      ntpInst
+      ;;
+    "nfsInst")
+      nfsInst
+      ;;
+    "sshdInst")
+      sshdInst
+      ;;
+    *)
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst}"
+      exit 1
+      ;;
+  esac
+else
+  case "$ENV" in
+    "CLOUD")
+      install_cloud
+      ;;
+    "ONPREM")
+      install_local
+      ;;
+    *)
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst}"
+      exit 1
+      ;;
+  esac
+fi
