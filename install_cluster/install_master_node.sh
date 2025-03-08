@@ -149,6 +149,7 @@ vlan_interface="${interface}.${vlan_id}"
 touch /etc/netplan/00-installer-config.yaml
 cat > /etc/netplan/00-installer-config.yaml << EOF
 network:
+  renderer: networkd
   ethernets:
     ${interface}:
       dhcp4: no
@@ -157,14 +158,14 @@ network:
       gateway4: $(echo ${PRIVATE_IP} | cut -d '.' -f 1-3).254
       nameservers:
         addresses: [8.8.8.8,8.8.4.4]
-    vlans:
-      ${vlan_interface}:
-        id: ${vlan_id}
-        link: ${interface}
-        addresses: [${PRIVATE_IP}/24]
-        dhcp4: no
-        nameservers:
-          addresses: [8.8.8.8,8.8.4.4]
+  vlans:
+    ${vlan_interface}:
+      id: ${vlan_id}
+      link: ${interface}
+      addresses: [${PRIVATE_IP}/24]
+      dhcp4: no
+      nameservers:
+        addresses: [8.8.8.8,8.8.4.4]
     enp0s8:
       dhcp4: true
   version: 2
