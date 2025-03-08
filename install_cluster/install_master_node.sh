@@ -408,6 +408,10 @@ EOF
 
 
 nameserver(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
+
   chattr -i /etc/resolv.conf
   sed -i "/nameserver/ i nameserver $(getMasterIp)" /etc/resolv.conf
   sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
