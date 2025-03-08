@@ -494,7 +494,7 @@ taintNode() {
 
   # If IP is empty, try another network interface
   if [ -z "$IP" ]; then
-    IP=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+    IP=$(ifconfig enp1s0.100 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
   fi
 
   # If IP is still empty, print an error message and exit
@@ -609,7 +609,7 @@ helmInst() {
     echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list &&
     apt-get update &&
     apt-get install helm &&
-    helm version --short &&
+    helm version --short
 }
 
 certmanagerInst() {
