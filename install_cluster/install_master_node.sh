@@ -136,16 +136,35 @@ setupPrivateNetwork(){
   read PRIVATE_IP
 if [ "$ENV" == "LOCAL" ]
 then
-rm /etc/netplan/00-installer-config.yaml
+echo "Available physical interfaces:"
+ip link show | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2}' | sed 's/ //g'
+
+# Prompt the user to select an interface
+echo "Enter the name of the physical interface from the above list:"
+read interface
+vlan_id=100
+vlan_interface="${interface}.${vlan_id}"
+# Create the VLAN interface
+[ -f /etc/netplan/00-installer-config.yaml ] && rm /etc/netplan/00-installer-config.yaml
 touch /etc/netplan/00-installer-config.yaml
 cat > /etc/netplan/00-installer-config.yaml << EOF
 network:
   ethernets:
-    enp0s3:
-      dhcp4: false
+    ${interface}:
+      dhcp4: no
+      dhcp6: no
       addresses: [${PRIVATE_IP}/24]
+      gateway4: $(echo ${PRIVATE_IP} | cut -d '.' -f 1-3).254
       nameservers:
         addresses: [8.8.8.8,8.8.4.4]
+    vlans:
+      ${vlan_interface}:
+        id: ${vlan_id}
+        link: ${interface}
+        addresses: [${PRIVATE_IP}/24]
+        dhcp4: no
+        nameservers:
+          addresses: [8.8.8.8,8.8.4.4]
     enp0s8:
       dhcp4: true
   version: 2
