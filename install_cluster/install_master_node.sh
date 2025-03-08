@@ -158,8 +158,6 @@ network:
       gateway4: $(echo ${PRIVATE_IP} | cut -d '.' -f 1-3).254
       nameservers:
         addresses: [8.8.8.8,8.8.4.4]
-    enp0s8:
-      dhcp4: true
   vlans:
     ${vlan_interface}:
       id: ${vlan_id}
