@@ -110,14 +110,24 @@ getChildNodes(){
 }
 
 getIp(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
   echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3`
 }
 
 getRevIp(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi  
   echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3 | awk -F. '{for(i=NF; i>1; i--) printf("%s.",$i); print $1}'`
+
 }
 
 getMasterIp(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
   echo "${CLOUD_HOST_IP}"
 }
 
@@ -517,6 +527,9 @@ if [ -n "$METHOD" ]; then
       ;;
     "sshdInst")
       sshdInst
+      ;;
+    "setupPrivateNetwork")
+      setupPrivateNetwork
       ;;
     *)
       echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst}"
