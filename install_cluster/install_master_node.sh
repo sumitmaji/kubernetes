@@ -244,8 +244,8 @@ bindInst(){
     getHostIp
   fi
   
-  if ! grep -q "##zone append end" /etc/bind/named.conf.default-zones; then
-    cat >>  /etc/bind/named.conf.default-zones << EOF
+  sed -i '/##zone append begin/,/##zone append end/d' /etc/bind/named.conf.default-zones
+  cat >>  /etc/bind/named.conf.default-zones << EOF
 ##zone append begin
 zone "cloud.com" {
 	type master;
@@ -260,7 +260,7 @@ zone "$(getRevIp).in-addr.arpa" {
 };
 ##zone append end
 EOF
-  fi
+
 
   if ! grep -q "##rndc-key copy end" ./rndc-key; then
     echo '##rndc-key copy begin' >  ./rndc-key
@@ -537,7 +537,7 @@ if [ -n "$METHOD" ]; then
       setupPrivateNetwork
       ;;
     *)
-      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst}"
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork}"
       exit 1
       ;;
   esac
@@ -550,7 +550,7 @@ else
       install_local
       ;;
     *)
-      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst}"
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|ONPREM>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork}"
       exit 1
       ;;
   esac
