@@ -181,3 +181,22 @@ Application would be accessible in https://master.cloud.com:32028/hlw
 
 - Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
 - Add `ip_address master.cloud.com` to windows host file located in C:\Windows\System32\drivers\etc. e.g. `192.168.1.5 master.cloud.com` >> host file.
+
+# Connect to WIFI Network
+
+```yaml
+network:
+  version: 2
+  renderer: networkd
+  wifis:
+    wlo1:
+      dhcp4: yes
+      access-points:
+        YOUR_WIFI_NAME:
+          password: YOUR_PASSWORD
+```
+
+```console
+netplan generate
+netplan apply
+```
