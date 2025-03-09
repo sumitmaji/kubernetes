@@ -154,7 +154,6 @@ network:
     ${interface}:
       dhcp4: no
       dhcp6: no
-      addresses: [${PRIVATE_IP}/24]
       gateway4: $(echo ${PRIVATE_IP} | cut -d '.' -f 1-3).254
       nameservers:
         addresses: [8.8.8.8,8.8.4.4]
