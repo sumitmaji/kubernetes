@@ -1757,8 +1757,10 @@ keycloakReset(){
 }
 
 keycloakInst(){
-  keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
-  keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
+  #Admin user is "user" and password is fetched from secret keycloak with key "admin-password"
+  #Hence removing the below 2 lines
+  #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
+  #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
   POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
   POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
@@ -1767,18 +1769,21 @@ keycloakInst(){
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="${keycloak_adminid}" \
+    --from-literal=KEYCLOAK_ADMIN="user" \
     --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-    --from-literal=OAUTH_REALM="${REALM}" \
-    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
+    --from-literal=OAUTH_REALM="${REALM}"  -n keycloak
+    #--from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
 
   kubectl create secret generic keycloak-postgresql \
     --from-literal=username="${POSTGRESQL_USERNAME}" \
     --from-literal=password="${POSTGRESQL_PASSWORD}" \
     --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak
 
+  hostname="$(subDomain 'keycloak').$(rootDomain)"
+
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
+        --set ingress.hostname="$hostname" \
         --create-namespace \
         --values $MOUNT_PATH/kubernetes/install_k8s/keycloak/values2.yaml
 }
@@ -1825,7 +1830,7 @@ installKeycloakWithCertMgr(){
   sleep 10
   apt install python3-dotenv python3-requests python3-jose -y
   ADMIN_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
-  ADMIN_PWD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN_PASSWORD']}" | base64 --decode)
+  ADMIN_PWD=$(kubectl get secret keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
   CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
 
