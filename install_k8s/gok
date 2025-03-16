@@ -1824,7 +1824,7 @@ installKeycloakWithCertMgr(){
   gok patch ingress keycloak keycloak letsencrypt $(keycloakSubdomain)
 
   echo "Waiting for services to be up!!!!"
-  kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace keycloak
+  kubectl --timeout=240s wait --for=condition=Ready pods --all --namespace keycloak
   [[ $? -eq 0 ]] && echoSuccess "Keycloak services are now up!\nAccess it using https://$(keycloakSubdomain).$(rootDomain)/" || echoFailed "Keycloak services timed-out, plaese check!!"
   echo "Wait for 10 seconds"
   sleep 10
