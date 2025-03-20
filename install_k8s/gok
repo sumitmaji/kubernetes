@@ -472,6 +472,11 @@ data:
         cache 30
         forward . ${MASTER_HOST_IP}
     }
+    gokcloud.com:53 {
+        errors
+        cache 30
+        forward . ${MASTER_HOST_IP}
+    }
 kind: ConfigMap
 metadata:
   name: coredns
@@ -1934,6 +1939,7 @@ spinnakerInst(){
   docker exec -it halyard hal config features edit --artifacts true
   docker exec -it halyard hal config deploy edit --type distributed --account-name gok-k8s
   kubectl create ns spinnaker
+  helm repo add stable https://charts.helm.sh/stable
   helm install minio --namespace spinnaker --set accessKey="myaccesskey" --set secretKey="mysecretkey" \
     --set persistence.enabled=false stable/minio
   docker exec -it halyard bash -c 'mkdir /home/spinnaker/.hal/default/profiles'
@@ -2420,6 +2426,13 @@ function installCmd() {
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
+    cat <<EOF > /etc/rc.local
+#!/bin/bash
+/bin/gok start kubernetes
+exit 0
+EOF
+    chmod +x /etc/rc.local
+    systemctl enable rc-local
     source /etc/bash.bashrc
     figlet "Please wait for 1 minute"
   fi

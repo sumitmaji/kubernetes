@@ -275,6 +275,11 @@ zone "$(getRevIp).in-addr.arpa" {
 	file "/etc/bind/cloud.com.rev";
 	allow-update { key rndc-key; };
 };
+
+zone "gokcloud.com" {
+    type master;
+    file "/etc/bind/db.gokcloud.com";
+};
 ##zone append end
 EOF
 
@@ -305,6 +310,20 @@ EOF
 
   sed -i 's_/etc/bind/\*\* r,_/etc/bind/\*\* rw,_' /etc/apparmor.d/usr.sbin.named
   service apparmor restart
+
+  cat > /etc/bind/db.gokcloud.com << EOF
+\$TTL 86400
+@   IN  SOA ns1.gokcloud.com. admin.gokcloud.com. (
+        2023101001 ; Serial
+        3600       ; Refresh
+        1800       ; Retry
+        1209600    ; Expire
+        86400 )    ; Minimum TTL
+@   IN  NS  ns1.gokcloud.com.
+ns1 IN  A   $(getMasterIp)
+keycloak    IN  A   $(getMasterIp)
+spinnaker   IN  A   $(getMasterIp)
+EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF
 \$TTL	86400
@@ -465,7 +484,7 @@ nfsInst(){
   mount $(getMasterIp):/export /export
 
 
-  echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
+  echo 'export MOUNT_PATH=/root' >> /etc/bash.bashrc
   echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
 
   rm -rf rndc-key
