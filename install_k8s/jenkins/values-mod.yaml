@@ -1,0 +1,94 @@
+controller:
+  admin:
+    # -- Admin username created as a secret if `controller.admin.createSecret` is true
+    username: "admin"  # Replace with your desired admin username
+
+    # -- Admin password is stored in an existing secret
+    password: ""  # Leave this empty since the password is in the existing secret
+
+    # -- The key in the existing admin secret containing the username
+    userKey: jenkins-admin-user
+
+    # -- The key in the existing admin secret containing the password
+    passwordKey: jenkins-admin-password
+
+    # -- Do not create a new secret for the admin user
+    createSecret: false
+
+    # -- The name of the existing secret containing the admin credentials
+    existingSecret: "jenkins-admin-password"
+
+  ingress:
+    # -- Enables ingress
+    enabled: true
+
+    # -- IngressClass that will be used to implement the Ingress (Kubernetes 1.18+)
+    ingressClassName: "nginx"
+
+    # -- Ingress path type
+    pathType: ImplementationSpecific
+
+    # -- Force Ingress API version (automatically detected if not set)
+    apiVersion: ""
+
+    # -- Default host for the ingress record
+    hostName: jenkins.cloud.com
+
+    # -- Default path for the ingress record
+    path: /
+
+    # -- Backend service port to use (http or https)
+    servicePort: http
+
+    # -- Additional annotations for the Ingress resource
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/ingress.allow-http: "false"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+
+    # -- Additional labels for the Ingress resource
+    labels: {}
+
+    # -- Enable TLS configuration for the host defined at `ingress.hostName`
+    tls: true
+
+    # -- Create a TLS secret for this ingress record using self-signed certificates
+    selfSigned: true
+    
+persistence:
+  # -- Enable the use of a Jenkins PVC
+  enabled: true
+
+  # -- Set to false to disable the `fsgroup-volume` initContainer that will update permissions on the persistent disk
+  enableInitChown: true
+
+  storageClass: "jenkins-storage"
+
+  # -- Labels for the PVC
+  labels: {}
+  # -- The PVC access mode
+  accessMode: "ReadWriteOnce"
+  # -- The size of the PVC
+  size: "8Gi"
+
+  # ref: https://kubernetes.io/docs/concepts/storage/volume-pvc-datasource/
+  # -- Existing data source to clone PVC from
+  dataSource: {}
+  #   name: PVC-NAME
+  #   kind: PersistentVolumeClaim
+
+  # -- SubPath for jenkins-home mount
+  subPath:
+  # -- Additional volumes
+  volumes: []
+  #  - name: nothing
+  #    emptyDir: {}
+
+  # -- Additional mounts
+  mounts: []
+  #  - mountPath: /var/nothing
+  #    name: nothing
+  #    readOnly: true

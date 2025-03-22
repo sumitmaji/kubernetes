@@ -1322,6 +1322,29 @@ opensearchDashInst(){
     [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!\n You can access the service using https://opensearch.gokcloud.com" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
 }
 
+jenkinsInst() {
+  helm repo add jenkins https://charts.jenkins.io
+  helm repo update
+  kubectl create ns jenkins
+
+  ADMIN_PASSWORD=$(promptSecret "Enter Jenkins Admin Password: ")
+  kubectl create secret generic jenkins-admin-password \
+    --from-literal=jenkins-admin-password="${ADMIN_PASSWORD}" -n jenkins
+
+  helm install jenkins \
+    --namespace jenkins \
+    --create-namespace \
+    --values $MOUNT_PATH/kubernetes/install_k8s/jenkins/values-mod.yaml \
+    jenkins/jenkins
+
+  createLocalStorageClassAndPV "jenkins-storage" "jenkins-pv" "/data/volumes/jenkins"
+  gok patch ingress jenkins jenkins letsencrypt jenkins
+  echo "Waiting for Jenkins services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace jenkins
+  [[ $? -eq 0 ]] && echoSuccess "Jenkins services are now up!" || echoFailed "Jenkins services timed-out, please check!!"
+  checkCurl curl -XGET http://jenkins.jenkins.svc:8080 -u "admin:${ADMIN_PASSWORD}" --insecure
+}
+
 opensearchInst(){
   helm repo add openSearch https://opensearch-project.github.io/helm-charts/
   helm repo update
@@ -2402,6 +2425,8 @@ function installCmd() {
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchInst
     opensearchDashInst
+  elif [ "$COMPONENT" == "jenkins" ]; then
+    jenkinsInst
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
