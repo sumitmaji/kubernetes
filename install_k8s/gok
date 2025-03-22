@@ -1304,6 +1304,12 @@ opensearchReset(){
   kubectl delete ns opensearch
 }
 
+jenkinsReset(){
+  helm uninstall jenkins -n jenkins
+  emptyLocalFsStorage "Jenkins" "jenkins-pv" "jenkins-storage" "/data/volumes/jenkins"
+  kubectl delete ns jenkins
+}
+
 opensearchDashReset(){
   helm uninstall opensearch-dashboard -n opensearch
 }
@@ -1333,7 +1339,6 @@ jenkinsInst() {
 
   helm install jenkins \
     --namespace jenkins \
-    --create-namespace \
     --values $MOUNT_PATH/kubernetes/install_k8s/jenkins/values-mod.yaml \
     jenkins/jenkins
 
@@ -2500,6 +2505,8 @@ EOF
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset
+  elif [ "$COMPONENT" == "jenkins" ]; then
+    jenkinsReset
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerReset
   elif [ "$COMPONENT" == "oauth2" ]; then
