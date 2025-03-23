@@ -23,14 +23,18 @@ controller:
             loggedInUsersCanDoAnything:
               allowAnonymousRead: false
             roleBased:
-                roles:
-                  global:
-                    - name: "admin"
-                      description: "Admin role"
-                      permissions:
-                        - "hudson.model.Hudson.Administer"
-                      assignments:
-                        - "skmaji1"  # Replace with Keycloak usernames
+              roles:
+                global:
+                  - name: "admin"
+                    description: "Admin role"
+                    permissions:
+                      - "hudson.model.Hudson.Administer"
+                    assignments:
+                      - "skmaji1"  # Replace with Keycloak usernames
+                  - name: "anonymous"
+                    description: "Anonymous role"
+                    permissions:
+                      - "hudson.model.Hudson.Read"                
 
   jenkinsUrl: "https://jenkins.gokcloud.com"
   installPlugins:
