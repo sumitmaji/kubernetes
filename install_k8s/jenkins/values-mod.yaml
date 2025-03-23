@@ -1,4 +1,27 @@
 controller:
+  JCasC:
+    configScripts:
+      securityRealm: |
+        jenkins:
+          securityRealm:
+            keycloak:
+              realm: "GokDevelopers"
+              authServerUrl: "https://keycloak.gokcloud.com"
+              clientId: "gok-developers-client"
+              clientSecret: "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
+              disableTrustManager: true
+              roles:
+                realm: true
+                client: true
+
+  jenkinsUrl: "https://jenkins.gokcloud.com"
+  installPlugins:
+    - kubernetes:4324.vfec199a_33512
+    - workflow-aggregator:608.v67378e9d3db_1
+    - git:5.7.0
+    - configuration-as-code:1947.v7d33fe23569c
+    - keycloak:2.3.2
+
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true
     username: "admin"  # Replace with your desired admin username
