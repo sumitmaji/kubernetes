@@ -13,6 +13,24 @@ controller:
               roles:
                 realm: true
                 client: true
+              allowTokenRefresh: true
+              disableSslVerification: true
+              groupsClaim: "groups"
+              rolesClaim: "roles"
+              tokenKey: "access_token"
+              userInfoKey: "userInfo"
+          authorizationStrategy:
+            loggedInUsersCanDoAnything:
+              allowAnonymousRead: false
+            roleBased:
+                roles:
+                  global:
+                    - name: "admin"
+                      description: "Admin role"
+                      permissions:
+                        - "hudson.model.Hudson.Administer"
+                      assignments:
+                        - "skmaji1"  # Replace with Keycloak usernames
 
   jenkinsUrl: "https://jenkins.gokcloud.com"
   installPlugins:
