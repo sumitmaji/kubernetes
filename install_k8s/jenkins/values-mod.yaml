@@ -22,14 +22,14 @@ controller:
     # -- Enables ingress
     enabled: true
 
-  paths:
-  - path: /
-    pathType: ImplementationSpecific
-    backend:
-      service:
-        name: jenkins
-        port:
-          number: 8080
+    paths:
+    - path: /
+      pathType: ImplementationSpecific
+      backend:
+        service:
+          name: jenkins
+          port:
+            number: 8080
 
     # -- IngressClass that will be used to implement the Ingress (Kubernetes 1.18+)
     ingressClassName: "nginx"
