@@ -22,6 +22,15 @@ controller:
     # -- Enables ingress
     enabled: true
 
+  paths:
+  - path: /
+    pathType: ImplementationSpecific
+    backend:
+      service:
+        name: jenkins
+        port:
+          number: 8080
+
     # -- IngressClass that will be used to implement the Ingress (Kubernetes 1.18+)
     ingressClassName: "nginx"
 
@@ -32,7 +41,7 @@ controller:
     apiVersion: ""
 
     # -- Default host for the ingress record
-    hostName: jenkins.cloud.com
+    hostName: master.cloud.com
 
     # -- Default path for the ingress record
     path: /
@@ -53,7 +62,10 @@ controller:
     labels: {}
 
     # -- Enable TLS configuration for the host defined at `ingress.hostName`
-    tls: true
+    tls:
+    - secretName: appingress-certificate
+      hosts:
+        - master.cloud.com
 
     # -- Create a TLS secret for this ingress record using self-signed certificates
     selfSigned: true
