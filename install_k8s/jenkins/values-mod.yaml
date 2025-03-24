@@ -1,8 +1,15 @@
 controller:
   JCasC:
     authorizationStrategy: |-
-        loggedInUsersCanDoAnything:
-          allowAnonymousRead: false
+      roleBased:
+        roles:
+          global:
+            - name: "admin"
+              permissions:
+                - "Overall/Administer"
+            - name: "anonymous"
+              permissions:
+                - "Overall/Read"
     configScripts:
       securityRealm: |
         jenkins:
