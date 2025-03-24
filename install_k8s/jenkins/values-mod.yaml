@@ -1,40 +1,65 @@
 controller:
-  JCasC:
-    configScripts:
-      securityRealm: |
-        jenkins:
-          securityRealm:
-            keycloak:
-              realm: "GokDevelopers"
-              authServerUrl: "https://keycloak.gokcloud.com"
-              clientId: "gok-developers-client"
-              clientSecret: "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
-              disableTrustManager: true
-              roles:
-                realm: true
-                client: true
-              allowTokenRefresh: true
-              disableSslVerification: true
-              groupsClaim: "groups"
-              rolesClaim: "roles"
-              tokenKey: "access_token"
-              userInfoKey: "userInfo"
-          authorizationStrategy:
-            loggedInUsersCanDoAnything:
-              allowAnonymousRead: false
-            roleBased:
-              roles:
-                global:
-                  - name: "admin"
-                    description: "Admin role"
-                    permissions:
-                      - "hudson.model.Hudson.Administer"
-                    assignments:
-                      - "skmaji1"  # Replace with Keycloak usernames
-                  - name: "anonymous"
-                    description: "Anonymous role"
-                    permissions:
-                      - "hudson.model.Hudson.Read"                
+  # JCasC:
+  #   configScripts:
+  #     securityRealm: |
+  #       jenkins:
+  #         securityRealm:
+  #           oic:
+  #             clientId: "${clientID}"
+  #             clientSecret: "${clientSecret}"
+  #             wellKnownOpenIDConfigurationUrl: "${keycloakUrl}/realms/GokDevelopers/.well-known/openid-configuration"
+  #             tokenServerUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/token"
+  #             authorizationServerUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/auth"
+  #             userInfoServerUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/userinfo"
+  #             userNameField: "preferred_username"
+  #             fullNameFieldName: "name"
+  #             emailFieldName: "email"
+  #             groupsFieldName: "group-membership"
+  #             scopes: "web-origins address phone openid offline_access profile roles microprofile-jwt email"
+  #             disableSslVerification: false
+  #             logoutFromOpenidProvider: true
+  #             endSessionUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/logout"
+  #             postLogoutRedirectUrl: ""
+  #             escapeHatchEnabled: false
+  #             escapeHatchSecret: ""
+# controller:
+#   JCasC:
+#     configScripts:
+      # securityRealm: |
+      # securityRealm: |
+      #   jenkins:
+      #     securityRealm:
+      #       keycloak:
+      #         realm: "GokDevelopers"
+      #         authServerUrl: "https://keycloak.gokcloud.com"
+      #         clientId: "gok-developers-client"
+      #         clientSecret: "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
+      #         disableTrustManager: true
+      #         roles:
+      #           realm: true
+      #           client: true
+      #         allowTokenRefresh: true
+      #         disableSslVerification: true
+      #         groupsClaim: "groups"
+      #         rolesClaim: "roles"
+      #         tokenKey: "access_token"
+      #         userInfoKey: "userInfo"
+      #     authorizationStrategy:
+      #       loggedInUsersCanDoAnything:
+      #         allowAnonymousRead: false
+      #       roleBased:
+      #         roles:
+      #           global:
+      #             - name: "admin"
+      #               description: "Admin role"
+      #               permissions:
+      #                 - "hudson.model.Hudson.Administer"
+      #               assignments:
+      #                 - "skmaji1"  # Replace with Keycloak usernames
+      #             - name: "anonymous"
+      #               description: "Anonymous role"
+      #               permissions:
+      #                 - "hudson.model.Hudson.Read"                
 
   jenkinsUrl: "https://jenkins.gokcloud.com"
   installPlugins:
@@ -43,6 +68,7 @@ controller:
     - git:5.7.0
     - configuration-as-code:1947.v7d33fe23569c
     - keycloak:2.3.2
+    - oic-auth:1.8
 
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true
