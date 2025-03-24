@@ -1,5 +1,8 @@
 controller:
   JCasC:
+    authorizationStrategy: |-
+        loggedInUsersCanDoAnything:
+          allowAnonymousRead: false
     configScripts:
       securityRealm: |
         jenkins:
