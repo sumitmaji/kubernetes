@@ -1,4 +1,24 @@
 controller:
+  JCasC:
+    configScripts:
+      securityRealm: |
+        jenkins:
+          securityRealm:
+            keycloak:
+              keycloakJson: |-
+                {
+                  "realm": "GokDevelopers",
+                  "auth-server-url": "https://keycloak.gokcloud.com",
+                  "ssl-required": "external",
+                  "resource": "gok-developers-client",
+                  "credentials": {
+                    "secret": "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
+                  },
+                  "confidential-port": 0,
+                  "disable-trust-manager": true
+                }
+              keycloakRespectAccessTokenTimeout: false
+              keycloakValidate: false
   # JCasC:
   #   configScripts:
   #     securityRealm: |
