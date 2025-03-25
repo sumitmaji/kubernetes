@@ -99,6 +99,8 @@ controller:
     - configuration-as-code:1947.v7d33fe23569c
     - keycloak:2.3.2
     - oic-auth:4.494.v6b_f419104767
+    - role-strategy:756.v978cb_392eb_d3
+    - matrix-auth:3.2.5
 
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true
