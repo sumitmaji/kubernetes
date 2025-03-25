@@ -1,9 +1,52 @@
 controller:
+  # JCasC:
+  #   configScripts:
+  #     welcome-message: |
+  #       jenkins:
+  #         systemMessage: Welcome, this Jenkins is configured and managed as code.
+  #     authorization-strategy: |
+  #       jenkins:
+  #         authorizationStrategy:
+  #           roleBased:
+  #             roles:
+  #               global:
+  #                 - name: "admin"
+  #                   permissions:
+  #                     - "Overall/Administer"
+  #                   entries:
+  #                     - user: "skmaji1"
+  #                 - name: "anonymous"
+  #                   permissions:
+  #                     - "Overall/Read"
+  #                   entries:
+  #                     - user: "anonymous"
+
+  #     security-realm: |
+  #       jenkins:
+  #         securityRealm:
+  #           keycloak:
+  #             keycloakJson: |-
+  #               {
+  #                 "realm": "${realm}",
+  #                 "auth-server-url": "${keycloakUrl}",
+  #                 "ssl-required": "external",
+  #                 "resource": "${clientID}",
+  #                 "credentials": {
+  #                   "secret": "${clientSecret}"
+  #                 },
+  #                 "confidential-port": 0,
+  #                 "disable-trust-manager": true
+  #               }
+  #             keycloakRespectAccessTokenTimeout: false
+  #             keycloakValidate: false
+  #             userNameField: "preferred_username"
+  #             groupsClaim: "groups"
   JCasC:
     configScripts:
       welcome-message: |
         jenkins:
-          systemMessage: Welcome, this Jenkins is configured and managed as code.
+          systemMessage: Welcome, this Jenkins is configured and managed as code.\
+          
       authorization-strategy: |
         jenkins:
           authorizationStrategy:
@@ -20,50 +63,27 @@ controller:
                       - "Overall/Read"
                     entries:
                       - user: "anonymous"
-
       security-realm: |
         jenkins:
           securityRealm:
-            keycloak:
-              keycloakJson: |-
-                {
-                  "realm": "${realm}",
-                  "auth-server-url": "${keycloakUrl}",
-                  "ssl-required": "external",
-                  "resource": "${clientID}",
-                  "credentials": {
-                    "secret": "${clientSecret}"
-                  },
-                  "confidential-port": 0,
-                  "disable-trust-manager": true
-                }
-              keycloakRespectAccessTokenTimeout: false
-              keycloakValidate: false
+            oic:
+              clientId: "${clientID}"
+              clientSecret: "${clientSecret}"
+              wellKnownOpenIDConfigurationUrl: "${keycloakUrl}/realms/${realm}/.well-known/openid-configuration"
+              tokenServerUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/token"
+              authorizationServerUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/auth"
+              userInfoServerUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/userinfo"
               userNameField: "preferred_username"
-              groupsClaim: "groups"
-  # JCasC:
-  #   configScripts:
-  #     securityRealm: |
-  #       jenkins:
-  #         securityRealm:
-  #           oic:
-  #             clientId: "${clientID}"
-  #             clientSecret: "${clientSecret}"
-  #             wellKnownOpenIDConfigurationUrl: "${keycloakUrl}/realms/GokDevelopers/.well-known/openid-configuration"
-  #             tokenServerUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/token"
-  #             authorizationServerUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/auth"
-  #             userInfoServerUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/userinfo"
-  #             userNameField: "preferred_username"
-  #             fullNameFieldName: "name"
-  #             emailFieldName: "email"
-  #             groupsFieldName: "group-membership"
-  #             scopes: "web-origins address phone openid offline_access profile roles microprofile-jwt email"
-  #             disableSslVerification: false
-  #             logoutFromOpenidProvider: true
-  #             endSessionUrl: "${keycloakUrl}/realms/GokDevelopers/protocol/openid-connect/logout"
-  #             postLogoutRedirectUrl: ""
-  #             escapeHatchEnabled: false
-  #             escapeHatchSecret: ""
+              fullNameFieldName: "name"
+              emailFieldName: "email"
+              groupsFieldName: "groups"
+              scopes: "openid email profile groups"
+              disableSslVerification: true
+              logoutFromOpenidProvider: true
+              endSessionUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/logout"
+              postLogoutRedirectUrl: ""
+              escapeHatchEnabled: false
+              escapeHatchSecret: ""
 # controller:
 #   JCasC:
 #     configScripts:
@@ -72,7 +92,7 @@ controller:
       #   jenkins:
       #     securityRealm:
       #       keycloak:
-      #         realm: "GokDevelopers"
+      #         realm: "${realm}"
       #         authServerUrl: "https://keycloak.gokcloud.com"
       #         clientId: "gok-developers-client"
       #         clientSecret: "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
