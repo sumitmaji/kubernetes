@@ -1337,6 +1337,19 @@ jenkinsInst() {
   kubectl create secret generic jenkins-admin-password \
     --from-literal=jenkins-admin-password="${ADMIN_PASSWORD}" -n jenkins
 
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  keycloakUrl="https://$(fullKeycloakUrl)"
+  REALM=$(dataFromSecret oauth-secrets kube-system OIDC_REALM)
+
+
+  kubectl create secret generic oic-auth \
+  --from-literal=clientID="${CLIENT_ID}" \
+  --from-literal=clientSecret="${CLIENT_SECRET}" \
+  --from-literal=keycloakUrl=${keycloakUrl} \
+  --from-literal=realm=${REALM} \
+  --namespace jenkins
+
   helm install jenkins \
     --namespace jenkins \
     --values $MOUNT_PATH/kubernetes/install_k8s/jenkins/values-mod.yaml \

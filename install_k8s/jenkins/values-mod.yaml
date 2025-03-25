@@ -1,6 +1,9 @@
 controller:
   JCasC:
     configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: Welcome, this Jenkins is configured and managed as code.
       authorization-strategy: |
         jenkins:
           authorizationStrategy:
@@ -17,19 +20,19 @@ controller:
                       - "Overall/Read"
                     entries:
                       - user: "anonymous"
-                      
+
       security-realm: |
         jenkins:
           securityRealm:
             keycloak:
               keycloakJson: |-
                 {
-                  "realm": "GokDevelopers",
-                  "auth-server-url": "https://keycloak.gokcloud.com",
+                  "realm": "${realm}",
+                  "auth-server-url": "${keycloakUrl}",
                   "ssl-required": "external",
-                  "resource": "gok-developers-client",
+                  "resource": "${clientID}",
                   "credentials": {
-                    "secret": "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
+                    "secret": "${clientSecret}"
                   },
                   "confidential-port": 0,
                   "disable-trust-manager": true
@@ -205,12 +208,48 @@ persistence:
   # -- SubPath for jenkins-home mount
   subPath:
   # -- Additional volumes
-  volumes: []
+  volumes:
+  - name: oic-auth-clientid
+    secret:
+      secretName: oic-auth
+      items:
+        - key: clientID
+          path: clientID
+  - name: oic-auth-clientsecret
+    secret:
+      secretName: oic-auth
+      items:
+        - key: clientSecret
+          path: clientSecret
+  - name: oic-auth-keycloakurl
+    secret:
+      secretName: oic-auth
+      items:
+        - key: keycloakUrl
+          path: keycloakUrl
+  - name: oic-auth-realm
+    secret:
+      secretName: oic-auth
+      items:
+        - key: realm
+          path: realm
   #  - name: nothing
   #    emptyDir: {}
 
   # -- Additional mounts
-  mounts: []
+  mounts:
+  - name: oic-auth-clientid
+    mountPath: /run/secrets/clientID
+    subPath: clientID
+  - name: oic-auth-clientsecret
+    mountPath: /run/secrets/clientSecret
+    subPath: clientSecret
+  - name: oic-auth-keycloakurl
+    mountPath: /run/secrets/keycloakUrl
+    subPath: keycloakUrl
+  - name: oic-auth-realm
+    mountPath: /run/secrets/realm
+    subPath: realm
   #  - mountPath: /var/nothing
   #    name: nothing
   #    readOnly: true
