@@ -69,7 +69,7 @@ controller:
             oic:
               clientId: "${clientID}"
               clientSecret: "${clientSecret}"
-              serverConfiguration: "${keycloakUrl}/realms/${realm}/.well-known/openid-configuration"
+              serverConfiguration: "https://keycloak.gokcloud.com/realms/GokDevelopers/.well-known/openid-configuration"
               userNameField: "preferred_username"
               fullNameFieldName: "name"
               emailFieldName: "email"
