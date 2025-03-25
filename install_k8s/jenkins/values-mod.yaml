@@ -57,7 +57,7 @@ controller:
                         args:
                           - "--dockerfile=/workspace/Dockerfile"
                           - "--context=/workspace"
-                          - "--destination=<your-registry>/<your-image>:latest"
+                          - "--destination=registry.gokcloud.com/test:latest"
                         volumeMounts:
                           - name: kaniko-secret
                             mountPath: /kaniko/.docker
