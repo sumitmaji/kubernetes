@@ -69,7 +69,7 @@ controller:
             oic:
               serverConfiguration:
                 wellKnown:
-                  wellKnownOpenIDConfigurationUrl: "https://keycloak.gokcloud.com/realms/GokDevelopers/.well-known/openid-configuration"
+                  wellKnownOpenIDConfigurationUrl: "https://${keycloakUrl}/realms/${realm}/.well-known/openid-configuration"
                   scopesOverride: "openid profile email groups"
               clientId: "${clientID}"
               clientSecret: "${clientSecret}"
