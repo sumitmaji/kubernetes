@@ -81,6 +81,7 @@ controller:
               rootURLFromRequest: false
               sendScopesInTokenRequest: true
               postLogoutRedirectUrl: ""
+              disableSslVerification: true
 # controller:
 #   JCasC:
 #     configScripts:
