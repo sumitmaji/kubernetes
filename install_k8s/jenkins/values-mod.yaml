@@ -57,7 +57,8 @@ controller:
                     permissions:
                       - "Overall/Administer"
                     entries:
-                      - user: "skmaji1"
+                      - group: "administrators"
+                      - group: "admin"
                   - name: "anonymous"
                     permissions:
                       - "Overall/Read"
