@@ -62,9 +62,9 @@ controller:
                           - name: kaniko-secret
                             mountPath: /kaniko/.docker
                     volumes:
-                      - name: kaniko-secret
-                        secret:
+                      - secret:
                           secretName: kaniko-docker-config
+
 
       welcome-message: |
         jenkins:
