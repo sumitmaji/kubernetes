@@ -45,7 +45,7 @@ controller:
     configScripts:
       welcome-message: |
         jenkins:
-          systemMessage: Welcome, this Jenkins is configured and managed as code.\
+          systemMessage: Welcome, this Jenkins is configured and managed as code.
 
       authorization-strategy: |
         jenkins:
