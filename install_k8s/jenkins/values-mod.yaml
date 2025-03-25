@@ -43,27 +43,29 @@ controller:
   #             groupsClaim: "groups"
   JCasC:
     configScripts:
-      # kaniko-configuration: |
-      #   jenkins:
-      #     clouds:
-      #       - kubernetes:
-      #           name: "kubernetes"
-      #           templates:
-      #             - name: "kaniko"
-      #               label: "kaniko"
-      #               containers:
-      #                 - name: "kaniko"
-      #                   image: "gcr.io/kaniko-project/executor:latest"
-      #                   args:
-      #                     - "--dockerfile=/workspace/Dockerfile"
-      #                     - "--context=/workspace"
-      #                     - "--destination=<your-registry>/<your-image>:latest"
-      #                   volumeMounts:
-      #                     - name: kaniko-secret
-      #                       mountPath: /kaniko/.docker
-      #               volumes:
-      #                 - secret:
-      #                     secretName: kaniko-docker-config
+      kaniko-configuration: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                templates:
+                  - name: "kaniko"
+                    label: "kaniko"
+                    containers:
+                      - name: "kaniko"
+                        image: "gcr.io/kaniko-project/executor:latest"
+                        args:
+                          - "--dockerfile=/workspace/Dockerfile"
+                          - "--context=/workspace"
+                          - "--destination=<your-registry>/<your-image>:latest"
+                        volumeMounts:
+                          - name: kaniko-secret
+                            mountPath: /kaniko/.docker
+                    volumes:
+                      - secretVolume:
+                          mountPath: "/kaniko/.docker"
+                          optional: false
+                          secretName: "kaniko-docker-config"
 
 
       welcome-message: |
