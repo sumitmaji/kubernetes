@@ -1340,7 +1340,7 @@ jenkinsInst() {
   CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
   CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
   keycloakUrl="https://$(fullKeycloakUrl)"
-  REALM=$(dataFromSecret oauth-secrets kube-system OIDC_REALM)
+  REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
 
 
   kubectl create secret generic oic-auth \
