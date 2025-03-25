@@ -16,9 +16,7 @@ controller:
                     entries:
                       - user: "anonymous"
                       - user: "skmaji1"
-                  - name: "anonymous"
-                    permissions:
-                      - "Overall/Read"
+
       securityRealm: |
         jenkins:
           securityRealm:
