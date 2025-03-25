@@ -46,7 +46,7 @@ controller:
       welcome-message: |
         jenkins:
           systemMessage: Welcome, this Jenkins is configured and managed as code.\
-          
+
       authorization-strategy: |
         jenkins:
           authorizationStrategy:
@@ -69,18 +69,13 @@ controller:
             oic:
               clientId: "${clientID}"
               clientSecret: "${clientSecret}"
-              wellKnownOpenIDConfigurationUrl: "${keycloakUrl}/realms/${realm}/.well-known/openid-configuration"
-              tokenServerUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/token"
-              authorizationServerUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/auth"
-              userInfoServerUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/userinfo"
+              serverConfiguration: "${keycloakUrl}/realms/${realm}/.well-known/openid-configuration"
               userNameField: "preferred_username"
               fullNameFieldName: "name"
               emailFieldName: "email"
               groupsFieldName: "groups"
-              scopes: "openid email profile groups"
               disableSslVerification: true
               logoutFromOpenidProvider: true
-              endSessionUrl: "${keycloakUrl}/realms/${realm}/protocol/openid-connect/logout"
               postLogoutRedirectUrl: ""
               escapeHatchEnabled: false
               escapeHatchSecret: ""
