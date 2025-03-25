@@ -1,9 +1,6 @@
 controller:
   JCasC:
     configScripts:
-      welcome-message: |
-          jenkins:
-            systemMessage: Welcome, this Jenkins is configured and managed as code.
       authorizationStrategy: |
         jenkins:
           authorizationStrategy:
