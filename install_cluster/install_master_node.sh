@@ -323,6 +323,12 @@ EOF
 ns1 IN  A   $(getMasterIp)
 keycloak    IN  A   $(getMasterIp)
 spinnaker   IN  A   $(getMasterIp)
+registry    IN  A   $(getMasterIp)
+jenkins     IN  A   $(getMasterIp)
+spin-gate   IN  A   $(getMasterIp)
+kube        IN  A   $(getMasterIp)
+fluentd     IN  A   $(getMasterIp)
+opensearch  IN  A   $(getMasterIp)
 EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF

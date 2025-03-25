@@ -1349,9 +1349,16 @@ jenkinsInst() {
   --from-literal=keycloakUrl=${keycloakUrl} \
   --from-literal=realm=${REALM} \
   --namespace jenkins
+  DOCKER_BUILD_ENABLED=true
+  if [ "$DOCKER_BUILD_ENABLED" == "true" ]; then
+    kubectl create secret generic kaniko-docker-config \
+      --from-file=/root/.docker/config.json \
+      -n jenkins
+  fi
 
   helm install jenkins \
     --namespace jenkins \
+    --set dockerBuildEnabled=$DOCKER_BUILD_ENABLED \
     --values $MOUNT_PATH/kubernetes/install_k8s/jenkins/values-mod.yaml \
     jenkins/jenkins
 

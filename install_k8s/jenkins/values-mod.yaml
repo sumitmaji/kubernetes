@@ -43,6 +43,30 @@ controller:
   #             groupsClaim: "groups"
   JCasC:
     configScripts:
+{{- if .Values.dockerBuildEnabled }}
+      kaniko-configuration: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                templates:
+                  - name: "kaniko"
+                    label: "kaniko"
+                    containers:
+                      - name: "kaniko"
+                        image: "gcr.io/kaniko-project/executor:latest"
+                        args:
+                          - "--dockerfile=/workspace/Dockerfile"
+                          - "--context=/workspace"
+                          - "--destination=<your-registry>/<your-image>:latest"
+                        volumeMounts:
+                          - name: kaniko-secret
+                            mountPath: /kaniko/.docker
+                    volumes:
+                      - name: kaniko-secret
+                        secret:
+                          secretName: kaniko-docker-config
+{{- end }}
       welcome-message: |
         jenkins:
           systemMessage: Welcome, this Jenkins is configured and managed as code.
@@ -83,45 +107,6 @@ controller:
               sendScopesInTokenRequest: true
               postLogoutRedirectUrl: ""
               disableSslVerification: true
-# controller:
-#   JCasC:
-#     configScripts:
-      # securityRealm: |
-      # securityRealm: |
-      #   jenkins:
-      #     securityRealm:
-      #       keycloak:
-      #         realm: "${realm}"
-      #         authServerUrl: "https://keycloak.gokcloud.com"
-      #         clientId: "gok-developers-client"
-      #         clientSecret: "1iUh3ANkHCFeoR9vAO5RtGoXBmKlLGR8"
-      #         disableTrustManager: true
-      #         roles:
-      #           realm: true
-      #           client: true
-      #         allowTokenRefresh: true
-      #         disableSslVerification: true
-      #         groupsClaim: "groups"
-      #         rolesClaim: "roles"
-      #         tokenKey: "access_token"
-      #         userInfoKey: "userInfo"
-      #     authorizationStrategy:
-      #       loggedInUsersCanDoAnything:
-      #         allowAnonymousRead: false
-      #       roleBased:
-      #         roles:
-      #           global:
-      #             - name: "admin"
-      #               description: "Admin role"
-      #               permissions:
-      #                 - "hudson.model.Hudson.Administer"
-      #               assignments:
-      #                 - "skmaji1"  # Replace with Keycloak usernames
-      #             - name: "anonymous"
-      #               description: "Anonymous role"
-      #               permissions:
-      #                 - "hudson.model.Hudson.Read"                
-
   jenkinsUrl: "https://jenkins.gokcloud.com"
   installPlugins:
     - kubernetes:4324.vfec199a_33512
