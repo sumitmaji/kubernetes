@@ -67,21 +67,20 @@ controller:
         jenkins:
           securityRealm:
             oic:
+              serverConfiguration:
+                wellKnown:
+                  wellKnownOpenIDConfigurationUrl: "https://keycloak.gokcloud.com/realms/GokDevelopers/.well-known/openid-configuration"
+                  scopesOverride: "openid profile email groups"
               clientId: "${clientID}"
               clientSecret: "${clientSecret}"
-              authorizationEndpoint: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth"
-              tokenEndpoint: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token"
-              userInfoEndpoint: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
-              logoutEndpoint: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/logout"
               userNameField: "preferred_username"
+              groupsFieldName: "groups"
               fullNameFieldName: "name"
               emailFieldName: "email"
-              groupsFieldName: "groups"
-              disableSslVerification: true
               logoutFromOpenidProvider: true
+              rootURLFromRequest: false
+              sendScopesInTokenRequest: true
               postLogoutRedirectUrl: ""
-              escapeHatchEnabled: false
-              escapeHatchSecret: ""
 # controller:
 #   JCasC:
 #     configScripts:
