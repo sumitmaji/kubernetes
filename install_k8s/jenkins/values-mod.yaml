@@ -10,9 +10,14 @@ controller:
                   - name: "admin"
                     permissions:
                       - "Overall/Administer"
+                    entries:
+                      - user: "skmaji1"
                   - name: "anonymous"
                     permissions:
                       - "Overall/Read"
+                    entries:
+                      - user: "anonymous"
+                      
       security-realm: |
         jenkins:
           securityRealm:
