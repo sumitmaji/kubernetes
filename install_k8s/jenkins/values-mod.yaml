@@ -39,6 +39,8 @@ controller:
                 }
               keycloakRespectAccessTokenTimeout: false
               keycloakValidate: false
+              userNameField: "preferred_username"
+              groupsClaim: "groups"
   # JCasC:
   #   configScripts:
   #     securityRealm: |
