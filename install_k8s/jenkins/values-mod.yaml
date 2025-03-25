@@ -43,7 +43,6 @@ controller:
   #             groupsClaim: "groups"
   JCasC:
     configScripts:
-
       kaniko-configuration: |
         jenkins:
           clouds:
@@ -63,9 +62,9 @@ controller:
                           - name: kaniko-secret
                             mountPath: /kaniko/.docker
                     volumes:
-                      - secret:
+                      - name: kaniko-secret
+                        secret:
                           secretName: kaniko-docker-config
-                          mountPath: /kaniko/.docker
 
       welcome-message: |
         jenkins:
