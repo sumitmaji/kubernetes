@@ -78,8 +78,7 @@ controller:
                   workingDir: "/home/jenkins/agent"
 
                 volumes:
-                  - name: kaniko-secret
-                    secret:
+                  - secret:
                       secretName: kaniko-docker-config
                 yamlMergeStrategy: "override"
 
