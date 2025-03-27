@@ -1351,9 +1351,13 @@ jenkinsInst() {
   --namespace jenkins
   DOCKER_BUILD_ENABLED=true
   if [ "$DOCKER_BUILD_ENABLED" == "true" ]; then
-    kubectl create secret generic kaniko-docker-config \
-      --from-file=/root/.docker/config.json \
-      -n jenkins
+    # kubectl create secret generic kaniko-docker-config \
+    #   --from-file=/root/.docker/config.json \
+    #   -n jenkins
+
+    kubectl create secret generic docker-credentials \
+    --from-file=.dockerconfigjson=/root/.docker/config.json \
+    --type=kubernetes.io/dockerconfigjson
   fi
 
   helm install jenkins \

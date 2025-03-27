@@ -98,6 +98,39 @@ controller:
                   emptyDirWorkspaceVolume:
                     memory: false
                 yamlMergeStrategy: "override"
+              - containers:
+                - args:
+                  - "--dockerfile=/workspace/Dockerfile"
+                  - "--context=/workspace"
+                  - "--destination=registry.gokcloud.com/test:latest"
+                  image: "gcr.io/kaniko-project/executor:latest"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/tmp"
+                  volumeMounts:
+                    - name: kaniko-secret
+                      mountPath: /kaniko/.docker
+                hostNetwork: false
+                label: "kaniko"
+                name: "kaniko"
+                volumes:
+                  - name: kaniko-secret
+                    projected:
+                      sources:
+                      - secret:
+                          name: kaniko-docker-config
+                          items:
+                            - key: .dockerconfigjson
+                              path: config.json
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
 
       welcome-message: |
         jenkins:
