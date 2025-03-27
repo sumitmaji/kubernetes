@@ -174,14 +174,14 @@ controller:
               disableSslVerification: true
   jenkinsUrl: "https://jenkins.gokcloud.com"
   installPlugins:
-    - kubernetes:4324.vfec199a_33512
-    - workflow-aggregator:608.v67378e9d3db_1
-    - git:5.7.0
-    - configuration-as-code:1947.v7d33fe23569c
-    - keycloak:2.3.2
-    - oic-auth:4.494.v6b_f419104767
-    - role-strategy:756.v978cb_392eb_d3
-    - matrix-auth:3.2.5
+    - kubernetes:latest
+    - workflow-aggregator:latest
+    - git:latest
+    - configuration-as-code:latest
+    - keycloak:latest
+    - oic-auth:latest
+    - role-strategy:latest
+    - matrix-auth:latest
 
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true
