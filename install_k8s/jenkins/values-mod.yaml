@@ -119,11 +119,9 @@ controller:
                 label: "kaniko"
                 name: "kaniko"
                 volumes:
-                  - secret:
-                      name: kaniko-docker-config
-                      items:
-                        - key: .dockerconfigjson
-                          path: config.json
+                  - name: docker-credentials-volume
+                    secret:
+                      secretName: docker-credentials
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
