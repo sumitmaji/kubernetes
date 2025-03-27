@@ -119,8 +119,7 @@ controller:
                 label: "kaniko"
                 name: "kaniko"
                 volumes:
-                  - name: kaniko-secret
-                    projected:
+                  - projected:
                       sources:
                       - secret:
                           name: kaniko-docker-config
