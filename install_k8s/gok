@@ -1725,8 +1725,8 @@ patchOauth2Secure() {
     cat <<EOF
 metadata:
   annotations:
-    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/start?rd=$escapred_request_uri
-    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=$escapred_request_uri
+    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/oauth2/auth
     nginx.ingress.kubernetes.io/auth-response-headers: authorization
 EOF
   )" -n "$NS"
