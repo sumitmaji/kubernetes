@@ -1718,6 +1718,21 @@ EOF
   )" -n "$NS"
 }
 
+patchOauth2Secure() {
+  NAME=$1
+  NS=$2
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=$escapred_request_uri
+    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-response-headers: authorization
+EOF
+  )" -n "$NS"
+}
+
+
 patchLetsEncrypt() {
   NAME=$1
   NS=$2
@@ -1960,8 +1975,8 @@ oauth2ProxyInst(){
     --set "extraArgs[6]=--scope=openid email profile groups" \
     --values $MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
-
-    waitForServiceAvailable oauth2
+  # gok patch ingress oauth2 oauth2 letsencrypt $(defaultSubdomain)
+  waitForServiceAvailable oauth2
 }
 
 waitForServiceAvailable(){
