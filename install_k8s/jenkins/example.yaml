@@ -1,0 +1,85 @@
+jenkins:
+  clouds:
+  - kubernetes:
+      connectTimeout: 5
+      containerCapStr: "10"
+      credentialsId: "my-k8s-token"
+      serverUrl: "https://kubernetes.default"
+      skipTlsVerify: true
+      jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+      jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+      maxRequestsPerHostStr: "32"
+      name: "kubernetes"
+      namespace: "jenkins"
+      readTimeout: 15
+      podLabels:
+      - key: "jenkins/jenkins-jenkins-agent"
+        value: "true"
+      templates:
+      - containers:
+        - args: "^${computer.jnlpmac} ^${computer.name}"
+          image: "registry.access.redhat.com/openshift3/jenkins-slave-maven-rhel7"
+          livenessProbe:
+            failureThreshold: 0
+            initialDelaySeconds: 0
+            periodSeconds: 0
+            successThreshold: 0
+            timeoutSeconds: 0
+          name: "jnlp"
+          workingDir: "/tmp"
+        hostNetwork: false
+        label: "maven"
+        name: "maven"
+        workspaceVolume:
+          emptyDirWorkspaceVolume:
+            memory: false
+        yamlMergeStrategy: "override"
+      - containers:
+        - args: "^${computer.jnlpmac} ^${computer.name}"
+          image: "registry.access.redhat.com/openshift3/jenkins-agent-nodejs-8-rhel7"
+          livenessProbe:
+            failureThreshold: 0
+            initialDelaySeconds: 0
+            periodSeconds: 0
+            successThreshold: 0
+            timeoutSeconds: 0
+          name: "jnlp"
+          workingDir: "/tmp"
+        hostNetwork: false
+        label: "nodejs"
+        name: "nodejs"
+        workspaceVolume:
+          emptyDirWorkspaceVolume:
+            memory: false
+        yamlMergeStrategy: "override"
+
+
+
+              - containers:
+                - args:
+                  - "--dockerfile=/workspace/Dockerfile"
+                  - "--context=/workspace"
+                  - "--destination=registry.gokcloud.com/test:latest"
+                  image: "gcr.io/kaniko-project/executor:latest"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/tmp"
+                  volumeMounts:
+                    - name: kaniko-secret
+                      mountPath: /kaniko/.docker
+                hostNetwork: false
+                label: "kaniko"
+                name: "kaniko"
+                volumes:
+                  - name: docker-credentials-volume
+                    secret:
+                      secretName: docker-credentials
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
