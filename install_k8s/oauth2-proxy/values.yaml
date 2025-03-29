@@ -20,7 +20,7 @@ extraEnvVars:
     valueFrom:
       configMapKeyRef:
         name: oauth2-proxy-config
-        key: oidcIssuerUrl
+        key: redirectUrl
 
 configuration:
   clientID: ${OAUTH2_PROXY_CLIENT_ID}

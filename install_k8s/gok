@@ -1725,8 +1725,8 @@ patchOauth2Secure() {
     cat <<EOF
 metadata:
   annotations:
-    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=$escapred_request_uri
-    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/start?rd=$escapred_request_uri
+    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/auth
     nginx.ingress.kubernetes.io/auth-response-headers: authorization
 EOF
   )" -n "$NS"
@@ -1908,6 +1908,10 @@ installKeycloakWithCertMgr(){
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
   oauth2Secret
+}
+
+kcAdminPwd(){
+  kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode
 }
 
 installPrometheusGrafanaWithCertMgr(){
