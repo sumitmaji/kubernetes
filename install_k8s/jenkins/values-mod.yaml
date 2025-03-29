@@ -149,6 +149,8 @@ controller:
     - oic-auth:latest
     - role-strategy:latest
     - matrix-auth:latest
+    - blueocean:latest
+    - ansicolor:latest
 
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true
