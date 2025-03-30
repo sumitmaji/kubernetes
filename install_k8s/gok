@@ -1981,6 +1981,7 @@ oauth2ProxyInst(){
     --set "extraArgs[10]=--ssl-insecure-skip-verify" \
     --set "extraArgs[11]=--set-authorization-header" \
     --set "extraArgs[12]=--whitelist-domain=kube.gokcloud.com" \
+    --set "extraArgs[13]=--oidc-groups-claim=groups" \
     --values $MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
