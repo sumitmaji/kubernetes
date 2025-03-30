@@ -1985,7 +1985,7 @@ oauth2ProxyInst(){
     --set "extraArgs[11]=--set-authorization-header" \
     --set "extraArgs[12]=--whitelist-domain=kube.gokcloud.com" \
     --set "extraArgs[13]=--oidc-groups-claim=groups" \
-    --set "extraArgs[14]=--oidc-username-claim=sub" \
+    --set "extraArgs[14]=--user-id-claim=sub" \
     --set "extraArgs[15]=--cookie-domain=kube.gokcloud.com" \
     --set "extraArgs[16]=--cookie-secure=true" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
