@@ -996,6 +996,7 @@ dashboardInst() {
     kubernetes-dashboard/kubernetes-dashboard \
     --namespace kubernetes-dashboard \
     --create-namespace \
+    --set extraArgs[0]=--enable-skip-login \
     -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values2.yaml
 }
 
@@ -1728,7 +1729,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=${RD}
     nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/oauth2/auth
-    nginx.ingress.kubernetes.io/auth-response-headers: authorization
+    nginx.ingress.kubernetes.io/auth-response-headers: Authorization
 EOF
   )" -n "$NS"
 }
