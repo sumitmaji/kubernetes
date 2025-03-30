@@ -1988,6 +1988,8 @@ oauth2ProxyInst(){
     --set "extraArgs[14]=--user-id-claim=sub" \
     --set "extraArgs[15]=--cookie-domain=kube.gokcloud.com" \
     --set "extraArgs[16]=--cookie-secure=true" \
+    --set "extraArgs[17]=--pass-access-token" \
+    --set "extraArgs[18]=--pass-authorization-header" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
