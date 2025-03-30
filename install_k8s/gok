@@ -1933,6 +1933,10 @@ installPrometheusGrafanaWithCertMgr(){
   [[ $? -eq 0 ]] && echoSuccess "Prometheus and Grafana services are now up!\nAccess it using \nprometheus: https://$(defaultSubdomain).$(rootDomain)/prometheus\ngrafana: https://$(defaultSubdomain).$(rootDomain)/grafana" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+patchDashboardWithOauth(){
+  patchOauth2Secure kubernetes-dashboard kubernetes-dashboard https://kube.gokcloud.com/dashboard/
+}
+
 installDashboardwithCertManager(){
   dashboardInst
   # No need to generate the certificate.
