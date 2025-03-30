@@ -996,8 +996,7 @@ dashboardInst() {
     kubernetes-dashboard/kubernetes-dashboard \
     --namespace kubernetes-dashboard \
     --create-namespace \
-    --set extraArgs[0]=--enable-skip-login \
-    -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values2.yaml
+    -f "${MOUNT_PATH}"/kubernetes/install_k8s/dashboard/values2.yaml
 }
 
 prometheusGrafanaReset() {
