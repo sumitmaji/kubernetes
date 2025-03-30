@@ -1976,9 +1976,7 @@ oauth2ProxyInst(){
     --set "extraArgs[3]=--profile-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[5]=--keycloak-group=groups" \
-    --set "extraArgs[6]=--allowed-group=developers" \
-    --set "extraArgs[7]=--allowed-group=admins" \
-    --set "extraArgs[8]=--allowed-group=administrator" \
+    --set "extraArgs[6]=--allowed-group=administrators" \
     --set "extraArgs[9]=--scope=openid email profile groups" \
     --set "extraArgs[10]=--ssl-insecure-skip-verify" \
     --set "extraArgs[11]=--set-authorization-header" \
