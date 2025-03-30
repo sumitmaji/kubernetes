@@ -1976,8 +1976,11 @@ oauth2ProxyInst(){
     --set "extraArgs[3]=--profile-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[5]=--keycloak-group=groups" \
-    --set "extraArgs[6]=--scope=openid email profile groups" \
-    --set "extraArgs[7]=--ssl-insecure-skip-verify" \
+    --set "extraArgs[6]=--allowed-groups=developers,admins" \
+    --set "extraArgs[7]=--scope=openid email profile groups" \
+    --set "extraArgs[8]=--ssl-insecure-skip-verify" \
+    --set "extraArgs[9]=--set-authorization-header" \
+    --set "extraArgs[10]=--whitelist-domain=kube.gokcloud.com" \
     --values $MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
