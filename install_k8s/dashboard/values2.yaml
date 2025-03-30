@@ -185,8 +185,8 @@ api:
     # Full list of arguments: https://github.com/kubernetes/dashboard/blob/master/docs/common/arguments.md
     # args:
     # - --system-banner="Welcome to the Kubernetes Dashboard"
-    args:
-      - --enable-skip-login
+    args: 
+      - --system-banner="Welcome to the Kubernetes Dashboard"
     # Additional container environment variables
     # env:
     # - name: SOME_VAR
