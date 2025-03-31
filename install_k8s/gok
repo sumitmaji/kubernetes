@@ -1930,6 +1930,17 @@ installKeycloakWithCertMgr(){
   oauth2Secret
 }
 
+installLdap(){
+  pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
+  ./run_ldap.sh
+  popd
+}
+
+ldapReset(){
+  helm uninstall ldap -n ldap
+  kubectl delete ns ldap
+}
+
 kcAdminPwd(){
   kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode
 }
@@ -2529,6 +2540,8 @@ function installCmd() {
     setupCertiIssuers
   elif [ "$COMPONENT" == "monitoring" ]; then
     installPrometheusGrafanaWithCertMgr
+  elif [ "$COMPONENT" == "ldap" ]; then
+    installLdap
   elif [ "$COMPONENT" == "dashboard" ]; then
     installDashboardwithCertManager
   elif [ "$COMPONENT" == "keycloak" ]; then
@@ -2610,6 +2623,8 @@ EOF
     keycloakReset
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
+  elif [ "$COMPONENT" == "ldap" ]; then
+    ldapReset
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
