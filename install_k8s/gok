@@ -1985,7 +1985,7 @@ oauth2ProxyInst(){
   OAUTH2_PROXY_CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
   REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
   OAUTH2_HOST="$(fullKeycloakUrl)"
-  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)/protocol/openid-connect/auth"
+  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)"
 
   kubectl create configmap oauth2-proxy-config \
       --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
@@ -2013,6 +2013,10 @@ oauth2ProxyInst(){
     --set "extraArgs[16]=--cookie-secure=true" \
     --set "extraArgs[17]=--pass-access-token" \
     --set "extraArgs[18]=--pass-authorization-header=true" \
+    --set "extraArgs[19]=--oidc-issuer-url=${OAUTH2_OIDC_ISSUE_URL}" \
+    --set "extraArgs[20]=--standard-logging=true" \
+    --set "extraArgs[21]=--auth-logging=true" \
+    --set "extraArgs[22]=--request-logging=true" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
