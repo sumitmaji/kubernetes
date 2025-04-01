@@ -1933,8 +1933,10 @@ installKeycloakWithCertMgr(){
 installLdap(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
   ./run_ldap.sh
+  gok patch ingress ldap ldap letsencrypt $(defaultSubdomain)
   popd
 }
+
 
 ldapReset(){
   helm uninstall ldap -n ldap
