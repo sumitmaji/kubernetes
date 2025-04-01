@@ -157,17 +157,17 @@ ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /var/tmp/gro
 /utility/ldap/createGroup.sh developers $BASE_DN $LDAP_PASSWORD "smaji"
 /utility/ldap/createUser.sh smaji administrator sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST Sumit Maji smaji@outlook.com
 /utility/ldap/createUser.sh hduser hadoop hadoop $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
-/utility/ldap/createUser.sh hive hadoop hive $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hive Hive hive@outlook.com
-/utility/ldap/createUser.sh hue hadoop hue $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hue Hue hue@outlook.com
-/utility/ldap/createUser.sh oozie hadoop oozie $LDAP_PASSWORD $BASE_DN $LDAP_HOST Oozie Oozie oozie@outlook.com
-/utility/ldap/createUser.sh yarn hadoop yarn $LDAP_PASSWORD $BASE_DN $LDAP_HOST Yarn Yarn yarn@outlook.com
-/utility/ldap/createUser.sh hdfs hadoop hdfs $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hdfs Hdfs hdfs@outlook.com
-/utility/ldap/createUser.sh mapred hadoop mapred $LDAP_PASSWORD $BASE_DN $LDAP_HOST Mapred Mapred mapred@outlook.com
-/utility/ldap/createUser.sh jobhist hadoop jobhist $LDAP_PASSWORD $BASE_DN $LDAP_HOST Jobhist Jobhist jobhist@outlook.com
-/utility/ldap/createUser.sh spark hadoop spark $LDAP_PASSWORD $BASE_DN $LDAP_HOST Spark Spark spark@outlook.com
-/utility/ldap/createUser.sh pig hadoop pig $LDAP_PASSWORD $BASE_DN $LDAP_HOST Pig Pig pig@outlook.com
-/utility/ldap/createUser.sh hbase hadoop hbase $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hbase Hbase hbase@outlook.com
-/utility/ldap/createUser.sh livy hadoop livy $LDAP_PASSWORD $BASE_DN $LDAP_HOST Livy Livy livy@outlook.com
+/utility/ldap/createUser.sh hive hadoop hive $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh hue hadoop hue $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh oozie hadoop oozie $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh yarn hadoop yarn $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh hdfs hadoop hdfs $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh mapred hadoop mapred $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh jobhist hadoop jobhist $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh spark hadoop spark $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh pig hadoop pig $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh hbase hadoop hbase $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
+/utility/ldap/createUser.sh livy hadoop livy $LDAP_PASSWORD $BASE_DN $LDAP_HOST Hadoop Hadoop hadoop@outlook.com
 
 echo "dn: ou=krb5,$BASE_DN
 ou: krb5
