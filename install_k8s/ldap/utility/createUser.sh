@@ -23,7 +23,6 @@ loginshell: /bin/bash
 objectclass: inetOrgPerson
 objectclass: posixAccount
 objectclass: top
-sn: $1
 uid: $1
 uidnumber: $uid
 userpassword: $3" > /var/tmp/user.ldif
