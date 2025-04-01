@@ -152,8 +152,10 @@ objectclass: posixGroup
 objectclass: top" > /var/tmp/groups.ldif
 ldapadd -x -D "cn=admin,$BASE_DN" -w $LDAP_PASSWORD -H ldapi:/// -f /var/tmp/groups.ldif
 
-/utility/ldap/createGroup.sh hadoop $BASE_DN $LDAP_PASSWORD
-/utility/ldap/createUser.sh smaji hadoop sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST
+/utility/ldap/createGroup.sh hadoop $BASE_DN $LDAP_PASSWORD "smaji,hduser,hive,hue,oozie,yarn,hdfs,mapred,jobhist,spark,pig,hbase,livy"
+/utility/ldap/createGroup.sh administrator $BASE_DN $LDAP_PASSWORD "smaji"
+/utility/ldap/createGroup.sh developers $BASE_DN $LDAP_PASSWORD "smaji"
+/utility/ldap/createUser.sh smaji administrator sumit $LDAP_PASSWORD $BASE_DN $LDAP_HOST
 /utility/ldap/createUser.sh hduser hadoop hadoop $LDAP_PASSWORD $BASE_DN $LDAP_HOST
 /utility/ldap/createUser.sh hive hadoop hive $LDAP_PASSWORD $BASE_DN $LDAP_HOST
 /utility/ldap/createUser.sh hue hadoop hue $LDAP_PASSWORD $BASE_DN $LDAP_HOST
