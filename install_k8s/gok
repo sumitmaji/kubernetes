@@ -375,6 +375,25 @@ ingressUnInst() {
   fi
 }
 
+patchNginxConfig() {
+  echo "Patching nginx-configuration ConfigMap to enable debug logging..."
+
+  # Patch the ConfigMap
+  kubectl patch configmap ingress-nginx-controller -n ingress-nginx --type merge --patch "$(
+    cat <<EOF
+data:
+  enable-vts-status: "true"
+  log-format-upstream: '{"time": "\$time_iso8601", "remote_addr": "\$remote_addr", "x-forwarded-for": "\$http_x_forwarded_for", "request_id": "\$request_id", "remote_user": "\$remote_user", "bytes_sent": "\$bytes_sent", "request_time": "\$request_time", "status": "\$status", "vhost": "\$host", "request_proto": "\$server_protocol", "path": "\$uri", "request_query": "\$args", "request_length": "\$request_length", "duration": "\$request_time", "method": "\$request_method", "http_referrer": "\$http_referer", "http_user_agent": "\$http_user_agent", "upstream_addr": "\$upstream_addr", "upstream_status": "\$upstream_status", "upstream_response_length": "\$upstream_response_length", "upstream_response_time": "\$upstream_response_time", "upstream_cache_status": "\$upstream_cache_status", "authorization": "\$http_authorization", "request_body": "\$request_body"}'
+EOF
+  )"
+
+  # Restart the ingress-nginx-controller deployment
+  echo "Restarting ingress-nginx-controller deployment..."
+  kubectl rollout restart deployment ingress-nginx-controller -n ingress-nginx
+
+  echo "Nginx configuration patched and ingress-nginx-controller restarted successfully!"
+}
+
 ingressInst() {
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
   helm repo update
@@ -472,6 +491,11 @@ data:
         cache 30
         forward . ${MASTER_HOST_IP}
     }
+    gokcloud.com:53 {
+        errors
+        cache 30
+        forward . ${MASTER_HOST_IP}
+    }
 kind: ConfigMap
 metadata:
   name: coredns
@@ -494,7 +518,7 @@ taintNode() {
 
   # If IP is empty, try another network interface
   if [ -z "$IP" ]; then
-    IP=$(ifconfig enp0s3 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+    IP=$(ifconfig enp1s0.100 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
   fi
 
   # If IP is still empty, print an error message and exit
@@ -553,10 +577,10 @@ EOF
 
   # If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
   # sudo mkdir -p -m 755 /etc/apt/keyrings
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
   sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg # allow unprivileged APT programs to read this keyring
   # This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
-  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
   sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list   # helps tools such as command-not-found to work correctly
 
   sudo apt-get update
@@ -609,9 +633,7 @@ helmInst() {
     echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list &&
     apt-get update &&
     apt-get install helm &&
-    helm version --short &&
-    helm repo add stable https://charts.helm.sh/stable
-
+    helm version --short
 }
 
 certmanagerInst() {
@@ -993,7 +1015,7 @@ dashboardInst() {
     kubernetes-dashboard/kubernetes-dashboard \
     --namespace kubernetes-dashboard \
     --create-namespace \
-    -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/dashboard/values2.yaml
+    -f "${MOUNT_PATH}"/kubernetes/install_k8s/dashboard/values2.yaml
 }
 
 prometheusGrafanaReset() {
@@ -1301,6 +1323,12 @@ opensearchReset(){
   kubectl delete ns opensearch
 }
 
+jenkinsReset(){
+  helm uninstall jenkins -n jenkins
+  emptyLocalFsStorage "Jenkins" "jenkins-pv" "jenkins-storage" "/data/volumes/jenkins"
+  kubectl delete ns jenkins
+}
+
 opensearchDashReset(){
   helm uninstall opensearch-dashboard -n opensearch
 }
@@ -1317,6 +1345,52 @@ opensearchDashInst(){
   echo "Waiting for dashboard service to be up!!!!"
     kubectl --timeout=240s wait --for=condition=Ready pods --all --namespace opensearch
     [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!\n You can access the service using https://opensearch.gokcloud.com" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
+}
+
+jenkinsInst() {
+  helm repo add jenkins https://charts.jenkins.io
+  helm repo update
+  kubectl create ns jenkins
+
+  ADMIN_PASSWORD=$(promptSecret "Enter Jenkins Admin Password: ")
+  kubectl create secret generic jenkins-admin-password \
+    --from-literal=jenkins-admin-password="${ADMIN_PASSWORD}" -n jenkins
+
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  keycloakUrl="https://$(fullKeycloakUrl)"
+  REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
+
+
+  kubectl create secret generic oic-auth \
+  --from-literal=clientID="${CLIENT_ID}" \
+  --from-literal=clientSecret="${CLIENT_SECRET}" \
+  --from-literal=keycloakUrl=${keycloakUrl} \
+  --from-literal=realm=${REALM} \
+  --namespace jenkins
+  DOCKER_BUILD_ENABLED=true
+  if [ "$DOCKER_BUILD_ENABLED" == "true" ]; then
+    # kubectl create secret generic kaniko-docker-config \
+    #   --from-file=/root/.docker/config.json \
+    #   -n jenkins
+
+    kubectl create secret generic docker-credentials \
+    --from-file=.dockerconfigjson=/root/.docker/config.json \
+    --type=kubernetes.io/dockerconfigjson
+  fi
+
+  helm install jenkins \
+    --namespace jenkins \
+    --set dockerBuildEnabled=$DOCKER_BUILD_ENABLED \
+    --values $MOUNT_PATH/kubernetes/install_k8s/jenkins/values-mod.yaml \
+    jenkins/jenkins
+
+  createLocalStorageClassAndPV "jenkins-storage" "jenkins-pv" "/data/volumes/jenkins"
+  gok patch ingress jenkins jenkins letsencrypt jenkins
+  echo "Waiting for Jenkins services to be up!!!!"
+  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace jenkins
+  [[ $? -eq 0 ]] && echoSuccess "Jenkins services are now up!" || echoFailed "Jenkins services timed-out, please check!!"
+  checkCurl curl -XGET http://jenkins.jenkins.svc:8080 -u "admin:${ADMIN_PASSWORD}" --insecure
 }
 
 opensearchInst(){
@@ -1663,6 +1737,22 @@ EOF
   )" -n "$NS"
 }
 
+patchOauth2Secure() {
+  NAME=$1
+  NS=$2
+  RD=$3
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=${RD}
+    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-response-headers: Authorization
+EOF
+  )" -n "$NS"
+}
+
+
 patchLetsEncrypt() {
   NAME=$1
   NS=$2
@@ -1759,8 +1849,10 @@ keycloakReset(){
 }
 
 keycloakInst(){
-  keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
-  keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
+  #Admin user is "user" and password is fetched from secret keycloak with key "admin-password"
+  #Hence removing the below 2 lines
+  #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
+  #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
   POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
   POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
@@ -1769,18 +1861,21 @@ keycloakInst(){
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="${keycloak_adminid}" \
+    --from-literal=KEYCLOAK_ADMIN="user" \
     --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-    --from-literal=OAUTH_REALM="${REALM}" \
-    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
+    --from-literal=OAUTH_REALM="${REALM}"  -n keycloak
+    #--from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
 
   kubectl create secret generic keycloak-postgresql \
     --from-literal=username="${POSTGRESQL_USERNAME}" \
     --from-literal=password="${POSTGRESQL_PASSWORD}" \
     --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak
 
+  hostname="$(subDomain 'keycloak').$(rootDomain)"
+
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
+        --set ingress.hostname="$hostname" \
         --create-namespace \
         --values $MOUNT_PATH/kubernetes/install_k8s/keycloak/values2.yaml
 }
@@ -1821,18 +1916,35 @@ installKeycloakWithCertMgr(){
   gok patch ingress keycloak keycloak letsencrypt $(keycloakSubdomain)
 
   echo "Waiting for services to be up!!!!"
-  kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace keycloak
+  kubectl --timeout=240s wait --for=condition=Ready pods --all --namespace keycloak
   [[ $? -eq 0 ]] && echoSuccess "Keycloak services are now up!\nAccess it using https://$(keycloakSubdomain).$(rootDomain)/" || echoFailed "Keycloak services timed-out, plaese check!!"
   echo "Wait for 10 seconds"
   sleep 10
   apt install python3-dotenv python3-requests python3-jose -y
   ADMIN_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
-  ADMIN_PWD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN_PASSWORD']}" | base64 --decode)
+  ADMIN_PWD=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
   CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
   oauth2Secret
+}
+
+installLdap(){
+  pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
+  ./run_ldap.sh
+  gok patch ingress ldap ldap letsencrypt $(defaultSubdomain)
+  popd
+}
+
+
+ldapReset(){
+  helm uninstall ldap -n ldap
+  kubectl delete ns ldap
+}
+
+kcAdminPwd(){
+  kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode
 }
 
 installPrometheusGrafanaWithCertMgr(){
@@ -1853,13 +1965,28 @@ installPrometheusGrafanaWithCertMgr(){
   [[ $? -eq 0 ]] && echoSuccess "Prometheus and Grafana services are now up!\nAccess it using \nprometheus: https://$(defaultSubdomain).$(rootDomain)/prometheus\ngrafana: https://$(defaultSubdomain).$(rootDomain)/grafana" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+patchDashboardWithOauth(){
+  patchOauth2Secure kubernetes-dashboard kubernetes-dashboard https://kube.gokcloud.com/dashboard/
+}
+
+checkAndPatchDashboard() {
+  # Check if the oauth2-proxy service is running
+  echo "Checking if oauth2-proxy service is running..."
+  if kubectl get pods -n oauth2 -l app.kubernetes.io/name=oauth2-proxy 2>/dev/null | grep -q "Running"; then
+    echo "oauth2-proxy service is running. Proceeding to patch the dashboard..."
+    patchDashboardWithOauth
+  else
+    echo "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
+  fi
+}
+
 installDashboardwithCertManager(){
   dashboardInst
   # No need to generate the certificate.
   # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
   #gok create certificate kubernetes-dashboard kube
   gok patch ingress kubernetes-dashboard kubernetes-dashboard letsencrypt $(defaultSubdomain)
-
+  checkAndPatchDashboard
   echo "Waiting for services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace kubernetes-dashboard
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
@@ -1882,26 +2009,42 @@ oauth2ProxyInst(){
   OAUTH2_PROXY_CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
   REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
   OAUTH2_HOST="$(fullKeycloakUrl)"
-  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)/protocol/openid-connect/auth"
+  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)"
 
   kubectl create configmap oauth2-proxy-config \
       --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
       --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
-      --from-literal=redirectUrl=kube*. \
+      --from-literal=redirectUrl=oauth2/callback \
       -n oauth2
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
-    --set "extraArgs[0]=--provider=keycloak" \
+    --set "extraArgs[0]=--provider=oidc" \
     --set "extraArgs[1]=--login-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
     --set "extraArgs[2]=--redeem-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
     --set "extraArgs[3]=--profile-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
     --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
-    --set "extraArgs[5]=--keycloak-group=groups" \
-    --set "extraArgs[6]=--scope=openid email profile groups" \
-    --values $MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy/values.yaml \
+    --set "extraArgs[5]=--keycloak-group=administrators" \
+    --set "extraArgs[6]=--keycloak-group=developers" \
+    --set "extraArgs[7]=--allowed-group=administrators" \
+    --set "extraArgs[8]=--allowed-group=developers" \
+    --set "extraArgs[9]=--scope=openid email profile groups sub" \
+    --set "extraArgs[10]=--ssl-insecure-skip-verify" \
+    --set "extraArgs[11]=--set-authorization-header=true" \
+    --set "extraArgs[12]=--whitelist-domain=kube.gokcloud.com" \
+    --set "extraArgs[13]=--oidc-groups-claim=groups" \
+    --set "extraArgs[14]=--user-id-claim=sub" \
+    --set "extraArgs[15]=--cookie-domain=kube.gokcloud.com" \
+    --set "extraArgs[16]=--cookie-secure=true" \
+    --set "extraArgs[17]=--pass-access-token" \
+    --set "extraArgs[18]=--pass-authorization-header=true" \
+    --set "extraArgs[19]=--oidc-issuer-url=${OAUTH2_OIDC_ISSUE_URL}" \
+    --set "extraArgs[20]=--standard-logging=true" \
+    --set "extraArgs[21]=--auth-logging=true" \
+    --set "extraArgs[22]=--request-logging=true" \
+    --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
-
-    waitForServiceAvailable oauth2
+  gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
+  waitForServiceAvailable oauth2
 }
 
 waitForServiceAvailable(){
@@ -1931,6 +2074,7 @@ spinnakerInst(){
   docker exec -it halyard hal config features edit --artifacts true
   docker exec -it halyard hal config deploy edit --type distributed --account-name gok-k8s
   kubectl create ns spinnaker
+  helm repo add stable https://charts.helm.sh/stable
   helm install minio --namespace spinnaker --set accessKey="myaccesskey" --set secretKey="mysecretkey" \
     --set persistence.enabled=false stable/minio
   docker exec -it halyard bash -c 'mkdir /home/spinnaker/.hal/default/profiles'
@@ -2235,6 +2379,24 @@ kyvernoInst(){
   waitForServiceAvailable kyverno
   sleep 10
 cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kyverno:cloud-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: kyverno-admission-controller
+  namespace: kyverno
+- kind: ServiceAccount
+  name: kyverno-background-controller
+  namespace: kyverno
+EOF
+
+cat <<EOF | kubectl apply -f -
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -2380,6 +2542,8 @@ function installCmd() {
     setupCertiIssuers
   elif [ "$COMPONENT" == "monitoring" ]; then
     installPrometheusGrafanaWithCertMgr
+  elif [ "$COMPONENT" == "ldap" ]; then
+    installLdap
   elif [ "$COMPONENT" == "dashboard" ]; then
     installDashboardwithCertManager
   elif [ "$COMPONENT" == "keycloak" ]; then
@@ -2393,6 +2557,8 @@ function installCmd() {
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchInst
     opensearchDashInst
+  elif [ "$COMPONENT" == "jenkins" ]; then
+    jenkinsInst
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
@@ -2417,6 +2583,13 @@ function installCmd() {
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
+    cat <<EOF > /etc/rc.local
+#!/bin/bash
+/bin/gok start kubernetes
+exit 0
+EOF
+    chmod +x /etc/rc.local
+    systemctl enable rc-local
     source /etc/bash.bashrc
     figlet "Please wait for 1 minute"
   fi
@@ -2452,6 +2625,8 @@ EOF
     keycloakReset
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
+  elif [ "$COMPONENT" == "ldap" ]; then
+    ldapReset
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
@@ -2459,6 +2634,8 @@ EOF
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset
+  elif [ "$COMPONENT" == "jenkins" ]; then
+    jenkinsReset
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerReset
   elif [ "$COMPONENT" == "oauth2" ]; then

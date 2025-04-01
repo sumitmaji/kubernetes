@@ -1,0 +1,295 @@
+controller:
+  # JCasC:
+  #   configScripts:
+  #     welcome-message: |
+  #       jenkins:
+  #         systemMessage: Welcome, this Jenkins is configured and managed as code.
+  #     authorization-strategy: |
+  #       jenkins:
+  #         authorizationStrategy:
+  #           roleBased:
+  #             roles:
+  #               global:
+  #                 - name: "admin"
+  #                   permissions:
+  #                     - "Overall/Administer"
+  #                   entries:
+  #                     - user: "skmaji1"
+  #                 - name: "anonymous"
+  #                   permissions:
+  #                     - "Overall/Read"
+  #                   entries:
+  #                     - user: "anonymous"
+
+  #     security-realm: |
+  #       jenkins:
+  #         securityRealm:
+  #           keycloak:
+  #             keycloakJson: |-
+  #               {
+  #                 "realm": "${realm}",
+  #                 "auth-server-url": "${keycloakUrl}",
+  #                 "ssl-required": "external",
+  #                 "resource": "${clientID}",
+  #                 "credentials": {
+  #                   "secret": "${clientSecret}"
+  #                 },
+  #                 "confidential-port": 0,
+  #                 "disable-trust-manager": true
+  #               }
+  #             keycloakRespectAccessTokenTimeout: false
+  #             keycloakValidate: false
+  #             userNameField: "preferred_username"
+  #             groupsClaim: "groups"
+  JCasC:
+    configScripts:
+      kaniko-configuration: |
+        jenkins:
+          clouds:
+          - kubernetes:
+              connectTimeout: 5
+              containerCapStr: "10"
+              credentialsId: "my-k8s-token"
+              serverUrl: "https://kubernetes.default"
+              skipTlsVerify: true
+              jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+              jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+              maxRequestsPerHostStr: "32"
+              name: "kubernetes"
+              namespace: "jenkins"
+              readTimeout: 15
+              podLabels:
+              - key: "jenkins/jenkins-jenkins-agent"
+                value: "true"
+              templates:
+              - containers:
+                - args: "^${computer.jnlpmac} ^${computer.name}"
+                  image: "registry.access.redhat.com/openshift3/jenkins-slave-maven-rhel7"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/tmp"
+                hostNetwork: false
+                label: "maven"
+                name: "maven"
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
+              - containers:
+                - args: "^${computer.jnlpmac} ^${computer.name}"
+                  image: "registry.access.redhat.com/openshift3/jenkins-agent-nodejs-8-rhel7"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/tmp"
+                hostNetwork: false
+                label: "nodejs"
+                name: "nodejs"
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
+
+      welcome-message: |
+        jenkins:
+          systemMessage: Welcome, this Jenkins is configured and managed as code.
+
+      authorization-strategy: |
+        jenkins:
+          authorizationStrategy:
+            roleBased:
+              roles:
+                global:
+                  - name: "admin"
+                    permissions:
+                      - "Overall/Administer"
+                    entries:
+                      - group: "administrators"
+                      - group: "admin"
+                  - name: "anonymous"
+                    permissions:
+                      - "Overall/Read"
+                    entries:
+                      - user: "anonymous"
+      security-realm: |
+        jenkins:
+          securityRealm:
+            oic:
+              serverConfiguration:
+                wellKnown:
+                  wellKnownOpenIDConfigurationUrl: "${keycloakUrl}/realms/${realm}/.well-known/openid-configuration"
+                  scopesOverride: "openid profile email groups"
+              clientId: "${clientID}"
+              clientSecret: "${clientSecret}"
+              userNameField: "preferred_username"
+              groupsFieldName: "groups"
+              fullNameFieldName: "name"
+              emailFieldName: "email"
+              logoutFromOpenidProvider: true
+              rootURLFromRequest: false
+              sendScopesInTokenRequest: true
+              postLogoutRedirectUrl: ""
+              disableSslVerification: true
+  jenkinsUrl: "https://jenkins.gokcloud.com"
+  installPlugins:
+    - kubernetes:latest
+    - workflow-aggregator:latest
+    - git:latest
+    - configuration-as-code:latest
+    - keycloak:latest
+    - oic-auth:latest
+    - role-strategy:latest
+    - matrix-auth:latest
+    - blueocean:latest
+    - ansicolor:latest
+
+  admin:
+    # -- Admin username created as a secret if `controller.admin.createSecret` is true
+    username: "admin"  # Replace with your desired admin username
+
+    # -- Admin password is stored in an existing secret
+    password: ""  # Leave this empty since the password is in the existing secret
+
+    # -- The key in the existing admin secret containing the username
+    userKey: jenkins-admin-user
+
+    # -- The key in the existing admin secret containing the password
+    passwordKey: jenkins-admin-password
+
+    # -- Do not create a new secret for the admin user
+    createSecret: false
+
+    # -- The name of the existing secret containing the admin credentials
+    existingSecret: "jenkins-admin-password"
+
+  ingress:
+    # -- Enables ingress
+    enabled: true
+
+    paths:
+    - path: /
+      pathType: ImplementationSpecific
+      backend:
+        service:
+          name: jenkins
+          port:
+            number: 8080
+
+    # -- IngressClass that will be used to implement the Ingress (Kubernetes 1.18+)
+    ingressClassName: "nginx"
+
+    # -- Ingress path type
+    pathType: ImplementationSpecific
+
+    # -- Force Ingress API version (automatically detected if not set)
+    apiVersion: ""
+
+    # -- Default host for the ingress record
+    hostName: master.cloud.com
+
+    # -- Default path for the ingress record
+    path: /
+
+    # -- Backend service port to use (http or https)
+    servicePort: http
+
+    # -- Additional annotations for the Ingress resource
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/ingress.allow-http: "false"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+
+    # -- Additional labels for the Ingress resource
+    labels: {}
+
+    # -- Enable TLS configuration for the host defined at `ingress.hostName`
+    tls:
+    - secretName: appingress-certificate
+      hosts:
+        - master.cloud.com
+
+    # -- Create a TLS secret for this ingress record using self-signed certificates
+    selfSigned: true
+    
+persistence:
+  # -- Enable the use of a Jenkins PVC
+  enabled: true
+
+  # -- Set to false to disable the `fsgroup-volume` initContainer that will update permissions on the persistent disk
+  enableInitChown: true
+
+  storageClass: "jenkins-storage"
+
+  # -- Labels for the PVC
+  labels: {}
+  # -- The PVC access mode
+  accessMode: "ReadWriteOnce"
+  # -- The size of the PVC
+  size: "8Gi"
+
+  # ref: https://kubernetes.io/docs/concepts/storage/volume-pvc-datasource/
+  # -- Existing data source to clone PVC from
+  dataSource: {}
+  #   name: PVC-NAME
+  #   kind: PersistentVolumeClaim
+
+  # -- SubPath for jenkins-home mount
+  subPath:
+  # -- Additional volumes
+  volumes:
+  - name: oic-auth-clientid
+    secret:
+      secretName: oic-auth
+      items:
+        - key: clientID
+          path: clientID
+  - name: oic-auth-clientsecret
+    secret:
+      secretName: oic-auth
+      items:
+        - key: clientSecret
+          path: clientSecret
+  - name: oic-auth-keycloakurl
+    secret:
+      secretName: oic-auth
+      items:
+        - key: keycloakUrl
+          path: keycloakUrl
+  - name: oic-auth-realm
+    secret:
+      secretName: oic-auth
+      items:
+        - key: realm
+          path: realm
+  #  - name: nothing
+  #    emptyDir: {}
+
+  # -- Additional mounts
+  mounts:
+  - name: oic-auth-clientid
+    mountPath: /run/secrets/clientID
+    subPath: clientID
+  - name: oic-auth-clientsecret
+    mountPath: /run/secrets/clientSecret
+    subPath: clientSecret
+  - name: oic-auth-keycloakurl
+    mountPath: /run/secrets/keycloakUrl
+    subPath: keycloakUrl
+  - name: oic-auth-realm
+    mountPath: /run/secrets/realm
+    subPath: realm
+  #  - mountPath: /var/nothing
+  #    name: nothing
+  #    readOnly: true

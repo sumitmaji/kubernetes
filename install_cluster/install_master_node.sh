@@ -2,6 +2,7 @@
 [[ "TRACE" ]] && set -x
 
 : ${ENV:="LOCAL"}
+METHOD=""
 while [ $# -gt 0 ]; do
     case "$1" in
         -h | --host)
@@ -11,6 +12,9 @@ while [ $# -gt 0 ]; do
         -e | --env)
         shift
         ENV=$1
+        ;;
+        *)
+        METHOD=$1
         ;;
     esac
 shift
@@ -106,14 +110,24 @@ getChildNodes(){
 }
 
 getIp(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
   echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3`
 }
 
 getRevIp(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi  
   echo `echo ${CLOUD_HOST_IP} | cut -d '.' -f 1-3 | awk -F. '{for(i=NF; i>1; i--) printf("%s.",$i); print $1}'`
+
 }
 
 getMasterIp(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
   echo "${CLOUD_HOST_IP}"
 }
 
@@ -122,18 +136,35 @@ setupPrivateNetwork(){
   read PRIVATE_IP
 if [ "$ENV" == "LOCAL" ]
 then
-rm /etc/netplan/00-installer-config.yaml
+echo "Available physical interfaces:"
+ip link show | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2}' | sed 's/ //g'
+
+# Prompt the user to select an interface
+echo "Enter the name of the physical interface from the above list:"
+read interface
+vlan_id=100
+vlan_interface="${interface}.${vlan_id}"
+# Create the VLAN interface
+[ -f /etc/netplan/00-installer-config.yaml ] && rm /etc/netplan/00-installer-config.yaml
 touch /etc/netplan/00-installer-config.yaml
 cat > /etc/netplan/00-installer-config.yaml << EOF
 network:
+  renderer: networkd
   ethernets:
-    enp0s3:
-      dhcp4: false
-      addresses: [${PRIVATE_IP}/24]
+    ${interface}:
+      dhcp4: no
+      dhcp6: no
+      gateway4: $(echo ${PRIVATE_IP} | cut -d '.' -f 1-3).254
       nameservers:
         addresses: [8.8.8.8,8.8.4.4]
-    enp0s8:
-      dhcp4: true
+  vlans:
+    ${vlan_interface}:
+      id: ${vlan_id}
+      link: ${interface}
+      addresses: [${PRIVATE_IP}/24]
+      dhcp4: no
+      nameservers:
+        addresses: [8.8.8.8,8.8.4.4]
   version: 2
 EOF
 netplan generate
@@ -225,8 +256,13 @@ addRoutes(){
 #https://www.digitalocean.com/community/tutorials/how-to-configure-bind-as-a-private-network-dns-server-on-ubuntu-14-04
 bindInst(){
   figlet "Setting DNS Server"
-  if ! grep -q "##zone append end" /etc/bind/named.conf.default-zones; then
-    cat >>  /etc/bind/named.conf.default-zones << EOF
+  
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
+  
+  sed -i '/##zone append begin/,/##zone append end/d' /etc/bind/named.conf.default-zones
+  cat >>  /etc/bind/named.conf.default-zones << EOF
 ##zone append begin
 zone "cloud.com" {
 	type master;
@@ -239,9 +275,14 @@ zone "$(getRevIp).in-addr.arpa" {
 	file "/etc/bind/cloud.com.rev";
 	allow-update { key rndc-key; };
 };
+
+zone "gokcloud.com" {
+    type master;
+    file "/etc/bind/db.gokcloud.com";
+};
 ##zone append end
 EOF
-  fi
+
 
   if ! grep -q "##rndc-key copy end" ./rndc-key; then
     echo '##rndc-key copy begin' >  ./rndc-key
@@ -269,6 +310,26 @@ EOF
 
   sed -i 's_/etc/bind/\*\* r,_/etc/bind/\*\* rw,_' /etc/apparmor.d/usr.sbin.named
   service apparmor restart
+
+  cat > /etc/bind/db.gokcloud.com << EOF
+\$TTL 86400
+@   IN  SOA ns1.gokcloud.com. admin.gokcloud.com. (
+        2023101001 ; Serial
+        3600       ; Refresh
+        1800       ; Retry
+        1209600    ; Expire
+        86400 )    ; Minimum TTL
+@   IN  NS  ns1.gokcloud.com.
+ns1 IN  A   $(getMasterIp)
+keycloak    IN  A   $(getMasterIp)
+spinnaker   IN  A   $(getMasterIp)
+registry    IN  A   $(getMasterIp)
+jenkins     IN  A   $(getMasterIp)
+spin-gate   IN  A   $(getMasterIp)
+kube        IN  A   $(getMasterIp)
+fluentd     IN  A   $(getMasterIp)
+opensearch  IN  A   $(getMasterIp)
+EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF
 \$TTL	86400
@@ -324,6 +385,11 @@ EOF
 
 dhcpInst(){
   figlet "Setting DHCP Server"
+  
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
+  
   if [ -f /etc/dhcp/dhcpd.conf_tmp ]
   then
     echo "Dhcp Temp file exists."
@@ -331,10 +397,9 @@ dhcpInst(){
     cp /etc/dhcp/dhcpd.conf /etc/dhcp/dhcpd.conf_tmp
   fi
 
-  if [[ ! -f /etc/dhcp/temp-local-zones ]]
-  then
-    cat ./rndc-key > /etc/dhcp/temp-local-zones
-    cat >> /etc/dhcp/temp-local-zones << EOF
+
+  cat ./rndc-key > /etc/dhcp/temp-local-zones
+  cat >> /etc/dhcp/temp-local-zones << EOF
 zone cloud.com. {
         primary 127.0.0.1;
         key rndc-key;
@@ -345,29 +410,32 @@ zone $(getRevIp).in-addr.arpa. {
         key rndc-key;
 }
 EOF
-    cat /etc/dhcp/dhcpd.conf_tmp >> /etc/dhcp/temp-local-zones
-    sed -i 's/ddns-update-style none/ddns-update-style interim/' /etc/dhcp/temp-local-zones
-    sed -i '/ddns-update-style interim/ a\autorotive;' /etc/dhcp/temp-local-zones
-    sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
-    sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
-    sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
-    sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
-    sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers $(getIp).1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
-    sed -i "/^max-lease-time 7200;/ a\subnet $(getIp).0 netmask 255.255.255.0 {" /etc/dhcp/temp-local-zones
-    sed -i "/subnet $(getIp).0 netmask 255.255.255.0 {/ a\option routers $(getIp).1;"  /etc/dhcp/temp-local-zones
-    sed -i "/option routers $(getIp).1;/ a\option subnet-mask 255.255.255.0;" /etc/dhcp/temp-local-zones
-    sed -i "/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;" /etc/dhcp/temp-local-zones
-    sed -i "/option time-offset -18000;/ a\range $(getIp).1 $(getIp).254;" /etc/dhcp/temp-local-zones
-    sed -i "/range $(getIp).1 $(getIp).254;/ a\}" /etc/dhcp/temp-local-zones
+  cat /etc/dhcp/dhcpd.conf_tmp >> /etc/dhcp/temp-local-zones
+  sed -i 's/ddns-update-style none/ddns-update-style interim/' /etc/dhcp/temp-local-zones
+  sed -i '/ddns-update-style interim/ a\autorotive;' /etc/dhcp/temp-local-zones
+  sed -i '/autorotive/ a\ddns-domainname "cloud.com";' /etc/dhcp/temp-local-zones
+  sed -i '/ddns-domainname "cloud.com"/ a\ddns-rev-domainname "in-addr.arpa";' /etc/dhcp/temp-local-zones
+  sed -i '/ddns-rev-domainname "in-addr.arpa"/ a\ddns-updates on;' /etc/dhcp/temp-local-zones
+  sed -i 's/option domain-name "example.org";/option domain-name "cloud.com";/' /etc/dhcp/temp-local-zones
+  sed -i "s/option domain-name-servers ns1.example.org, ns2.example.org;/option domain-name-servers $(getIp).1, 192.168.0.1;/" /etc/dhcp/temp-local-zones
+  sed -i "/^max-lease-time 7200;/ a\subnet $(getIp).0 netmask 255.255.255.0 {" /etc/dhcp/temp-local-zones
+  sed -i "/subnet $(getIp).0 netmask 255.255.255.0 {/ a\option routers $(getIp).1;"  /etc/dhcp/temp-local-zones
+  sed -i "/option routers $(getIp).1;/ a\option subnet-mask 255.255.255.0;" /etc/dhcp/temp-local-zones
+  sed -i "/option subnet-mask 255.255.255.0;/ a\option time-offset -18000;" /etc/dhcp/temp-local-zones
+  sed -i "/option time-offset -18000;/ a\range $(getIp).1 $(getIp).254;" /etc/dhcp/temp-local-zones
+  sed -i "/range $(getIp).1 $(getIp).254;/ a\}" /etc/dhcp/temp-local-zones
 
-    cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf
-  fi
+  cat /etc/dhcp/temp-local-zones > /etc/dhcp/dhcpd.conf
 
   service isc-dhcp-server restart
 }
 
 
 nameserver(){
+  if [ -z "${CLOUD_HOST_IP}" ]; then
+    getHostIp
+  fi
+
   chattr -i /etc/resolv.conf
   sed -i "/nameserver/ i nameserver $(getMasterIp)" /etc/resolv.conf
   sed -i 's/search.*/search cloud.com ./' /etc/resolv.conf
@@ -422,7 +490,7 @@ nfsInst(){
   mount $(getMasterIp):/export /export
 
 
-  echo 'export MOUNT_PATH=/export' >> /etc/bash.bashrc
+  echo 'export MOUNT_PATH=/root' >> /etc/bash.bashrc
   echo 'iptables -P FORWARD ACCEPT' >> /root/.bashrc
 
   rm -rf rndc-key
@@ -454,38 +522,88 @@ EOF
   echo "export VISIBLE=now" >> /etc/profile
 }
 
-case "$ENV" in
-  "CLOUD")
-    installPkg
-    figlet "Master Node Installation"
-    getHostIp
-    getChildNodes
-    bindInst
-    nameserver
-    natInst
-    ntpInst
-    nfsInst
-    sshdInst
-    # addRoutes
-    reboot
-    ;;
-  "LOCAL")
-    installPkg
-    figlet "Master Node Installation"
-    setupPrivateNetwork
-    getHostIp
-    getChildNodes
-    bindInst
-    dhcpInst
-    nameserver
-    natInst
-    ntpInst
-    nfsInst
-    sshdInst
-    reboot
-    ;;
-  *)
-    echo "Invalid environment. Please set ENV to either 'CLOUD' or 'LOCAL'."
-    ;;
-esac
+install_cloud(){
+  installPkg
+  figlet "Master Node Installation"
+  getHostIp
+  getChildNodes
+  bindInst
+  nameserver
+  natInst
+  ntpInst
+  nfsInst
+  sshdInst
+  reboot
+}
 
+install_local(){
+  installPkg
+  figlet "Master Node Installation"
+  setupPrivateNetwork
+  getHostIp
+  getChildNodes
+  bindInst
+  dhcpInst
+  nameserver
+  natInst
+  ntpInst
+  nfsInst
+  sshdInst
+  reboot
+}
+
+# Main script execution based on ENV variable or individual method call
+if [ -n "$METHOD" ]; then
+  case "$METHOD" in
+    "installPkg")
+      installPkg
+      ;;
+    "getHostIp")
+      getHostIp
+      ;;
+    "getChildNodes")
+      getChildNodes
+      ;;
+    "bindInst")
+      bindInst
+      ;;
+    "nameserver")
+      nameserver
+      ;;
+    "natInst")
+      natInst
+      ;;
+    "ntpInst")
+      ntpInst
+      ;;
+    "nfsInst")
+      nfsInst
+      ;;
+    "sshdInst")
+      sshdInst
+      ;;
+    "setupPrivateNetwork")
+      setupPrivateNetwork
+      ;;
+    "dhcpInst")
+      dhcpInst
+      ;;
+    *)
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|LOCAL>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork|dhcpInst}"
+      exit 1
+      ;;
+  esac
+else
+  case "$ENV" in
+    "CLOUD")
+      install_cloud
+      ;;
+    "LOCAL")
+      install_local
+      ;;
+    *)
+      echo "Usage: $0 {-h|--host <host_ip>} {-e|--env <CLOUD|LOCAL>} {installPkg|getHostIp|getChildNodes|bindInst|nameserver|natInst|ntpInst|nfsInst|sshdInst|setupPrivateNetwork|dhcpInst}"
+      exit 1
+      ;;
+  esac
+fi

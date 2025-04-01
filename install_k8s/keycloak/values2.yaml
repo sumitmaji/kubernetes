@@ -4,17 +4,19 @@ extraEnvVars:
     valueFrom:
       secretKeyRef:
         name: keycloak-secrets
-        key: KEYCLOAK_LOG_LEVEL
-  - name: KEYCLOAK_ADMIN
-    valueFrom:
-      secretKeyRef:
-        name: keycloak-secrets
-        key: KEYCLOAK_ADMIN
-  - name: KEYCLOAK_ADMIN_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: keycloak-secrets
-        key: KEYCLOAK_ADMIN_PASSWORD
+        key: KEYCLOAK_LOG_LEVEL 
+
+#Admin user is "user" and password is fetched from the secret keycloak with key "admin-password"
+#  - name: KEYCLOAK_ADMIN
+#    valueFrom:
+#      secretKeyRef:
+#        name: keycloak-secrets
+#        key: KEYCLOAK_ADMIN
+#  - name: KEYCLOAK_ADMIN_PASSWORD
+#    valueFrom:
+#      secretKeyRef:
+#        name: keycloak-secrets
+#        key: KEYCLOAK_ADMIN_PASSWORD
 
 ingress:
   ## @param ingress.enabled Enable ingress record generation for Keycloak

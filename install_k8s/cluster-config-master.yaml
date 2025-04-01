@@ -24,7 +24,7 @@ etcd:
   local:
     dataDir: /var/lib/etcd
 controlPlaneEndpoint: ${LOAD_BALANCER_URL}
-kubernetesVersion: v1.30.0
+kubernetesVersion: v1.32.0
 networking:
   dnsDomain: ${DNS_DOMAIN}
   podSubnet: 192.168.0.0/16

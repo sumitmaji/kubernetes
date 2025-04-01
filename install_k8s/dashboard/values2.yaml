@@ -144,7 +144,8 @@ auth:
       - name: auth
         containerPort: 8000
         protocol: TCP
-    args: []
+    args:
+      - --v=4
     env: []
     volumeMounts:
       - mountPath: /tmp
