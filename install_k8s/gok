@@ -1928,6 +1928,34 @@ installKeycloakWithCertMgr(){
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
   oauth2Secret
+  # Check if LDAP service is running
+  echo "Checking if LDAP service is running..."
+  LDAP_STATUS=$(kubectl get svc ldap -n ldap 2>/dev/null | grep ldap | wc -l)
+
+  if [ "$LDAP_STATUS" -eq 0 ]; then
+    echo "LDAP service is not running. Please ensure the LDAP service is up and running before proceeding."
+    exit 1
+  else
+    echo "LDAP service is running. Proceeding with user federation creation."
+  fi
+  pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
+  echo "Creating User Federation"
+  ./run_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
+  if [[ $? -ne 0 ]]; then
+    echoFailed "User Federation creation failed, please check the logs!"
+    popd
+    return 1
+  fi
+  echoSuccess "User Federation created successfully!"
+  echo "Creating Keycloak Groups"
+  ./run_keycloak_groups.sh $ADMIN_ID $ADMIN_PWD
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Keycloak Groups creation failed, please check the logs!"
+    popd
+    return 1
+  fi
+  echoSuccess "Keycloak Groups created successfully!"
+  popd
 }
 
 installLdap(){
