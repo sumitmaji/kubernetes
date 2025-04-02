@@ -41,17 +41,35 @@ if [ -z "$ACCESS_TOKEN" ]; then
   exit 1
 fi
 
-# Fetch LDAP Provider ID
-LDAP_PROVIDER_ID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}/components" \
+# Fetch REALM_ID based on REALM_NAME
+REALM_ID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  -H "Content-Type: application/json" | jq -r --arg LDAP_PROVIDER_NAME "$LDAP_PROVIDER_NAME" '.[] | select(.name == $LDAP_PROVIDER_NAME) | .id')
+  -H "Content-Type: application/json" | jq -r --arg REALM_NAME "$REALM_NAME" '.[] | select(.realm == $REALM_NAME) | .id')
 
-LDAP_PROVIDER_ID=$(echo "$LDAP_PROVIDER_ID" | head -n 1)
+if [ -z "$REALM_ID" ]; then
+  echo "Failed to fetch REALM_ID for realm '${REALM_NAME}'. Check if the realm exists."
+  exit 1
+fi
+
+# Fetch Components for the Realm
+COMPONENTS=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}/components?parentId=${REALM_ID}&type=org.keycloak.storage.UserStorageProvider" \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H "Content-Type: application/json")
+
+if [ -z "$COMPONENTS" ]; then
+  echo "Failed to fetch components for realm '${REALM_NAME}' with parentId '${REALM_ID}'."
+  exit 1
+fi
+
+# Extract LDAP Provider ID from Components
+LDAP_PROVIDER_ID=$(echo "$COMPONENTS" | jq -r --arg LDAP_PROVIDER_NAME "$LDAP_PROVIDER_NAME" '.[] | select(.name == $LDAP_PROVIDER_NAME) | .id')
 
 if [ -z "$LDAP_PROVIDER_ID" ]; then
   echo "Failed to fetch LDAP Provider ID for provider '${LDAP_PROVIDER_NAME}'. Check if the LDAP user federation exists."
   exit 1
 fi
+
+echo "Fetched LDAP Provider ID: $LDAP_PROVIDER_ID"
 
 # JSON Configuration for LDAP Group Mapper
 GROUP_MAPPER_CONFIG=$(cat <<EOF
