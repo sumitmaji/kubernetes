@@ -1981,7 +1981,7 @@ updateLdapConfig(){
     --from-literal=LDAP_HOSTNAME="$LDAP_HOSTNAME" \
     --from-literal=BASE_DN="$BASE_DN" \
     --namespace=default \
-    --dry-run=apply -o yaml | kubectl apply -f -
+    --dry-run=client -o yaml | kubectl apply -f -
 }
 
 updateUserData(){
@@ -2008,7 +2008,7 @@ updateUserData(){
     --from-literal=LAST_NAME="$LAST_NAME" \
     --from-literal=GROUP_NAME="$GROUP_NAME" \
     --namespace=default \
-    --dry-run=apply -o yaml | kubectl apply -f -
+    --dry-run=client -o yaml | kubectl apply -f -
 }
 
 # Function to create an LDAP user
