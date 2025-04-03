@@ -2029,27 +2029,61 @@ copySecret(){
   kubectl apply -n "$TARGET_NAMESPACE" -f -
 }
 
+# createUserGroup -u skmaji -p sumit -e skm@outlook.com -f Sumit -l Maji -g hadoop -s create_ldap_user.sh
+# createUserGroup -g hadoop -s create_ldap_group.sh
 # Function to create an LDAP user
 # Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>
-createUser(){
-  if [[ $# -ne 6 ]]; then
-    echo "Usage: createUser <username> <password> <email> <first_name> <last_name> <group_name>"
-    return 1
-  fi
+createUserGroup(){
 
-  local username="$1"
-  local password="$2"
-  local email="$3"
-  local first_name="$4"
-  local last_name="$5"
-  local group_name="$6"
+  local script_name=""
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -u|--username)
+        local username="$2"
+        shift 2
+        ;;
+      -p|--password)
+        local password="$2"
+        shift 2
+        ;;
+      -e|--email)
+        local email="$2"
+        shift 2
+        ;;
+      -f|--first-name)
+        local first_name="$2"
+        shift 2
+        ;;
+      -l|--last-name)
+        local last_name="$2"
+        shift 2
+        ;;
+      -g|--group-name)
+        local group_name="$2"
+        shift 2
+        ;;
+      -s|--script-name)
+        script_name="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1"
+        exit 1
+        ;;
+    esac
+  done
+
+  if [[ -z "$script_name" ]]; then
+    echo "Error: Script name is required. Use -s or --script-name to specify it."
+    exit 1
+  fi
 
   source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
   updateUserData "$username" "$password" "$email" "$first_name" "$last_name" "$group_name"
   copySecret ldapsecret ldap default
   updateLdapConfig "ldap://ldap.ldap.svc.cloud.uat" "$BASE_DN"
 
-  cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/create_ldap_user.sh /tmp/user_script.sh
+  cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/${script_name} /tmp/user_script.sh
 
   kubectl create configmap user-script --from-file=/tmp/user_script.sh -n default
   
