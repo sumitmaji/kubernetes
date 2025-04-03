@@ -1,14 +1,14 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: gokutil-runtime-job
+  name: gokclient-runtime-job
   namespace: default
 spec:
   template:
     spec:
       containers:
-      - name: gokutil-runtime
-        image: registry.gokcloud.com/gokutil:latest
+      - name: gokclient-runtime
+        image: registry.gokcloud.com/gokclient:latest
         command: ["/bin/bash", "-c"]
         args: ["chmod +x /scripts/user_script.sh && /scripts/user_script.sh"]
         volumeMounts:
