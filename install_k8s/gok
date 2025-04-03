@@ -2047,7 +2047,7 @@ createUser(){
   source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
   updateUserData "$username" "$password" "$email" "$first_name" "$last_name" "$group_name"
   copySecret ldapsecret ldap default
-  updateLdapConfig "ldap://ldap.default.svc.cloud.uat" "$BASE_DN"
+  updateLdapConfig "ldap://ldap.ldap.svc.cloud.uat" "$BASE_DN"
 
   cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/create_ldap_user.sh /tmp/user_script.sh
 
