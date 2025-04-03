@@ -2078,8 +2078,10 @@ createUserGroup(){
     echo "Error: Script name is required. Use -s or --script-name to specify it."
     exit 1
   fi
-
+  
   source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
+  
+  BASE_DN=${DC}
   updateUserData "$username" "$password" "$email" "$first_name" "$last_name" "$group_name"
   copySecret ldapsecret ldap default
   updateLdapConfig "ldap://ldap.ldap.svc.cloud.uat" "$BASE_DN"
