@@ -1965,53 +1965,93 @@ installLdap(){
   popd
 }
 
-createLdapUser(){
-  
-  if [[ $# -ne 6 ]]; then
-  echo "Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>"
-  return 1
+updateLdapConfig(){
+
+  # Usage: ./update_configmap.sh <LDAP_HOSTNAME> <LDAP_ADMIN_DN> <BASE_DN>
+  LDAP_HOSTNAME=$1
+  BASE_DN=$2
+
+  if [[ -z "$LDAP_HOSTNAME" || -z "$BASE_DN" ]]; then
+    echo "Usage: $0 <LDAP_HOSTNAME> <BASE_DN>"
+    exit 1
   fi
 
-  source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
+  # Create or update the ConfigMap
+  kubectl create configmap ldap-env-config \
+    --from-literal=LDAP_HOSTNAME="$LDAP_HOSTNAME" \
+    --from-literal=BASE_DN="$BASE_DN" \
+    --namespace=default \
+    --dry-run=apply -o yaml | kubectl apply -f -
+}
+
+updateUserData(){
+
+  # Usage: ./update_user_data.sh <USERNAME> <PASSWORD> <EMAIL> <FIRST_NAME> <LAST_NAME> <GROUP_NAME>
+  USERNAME=$1
+  PASSWORD=$2
+  EMAIL=$3
+  FIRST_NAME=$4
+  LAST_NAME=$5
+  GROUP_NAME=$6
+
+  if [[ -z "$USERNAME" || -z "$PASSWORD" || -z "$EMAIL" || -z "$FIRST_NAME" || -z "$LAST_NAME" || -z "$GROUP_NAME" ]]; then
+    echo "Usage: $0 <USERNAME> <PASSWORD> <EMAIL> <FIRST_NAME> <LAST_NAME> <GROUP_NAME>"
+    exit 1
+  fi
+
+  # Create or update the ConfigMap
+  kubectl create configmap ldap-user-data \
+    --from-literal=USERNAME="$USERNAME" \
+    --from-literal=PASSWORD="$PASSWORD" \
+    --from-literal=EMAIL="$EMAIL" \
+    --from-literal=FIRST_NAME="$FIRST_NAME" \
+    --from-literal=LAST_NAME="$LAST_NAME" \
+    --from-literal=GROUP_NAME="$GROUP_NAME" \
+    --namespace=default \
+    --dry-run=apply -o yaml | kubectl apply -f -
+}
+
+# Function to create an LDAP user
+# Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>
+createUser(){
+  if [[ $# -ne 6 ]]; then
+    echo "Usage: createUser <username> <password> <email> <first_name> <last_name> <group_name>"
+    return 1
+  fi
+
   local username="$1"
   local password="$2"
   local email="$3"
   local first_name="$4"
   local last_name="$5"
   local group_name="$6"
-  local BASE_DN="${DC}"
-  local LDAP_HOSTNAME=
-  echo "Creating LDAP user: $username"
-  LDAP_PASSWORD=$(dataFromSecret ldap-secrets ldap admin-password)
-  gid=$(ldapsearch -x -b "ou=groups,$BASE_DN" "cn=$group_name" -D "cn=admin,$BASE_DN" -w ${LDAP_PASSWORD} -H ${LDAP_HOSTNAME} -LLL gidNumber | grep 'gidNumber' | grep -Eo '[0-9]+')
+
+  source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
+  updateUserData "$username" "$password" "$email" "$first_name" "$last_name" "$group_name"
+  updateLdapConfig "$LDAP_HOST" "$BASE_DN"
+
+  cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/create_ldap_user.sh /tmp/user_script.sh
+
+  kubectl create configmap user-script --from-file=/tmp/user_script.sh
   
-  # Create the user using ldapadd
-  ldapadd -x -D "cn=admin,${BASE_DN}" -w "$(dataFromSecret ldap-secrets ldap admin-password)" <<EOF
-dn: cn=${username},ou=users,${BASE_DN}
-gidnumber: $gid
-givenname: $first_name
-objectClass: inetOrgPerson
-objectClass: posixAccount
-objectClass: top
-homedirectory: /home/users/$username
-loginshell: /bin/bash
-uid: ${username}
-cn: ${username}
-sn: ${last_name}
-userpassword: ${password}
-mail: ${email}
-uidnumber: $((RANDOM % 10000 + 1000))
-EOF
+  # Apply the Job
+  kubectl apply -f ${MOUNT_PATH}/kubernetes/install_k8s/gokutil/job.yaml
 
-  if [[ $? -ne 0 ]]; then
-    echoFailed "Failed to create LDAP user: $username"
-    return 1
-  fi
+  # Wait for the Job to complete
+  kubectl wait --for=condition=complete job/ldap-runtime-job --timeout=300s
 
-  echoSuccess "LDAP user $username created successfully!"
-  return 0
+  # Get the logs from the Job
+  kubectl logs job/ldap-runtime-job
+
+  # Clean up the Job
+  kubectl delete job ldap-runtime-job
+
+  { 
+    kubectl delete configmap ldap-user-data; 
+    kubectl delete configmap user-script; 
+    kubectl delete configmap ldap-env-config; 
+  } >> /dev/null 2>&1
 }
-
 
 ldapReset(){
   helm uninstall ldap -n ldap

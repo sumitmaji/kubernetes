@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gokutil-runtime-job
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: gokutil-runtime
+        image: registry.gokcloud.com/gokutil:latest
+        command: ["/bin/bash", "-c"]
+        args: ["chmod +x /scripts/user_script.sh && /scripts/user_script.sh"]
+        volumeMounts:
+        - name: user-script-volume
+          mountPath: /scripts
+        envFrom:
+        - configMapRef:
+            name: ldap-user-data
+        - configMapRef:
+            name: ldap-env-config
+        - secretRef:
+            name: ldapsecret
+      volumes:
+      - name: user-script-volume
+        configMap:
+          name: user-script
+      restartPolicy: Never
+  backoffLimit: 4
