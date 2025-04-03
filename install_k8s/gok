@@ -2011,6 +2011,24 @@ updateUserData(){
     --dry-run=client -o yaml | kubectl apply -f -
 }
 
+copySecret(){
+  # Usage: ./copy_secret.sh <secret-name> <source-namespace> <target-namespace>
+  SECRET_NAME=$1
+  SOURCE_NAMESPACE=$2
+  TARGET_NAMESPACE=$3
+
+  if [[ -z "$SECRET_NAME" || -z "$SOURCE_NAMESPACE" || -z "$TARGET_NAMESPACE" ]]; then
+    echo "Usage: $0 <secret-name> <source-namespace> <target-namespace>"
+    exit 1
+  fi
+
+  # Export the secret from the source namespace
+  kubectl get secret "$SECRET_NAME" -n "$SOURCE_NAMESPACE" -o yaml | \
+  # Update the namespace in the YAML and apply it to the target namespace
+  sed "s/namespace: $SOURCE_NAMESPACE/namespace: $TARGET_NAMESPACE/" | \
+  kubectl apply -n "$TARGET_NAMESPACE" -f -
+}
+
 # Function to create an LDAP user
 # Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>
 createUser(){
@@ -2028,6 +2046,7 @@ createUser(){
 
   source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
   updateUserData "$username" "$password" "$email" "$first_name" "$last_name" "$group_name"
+  copySecret ldapsecret ldap default
   updateLdapConfig "$LDAP_HOST" "$BASE_DN"
 
   cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/create_ldap_user.sh /tmp/user_script.sh
