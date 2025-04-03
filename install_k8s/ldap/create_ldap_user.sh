@@ -23,7 +23,7 @@
   
   echo "Found gidNumber for group '$group_name': $gid"
   # Create the user using ldapadd
-  ldapadd -x -D "cn=admin,${BASE_DN}" -w "${password}" <<EOF
+  ldapadd -x -H "${LDAP_HOSTNAME}" -D "cn=admin,${BASE_DN}" -w "${password}" <<EOF
 dn: cn=${username},ou=users,${BASE_DN}
 gidnumber: $gid
 givenname: $first_name
