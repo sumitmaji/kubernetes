@@ -2099,10 +2099,9 @@ createUserGroup(){
   # Get the logs from the Job
   kubectl logs job/gokclient-runtime-job -n default
 
-  # Clean up the Job
-  kubectl delete job gokclient-runtime-job -n default
 
   { 
+    kubectl delete job gokclient-runtime-job -n default;
     kubectl delete configmap ldap-user-data -n default; 
     kubectl delete configmap user-script -n default; 
     kubectl delete configmap ldap-env-config -n default; 
