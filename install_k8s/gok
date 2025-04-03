@@ -1965,6 +1965,53 @@ installLdap(){
   popd
 }
 
+createLdapUser(){
+  
+  if [[ $# -ne 6 ]]; then
+  echo "Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>"
+  return 1
+  fi
+
+  source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
+  local username="$1"
+  local password="$2"
+  local email="$3"
+  local first_name="$4"
+  local last_name="$5"
+  local group_name="$6"
+  local BASE_DN="${DC}"
+  local LDAP_HOSTNAME=
+  echo "Creating LDAP user: $username"
+  LDAP_PASSWORD=$(dataFromSecret ldap-secrets ldap admin-password)
+  gid=$(ldapsearch -x -b "ou=groups,$BASE_DN" "cn=$group_name" -D "cn=admin,$BASE_DN" -w ${LDAP_PASSWORD} -H ${LDAP_HOSTNAME} -LLL gidNumber | grep 'gidNumber' | grep -Eo '[0-9]+')
+  
+  # Create the user using ldapadd
+  ldapadd -x -D "cn=admin,${BASE_DN}" -w "$(dataFromSecret ldap-secrets ldap admin-password)" <<EOF
+dn: cn=${username},ou=users,${BASE_DN}
+gidnumber: $gid
+givenname: $first_name
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: top
+homedirectory: /home/users/$username
+loginshell: /bin/bash
+uid: ${username}
+cn: ${username}
+sn: ${last_name}
+userpassword: ${password}
+mail: ${email}
+uidnumber: $((RANDOM % 10000 + 1000))
+EOF
+
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Failed to create LDAP user: $username"
+    return 1
+  fi
+
+  echoSuccess "LDAP user $username created successfully!"
+  return 0
+}
+
 
 ldapReset(){
   helm uninstall ldap -n ldap

@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/gokclient
+REGISTRY=master.cloud.com:5000
+REPO_NAME=gokclient
+CONTAINER_NAME=ldagokclientp
+BUILD_PATH=/tmp
+RELEASE_NAME=gokclient
+PATH_TO_CHART=chart
+DEPLOY=true
