@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gokclient-runtime-job
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: gokclient-runtime
+        image: registry.gokcloud.com/gokclient:latest
+        command: ["/bin/bash", "-c"]
+        args: ["cp /scripts/user_script.sh /tmp/user_script.sh && chmod +x /tmp/user_script.sh && /tmp/user_script.sh"]
+        volumeMounts:
+        - name: user-script-volume
+          mountPath: /scripts
+        envFrom:
+        - configMapRef:
+            name: ldap-user-data
+        - configMapRef:
+            name: ldap-env-config
+        - secretRef:
+            name: ldapsecret
+      volumes:
+      - name: user-script-volume
+        configMap:
+          name: user-script
+      restartPolicy: Never
+  backoffLimit: 4

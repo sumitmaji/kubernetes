@@ -1928,6 +1928,34 @@ installKeycloakWithCertMgr(){
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
   oauth2Secret
+  # Check if LDAP service is running
+  echo "Checking if LDAP service is running..."
+  LDAP_STATUS=$(kubectl get svc ldap -n ldap 2>/dev/null | grep ldap | wc -l)
+
+  if [ "$LDAP_STATUS" -eq 0 ]; then
+    echo "LDAP service is not running. Please ensure the LDAP service is up and running before proceeding."
+    exit 1
+  else
+    echo "LDAP service is running. Proceeding with user federation creation."
+  fi
+  pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
+  echo "Creating User Federation"
+  ./run_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
+  if [[ $? -ne 0 ]]; then
+    echoFailed "User Federation creation failed, please check the logs!"
+    popd
+    return 1
+  fi
+  echoSuccess "User Federation created successfully!"
+  echo "Creating Keycloak Groups"
+  ./run_keycloak_groups.sh $ADMIN_ID $ADMIN_PWD
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Keycloak Groups creation failed, please check the logs!"
+    popd
+    return 1
+  fi
+  echoSuccess "Keycloak Groups created successfully!"
+  popd
 }
 
 installLdap(){
@@ -1937,6 +1965,149 @@ installLdap(){
   popd
 }
 
+updateLdapConfig(){
+
+  # Usage: ./update_configmap.sh <LDAP_HOSTNAME> <LDAP_ADMIN_DN> <BASE_DN>
+  LDAP_HOSTNAME=$1
+  BASE_DN=$2
+
+  if [[ -z "$LDAP_HOSTNAME" || -z "$BASE_DN" ]]; then
+    echo "Usage: $0 <LDAP_HOSTNAME> <BASE_DN>"
+    exit 1
+  fi
+
+  # Create or update the ConfigMap
+  kubectl create configmap ldap-env-config \
+    --from-literal=LDAP_HOSTNAME="$LDAP_HOSTNAME" \
+    --from-literal=BASE_DN="$BASE_DN" \
+    --namespace=default \
+    --dry-run=client -o yaml | kubectl apply -f -
+}
+
+updateUserData(){
+
+  # Usage: ./update_user_data.sh <USERNAME> <PASSWORD> <EMAIL> <FIRST_NAME> <LAST_NAME> <GROUP_NAME>
+  USERNAME=$1
+  PASSWORD=$2
+  EMAIL=$3
+  FIRST_NAME=$4
+  LAST_NAME=$5
+  GROUP_NAME=$6
+
+  # Prepare the `kubectl create configmap` command
+  CONFIGMAP_CMD="kubectl create configmap ldap-user-data --namespace=default"
+
+  # Add non-empty parameters to the ConfigMap
+  [[ -n "$USERNAME" ]] && CONFIGMAP_CMD+=" --from-literal=USERNAME=\"$USERNAME\""
+  [[ -n "$PASSWORD" ]] && CONFIGMAP_CMD+=" --from-literal=USER_PASSWORD=\"$PASSWORD\""
+  [[ -n "$EMAIL" ]] && CONFIGMAP_CMD+=" --from-literal=EMAIL=\"$EMAIL\""
+  [[ -n "$FIRST_NAME" ]] && CONFIGMAP_CMD+=" --from-literal=FIRST_NAME=\"$FIRST_NAME\""
+  [[ -n "$LAST_NAME" ]] && CONFIGMAP_CMD+=" --from-literal=LAST_NAME=\"$LAST_NAME\""
+  [[ -n "$GROUP_NAME" ]] && CONFIGMAP_CMD+=" --from-literal=GROUP_NAME=\"$GROUP_NAME\""
+
+  # Add dry-run and apply options
+  CONFIGMAP_CMD+=" --dry-run=client -o yaml | kubectl apply -f -"
+
+  # Execute the command
+  eval "$CONFIGMAP_CMD"
+}
+
+copySecret(){
+  # Usage: ./copy_secret.sh <secret-name> <source-namespace> <target-namespace>
+  SECRET_NAME=$1
+  SOURCE_NAMESPACE=$2
+  TARGET_NAMESPACE=$3
+
+  if [[ -z "$SECRET_NAME" || -z "$SOURCE_NAMESPACE" || -z "$TARGET_NAMESPACE" ]]; then
+    echo "Usage: $0 <secret-name> <source-namespace> <target-namespace>"
+    exit 1
+  fi
+
+  # Export the secret from the source namespace
+  kubectl get secret "$SECRET_NAME" -n "$SOURCE_NAMESPACE" -o yaml | \
+  # Update the namespace in the YAML and apply it to the target namespace
+  sed "s/namespace: $SOURCE_NAMESPACE/namespace: $TARGET_NAMESPACE/" | \
+  kubectl apply -n "$TARGET_NAMESPACE" -f -
+}
+
+# createUserGroup -u skmaji -p sumit -e skm@outlook.com -f Sumit -l Maji -g hadoop -s create_ldap_user.sh
+# createUserGroup -g sqa -s create_ldap_group.sh
+# Function to create an LDAP user
+# Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>
+createUserGroup(){
+
+  local script_name=""
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -u|--username)
+        local username="$2"
+        shift 2
+        ;;
+      -p|--password)
+        local password="$2"
+        shift 2
+        ;;
+      -e|--email)
+        local email="$2"
+        shift 2
+        ;;
+      -f|--first-name)
+        local first_name="$2"
+        shift 2
+        ;;
+      -l|--last-name)
+        local last_name="$2"
+        shift 2
+        ;;
+      -g|--group-name)
+        local group_name="$2"
+        shift 2
+        ;;
+      -s|--script-name)
+        script_name="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1"
+        exit 1
+        ;;
+    esac
+  done
+
+  if [[ -z "$script_name" ]]; then
+    echo "Error: Script name is required. Use -s or --script-name to specify it."
+    exit 1
+  fi
+  
+  source $MOUNT_PATH/kubernetes/install_k8s/ldap/config/config
+  
+  BASE_DN=${DC}
+  updateUserData "$username" "$password" "$email" "$first_name" "$last_name" "$group_name"
+  copySecret ldapsecret ldap default
+  updateLdapConfig "ldap://ldap.ldap.svc.cloud.uat" "$BASE_DN"
+
+  cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/${script_name} /tmp/user_script.sh
+
+  kubectl create configmap user-script --from-file=/tmp/user_script.sh -n default
+  
+  # Apply the Job
+  kubectl apply -f ${MOUNT_PATH}/kubernetes/install_k8s/gokutil/job.yaml
+
+  # Wait for the Job to complete
+  kubectl wait --for=condition=complete job/gokclient-runtime-job --timeout=300s
+
+  # Get the logs from the Job
+  kubectl logs job/gokclient-runtime-job -n default
+
+
+  { 
+    kubectl delete job gokclient-runtime-job -n default;
+    kubectl delete configmap ldap-user-data -n default; 
+    kubectl delete configmap user-script -n default; 
+    kubectl delete configmap ldap-env-config -n default; 
+    kubectl delete secret ldapsecret -n default;
+  } >> /dev/null 2>&1
+}
 
 ldapReset(){
   helm uninstall ldap -n ldap

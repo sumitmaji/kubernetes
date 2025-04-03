@@ -8,16 +8,21 @@
 uid=$(< /var/userid)
 gid=`ldapsearch -x -b "ou=groups,$BASE_DN" "cn=$2" -D "cn=admin,$BASE_DN" -w ${LDAP_PASSWORD} -H ${LDAP_HOSTNAME} -LLL gidNumber | grep 'gidNumber' | grep -Eo '[0-9]+'`
 
+FIRST_NAME=${7}
+LAST_NAME=${8}
+EMAIL=${9}
+
 echo "dn: cn=$1,ou=users,$BASE_DN
 cn: $1
 gidnumber: $gid
-givenname: Sumit
+givenname: $FIRST_NAME
+sn: $LAST_NAME
+mail: $EMAIL
 homedirectory: /home/users/$1
 loginshell: /bin/bash
 objectclass: inetOrgPerson
 objectclass: posixAccount
 objectclass: top
-sn: $1
 uid: $1
 uidnumber: $uid
 userpassword: $3" > /var/tmp/user.ldif
