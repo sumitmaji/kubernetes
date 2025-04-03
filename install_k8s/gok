@@ -2060,15 +2060,15 @@ createUser(){
   kubectl wait --for=condition=complete job/ldap-runtime-job --timeout=300s
 
   # Get the logs from the Job
-  kubectl logs job/gokclient-runtime-job
+  kubectl logs job/gokclient-runtime-job -n default
 
   # Clean up the Job
-  kubectl delete job gokclient-runtime-job
+  kubectl delete job gokclient-runtime-job -n default
 
   { 
-    kubectl delete configmap ldap-user-data; 
-    kubectl delete configmap user-script; 
-    kubectl delete configmap ldap-env-config; 
+    kubectl delete configmap ldap-user-data -n default; 
+    kubectl delete configmap user-script -n default; 
+    kubectl delete configmap ldap-env-config -n default; 
   } >> /dev/null 2>&1
 }
 

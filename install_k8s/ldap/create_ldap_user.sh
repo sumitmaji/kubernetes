@@ -8,7 +8,17 @@
   group_name="$GROUP_NAME"
 
   echo "Creating LDAP user: $username"
-  
+
+  echo "Environment variables:"
+  echo "USERNAME: $username"
+  echo "USER_PASSWORD: $user_password"
+  echo "EMAIL: $email"
+  echo "FIRST_NAME: $first_name"
+  echo "LAST_NAME: $last_name"
+  echo "GROUP_NAME: $group_name"
+  echo "BASE_DN: $BASE_DN"
+  echo "LDAP_HOSTNAME: $LDAP_HOSTNAME"
+  echo "Admin Password: $password"
   gid=$(ldapsearch -x -b "ou=groups,$BASE_DN" "cn=$group_name" -D "cn=admin,$BASE_DN" -w ${password} -H ${LDAP_HOSTNAME} -LLL gidNumber | grep 'gidNumber' | grep -Eo '[0-9]+')
   
   echo "Found gidNumber for group '$group_name': $gid"
@@ -32,8 +42,7 @@ EOF
 
   if [[ $? -ne 0 ]]; then
     echo "Failed to create LDAP user: $username"
-    return 1
+    exit 1
   fi
 
   echo "LDAP user $username created successfully!"
-  return 0
