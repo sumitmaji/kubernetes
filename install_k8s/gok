@@ -2057,7 +2057,7 @@ createUser(){
   kubectl apply -f ${MOUNT_PATH}/kubernetes/install_k8s/gokutil/job.yaml
 
   # Wait for the Job to complete
-  kubectl wait --for=condition=complete job/ldap-runtime-job --timeout=300s
+  kubectl wait --for=condition=complete job/gokclient-runtime-job --timeout=300s
 
   # Get the logs from the Job
   kubectl logs job/gokclient-runtime-job -n default
