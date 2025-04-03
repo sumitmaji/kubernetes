@@ -1994,21 +1994,22 @@ updateUserData(){
   LAST_NAME=$5
   GROUP_NAME=$6
 
-  if [[ -z "$USERNAME" || -z "$PASSWORD" || -z "$EMAIL" || -z "$FIRST_NAME" || -z "$LAST_NAME" || -z "$GROUP_NAME" ]]; then
-    echo "Usage: $0 <USERNAME> <PASSWORD> <EMAIL> <FIRST_NAME> <LAST_NAME> <GROUP_NAME>"
-    exit 1
-  fi
+  # Prepare the `kubectl create configmap` command
+  CONFIGMAP_CMD="kubectl create configmap ldap-user-data --namespace=default"
 
-  # Create or update the ConfigMap
-  kubectl create configmap ldap-user-data \
-    --from-literal=USERNAME="$USERNAME" \
-    --from-literal=USER_PASSWORD="$PASSWORD" \
-    --from-literal=EMAIL="$EMAIL" \
-    --from-literal=FIRST_NAME="$FIRST_NAME" \
-    --from-literal=LAST_NAME="$LAST_NAME" \
-    --from-literal=GROUP_NAME="$GROUP_NAME" \
-    --namespace=default \
-    --dry-run=client -o yaml | kubectl apply -f -
+  # Add non-empty parameters to the ConfigMap
+  [[ -n "$USERNAME" ]] && CONFIGMAP_CMD+=" --from-literal=USERNAME=\"$USERNAME\""
+  [[ -n "$PASSWORD" ]] && CONFIGMAP_CMD+=" --from-literal=USER_PASSWORD=\"$PASSWORD\""
+  [[ -n "$EMAIL" ]] && CONFIGMAP_CMD+=" --from-literal=EMAIL=\"$EMAIL\""
+  [[ -n "$FIRST_NAME" ]] && CONFIGMAP_CMD+=" --from-literal=FIRST_NAME=\"$FIRST_NAME\""
+  [[ -n "$LAST_NAME" ]] && CONFIGMAP_CMD+=" --from-literal=LAST_NAME=\"$LAST_NAME\""
+  [[ -n "$GROUP_NAME" ]] && CONFIGMAP_CMD+=" --from-literal=GROUP_NAME=\"$GROUP_NAME\""
+
+  # Add dry-run and apply options
+  CONFIGMAP_CMD+=" --dry-run=client -o yaml | kubectl apply -f -"
+
+  # Execute the command
+  eval "$CONFIGMAP_CMD"
 }
 
 copySecret(){
@@ -2030,7 +2031,7 @@ copySecret(){
 }
 
 # createUserGroup -u skmaji -p sumit -e skm@outlook.com -f Sumit -l Maji -g hadoop -s create_ldap_user.sh
-# createUserGroup -g hadoop -s create_ldap_group.sh
+# createUserGroup -g sqa -s create_ldap_group.sh
 # Function to create an LDAP user
 # Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>
 createUserGroup(){
