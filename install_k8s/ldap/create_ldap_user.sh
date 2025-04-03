@@ -11,6 +11,7 @@
   
   gid=$(ldapsearch -x -b "ou=groups,$BASE_DN" "cn=$group_name" -D "cn=admin,$BASE_DN" -w ${password} -H ${LDAP_HOSTNAME} -LLL gidNumber | grep 'gidNumber' | grep -Eo '[0-9]+')
   
+  echo "Found gidNumber for group '$group_name': $gid"
   # Create the user using ldapadd
   ldapadd -x -D "cn=admin,${BASE_DN}" -w "${password}" <<EOF
 dn: cn=${username},ou=users,${BASE_DN}
@@ -30,9 +31,9 @@ uidnumber: $((RANDOM % 10000 + 1000))
 EOF
 
   if [[ $? -ne 0 ]]; then
-    echoFailed "Failed to create LDAP user: $username"
+    echo "Failed to create LDAP user: $username"
     return 1
   fi
 
-  echoSuccess "LDAP user $username created successfully!"
+  echo "LDAP user $username created successfully!"
   return 0
