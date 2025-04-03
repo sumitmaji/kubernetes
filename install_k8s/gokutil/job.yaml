@@ -10,7 +10,7 @@ spec:
       - name: gokclient-runtime
         image: registry.gokcloud.com/gokclient:latest
         command: ["/bin/bash", "-c"]
-        args: ["chmod +x /scripts/user_script.sh && /scripts/user_script.sh"]
+        args: ["cp /scripts/user_script.sh /tmp/user_script.sh && chmod +x /tmp/user_script.sh && /tmp/user_script.sh"]
         volumeMounts:
         - name: user-script-volume
           mountPath: /scripts
