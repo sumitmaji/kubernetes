@@ -2069,6 +2069,7 @@ createUser(){
     kubectl delete configmap ldap-user-data -n default; 
     kubectl delete configmap user-script -n default; 
     kubectl delete configmap ldap-env-config -n default; 
+    kubectl delete secret ldapsecret -n default;
   } >> /dev/null 2>&1
 }
 
