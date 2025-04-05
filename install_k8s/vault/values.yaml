@@ -23,7 +23,7 @@ server:
     hosts:
       - host: vault.example.com
         paths:
-          - path: /
+          - path: "/"
             pathType: ImplementationSpecific
     tls:
       - secretName: vault-tls
