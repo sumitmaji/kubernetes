@@ -24,3 +24,8 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
+  name: vault-role # Correctly specify the name of the Role
+subjects:
+  - kind: ServiceAccount
+    name: vault
+    namespace: vault
