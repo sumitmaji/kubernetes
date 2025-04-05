@@ -1,0 +1,56 @@
+server:
+  ha:
+    enabled: false
+
+  # Enable persistence
+  dataStorage:
+    enabled: true
+    storageClass: vault-storage
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    existingClaim: vault-pvc
+
+  persistence:
+    enabled: true
+    storageClass: vault-storage
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    existingClaim: vault-pvc
+
+  # Additional configurations for Vault
+  extraEnvironmentVars:
+    VAULT_LOCAL_CONFIG: |
+      {
+        "backend": {
+          "file": {
+            "path": "/vault/data"
+          }
+        },
+        "listener": {
+          "tcp": {
+            "address": "0.0.0.0:8200",
+            "tls_disable": 1
+          }
+        },
+        "ui": true
+      }
+
+ui:
+  enabled: true
+
+# Annotations for the ingress
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: vault.example.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls:
+    - secretName: vault-tls
+      hosts:
+        - vault.example.com
