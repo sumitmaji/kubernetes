@@ -1857,15 +1857,15 @@ vaultInstall() {
   # Install Vault using Helm
   helm install vault hashicorp/vault \
     --namespace vault \
-    --set "server.ha.enabled=false" \
-    --set "server.dataStorage.enabled=true" \
-    --set "server.dataStorage.storageClass=$STORAGE_CLASS_NAME" \
-    --set "server.dataStorage.size=10Gi" \
-    --set "server.persistence.enabled=true" \
-    --set "server.persistence.storageClass=$STORAGE_CLASS_NAME" \
-    --set "server.persistence.size=10Gi" \
     --values $MOUNT_PATH/kubernetes/install_k8s/vault/values.yaml
 
+  gok patch ingress vault vault letsencrypt vault
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Failed to patch Vault ingress with Let's Encrypt!"
+    return 1
+  fi
+  echoSuccess "Vault ingress patched successfully with Let's Encrypt!"
+  echo "Vault installation started. This may take a few minutes..."
   # Wait for Vault pods to be ready
   echo "Waiting for Vault services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace vault
