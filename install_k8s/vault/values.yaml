@@ -1,4 +1,10 @@
 server:
+  extraVolumes:
+    - name: config-volume
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: config-volume
+      mountPath: /vault/config
   ha:
     enabled: false
 
