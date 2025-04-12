@@ -1850,7 +1850,7 @@ vaultInstall() {
   # Create local storage class and persistent volume
   createLocalStorageClassAndPV "$STORAGE_CLASS_NAME" "$PV_NAME" "$VOLUME_PATH"
 
-  kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-k8s-seal-role.yaml
+  # kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-k8s-seal-role.yaml
   # Add HashiCorp Helm repository
   helm repo add hashicorp https://helm.releases.hashicorp.com
   helm repo update
