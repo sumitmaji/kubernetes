@@ -1,13 +1,13 @@
 server:
-  extraConfig: |
-    seal "kubernetes" {
-      mount_path = "/var/run/secrets/kubernetes.io/serviceaccount"
-      role       = "vault-role"
-    }
-  extraEnvironmentVars:
-    VAULT_SEAL_TYPE: "kubernetes"
-    VAULT_SEAL_K8S_MOUNT_PATH: "/var/run/secrets/kubernetes.io/serviceaccount"
-    VAULT_SEAL_K8S_ROLE: "vault-role"
+  # extraConfig: |
+  #   seal "kubernetes" {
+  #     mount_path = "/var/run/secrets/kubernetes.io/serviceaccount"
+  #     role       = "vault-role"
+  #   }
+  # extraEnvironmentVars:
+  #   VAULT_SEAL_TYPE: "kubernetes"
+  #   VAULT_SEAL_K8S_MOUNT_PATH: "/var/run/secrets/kubernetes.io/serviceaccount"
+  #   VAULT_SEAL_K8S_ROLE: "vault-role"
 
   ha:
     enabled: false
