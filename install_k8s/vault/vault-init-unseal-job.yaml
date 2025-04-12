@@ -9,7 +9,7 @@ spec:
       serviceAccountName: vault
       containers:
         - name: vault-init
-          image: registry.gokcloud.com/gokclient:latest
+          image: registry.gokcloud.com/vault-with-tools:latest
           command:
             - /bin/sh
             - -c
