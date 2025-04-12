@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/vault-with-tools
+REGISTRY=master.cloud.com:5000
+REPO_NAME=vault-with-tools
+CONTAINER_NAME=vault-with-tools
+BUILD_PATH=/tmp
+RELEASE_NAME=vault-with-tools
+PATH_TO_CHART=chart
+DEPLOY=true

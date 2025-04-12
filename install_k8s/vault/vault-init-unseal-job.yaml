@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-init-unseal
+  namespace: vault
+spec:
+  template:
+    spec:
+      serviceAccountName: vault
+      containers:
+        - name: vault-init
+          image: registry.gokcloud.com/vault-with-tools:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Set Vault address
+              export VAULT_ADDR=http://vault.vault.svc.cloud.uat:8200
+
+              # Check if Vault is already initialized
+              if vault status | grep -q "Initialized.*true"; then
+                echo "Vault is already initialized."
+              else
+                echo "Initializing Vault..."
+                vault operator init -format=json > /tmp/vault-init.json
+
+                echo "Saving unseal keys and root token to Kubernetes Secret..."
+                kubectl create secret generic vault-init-keys \
+                  --namespace vault \
+                  --from-file=/tmp/vault-init.json
+              fi
+
+              # Unseal Vault
+              echo "Unsealing Vault..."
+              for key in $(jq -r '.unseal_keys_b64[]' /tmp/vault-init.json); do
+                vault operator unseal $key
+              done
+
+              echo "Vault is initialized and unsealed."
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.vault.svc.cloud.uat:8200"
+      restartPolicy: OnFailure
