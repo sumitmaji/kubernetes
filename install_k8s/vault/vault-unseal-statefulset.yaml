@@ -8,7 +8,7 @@ spec:
     spec:
       initContainers:
         - name: vault-unseal
-          image: hashicorp/vault:1.12.0
+          image: registry.gokcloud.com/vault-with-tools:latest
           command:
             - /bin/sh
             - -c
