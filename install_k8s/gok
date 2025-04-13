@@ -43,6 +43,7 @@ export LETS_ENCRYPT_ENV=staging
 export REGISTRY=registry
 export KEYCLOAK=keycloak
 export SPINNAKER=spinnaker
+export VAULT=vault
 export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
@@ -95,6 +96,10 @@ fullRegistryUrl(){
 
 fullKeycloakUrl(){
   echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+fullVaultUrl(){
+  echo "${VAULT}.${GOK_ROOT_DOMAIN}"
 }
 
 fullSpinnakerUrl(){
@@ -1838,7 +1843,19 @@ opensearchSecret(){
     --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n kube-system
 }
 
+csiDriverInstall(){
+  helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 
+  helm repo update
+  helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver --namespace kube-system 
+
+}
+
+csiDriverUnInstall(){
+  helm uninstall csi-secrets-store --namespace kube-system
+}
+
 vaultInstall() {
+  csiDriverInstall
   # Create namespace for Vault
   kubectl create namespace vault
 
@@ -1882,9 +1899,25 @@ vaultInstall() {
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace vault
   if [[ $? -eq 0 ]]; then
     echoSuccess "Vault services are now up!"
+    echoSuccess "Vault installation completed!"
+    echoSuccess "You can access Vault at: https://$(fullVaultUrl)"
+
+    ROOT_TOKEN=$(kubectl get secret vault-init-keys -n vault -o json | jq -r '.data["vault-init.json"]' | base64 -d | jq -r '.root_token')
+    kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN}
+
+    kubectl exec -it vault-0 -n vault -- vault auth enable kubernetes
+
+    TOKEN=$(kubectl exec -it vault-0 -n vault -- cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+    kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/config \
+      token_reviewer_jwt="$TOKEN" \
+      kubernetes_host="https://master.cloud.com" \
+      kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    
   else
     echoFailed "Vault services timed-out, please check!"
   fi
+
 }
 
 vaultReset() {
@@ -1899,6 +1932,8 @@ vaultReset() {
 
   # Delete the Vault namespace
   kubectl delete ns vault
+
+  csiDriverUnInstall
 
   # Provide feedback to the user
   echo "Vault has been reset successfully!"
