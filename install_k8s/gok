@@ -1871,12 +1871,25 @@ cleanExampleSecretStoreInVault(){
 cleanDockerRegistrySecretStoreInVault(){
   kubectl delete pod docker-registry-secret-pod -n default
   kubectl delete secretproviderclass docker-registry-secret-provider -n default
-  
+  kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/my-role
+  kubectl exec -it vault-0 -n vault -- vault policy delete my-policy  
 }
 
 exampleSecretStoreInVaule(){
   vaultLogin
   kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
+
+  kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/my-role \
+    bound_service_account_names=default \
+    bound_service_account_namespaces=default \
+    policies=my-policy \
+    ttl=24h
+
+  kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
+path "secret/data/my-secret" {
+  capabilities = ["read"]
+}
+EOF
 
   cat <<EOF | kubectl apply -f -
 apiVersion: secrets-store.csi.x-k8s.io/v1
