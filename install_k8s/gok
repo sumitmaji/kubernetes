@@ -1866,13 +1866,14 @@ cleanExampleSecretStoreInVault(){
 
   vaultLogin
   kubectl exec -it vault-0 -n vault -- vault kv delete secret/my-secret
+  kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/my-role
+  kubectl exec -it vault-0 -n vault -- vault policy delete my-policy  
 }
 
 cleanDockerRegistrySecretStoreInVault(){
   kubectl delete pod docker-registry-secret-pod -n default
   kubectl delete secretproviderclass docker-registry-secret-provider -n default
-  kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/my-role
-  kubectl exec -it vault-0 -n vault -- vault policy delete my-policy  
+  
 }
 
 exampleSecretStoreInVaule(){
