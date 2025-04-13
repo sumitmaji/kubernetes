@@ -1872,7 +1872,7 @@ metadata:
 spec:
   provider: vault
   parameters:
-    vaultAddress: "https://vault.vault.svc.cloud.uat"  
+    vaultAddress: "https://vault.gokcloud.com"  
     roleName: "my-role"                      
     objects: |
       - objectName: "my-secret"
