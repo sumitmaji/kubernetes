@@ -1,0 +1,44 @@
+server:
+  # extraConfig: |
+  #   seal "kubernetes" {
+  #     mount_path = "/var/run/secrets/kubernetes.io/serviceaccount"
+  #     role       = "vault-role"
+  #   }
+  # extraEnvironmentVars:
+  #   VAULT_SEAL_TYPE: "kubernetes"
+  #   VAULT_SEAL_K8S_MOUNT_PATH: "/var/run/secrets/kubernetes.io/serviceaccount"
+  #   VAULT_SEAL_K8S_ROLE: "vault-role"
+
+  ha:
+    enabled: false
+
+  # Enable persistence
+  dataStorage:
+    enabled: true
+    storageClass: vault-storage
+    accessModes:
+    - ReadWriteOnce
+    size: 10Gi
+    existingClaim: vault-pvc
+    mountPath: /vault/data
+
+  auditStorage:
+    enabled: false
+
+  # Annotations for the ingress
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    pathType: ImplementationSpecific
+    hosts:
+    - host: vault.example.com
+      paths:
+      - /      
+    tls:
+    - secretName: vault-tls
+      hosts:
+        - vault.example.com
+
+ui:
+  enabled: true
+
