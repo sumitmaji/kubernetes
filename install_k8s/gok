@@ -1889,7 +1889,8 @@ spec:
   parameters:
     vaultAddress: "https://vault.gokcloud.com"  
     roleName: "my-role"  
-    skipVerify: "true"                    
+    skipVerify: "true"   
+    vaultSkipTLSVerify: "true"                 
     objects: |
       - objectName: "my-secret"
         objectType: "kv"
