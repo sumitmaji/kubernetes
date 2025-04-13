@@ -32,7 +32,7 @@ spec:
 
               # Unseal Vault
               echo "Unsealing Vault..."
-              for key in $(jq -r '.unseal_keys_b64[]' /tmp/vault-init.json); do
+              for key in $(/usr/bin/jq -r '.unseal_keys_b64[]' /tmp/vault-init.json); do
                 vault operator unseal $key
               done
 
