@@ -1859,6 +1859,21 @@ vaultLogin(){
   kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN}
 }
 
+cleanExampleSecretStoreInVault(){
+  kubectl delete pod vault-secret-pod -n default
+  kubectl delete secretproviderclass vault-secret-provider -n default
+  kubectl delete secret my-k8s-secret -n default >/dev/null 2>&1
+
+  vaultLogin
+  kubectl exec -it vault-0 -n vault -- vault kv delete secret/my-secret
+}
+
+cleanDockerRegistrySecretStoreInVault(){
+  kubectl delete pod docker-registry-secret-pod -n default
+  kubectl delete secretproviderclass docker-registry-secret-provider -n default
+  
+}
+
 exampleSecretStoreInVaule(){
   vaultLogin
   kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
