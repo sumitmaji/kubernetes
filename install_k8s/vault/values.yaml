@@ -42,3 +42,5 @@ server:
 ui:
   enabled: true
 
+csi:
+  enabled: true

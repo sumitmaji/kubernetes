@@ -1914,6 +1914,8 @@ vaultInstall() {
       kubernetes_host="https://master.cloud.com" \
       kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     
+    kubectl exec -it vault-0 -n vault -- vault secrets enable -path=secret kv
+    
   else
     echoFailed "Vault services timed-out, please check!"
   fi
