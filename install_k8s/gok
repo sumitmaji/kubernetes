@@ -1854,6 +1854,104 @@ csiDriverUnInstall(){
   helm uninstall csi-secrets-store --namespace kube-system
 }
 
+vaultLogin(){
+  ROOT_TOKEN=$(kubectl get secret vault-init-keys -n vault -o json | jq -r '.data["vault-init.json"]' | base64 -d | jq -r '.root_token')
+  kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN}
+}
+
+exampleSecretStoreInVaule(){
+  vaultLogin
+  kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: vault-secret-provider
+  namespace: default
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "https://vault.vault.svc.cloud.uat"  
+    roleName: "my-role"                      
+    objects: |
+      - objectName: "my-secret"
+        objectType: "kv"
+        objectVersion: ""
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault-secret-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: busybox
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: secrets-store-inline
+      mountPath: "/mnt/secrets-store"  # Path where the secret will be mounted
+      readOnly: true
+  volumes:
+  - name: secrets-store-inline
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "vault-secret-provider"
+EOF
+
+}
+
+dockerRegistrySecretStoreInVault(){
+  vaultLogin
+  kubectl exec -it vault-0 -n vault -- vault kv put secret/docker-registry \
+    server="https://index.docker.io/v1/" \
+    username="my-username" \
+    password="my-password" \
+    email="my-email@example.com"
+
+  kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/docker-registry-role \
+    bound_service_account_names=my-service-account \
+    bound_service_account_namespaces=default \
+    policies=docker-registry-policy \
+    ttl=24h
+
+  kubectl exec -i vault-0 -n vault -- vault policy write docker-registry-policy - <<EOF
+path "secret/data/docker-registry" {
+  capabilities = ["read"]
+}
+EOF
+
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: docker-registry-secret-provider
+  namespace: default
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "https://vault.vault.svc.cloud.uat"
+    roleName: "docker-registry-role"
+    objects: |
+      - objectName: "docker-registry"
+        objectType: "kv"
+        objectVersion: ""
+  secretObjects:          
+    - secretName: docker-registry-secret
+      type: kubernetes.io/dockerconfigjson
+      data:
+        - objectName: "docker-registry"
+          key: ".dockerconfigjson"
+EOF
+
+}
+
 vaultInstall() {
   csiDriverInstall
   # Create namespace for Vault
@@ -1918,8 +2016,7 @@ vaultInstall() {
     echoSuccess "Vault installation completed!"
     echoSuccess "You can access Vault at: https://$(fullVaultUrl)"
 
-    ROOT_TOKEN=$(kubectl get secret vault-init-keys -n vault -o json | jq -r '.data["vault-init.json"]' | base64 -d | jq -r '.root_token')
-    kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN}
+    vaultLogin
 
     kubectl exec -it vault-0 -n vault -- vault auth enable kubernetes
 
