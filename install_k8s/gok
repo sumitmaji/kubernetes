@@ -1923,7 +1923,7 @@ spec:
     objects: |
       - objectName: "my-secret"
         objectType: "kv"
-        secretPath: "secret/data/my-secret"
+        secretPath: "secret/my-secret"
         objectVersion: ""
 EOF
 
