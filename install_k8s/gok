@@ -1876,6 +1876,13 @@ cleanDockerRegistrySecretStoreInVault(){
   
 }
 
+debugVault(){
+  push $MOUNT_PATH/kubernetes/install_k8s/vault
+  chmod +x *.sh
+  ./debug-vault.sh
+  popd
+}
+
 exampleSecretStoreInVaule(){
   vaultLogin
   kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
