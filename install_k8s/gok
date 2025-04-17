@@ -2062,6 +2062,10 @@ vaultInstall() {
     echoSuccess "Vault installation completed!"
     echoSuccess "You can access Vault at: https://$(fullVaultUrl)"
 
+    kubectl create clusterrolebinding vault-auth-delegator \
+      --clusterrole=system:auth-delegator \
+      --serviceaccount=vault:vault
+
     vaultLogin
 
     kubectl exec -it vault-0 -n vault -- vault auth enable kubernetes
@@ -2095,6 +2099,8 @@ vaultReset() {
   kubectl delete ns vault
 
   csiDriverUnInstall
+
+  kubectl delete clusterrolebinding vault-auth-delegator
 
   # Provide feedback to the user
   echo "Vault has been reset successfully!"
