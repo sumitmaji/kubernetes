@@ -1877,7 +1877,7 @@ cleanDockerRegistrySecretStoreInVault(){
 }
 
 debugVault(){
-  push $MOUNT_PATH/kubernetes/install_k8s/vault
+  pushd $MOUNT_PATH/kubernetes/install_k8s/vault
   chmod +x *.sh
   ./debug-vault.sh
   popd
