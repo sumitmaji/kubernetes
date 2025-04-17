@@ -1868,6 +1868,7 @@ cleanExampleSecretStoreInVault(){
   kubectl exec -it vault-0 -n vault -- vault kv delete secret/my-secret
   kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/my-role
   kubectl exec -it vault-0 -n vault -- vault policy delete my-policy  
+  kubectl delete SecretProviderClass -n default vault-secret-provider
 }
 
 cleanDockerRegistrySecretStoreInVault(){
@@ -1894,18 +1895,18 @@ exampleSecretStoreInVaule(){
     ttl=24h
 
   # For K/V v2 secrets engine
-  kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
-path "secret/data/my-secret" {
-  capabilities = ["read", "list"]
-}
-EOF
-
-  # For K/V v1 secrets engine
 #   kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
-# path "secret/my-secret" {
+# path "secret/data/my-secret" {
 #   capabilities = ["read", "list"]
 # }
 # EOF
+
+  # For K/V v1 secrets engine
+  kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
+path "secret/my-secret" {
+  capabilities = ["read", "list"]
+}
+EOF
 
   cat <<EOF | kubectl apply -f -
 apiVersion: secrets-store.csi.x-k8s.io/v1
