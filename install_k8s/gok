@@ -1893,9 +1893,17 @@ exampleSecretStoreInVaule(){
     policies=my-policy \
     ttl=24h
 
+  # For K/V v2 secrets engine
   kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
 path "secret/data/my-secret" {
-  capabilities = ["read"]
+  capabilities = ["read", "list"]
+}
+EOF
+
+  # For K/V v1 secrets engine
+  kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
+path "secret/my-secret" {
+  capabilities = ["read", "list"]
 }
 EOF
 
