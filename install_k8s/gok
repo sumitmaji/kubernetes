@@ -1901,11 +1901,11 @@ path "secret/data/my-secret" {
 EOF
 
   # For K/V v1 secrets engine
-  kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
-path "secret/my-secret" {
-  capabilities = ["read", "list"]
-}
-EOF
+#   kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
+# path "secret/my-secret" {
+#   capabilities = ["read", "list"]
+# }
+# EOF
 
   cat <<EOF | kubectl apply -f -
 apiVersion: secrets-store.csi.x-k8s.io/v1
@@ -1923,6 +1923,7 @@ spec:
     objects: |
       - objectName: "my-secret"
         objectType: "kv"
+        secretPath: "secret/data/my-secret"
         objectVersion: ""
 EOF
 
