@@ -19,11 +19,18 @@ print_header() {
 source ../gok
 vaultLogin
 print_header "Creating policy and role in Vault..."
+
+kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password" || {
+  echo "Error: Could not create secret in Vault."
+  exit 1
+}
+
 kubectl exec -i vault-0 -n vault -- vault policy write "$VAULT_POLICY" - <<EOF
 path "$SECRET_PATH" {
   capabilities = ["read", "list"]
 }
 EOF
+
 kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/"$VAULT_ROLE" \
   bound_service_account_names="$SERVICE_ACCOUNT" \
   bound_service_account_namespaces="$VAULT_NAMESPACE" \
@@ -124,6 +131,44 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 echo "Secret '$SECRET_PATH' exists in Vault."
+
+
+print_header "Step 5: Testing Authentication with Vault"
+echo "Retrieving service account token from the Vault pod..."
+TOKEN=$(kubectl exec -it "$VAULT_POD" -n "$VAULT_NAMESPACE" -- cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null)
+if [ -z "$TOKEN" ]; then
+  echo "Error: Could not retrieve service account token from the Vault pod."
+  exit 1
+fi
+
+echo "Testing authentication with Vault..."
+AUTH_RESPONSE=$(curl --silent --request POST --data '{"jwt": "'"$TOKEN"'", "role": "'"$VAULT_ROLE"'"}' "$VAULT_ADDR/v1/auth/kubernetes/login")
+if echo "$AUTH_RESPONSE" | grep -q '"errors"'; then
+  echo "Error: Authentication with Vault failed."
+  echo "Response: $AUTH_RESPONSE"
+  exit 1
+fi
+CLIENT_TOKEN=$(echo "$AUTH_RESPONSE" | jq -r '.auth.client_token')
+echo "Authentication successful. Client Token: $CLIENT_TOKEN"
+
+# 6. Test Reading the Secret
+print_header "Step 6: Testing Secret Access"
+SECRET_RESPONSE=$(curl --silent --header "X-Vault-Token: $CLIENT_TOKEN" "$VAULT_ADDR/v1/$SECRET_PATH")
+if echo "$SECRET_RESPONSE" | grep -q '"errors"'; then
+  echo "Error: Failed to read secret from Vault."
+  echo "Response: $SECRET_RESPONSE"
+  exit 1
+fi
+echo "Secret retrieved successfully: $SECRET_RESPONSE"
+
+kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/$VAULT_ROLE || {
+  echo "Error: Could not delete role in Vault."
+  exit 1
+}
+kubectl exec -it vault-0 -n vault -- vault policy delete $VAULT_POLICY || {
+  echo "Error: Could not delete policy in Vault."
+  exit 1
+}
 
 # Final Success Message
 print_header "All Checks Passed"
