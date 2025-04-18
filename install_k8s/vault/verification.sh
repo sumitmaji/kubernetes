@@ -8,6 +8,7 @@ VAULT_POLICY="my-vault-policy"  # Name of the Vault policy to verify
 SECRET_PATH="secret/my-secret"  # Path to the secret in Vault
 KUBERNETES_API_SERVER="https://11.0.0.1:6643"  # Replace with your Kubernetes API server URL
 SERVICE_ACCOUNT=vault
+VAULT_ADDR="https://vault.gokcloud.com"  # Vault server address
 
 # Function to print a header
 print_header() {
@@ -39,6 +40,12 @@ kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/"$VAULT_ROL
   echo "Error: Could not create role in Vault."
   exit 1
 }
+
+# Ensure VAULT_ADDR is set
+if [ -z "$VAULT_ADDR" ]; then
+  echo "Error: VAULT_ADDR is not set. Please set the Vault address and try again."
+  exit 1
+fi
 
 # 1. Verify Vault Policy
 print_header "Step 1: Verifying Vault Policy"
@@ -131,7 +138,6 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 echo "Secret '$SECRET_PATH' exists in Vault."
-
 
 print_header "Step 5: Testing Authentication with Vault"
 echo "Retrieving service account token from the Vault pod..."
