@@ -1883,6 +1883,13 @@ verifyVault(){
   popd
 }
 
+verifyCertManater(){
+  pushd $MOUNT_PATH/kubernetes/install_k8s/scripts
+  chmod +x *.sh
+  ./verify_cert_manager.sh
+  popd
+}
+
 debugVault(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/vault
   chmod +x *.sh
