@@ -163,30 +163,27 @@ Application would be accessible in https://master.cloud.com:32028/hlw
 # Installing components
 1. [`Ingress Controller`](install_k8s/ingress/README.md)
 2. [`Cert Manager`](install_k8s/cert-manager/README.md)
-3. [`Keycloak`](install_k8s/keycloak/README.md)
-4. [`Registry`](install_k8s/registry/README.md)
-5. [`Vault`](install_k8s/vault/README.md)
-6. [`Ldap`](install_k8s/ldap/README.md)
-7. [`Keycloak`](install_k8s/keycloak/README.md)
-8. `Kyverno`
-9. [`OAuth`](install_k8s/oauth2-proxy/README.md)
-10. [`Kubernetes Dashboard`](install_k8s/dashboard/README.md)
-11. [`Spinnaer`](install_k8s/spinnaker/README.md)
-12. [`Jenkins`](install_k8s/jenkins)
-13. [`Istio`](install_k8s/istio/README.md)
-14. [`Opensearch`](install_k8s/opensearch/README.md)
-15. [`Prometheus-Grafana`](install_k8s/prometheus-grafana/README.md)
-16. [`Fluentd`](install_k8s/fluentd/README.md)
-17. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
-18. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh): [`Githook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook),
-    [`Dockerhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook),[`Reghook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
-
-19. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
-20. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldap)
-21. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos)
-22. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient1)
-23. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient2)
-
+3. [`Registry`](install_k8s/registry/README.md)
+4. [`Vault`](install_k8s/vault/README.md)
+5. [`Ldap`](install_k8s/ldap/README.md)
+6. [`Keycloak`](install_k8s/keycloak/README.md)
+7. `Kyverno`
+8. [`OAuth`](install_k8s/oauth2-proxy/README.md)
+9. [`Kubernetes Dashboard`](install_k8s/dashboard/README.md)
+10. [`Spinnaer`](install_k8s/spinnaker/README.md)
+11. [`Jenkins`](install_k8s/jenkins)
+12. [`Istio`](install_k8s/istio/README.md)
+13. [`Opensearch`](install_k8s/opensearch/README.md)
+14. [`Prometheus-Grafana`](install_k8s/prometheus-grafana/README.md)
+15. [`Fluentd`](install_k8s/fluentd/README.md)
+16. [`Kube Login Webhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kube-login)
+17. [`Devops`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/setUp-Devops.sh): [`Githook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/githook),
+  [`Dockerhook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/dockerhook),[`Reghook`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/reghook)
+18. [`Kube Authentication`](https://github.com/sumitmaji/kubeauthentication)
+19. [`Ldap`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldap/run_ldap.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldap)
+20. [`Kerberos`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/kerberos/run_kerberos.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/kerberos)
+21. [`Ldap Client`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient/run_ldapclient.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient1)
+22. [`Ldap Client2`](https://github.com/sumitmaji/kubernetes/blob/master/install_k8s/ldapclient2/run_ldapclient2.sh): [`Link`](https://github.com/sumitmaji/kubernetes/tree/master/install_k8s/ldapclient2)
 
 - Add ca.crt and server.crt file in chrome browser, please refer [link](https://support.globalsign.com/customer/portal/articles/1211541-install-client-digital-certificate---windows-using-chrome) on how to add certificate. Add server.crt in `Other People` tab and ca.crt in `Trusted Root Certificate Authority` tab.
 - Add `ip_address master.cloud.com` to windows host file located in C:\Windows\System32\drivers\etc. e.g. `192.168.1.5 master.cloud.com` >> host file.
