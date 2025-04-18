@@ -7,6 +7,11 @@ VAULT_ROLE="my-role"  # Vault role name
 VAULT_POLICY="my-policy"  # Vault policy name
 VAULT_ADDR="https://vault.gokcloud.com"  # Vault server address
 SECRET_PATH="secret/my-secret"  # Path to the secret in Vault
+SAMPLE_VAULT_POLICY="my-vault-policy"
+SAMPLE_VAULT_ROLE="my-vault-role"
+SAMPLE_SERVICE_ACCOUNT="vault"
+SAMPLE_NAMESPACE="vault"
+
 
 # Function to print a header
 print_header() {
@@ -81,7 +86,36 @@ fi
 
 
 # 6. Manually Test Authentication with Vault
-print_header "Step 5: Testing Authentication with Vault"
+print_header "Step 6: Testing Authentication with Vault"
+echo "Creating policy and role in Vault..."
+kubectl exec -it vault-0 -n vault -- vault policy write "$SAMPLE_VAULT_POLICY" - <<EOF
+path "$SECRET_PATH" {
+  capabilities = ["read", "list"]
+}
+EOF
+kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$SAMPLE_VAULT_POLICY" \
+  bound_service_account_names="$SAMPLE_SERVICE_ACCOUNT" \
+  bound_service_account_namespaces="$SAMPLE_NAMESPACE" \
+  policies="$VAULT_POLICY" \
+  ttl=1h || {
+  echo "Error: Could not create role in Vault."
+  exit 1
+}
+echo "Verifying role creation..."
+kubectl exec -it vault-0 -n vault -- vault read auth/kubernetes/role/"$SAMPLE_VAULT_ROLE" || {
+  echo "Error: Vault role $SAMPLE_VAULT_ROLE not found."
+  exit 1
+}
+echo "Verifying policy creation..."
+kubectl exec -it vault-0 -n vault -- vault policy read "$SAMPLE_VAULT_POLICY" || {
+  echo "Error: Vault policy $SAMPLE_VAULT_POLICY not found."
+  exit 1
+}
+echo "Verifying Kubernetes authentication configuration in Vault..."
+kubectl exec -it vault-0 -n vault -- vault read auth/kubernetes/config || {
+  echo "Error: Kubernetes authentication configuration in Vault is invalid."
+  exit 1
+}
 echo "Retrieving service account token from the Vault pod..."
 TOKEN=$(kubectl exec -it vault-0 -n vault -- cat /var/run/secrets/kubernetes.io/serviceaccount/token 2>/dev/null)
 if [ -z "$TOKEN" ]; then
@@ -90,7 +124,7 @@ if [ -z "$TOKEN" ]; then
 fi
 
 echo "Testing authentication with Vault..."
-AUTH_RESPONSE=$(curl --silent --request POST --data '{"jwt": "'"$TOKEN"'", "role": "'"$VAULT_ROLE"'"}' "$VAULT_ADDR/v1/auth/kubernetes/login")
+AUTH_RESPONSE=$(curl --silent --request POST --data '{"jwt": "'"$TOKEN"'", "role": "'"$SAMPLE_VAULT_ROLE"'"}' "$VAULT_ADDR/v1/auth/kubernetes/login")
 if echo "$AUTH_RESPONSE" | grep -q '"errors"'; then
   echo "Error: Authentication with Vault failed."
   echo "Response: $AUTH_RESPONSE"
@@ -108,7 +142,23 @@ if echo "$SECRET_RESPONSE" | grep -q '"errors"'; then
   exit 1
 fi
 echo "Secret retrieved successfully: $SECRET_RESPONSE"
+kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/$SAMPLE_VAULT_ROLE || {
+  echo "Error: Could not delete role in Vault."
+  exit 1
+}
+kubectl exec -it vault-0 -n vault -- vault policy delete $SAMPLE_VAULT_POLICY || {
+  echo "Error: Could not delete policy in Vault."
+  exit 1
+}
 
+kubectl exec -it vault-0 -n vault -- vault list auth/kubernetes/role || {
+  echo "Error: Could not list roles in Vault."
+  exit 1
+}
+kubectl exec -it vault-0 -n vault -- vault policy list || {
+  echo "Error: Could not list policies in Vault."
+  exit 1
+}
 
 # 8. Check Secrets Store CSI Driver Logs
 print_header "Step 7: Checking Secrets Store CSI Driver Logs"
