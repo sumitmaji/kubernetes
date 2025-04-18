@@ -65,15 +65,40 @@ This document provides step-by-step instructions for installing Keycloak with Le
      ```
 
 7. **LDAP Integration (Optional)**
-   - Ensure the LDAP service is running.
-   - Run the user federation script:
-     ```bash
-     ./run_user_federation.sh <ADMIN_ID> <ADMIN_PWD> <LDAP_USER>
-     ```
-   - Run the Keycloak groups creation script:
-     ```bash
-     ./run_keycloak_groups.sh <ADMIN_ID> <ADMIN_PWD>
-     ```
+
+### Setup User Federation
+- The `setup_user_federation.sh` script configures LDAP user federation in Keycloak.
+- It performs the following tasks:
+  - Connects Keycloak to the LDAP server using the provided credentials.
+  - Configures LDAP connection settings such as `connectionUrl`, `bindDn`, and `usersDn`.
+  - Sets up synchronization options like `importEnabled` and `syncRegistrations`.
+- Usage:
+  ```bash
+  ./setup_user_federation.sh <ADMIN_USERNAME> <ADMIN_PASSWORD> <LDAP_BIND_CREDENTIAL>
+  ```
+  - Replace `<ADMIN_USERNAME>` and `<ADMIN_PASSWORD>` with the Keycloak admin credentials.
+  - Replace `<LDAP_BIND_CREDENTIAL>` with the LDAP bind password.
+
+### Setup Group Mapper
+- The `setup_group_mappers.sh` script configures the LDAP group mapper in Keycloak.
+- It performs the following tasks:
+  - Maps LDAP groups to Keycloak groups.
+  - Configures attributes like `membership.ldap.attribute`, `group.name.ldap.attribute`, and `group.object.classes`.
+  - Ensures LDAP groups are synchronized with Keycloak.
+- Usage:
+  ```bash
+  ./setup_group_mappers.sh <ADMIN_USERNAME> <ADMIN_PASSWORD>
+  ```
+  - Replace `<ADMIN_USERNAME>` and `<ADMIN_PASSWORD>` with the Keycloak admin credentials.
+
+- Run the user federation script:
+  ```bash
+  ./run_user_federation.sh <ADMIN_ID> <ADMIN_PWD> <LDAP_USER>
+  ```
+- Run the Keycloak groups creation script:
+  ```bash
+  ./run_keycloak_groups.sh <ADMIN_ID> <ADMIN_PWD>
+  ```
 
 ## Access Keycloak
 
