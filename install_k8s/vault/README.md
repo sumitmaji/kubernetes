@@ -588,4 +588,12 @@ To ensure everything is configured correctly in Vault:
 
 By verifying these components, you can ensure that Vault is correctly configured to authenticate Kubernetes pods and provide access to the required secrets.
 
-Similar code found with 1 license type
+
+# Verify
+Execute below command to verify vault setup
+```bash
+cd $MOUNT_PATH/kubernetes/install_k8s/
+source gok
+verifyVault
+debugVault
+```
