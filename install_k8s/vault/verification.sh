@@ -51,14 +51,14 @@ if [ $? -ne 0 ]; then
 fi
 
 # Check if the policy grants "read" capability on the next line of the secret path
-awk "/$SECRET_PATH/ {getline; if (\$0 ~ /read/) found=1} END {exit !found}" /tmp/vault_policy_output
+awk -v path="$SECRET_PATH" '$0 ~ path {getline; if ($0 ~ /read/) found=1} END {exit !found}' /tmp/vault_policy_output
 if [ $? -ne 0 ]; then
   echo "Error: Vault policy '$VAULT_POLICY' does not grant 'read' capability for the secret path '$SECRET_PATH'."
   exit 1
 fi
 
 # Check if the policy grants "list" capability on the next line of the secret path
-awk "/$SECRET_PATH/ {getline; if (\$0 ~ /list/) found=1} END {exit !found}" /tmp/vault_policy_output
+awk -v path="$SECRET_PATH" '$0 ~ path {getline; if ($0 ~ /list/) found=1} END {exit !found}' /tmp/vault_policy_output
 if [ $? -ne 0 ]; then
   echo "Error: Vault policy '$VAULT_POLICY' does not grant 'list' capability for the secret path '$SECRET_PATH'."
   exit 1
