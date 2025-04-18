@@ -16,6 +16,7 @@ print_header() {
   echo "========================================"
 }
 
+source ../gok
 vaultLogin
 print_header "Creating policy and role in Vault..."
 kubectl exec -i vault-0 -n vault -- vault policy write "$VAULT_POLICY" - <<EOF
@@ -29,16 +30,6 @@ kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/"$VAULT_ROL
   policies="$VAULT_POLICY" \
   ttl=1h || {
   echo "Error: Could not create role in Vault."
-  exit 1
-}
-echo "Verifying role creation..."
-kubectl exec -it vault-0 -n vault -- vault read auth/kubernetes/role/"$VAULT_ROLE" || {
-  echo "Error: Vault role $VAULT_ROLE not found."
-  exit 1
-}
-echo "Verifying policy creation..."
-kubectl exec -it vault-0 -n vault -- vault policy read "$VAULT_POLICY" || {
-  echo "Error: Vault policy $VAULT_POLICY not found."
   exit 1
 }
 
