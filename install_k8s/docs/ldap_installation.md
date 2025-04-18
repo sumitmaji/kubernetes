@@ -49,6 +49,56 @@ This document provides step-by-step instructions for installing LDAP using the `
      https://<ldap-subdomain>.<root-domain>/
      ```
 
+## Bootstrap Script (`bootstrap.sh`)
+
+The `bootstrap.sh` script is used to initialize and configure the LDAP server with Kerberos integration. It performs the following tasks:
+
+1. **Environment Variable Setup**
+   - Reads configuration values from the `/config` file and other sources like `/etc/secret/krb/password` and `/etc/secret/ldap/password`.
+
+2. **DNS and Hostname Configuration**
+   - Updates `/etc/resolv.conf` and `/etc/nsswitch.conf` to configure DNS and hostname resolution.
+
+3. **Kerberos Configuration**
+   - Creates the Kerberos configuration file (`/etc/krb5.conf`) with the necessary realm and database module settings.
+
+4. **LDAP Schema and LDIF Management**
+   - Converts and modifies LDAP schemas (e.g., `kerberos.schema` and `kubernetesToken.schema`) into LDIF format.
+   - Adds the schemas to the LDAP server using `ldapadd`.
+
+5. **LDAP Organizational Units and Groups**
+   - Creates organizational units (`ou=users`, `ou=groups`, `ou=krb5`) and groups (`cn=admins`, `cn=users`) in the LDAP directory.
+
+6. **User and Group Creation**
+   - Uses utility scripts (`createGroup.sh` and `createUser.sh`) to create predefined users and groups.
+
+7. **Kerberos Bind DNs**
+   - Adds Kerberos-specific entries (`cn=kdc-srv`, `cn=adm-srv`) to the LDAP directory.
+
+8. **Kubernetes Token Schema**
+   - Configures and adds the Kubernetes token schema to the LDAP server.
+
+9. **GSSAPI Configuration**
+   - Enables GSSAPI authentication in the SSH server configuration.
+
+10. **Service Initialization**
+    - Starts necessary services like `slapd`, `apache2`, and `nscd`.
+    - Optionally sets up SSL if `ENABLE_SSL` is true.
+
+### Usage
+
+The script is executed automatically during the LDAP server initialization. To run it manually, use:
+
+```bash
+./bootstrap.sh
+```
+
+### Notes
+
+- Ensure the required configuration files and secrets are in place before running the script.
+- The script is idempotent and can be re-run safely if the `/ldap_initialized` file is not present.
+- Modify the script as needed to customize the LDAP and Kerberos setup.
+
 ## Managing Users and Groups
 
 The `createUserGroup` function allows you to create LDAP users and groups dynamically.
