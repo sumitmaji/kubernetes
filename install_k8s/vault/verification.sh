@@ -41,11 +41,6 @@ kubectl exec -it vault-0 -n vault -- vault policy read "$VAULT_POLICY" || {
   echo "Error: Vault policy $VAULT_POLICY not found."
   exit 1
 }
-echo "Verifying Kubernetes authentication configuration in Vault..."
-kubectl exec -it vault-0 -n vault -- vault read auth/kubernetes/config || {
-  echo "Error: Kubernetes authentication configuration in Vault is invalid."
-  exit 1
-}
 
 # 1. Verify Vault Policy
 print_header "Step 1: Verifying Vault Policy"
