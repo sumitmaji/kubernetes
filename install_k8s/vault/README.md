@@ -1,4 +1,6 @@
-# When a secret from HashiCorp Vault is mounted on a Kubernetes pod, the process involves several components working together to securely retrieve the secret from Vault and make it available to the pod. Below is a detailed explanation of how this works:
+# Process of retrieving secret from vault
+
+When a secret from HashiCorp Vault is mounted on a Kubernetes pod, the process involves several components working together to securely retrieve the secret from Vault and make it available to the pod. Below is a detailed explanation of how this works:
 
 ---
 
@@ -411,3 +413,179 @@ These steps are necessary to securely retrieve and mount secrets from Vault into
 - Secrets are dynamically fetched and mounted into pods as needed.
 
 By following these steps, you can ensure secure, scalable, and compliant secret management in Kubernetes.
+
+# Checklist for Policy, Role and Kubernetes authentication configuration
+
+When configuring Vault to work with Kubernetes, it is essential to verify the **policy**, **role**, and **Kubernetes authentication configuration** to ensure everything is set up correctly. Below is a checklist of things to verify for each component:
+
+---
+
+### **1. Vault Policy**
+The policy defines what secrets the authenticated entity (e.g., a pod) can access and what actions it can perform.
+
+#### **Things to Verify**
+1. **Path Configuration**:
+   - Ensure the `path` matches the actual location of the secret in Vault.
+   - For KV v2 secrets, include the `data/` prefix (e.g., `secret/data/my-secret`).
+   - For KV v1 secrets, do not include the `data/` prefix (e.g., `secret/my-secret`).
+
+2. **Capabilities**:
+   - Ensure the policy includes the correct capabilities:
+     - `read`: Allows reading the secret.
+     - `list`: Allows listing secrets (useful for debugging or dynamic secret paths).
+     - `create`, `update`, or `delete`: If required for specific use cases.
+
+3. **Policy Name**:
+   - Ensure the policy name matches the one referenced in the Vault role.
+
+#### **Commands to Verify**
+- View the policy:
+  ```bash
+  vault policy read <policy-name>
+  ```
+- Example output:
+  ```hcl
+  path "secret/data/my-secret" {
+    capabilities = ["read", "list"]
+  }
+  ```
+
+---
+
+### **2. Vault Role**
+The role maps Kubernetes service accounts and namespaces to Vault policies. It ensures that only authorized pods can access specific secrets.
+
+#### **Things to Verify**
+1. **Bound Service Account Names**:
+   - Ensure the `bound_service_account_names` field includes the correct Kubernetes service account(s) that the pod is using.
+
+2. **Bound Service Account Namespaces**:
+   - Ensure the `bound_service_account_namespaces` field includes the correct namespace(s) where the pod is running.
+
+3. **Policies**:
+   - Ensure the `policies` field includes the correct Vault policy name(s) that grant access to the required secrets.
+
+4. **TTL (Time-to-Live)**:
+   - Ensure the `ttl` and `max_ttl` values are appropriate for your use case.
+
+#### **Commands to Verify**
+- View the role:
+  ```bash
+  vault read auth/kubernetes/role/<role-name>
+  ```
+- Example output:
+  ```
+  Key                                 Value
+  ---                                 -----
+  bound_service_account_names         [vault-auth]
+  bound_service_account_namespaces    [default]
+  policies                            [my-policy]
+  ttl                                 24h
+  ```
+
+---
+
+### **3. Kubernetes Authentication Configuration**
+The Kubernetes authentication configuration in Vault allows Vault to validate Kubernetes service account tokens by communicating with the Kubernetes API server.
+
+#### **Things to Verify**
+1. **Kubernetes Host**:
+   - Ensure the `kubernetes_host` field points to the correct Kubernetes API server URL.
+   - Example: `https://<KUBERNETES_API_SERVER>`.
+
+2. **Kubernetes CA Certificate**:
+   - Ensure the `kubernetes_ca_cert` field contains the correct Kubernetes CA certificate.
+   - This is required for Vault to securely communicate with the Kubernetes API server.
+
+3. **Token Reviewer JWT**:
+   - Ensure the `token_reviewer_jwt` is valid and comes from a service account with the `system:auth-delegator` role.
+   - This allows Vault to perform `TokenReview` API calls to validate service account tokens.
+
+4. **Token Reviewer Permissions**:
+   - Ensure the service account used by Vault has the `system:auth-delegator` role bound via a `ClusterRoleBinding`.
+
+#### **Commands to Verify**
+- View the Kubernetes authentication configuration:
+  ```bash
+  vault read auth/kubernetes/config
+  ```
+- Example output:
+  ```
+  Key                                  Value
+  ---                                  -----
+  kubernetes_host                      https://<KUBERNETES_API_SERVER>
+  kubernetes_ca_cert                   -----BEGIN CERTIFICATE-----
+  ...
+  -----END CERTIFICATE-----
+  token_reviewer_jwt_set               true
+  ```
+
+- Verify the `ClusterRoleBinding` for the token reviewer:
+  ```bash
+  kubectl get clusterrolebinding vault-auth-delegator -o yaml
+  ```
+- Example output:
+  ```yaml
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: vault-auth-delegator
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:auth-delegator
+  subjects:
+  - kind: ServiceAccount
+    name: vault
+    namespace: vault
+  ```
+
+---
+
+### **4. Debugging Tips**
+If something is not working as expected, check the following:
+
+#### **Vault Logs**
+- Check the Vault server logs for errors related to Kubernetes authentication or secret access:
+  ```bash
+  kubectl logs vault-0 -n vault
+  ```
+
+#### **Secrets Store CSI Driver Logs**
+- If using the Secrets Store CSI Driver, check its logs for errors:
+  ```bash
+  kubectl logs -n kube-system -l app=secrets-store-csi-driver
+  ```
+
+#### **Test Authentication**
+- Manually test authentication with Vault using the Kubernetes service account token:
+  ```bash
+  TOKEN=$(kubectl exec -it <pod-name> -n <namespace> -- cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+  curl --request POST --data "{\"jwt\": \"$TOKEN\", \"role\": \"<role-name>\"}" https://<VAULT_ADDRESS>/v1/auth/kubernetes/login
+  ```
+
+#### **Verify Secret Access**
+- Test if the authenticated token can access the secret:
+  ```bash
+  vault kv get secret/my-secret
+  ```
+
+---
+
+### **Summary**
+To ensure everything is configured correctly in Vault:
+1. **Policy**:
+   - Verify the secret path and capabilities.
+   - Ensure the policy name matches the one referenced in the role.
+
+2. **Role**:
+   - Verify the bound service account names and namespaces.
+   - Ensure the role references the correct policy.
+
+3. **Kubernetes Authentication Configuration**:
+   - Verify the Kubernetes API server URL and CA certificate.
+   - Ensure the token reviewer JWT is valid and has the necessary permissions.
+
+By verifying these components, you can ensure that Vault is correctly configured to authenticate Kubernetes pods and provide access to the required secrets.
+
+Similar code found with 1 license type

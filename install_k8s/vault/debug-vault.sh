@@ -88,12 +88,12 @@ fi
 # 6. Manually Test Authentication with Vault
 print_header "Step 6: Testing Authentication with Vault"
 echo "Creating policy and role in Vault..."
-kubectl exec -it vault-0 -n vault -- vault policy write "$SAMPLE_VAULT_POLICY" - <<EOF
+kubectl exec -i vault-0 -n vault -- vault policy write "$SAMPLE_VAULT_POLICY" - <<EOF
 path "$SECRET_PATH" {
   capabilities = ["read", "list"]
 }
 EOF
-kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$SAMPLE_VAULT_POLICY" \
+kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/"$SAMPLE_VAULT_POLICY" \
   bound_service_account_names="$SAMPLE_SERVICE_ACCOUNT" \
   bound_service_account_namespaces="$SAMPLE_NAMESPACE" \
   policies="$VAULT_POLICY" \
