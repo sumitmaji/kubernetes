@@ -16,14 +16,14 @@ print_header() {
   echo "========================================"
 }
 
-
+vaultLogin
 print_header "Creating policy and role in Vault..."
 kubectl exec -i vault-0 -n vault -- vault policy write "$VAULT_POLICY" - <<EOF
 path "$SECRET_PATH" {
   capabilities = ["read", "list"]
 }
 EOF
-kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/"$VAULT_POLICY" \
+kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/"$VAULT_ROLE" \
   bound_service_account_names="$SERVICE_ACCOUNT" \
   bound_service_account_namespaces="$VAULT_NAMESPACE" \
   policies="$VAULT_POLICY" \
