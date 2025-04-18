@@ -167,13 +167,18 @@ if echo "$SECRET_RESPONSE" | grep -q '"errors"'; then
 fi
 echo "Secret retrieved successfully: $SECRET_RESPONSE"
 
-kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/$VAULT_ROLE || {
-  echo "Error: Could not delete role in Vault."
-  exit 1
+
+print_header "Step 7: Cleanup - Deleting Role and Policy"
+echo "Deleting Vault role '$VAULT_ROLE'..."
+kubectl exec -it "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault delete auth/kubernetes/role/"$VAULT_ROLE" || {
+    echo "Error: Could not delete role '$VAULT_ROLE' in Vault."
+    exit 1
 }
-kubectl exec -it vault-0 -n vault -- vault policy delete $VAULT_POLICY || {
-  echo "Error: Could not delete policy in Vault."
-  exit 1
+
+echo "Deleting Vault policy '$VAULT_POLICY'..."
+kubectl exec -it "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault policy delete "$VAULT_POLICY" || {
+    echo "Error: Could not delete policy '$VAULT_POLICY' in Vault."
+    exit 1
 }
 
 # Final Success Message
