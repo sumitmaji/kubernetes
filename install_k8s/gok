@@ -43,6 +43,7 @@ export LETS_ENCRYPT_ENV=staging
 export REGISTRY=registry
 export KEYCLOAK=keycloak
 export SPINNAKER=spinnaker
+export VAULT=vault
 export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
@@ -95,6 +96,10 @@ fullRegistryUrl(){
 
 fullKeycloakUrl(){
   echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+fullVaultUrl(){
+  echo "${VAULT}.${GOK_ROOT_DOMAIN}"
 }
 
 fullSpinnakerUrl(){
@@ -1838,7 +1843,171 @@ opensearchSecret(){
     --from-literal=OPENSEARCH_INITIAL_ADMIN_PASSWORD="${ADMIN_PASSWORD}" -n kube-system
 }
 
+csiDriverInstall(){
+  helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts 
+  helm repo update
+  helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver --namespace kube-system 
+
+}
+
+csiDriverUnInstall(){
+  helm uninstall csi-secrets-store --namespace kube-system
+}
+
+vaultLogin(){
+  ROOT_TOKEN=$(kubectl get secret vault-init-keys -n vault -o json | jq -r '.data["vault-init.json"]' | base64 -d | jq -r '.root_token')
+  kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN}
+}
+
+cleanExampleSecretStoreInVault(){
+  kubectl delete pod vault-secret-pod -n default
+  kubectl delete secretproviderclass vault-secret-provider -n default
+  kubectl delete secret my-k8s-secret -n default >/dev/null 2>&1
+
+  vaultLogin
+  kubectl exec -it vault-0 -n vault -- vault kv delete secret/my-secret
+  kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/my-role
+  kubectl exec -it vault-0 -n vault -- vault policy delete my-policy  
+}
+
+cleanDockerRegistrySecretStoreInVault(){
+  kubectl delete pod docker-registry-secret-pod -n default
+  kubectl delete secretproviderclass docker-registry-secret-provider -n default
+  
+}
+
+verifyVault(){
+  pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+  chmod +x *.sh
+  ./verification.sh
+  popd
+}
+
+debugVault(){
+  pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+  chmod +x *.sh
+  ./debug-vault.sh
+  popd
+}
+
+exampleSecretStoreInVaule(){
+  vaultLogin
+  kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
+
+  kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/my-role \
+    bound_service_account_names=default \
+    bound_service_account_namespaces=default \
+    policies=my-policy \
+    ttl=24h
+
+  # For K/V v2 secrets engine
+#   kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
+# path "secret/data/my-secret" {
+#   capabilities = ["read", "list"]
+# }
+# EOF
+
+  # For K/V v1 secrets engine
+  kubectl exec -i vault-0 -n vault -- vault policy write my-policy - <<EOF
+path "secret/my-secret" {
+  capabilities = ["read", "list"]
+}
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: vault-secret-provider
+  namespace: default
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "https://vault.gokcloud.com"  
+    roleName: "my-role"  
+    skipVerify: "true"   
+    vaultSkipTLSVerify: "true"                 
+    objects: |
+      - objectName: "my-secret"
+        objectType: "kv"
+        secretPath: "secret/my-secret"
+        objectVersion: ""
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault-secret-pod
+  namespace: default
+spec:
+  containers:
+  - name: app
+    image: busybox
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: secrets-store-inline
+      mountPath: "/mnt/secrets-store"  # Path where the secret will be mounted
+      readOnly: true
+  volumes:
+  - name: secrets-store-inline
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "vault-secret-provider"
+EOF
+
+}
+
+dockerRegistrySecretStoreInVault(){
+  vaultLogin
+  kubectl exec -it vault-0 -n vault -- vault kv put secret/docker-registry \
+    server="https://index.docker.io/v1/" \
+    username="my-username" \
+    password="my-password" \
+    email="my-email@example.com"
+
+  kubectl exec -i vault-0 -n vault -- vault write auth/kubernetes/role/docker-registry-role \
+    bound_service_account_names=my-service-account \
+    bound_service_account_namespaces=default \
+    policies=docker-registry-policy \
+    ttl=24h
+
+  kubectl exec -i vault-0 -n vault -- vault policy write docker-registry-policy - <<EOF
+path "secret/data/docker-registry" {
+  capabilities = ["read"]
+}
+EOF
+
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: docker-registry-secret-provider
+  namespace: default
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "https://vault.vault.svc.cloud.uat"
+    roleName: "docker-registry-role"
+    objects: |
+      - objectName: "docker-registry"
+        objectType: "kv"
+        objectVersion: ""
+  secretObjects:          
+    - secretName: docker-registry-secret
+      type: kubernetes.io/dockerconfigjson
+      data:
+        - objectName: "docker-registry"
+          key: ".dockerconfigjson"
+EOF
+
+}
+
 vaultInstall() {
+  csiDriverInstall
   # Create namespace for Vault
   kubectl create namespace vault
 
@@ -1876,15 +2045,52 @@ vaultInstall() {
   popd
   kubectl patch serviceaccount vault -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n vault
   kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml
-  kubectl delete -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml
+  
+  # Wait for the Job to complete
+  if kubectl wait --for=condition=complete job.batch/vault-init-unseal -n vault --timeout=30s; then
+    # Check if the Job completed successfully
+    STATUS=$(kubectl get job vault-init-unseal -n vault -o jsonpath='{.status.succeeded}')
+    if [[ "$STATUS" -eq 1 ]]; then
+      echoSuccess "Vault unseal completed successfully."
+      kubectl delete -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml
+    else
+      echoFailed "JVault unsealob did not complete successfully."
+      exit 1  # Return failure
+    fi
+  else
+    echoSuccess "Vault unseal did not complete within the timeout."
+    exit 1  # Return failure
+  fi
+  
   # Wait for Vault pods to be ready
   echo "Waiting for Vault services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace vault
   if [[ $? -eq 0 ]]; then
     echoSuccess "Vault services are now up!"
+    echoSuccess "Vault installation completed!"
+    echoSuccess "You can access Vault at: https://$(fullVaultUrl)"
+
+    kubectl create clusterrolebinding vault-auth-delegator \
+      --clusterrole=system:auth-delegator \
+      --serviceaccount=vault:vault
+
+    vaultLogin
+
+    kubectl exec -it vault-0 -n vault -- vault auth enable kubernetes
+
+    TOKEN=$(kubectl exec -it vault-0 -n vault -- cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+    kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/config \
+      token_reviewer_jwt="$TOKEN" \
+      kubernetes_host="https://11.0.0.1:6643" \
+      kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    
+    kubectl exec -it vault-0 -n vault -- vault secrets enable -path=secret kv
+    
   else
     echoFailed "Vault services timed-out, please check!"
   fi
+
 }
 
 vaultReset() {
@@ -1899,6 +2105,10 @@ vaultReset() {
 
   # Delete the Vault namespace
   kubectl delete ns vault
+
+  csiDriverUnInstall
+
+  kubectl delete clusterrolebinding vault-auth-delegator
 
   # Provide feedback to the user
   echo "Vault has been reset successfully!"

@@ -329,6 +329,7 @@ spin-gate   IN  A   $(getMasterIp)
 kube        IN  A   $(getMasterIp)
 fluentd     IN  A   $(getMasterIp)
 opensearch  IN  A   $(getMasterIp)
+vault       IN  A   $(getMasterIp)
 EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF
