@@ -116,6 +116,125 @@ echo "Reboot the VM to apply changes to CA certificates."
 
 ---
 
+### 9. Install Helm
+The script installs Helm, a package manager for Kubernetes.
+
+```bash
+curl https://baltocdn.com/helm/signing.asc | apt-key add -
+apt-get install apt-transport-https --yes
+echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list
+apt-get update
+apt-get install helm
+helm version --short
+```
+
+---
+
+### 10. Taint Master Node
+The script taints the master node to prevent workloads from being scheduled on it.
+
+```bash
+# Define a function to get the IP address
+getIP() {
+  ifconfig eth1 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://'
+}
+
+# Get the IP address
+IP=$(getIP)
+
+# If IP is empty, try another network interface
+if [ -z "$IP" ]; then
+  IP=$(ifconfig enp1s0.100 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+fi
+
+# If IP is still empty, print an error message and exit
+if [ -z "$IP" ]; then
+  echo "Error: Could not determine IP address"
+  exit 1
+fi
+
+# Get the node name
+JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
+NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
+
+# If node name is empty, print an error message and exit
+if [ -z "$NODE_NAME" ]; then
+  echo "Error: Could not determine node name"
+  exit 1
+fi
+
+# Taint the node
+kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/control-plane:NoSchedule-
+```
+
+---
+
+### 11. Install Calico Networking
+The script installs Calico, a networking and network policy provider for Kubernetes.
+
+```bash
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/calico.yaml
+
+# Check for errors
+if [ $? -ne 0 ]; then
+  echo "Calico installation failed, please check!!!!!"
+  exit 1
+fi
+```
+
+---
+
+### 12. Configure Custom DNS
+The script configures a custom DNS server for the Kubernetes cluster.
+
+```bash
+# Adding custom DNS server
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cloud.uat in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+    cloud.com:53 {
+        errors
+        cache 30
+        forward . ${MASTER_HOST_IP}
+    }
+    gokcloud.com:53 {
+        errors
+        cache 30
+        forward . ${MASTER_HOST_IP}
+    }
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+EOF
+
+# Restart CoreDNS pods to apply the changes
+kubectl delete pod --namespace kube-system -l k8s-app=kube-dns
+```
+
+---
+
 ## Configuration File: `cluster-config-master.yaml`
 
 The `cluster-config-master.yaml` file is used during the initialization of the Kubernetes master node. It contains essential configurations for the cluster, such as API server settings, networking, and control plane parameters. The file is located at:
