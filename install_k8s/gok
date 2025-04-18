@@ -1876,6 +1876,13 @@ cleanDockerRegistrySecretStoreInVault(){
   
 }
 
+verifyVault(){
+  pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+  chmod +x *.sh
+  ./verification.sh
+  popd
+}
+
 debugVault(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/vault
   chmod +x *.sh
