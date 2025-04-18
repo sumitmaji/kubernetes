@@ -2217,25 +2217,25 @@ installKeycloakWithCertMgr(){
 
   if [ "$LDAP_STATUS" -eq 0 ]; then
     echo "LDAP service is not running. Please ensure the LDAP service is up and running before proceeding."
-    exit 1
+    exit 0
   else
     echo "LDAP service is running. Proceeding with user federation creation."
   fi
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
-  ./run_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
+  ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
   if [[ $? -ne 0 ]]; then
     echoFailed "User Federation creation failed, please check the logs!"
     popd
-    return 1
+    exit 1
   fi
   echoSuccess "User Federation created successfully!"
   echo "Creating Keycloak Groups"
-  ./run_keycloak_groups.sh $ADMIN_ID $ADMIN_PWD
+  ./setup_group_mapper.sh $ADMIN_ID $ADMIN_PWD
   if [[ $? -ne 0 ]]; then
     echoFailed "Keycloak Groups creation failed, please check the logs!"
     popd
-    return 1
+    exit 1
   fi
   echoSuccess "Keycloak Groups created successfully!"
   popd
@@ -2315,8 +2315,7 @@ copySecret(){
 
 # createUserGroup -u skmaji -p sumit -e skm@outlook.com -f Sumit -l Maji -g hadoop -s create_ldap_user.sh
 # createUserGroup -g sqa -s create_ldap_group.sh
-# Function to create an LDAP user
-# Usage: createLdapUser <username> <password> <email> <first_name> <last_name> <group_name>
+# Function to create an LDAP user and group
 createUserGroup(){
 
   local script_name=""
