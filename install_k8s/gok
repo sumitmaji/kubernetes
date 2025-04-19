@@ -1897,6 +1897,105 @@ debugVault(){
   popd
 }
 
+createVaultSecretStore() {
+  # Initialize variables
+  SECRET_PATH=""
+  ROLE_NAME=""
+  POLICY_NAME=""
+  SECRET_PROVIDER_CLASS_NAME=""
+  PREFIX=""
+  SECRET_NAME=""
+  NAMESPACE="default"
+  KV_PAIRS=()
+
+  # Parse command-line arguments
+  while getopts "p:r:l:s:x:n:k:" opt; do
+    case $opt in
+      p) SECRET_PATH="$OPTARG" ;; # Secret path in Vault
+      r) ROLE_NAME="$OPTARG" ;; # Role name for Kubernetes authentication
+      l) POLICY_NAME="$OPTARG" ;; # Policy name in Vault
+      s) SECRET_PROVIDER_CLASS_NAME="$OPTARG" ;; # SecretProviderClass name
+      x) PREFIX="$OPTARG" ;; # Prefix for object names
+      n) NAMESPACE="$OPTARG" ;; # Kubernetes namespace (default: default)
+      k) KV_PAIRS+=("$OPTARG") ;; # Key-value pairs for the secret
+      *) 
+        echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> ..."
+        return 1
+        ;;
+    esac
+  done
+
+  # Validate required arguments
+  if [[ -z "$SECRET_PATH" || -z "$ROLE_NAME" || -z "$POLICY_NAME" || -z "$SECRET_PROVIDER_CLASS_NAME" || -z "$PREFIX" || ${#KV_PAIRS[@]} -eq 0 ]]; then
+    echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> ..."
+    return 1
+  fi
+
+  vaultLogin
+
+  # Create the secret in Vault with multiple key-value pairs
+  SECRET_COMMAND="vault kv put $SECRET_PATH"
+  for KV_PAIR in "${KV_PAIRS[@]}"; do
+    SECRET_COMMAND+=" $KV_PAIR"
+  done
+  kubectl exec -it vault-0 -n vault -- $SECRET_COMMAND
+
+  # Create a policy for the secret
+  kubectl exec -i vault-0 -n vault -- vault policy write "$POLICY_NAME" - <<EOF
+path "$SECRET_PATH" {
+  capabilities = ["read", "list"]
+}
+EOF
+
+  # Create a role for Kubernetes authentication
+  kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$ROLE_NAME" \
+    bound_service_account_names=default \
+    bound_service_account_namespaces="$NAMESPACE" \
+    policies="$POLICY_NAME" \
+    ttl=24h
+
+  # Generate the `objects` section dynamically
+  OBJECTS=""
+  for KV_PAIR in "${KV_PAIRS[@]}"; do
+    KEY=$(echo "$KV_PAIR" | cut -d '=' -f 1)
+    OBJECTS+="      - objectName: \"$PREFIX-$KEY\"\n"
+    OBJECTS+="        objectType: \"kv\"\n"
+    OBJECTS+="        secretPath: \"$SECRET_PATH\"\n"
+    OBJECTS+="        secretKey: \"$KEY\"\n"
+    OBJECTS+="        objectVersion: \"\"\n"
+  done
+
+  # Add the `secretObjects` section
+  SECRET_OBJECTS="secretObjects:\n"
+  SECRET_OBJECTS+="  - secretName: ${SECRET_PROVIDER_CLASS_NAME}-secret\n"
+  SECRET_OBJECTS+="    type: Opaque\n"
+  SECRET_OBJECTS+="    data:\n"
+  for KV_PAIR in "${KV_PAIRS[@]}"; do
+    KEY=$(echo "$KV_PAIR" | cut -d '=' -f 1)
+    SECRET_OBJECTS+="      - objectName: \"$PREFIX-$KEY\"\n"
+    SECRET_OBJECTS+="        key: \"$KEY\"\n"
+  done
+
+  # Create a SecretProviderClass
+  cat <<EOF | kubectl apply -f -
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: "$SECRET_PROVIDER_CLASS_NAME"
+  namespace: "$NAMESPACE"
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "https://vault.gokcloud.com"
+    roleName: "$ROLE_NAME"
+    skipVerify: "true"
+    vaultSkipTLSVerify: "true"
+    objects: |
+$OBJECTS
+  $SECRET_OBJECTS
+EOF
+}
+
 exampleSecretStoreInVaule(){
   vaultLogin
   kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
@@ -1935,10 +2034,16 @@ spec:
     skipVerify: "true"   
     vaultSkipTLSVerify: "true"                 
     objects: |
-      - objectName: "my-secret"
+      - objectName: "my-username"
         objectType: "kv"
         secretPath: "secret/my-secret"
         objectVersion: ""
+        secretKey: "username"
+      - objectName: "my-password"
+        objectType: "kv"
+        secretPath: "secret/my-secret"
+        objectVersion: ""
+        secretKey: "password"
 EOF
 
   cat <<EOF | kubectl apply -f -
