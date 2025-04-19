@@ -1899,101 +1899,161 @@ debugVault(){
 
 createVaultSecretStore() {
   # Initialize variables
-  SECRET_PATH=""
-  ROLE_NAME=""
-  POLICY_NAME=""
-  SECRET_PROVIDER_CLASS_NAME=""
-  PREFIX=""
-  SECRET_NAME=""
-  NAMESPACE="default"
-  KV_PAIRS=()
+  local secret_path=""
+  local role_name=""
+  local policy_name=""
+  local secret_provider_class_name=""
+  local prefix=""
+  local namespace="default"
+  local kv_pairs=()
+  local secret_name=""
 
   # Parse command-line arguments
-  while getopts "p:r:l:s:x:n:k:" opt; do
-    case $opt in
-      p) SECRET_PATH="$OPTARG" ;; # Secret path in Vault
-      r) ROLE_NAME="$OPTARG" ;; # Role name for Kubernetes authentication
-      l) POLICY_NAME="$OPTARG" ;; # Policy name in Vault
-      s) SECRET_PROVIDER_CLASS_NAME="$OPTARG" ;; # SecretProviderClass name
-      x) PREFIX="$OPTARG" ;; # Prefix for object names
-      n) NAMESPACE="$OPTARG" ;; # Kubernetes namespace (default: default)
-      k) KV_PAIRS+=("$OPTARG") ;; # Key-value pairs for the secret
-      *) 
-        echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> ..."
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -p|--secret-path)
+        secret_path="$2"
+        shift 2
+        ;;
+      -r|--role-name)
+        role_name="$2"
+        shift 2
+        ;;
+      -l|--policy-name)
+        policy_name="$2"
+        shift 2
+        ;;
+      -s|--secret-provider-class-name)
+        secret_provider_class_name="$2"
+        shift 2
+        ;;
+      -x|--prefix)
+        prefix="$2"
+        shift 2
+        ;;
+      -n|--namespace)
+        namespace="$2"
+        shift 2
+        ;;
+      -k|--key-value)
+        kv_pairs+=("$2")
+        shift 2
+        ;;
+      --secret-name)
+        secret_name="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1"
+        echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> [--secret-name <secret_name>]"
         return 1
         ;;
     esac
   done
 
   # Validate required arguments
-  if [[ -z "$SECRET_PATH" || -z "$ROLE_NAME" || -z "$POLICY_NAME" || -z "$SECRET_PROVIDER_CLASS_NAME" || -z "$PREFIX" || ${#KV_PAIRS[@]} -eq 0 ]]; then
-    echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> ..."
+  if [[ -z "$secret_path" || -z "$role_name" || -z "$policy_name" || -z "$secret_provider_class_name" || -z "$prefix" || ${#kv_pairs[@]} -eq 0 ]]; then
+    echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> [--secret-name <secret_name>]"
     return 1
   fi
+
+  # Default secret name if not provided
+  if [[ -z "$secret_name" ]]; then
+    secret_name="${secret_provider_class_name}-secret"
+  fi
+
+  echo "SECRET_PATH: $secret_path"
+  echo "ROLE_NAME: $role_name"
+  echo "POLICY_NAME: $policy_name"
+  echo "SECRET_PROVIDER_CLASS_NAME: $secret_provider_class_name"
+  echo "PREFIX: $prefix"
+  echo "NAMESPACE: $namespace"
+  echo "KV_PAIRS: ${kv_pairs[*]}"
+  echo "SECRET_NAME: $secret_name"
 
   vaultLogin
 
   # Create the secret in Vault with multiple key-value pairs
-  SECRET_COMMAND="vault kv put $SECRET_PATH"
-  for KV_PAIR in "${KV_PAIRS[@]}"; do
-    SECRET_COMMAND+=" $KV_PAIR"
-  done
-  kubectl exec -it vault-0 -n vault -- $SECRET_COMMAND
+  if kubectl exec -it vault-0 -n vault -- vault kv get "$secret_path" >/dev/null 2>&1; then
+    echo "Secret at path $secret_path already exists in Vault. Skipping creation."
+  else
+    local secret_command="vault kv put $secret_path"
+    for kv_pair in "${kv_pairs[@]}"; do
+      secret_command+=" $kv_pair"
+    done
+    kubectl exec -it vault-0 -n vault -- $secret_command
+  fi
 
   # Create a policy for the secret
-  kubectl exec -i vault-0 -n vault -- vault policy write "$POLICY_NAME" - <<EOF
-path "$SECRET_PATH" {
+  if kubectl exec -it vault-0 -n vault -- vault policy read "$policy_name" >/dev/null 2>&1; then
+    echo "Policy $policy_name already exists in Vault. Skipping creation."
+  else
+    kubectl exec -i vault-0 -n vault -- vault policy write "$policy_name" - <<EOF
+path "$secret_path" {
   capabilities = ["read", "list"]
 }
 EOF
+  fi
 
   # Create a role for Kubernetes authentication
-  kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$ROLE_NAME" \
-    bound_service_account_names=default \
-    bound_service_account_namespaces="$NAMESPACE" \
-    policies="$POLICY_NAME" \
-    ttl=24h
+  if kubectl exec -it vault-0 -n vault -- vault read auth/kubernetes/role/"$role_name" >/dev/null 2>&1; then
+    echo "Role $role_name already exists in Vault. Skipping creation."
+  else
+    kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$role_name" \
+      bound_service_account_names=default \
+      bound_service_account_namespaces="$namespace" \
+      policies="$policy_name" \
+      ttl=24h
+  fi
 
   # Generate the `objects` section dynamically
-  OBJECTS=""
-  for KV_PAIR in "${KV_PAIRS[@]}"; do
-    KEY=$(echo "$KV_PAIR" | cut -d '=' -f 1)
-    OBJECTS+="      - objectName: \"$PREFIX-$KEY\"\n"
-    OBJECTS+="        objectType: \"kv\"\n"
-    OBJECTS+="        secretPath: \"$SECRET_PATH\"\n"
-    OBJECTS+="        secretKey: \"$KEY\"\n"
-    OBJECTS+="        objectVersion: \"\"\n"
+  local objects=""
+  for kv_pair in "${kv_pairs[@]}"; do
+    local key=$(echo "$kv_pair" | cut -d '=' -f 1)
+    objects+="      - objectName: \"$prefix-$key\"\n"
+    objects+="        objectType: \"kv\"\n"
+    objects+="        secretPath: \"$secret_path\"\n"
+    objects+="        secretKey: \"$key\"\n"
+    objects+="        objectVersion: \"\"\n"
   done
 
   # Add the `secretObjects` section
-  SECRET_OBJECTS="secretObjects:\n"
-  SECRET_OBJECTS+="  - secretName: ${SECRET_PROVIDER_CLASS_NAME}-secret\n"
-  SECRET_OBJECTS+="    type: Opaque\n"
-  SECRET_OBJECTS+="    data:\n"
-  for KV_PAIR in "${KV_PAIRS[@]}"; do
-    KEY=$(echo "$KV_PAIR" | cut -d '=' -f 1)
-    SECRET_OBJECTS+="      - objectName: \"$PREFIX-$KEY\"\n"
-    SECRET_OBJECTS+="        key: \"$KEY\"\n"
+  local secret_objects="  secretObjects:\n"
+  secret_objects+="    - secretName: $secret_name\n"
+  secret_objects+="      type: Opaque\n"
+  secret_objects+="      data:\n"
+  for kv_pair in "${kv_pairs[@]}"; do
+    local key=$(echo "$kv_pair" | cut -d '=' -f 1)
+    secret_objects+="        - objectName: \"$prefix-$key\"\n"
+    secret_objects+="          key: \"$key\"\n"
   done
 
-  # Create a SecretProviderClass
-  cat <<EOF | kubectl apply -f -
+  # Generate the YAML for the SecretProviderClass
+  local yaml=$(cat <<EOF
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
 metadata:
-  name: "$SECRET_PROVIDER_CLASS_NAME"
-  namespace: "$NAMESPACE"
+  name: "$secret_provider_class_name"
+  namespace: "$namespace"
 spec:
   provider: vault
   parameters:
     vaultAddress: "https://vault.gokcloud.com"
-    roleName: "$ROLE_NAME"
+    roleName: "$role_name"
     skipVerify: "true"
     vaultSkipTLSVerify: "true"
     objects: |
-$OBJECTS
-  $SECRET_OBJECTS
+$objects
+$secret_objects
 EOF
+)
+
+  # Echo the generated YAML
+  echo "Generated YAML:"
+  printf "$yaml"
+
+  # Apply the YAML
+  printf "$yaml" | kubectl apply -f -
 }
 
 exampleSecretStoreInVaule(){
