@@ -1,4 +1,7 @@
 proxy: edge
+auth:
+  adminUser: sumit
+  adminPassword: sumit
 extraEnvVars:
   - name: KEYCLOAK_LOG_LEVEL
     valueFrom:

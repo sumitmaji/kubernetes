@@ -2144,7 +2144,7 @@ keycloakInst(){
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="user" \
+    --from-literal=KEYCLOAK_ADMIN="sumit" \
     --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
     --from-literal=OAUTH_REALM="${REALM}"  -n keycloak
     #--from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
