@@ -10,14 +10,14 @@ extraEnvVars:
         key: KEYCLOAK_LOG_LEVEL 
 
 #Admin user is "user" and password is fetched from the secret keycloak with key "admin-password"
-  - name: KEYCLOAK_ADMIN
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.annotations['vault.hashicorp.com/agent-inject-secret-ADMIN_USER']
-  - name: KEYCLOAK_ADMIN_PASSWORD
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.annotations['vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD']
+  # - name: KEYCLOAK_ADMIN
+  #   valueFrom:
+  #     fieldRef:
+  #       fieldPath: metadata.annotations['vault.hashicorp.com/agent-inject-secret-ADMIN_USER']
+  # - name: KEYCLOAK_ADMIN_PASSWORD
+  #   valueFrom:
+  #     fieldRef:
+  #       fieldPath: metadata.annotations['vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD']
 ingress:
   ## @param ingress.enabled Enable ingress record generation for Keycloak
   ##
@@ -106,8 +106,8 @@ extraVolumeMounts:
 podAnnotations:
   vault.hashicorp.com/agent-inject: "true"
   vault.hashicorp.com/role: "keycloak-admin-role"
-  vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD: "secret//keycloak/admin"
-  vault.hashicorp.com/agent-inject-secret-ADMIN_USER: "secret//keycloak/admin"
+  vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD: "secret/keycloak/admin"
+  vault.hashicorp.com/agent-inject-secret-ADMIN_USER: "secret/keycloak/admin"
   vault.hashicorp.com/agent-inject-template-ADMIN_PASSWORD: |
     {{`{{- with secret "secret/keycloak/admin" -}}`}}
     {{`{{ .Data.adminPassword }}`}}
