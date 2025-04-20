@@ -89,3 +89,19 @@ postgresql:
   common:
     global:
       storageClass: "keycloak-storage"
+## @param extraVolumes Optionally specify extra list of additional volumes for Keycloak pods
+##
+extraVolumes:
+  - name: secrets-store-inline
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "keycloak-admin-secret-provider"
+
+## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts for Keycloak container(s)
+##
+extraVolumeMounts:
+  - name: secrets-store-inline
+    mountPath: "/mnt/secrets-store"
+    readOnly: true
