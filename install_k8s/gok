@@ -2000,7 +2000,7 @@ EOF
     echo "Role $role_name already exists in Vault. Skipping creation."
   else
     kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$role_name" \
-      bound_service_account_names=default \
+      bound_service_account_names=* \
       bound_service_account_namespaces="$namespace" \
       policies="$policy_name" \
       ttl=24h
