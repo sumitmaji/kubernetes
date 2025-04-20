@@ -1,7 +1,7 @@
 proxy: edge
 auth:
-  adminUser: sumit
-  adminPassword: sumit
+  adminUser: ""
+  adminPassword: ""
 extraEnvVars:
   - name: KEYCLOAK_LOG_LEVEL
     valueFrom:
@@ -10,14 +10,14 @@ extraEnvVars:
         key: KEYCLOAK_LOG_LEVEL 
 
 #Admin user is "user" and password is fetched from the secret keycloak with key "admin-password"
-  # - name: KEYCLOAK_ADMIN
-  #   valueFrom:
-  #     fieldRef:
-  #       fieldPath: metadata.name
-  # - name: KEYCLOAK_ADMIN_PASSWORD
-  #   valueFrom:
-  #     fieldRef:
-  #       fieldPath: metadata.name
+  - name: KEYCLOAK_ADMIN
+    valueFrom:
+      fieldRef:
+        fieldPath: /vault/secrets/admin_user
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      fieldRef:
+        fieldPath: /vault/secrets/admin_password
 
 ingress:
   ## @param ingress.enabled Enable ingress record generation for Keycloak
