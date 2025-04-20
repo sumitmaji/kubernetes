@@ -107,13 +107,13 @@ extraVolumeMounts:
 podAnnotations:
   vault.hashicorp.com/agent-inject: "true"
   vault.hashicorp.com/role: "keycloak-admin-role"
-  vault.hashicorp.com/agent-inject-secret-ADMIN_USER: "secret/data/keycloak/admin"
+  vault.hashicorp.com/agent-inject-secret-ADMIN_USER: "secret/keycloak/admin"
   vault.hashicorp.com/agent-inject-template-ADMIN_USER: |
-    {{- with secret "secret/data/keycloak/admin" -}}
+    {{- with secret "secret/keycloak/admin" -}}
     {{ .Data.data.adminUser }}
     {{- end }}
-  vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD: "secret/data/keycloak/admin"
+  vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD: "secret/keycloak/admin"
   vault.hashicorp.com/agent-inject-template-ADMIN_PASSWORD: |
-    {{- with secret "secret/data/keycloak/admin" -}}
+    {{- with secret "secret/keycloak/admin" -}}
     {{ .Data.data.adminPassword }}
     {{- end }}
