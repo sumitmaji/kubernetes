@@ -2301,6 +2301,7 @@ keycloakInst(){
   #Hence removing the below 2 lines
   #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
   #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
+  kubernetes create ns keycloak
   KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
   KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
   
