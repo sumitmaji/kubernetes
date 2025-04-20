@@ -110,7 +110,7 @@ podAnnotations:
   vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD: "secret//keycloak/admin"
   vault.hashicorp.com/agent-inject-secret-ADMIN_USER: "secret//keycloak/admin"
   vault.hashicorp.com/agent-inject-template-ADMIN_PASSWORD: |
-    {{`{{- with secret "secret//keycloak/admin" -}}`}}
+    {{`{{- with secret "secret/keycloak/admin" -}}`}}
     {{`{{ .Data.adminPassword }}`}}
     {{`{{- end }}`}}
   vault.hashicorp.com/agent-inject-template-ADMIN_USER: |
