@@ -2295,22 +2295,22 @@ keycloakReset(){
   kubectl delete ns keycloak
   kubectl get secret oauth-secrets >/dev/null 2>&1
 
-  vaultLogin
-  kubectl delete secretProviderClass keycloak-admin-secret-provider -n keycloak >/dev/null 2>&1
-  kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/admin
-  kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-admin-role
-  kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-admin-policy
+  # vaultLogin
+  # kubectl delete secretProviderClass keycloak-admin-secret-provider -n keycloak >/dev/null 2>&1
+  # kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/admin
+  # kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-admin-role
+  # kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-admin-policy
 
-  kubectl delete secretProviderClass keycloak-postgresql-secret-provider -n keycloak >/dev/null 2>&1
-  kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/postgresql
-  kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-postgresql-role
-  kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-postgresql-policy
-  kubectl delete secret keycloak-secrets -n keycloak >/dev/null 2>&1
-  kubectl delete secret keycloak-postgresql -n keycloak >/dev/null 2>&1
-  kubectl delete secret keycloak-secrets -n kube-system >/dev/null 2>&1
-  kubectl delete secret keycloak-postgresql -n kube-system >/dev/null 2>&1
-  kubectl delete secret keycloak-secrets -n default >/dev/null 2>&1
-  kubectl delete secret keycloak-postgresql -n default >/dev/null 2>&1
+  # kubectl delete secretProviderClass keycloak-postgresql-secret-provider -n keycloak >/dev/null 2>&1
+  # kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/postgresql
+  # kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-postgresql-role
+  # kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-postgresql-policy
+  # kubectl delete secret keycloak-secrets -n keycloak >/dev/null 2>&1
+  # kubectl delete secret keycloak-postgresql -n keycloak >/dev/null 2>&1
+  # kubectl delete secret keycloak-secrets -n kube-system >/dev/null 2>&1
+  # kubectl delete secret keycloak-postgresql -n kube-system >/dev/null 2>&1
+  # kubectl delete secret keycloak-secrets -n default >/dev/null 2>&1
+  # kubectl delete secret keycloak-postgresql -n default >/dev/null 2>&1
 
 }
 
