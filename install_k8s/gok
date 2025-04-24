@@ -2472,6 +2472,7 @@ installKeycloakWithCertMgr(){
   fi
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
+  chmod +x setup_user_federation.sh setup_group_mapper.sh
   ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
   if [[ $? -ne 0 ]]; then
     echoFailed "User Federation creation failed, please check the logs!"
