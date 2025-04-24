@@ -2323,28 +2323,28 @@ keycloakInst(){
   KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
   KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
   
-  createVaultSecretStore \
-  -p "secret/keycloak/admin" \
-  -r "keycloak-admin-role" \
-  -l "keycloak-admin-policy" \
-  -s "keycloak-admin-secret-provider" \
-  -x "keycloak" \
-  -n "keycloak" \
-  -k "adminUser=${KEYCLOAK_ADMIN_USERNAME}" \
-  -k "adminPassword=${KEYCLOAK_ADMIN_PASSWORD}"
+  # createVaultSecretStore \
+  # -p "secret/keycloak/admin" \
+  # -r "keycloak-admin-role" \
+  # -l "keycloak-admin-policy" \
+  # -s "keycloak-admin-secret-provider" \
+  # -x "keycloak" \
+  # -n "keycloak" \
+  # -k "adminUser=${KEYCLOAK_ADMIN_USERNAME}" \
+  # -k "adminPassword=${KEYCLOAK_ADMIN_PASSWORD}"
   
   POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
   POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
 
-  createVaultSecretStore \
-  -p "secret/keycloak/postgresql" \
-  -r "keycloak-postgresql-role" \
-  -l "keycloak-postgresql-policy" \
-  -s "keycloak-postgresql-secret-provider" \
-  -x "keycloak" \
-  -n "keycloak" \
-  -k "username=${POSTGRESQL_USERNAME}" \
-  -k "password=${POSTGRESQL_PASSWORD}"
+  # createVaultSecretStore \
+  # -p "secret/keycloak/postgresql" \
+  # -r "keycloak-postgresql-role" \
+  # -l "keycloak-postgresql-policy" \
+  # -s "keycloak-postgresql-secret-provider" \
+  # -x "keycloak" \
+  # -n "keycloak" \
+  # -k "username=${POSTGRESQL_USERNAME}" \
+  # -k "password=${POSTGRESQL_PASSWORD}"
   
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
   REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")

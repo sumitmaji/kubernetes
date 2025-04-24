@@ -88,31 +88,31 @@ postgresql:
       storageClass: "keycloak-storage"
 ## @param extraVolumes Optionally specify extra list of additional volumes for Keycloak pods
 ##
-extraVolumes:
-  - name: secrets-store-inline
-    csi:
-      driver: secrets-store.csi.k8s.io
-      readOnly: true
-      volumeAttributes:
-        secretProviderClass: "keycloak-admin-secret-provider"
+# extraVolumes:
+#   - name: secrets-store-inline
+#     csi:
+#       driver: secrets-store.csi.k8s.io
+#       readOnly: true
+#       volumeAttributes:
+#         secretProviderClass: "keycloak-admin-secret-provider"
 
 ## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts for Keycloak container(s)
 ##
-extraVolumeMounts:
-  - name: secrets-store-inline
-    mountPath: "/mnt/secrets-store"
-    readOnly: true
+# extraVolumeMounts:
+#   - name: secrets-store-inline
+#     mountPath: "/mnt/secrets-store"
+#     readOnly: true
 
-podAnnotations:
-  vault.hashicorp.com/agent-inject: "true"
-  vault.hashicorp.com/role: "keycloak-admin-role"
-  vault.hashicorp.com/agent-inject-secret-admin_password: "secret/keycloak/admin"
-  vault.hashicorp.com/agent-inject-secret-admin_user: "secret/keycloak/admin"
-  vault.hashicorp.com/agent-inject-template-admin_password: |
-    {{`{{- with secret "secret/keycloak/admin" -}}`}}
-    {{`{{ .Data.adminPassword }}`}}
-    {{`{{- end }}`}}
-  vault.hashicorp.com/agent-inject-template-admin_user: |
-    {{`{{- with secret "secret/keycloak/admin" -}}`}}
-    {{`{{ .Data.adminUser }}`}}
-    {{`{{- end }}`}}
+# podAnnotations:
+#   vault.hashicorp.com/agent-inject: "true"
+#   vault.hashicorp.com/role: "keycloak-admin-role"
+#   vault.hashicorp.com/agent-inject-secret-admin_password: "secret/keycloak/admin"
+#   vault.hashicorp.com/agent-inject-secret-admin_user: "secret/keycloak/admin"
+#   vault.hashicorp.com/agent-inject-template-admin_password: |
+#     {{`{{- with secret "secret/keycloak/admin" -}}`}}
+#     {{`{{ .Data.adminPassword }}`}}
+#     {{`{{- end }}`}}
+#   vault.hashicorp.com/agent-inject-template-admin_user: |
+#     {{`{{- with secret "secret/keycloak/admin" -}}`}}
+#     {{`{{ .Data.adminUser }}`}}
+#     {{`{{- end }}`}}
