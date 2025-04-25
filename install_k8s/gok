@@ -2502,13 +2502,13 @@ debugScope(){
   echo "Client Secret: $CLIENT_SECRET"
   if [[ -z "$CLIENT_SECRET" ]]; then
     echoFailed "Failed to fetch client secret, please check the logs!"
-    exit 1
+    return 1
   fi
   echoSuccess "Client Secret fetched successfully!"
   generateAccessToken "$KEYCLOAK_URL" "$REALM_NAME" "$CLIENT_ID" "$CLIENT_SECRET" "openid profile email"
   if [[ $? -ne 0 ]]; then
     echoFailed "Failed to generate access token, please check the logs!"
-    exit 1
+    return 1
   fi  
 }
 
