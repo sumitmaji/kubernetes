@@ -2489,6 +2489,99 @@ fetch_client_secret() {
   echo "$CLIENT_SECRET"
 }
 
+create_sub_scope() {
+  # Parameters
+  local KEYCLOAK_URL=$1
+  local REALM_NAME=$2
+  local ADMIN_USERNAME=$3
+  local ADMIN_PASSWORD=$4
+  local CLIENT_ID=$5
+
+  # Validate input
+  if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$ADMIN_USERNAME" || -z "$ADMIN_PASSWORD" || -z "$CLIENT_ID" ]]; then
+    echo "Usage: create_sub_scope <KEYCLOAK_URL> <REALM_NAME> <ADMIN_USERNAME> <ADMIN_PASSWORD> <CLIENT_ID>"
+    return 1
+  fi
+
+  # Fetch admin access token
+  ACCESS_TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$ADMIN_USERNAME" \
+    -d "password=$ADMIN_PASSWORD" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" | jq -r '.access_token')
+
+  if [ -z "$ACCESS_TOKEN" ]; then
+    echo "Failed to fetch access token. Please check your credentials."
+    return 1
+  fi
+
+  # Create the `sub` client scope
+  CLIENT_SCOPE_ID=$(curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM_NAME/client-scopes" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "name": "sub",
+          "description": "Custom scope for the sub claim",
+          "protocol": "openid-connect"
+        }' | jq -r '.id')
+
+  if [ -z "$CLIENT_SCOPE_ID" ]; then
+    echo "Failed to create client scope 'sub'. It may already exist."
+    CLIENT_SCOPE_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/client-scopes" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" | jq -r '.[] | select(.name=="sub") | .id')
+  fi
+
+  echo "Client Scope ID for 'sub': $CLIENT_SCOPE_ID"
+
+  # Add a protocol mapper for the `sub` claim
+  curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM_NAME/client-scopes/$CLIENT_SCOPE_ID/protocol-mappers/models" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "name": "sub-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "sub",
+            "claim.name": "sub",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }'
+
+  echo "Protocol mapper for 'sub' added successfully."
+
+  # Fetch client UUID
+  CLIENT_UUID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
+
+  if [ -z "$CLIENT_UUID" ]; then
+    echo "Client '$CLIENT_ID' not found in realm '$REALM_NAME'."
+    return 1
+  fi
+
+  # Assign the `sub` scope to the client
+  curl -s -X PUT "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID/optional-client-scopes/$CLIENT_SCOPE_ID" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json"
+
+  echo "Client scope 'sub' assigned to client '$CLIENT_ID'."
+
+  # Verify the configuration
+  echo "Verifying the configuration..."
+  curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq
+
+  echo "Automation for 'sub' scope creation completed successfully."
+}
+
 debugScope(){
   # This function is used to debug the scope of the keycloak client
   # It will fetch the client secret and print it
@@ -2553,6 +2646,13 @@ installKeycloakWithCertMgr(){
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
+
+  KEYCLOAK_URL=$(fullKeycloakUrl)
+  # Example usage
+  create_sub_scope "https://${KEYCLOAK_URL}" "${REALM}" "${ADMIN_ID}" "${ADMIN_PWD}" "${CLIENT_ID}"
+  
+  #create_sub_scope "https://keycloak.gokcloud.com" "GokDevelopers" "keycloakadmin" "ssumit@1234" "gok-developers-client"
+
   oauth2Secret
   # Check if LDAP service is running
   echo "Checking if LDAP service is running..."
