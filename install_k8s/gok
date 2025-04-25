@@ -2518,6 +2518,11 @@ generateAccessToken() {
     local CLIENT_ID=$3
     local CLIENT_SECRET=$4
     local SCOPE=$5
+    echo "Keycloak URL: $KEYCLOAK_URL"
+    echo "Realm Name: $REALM_NAME"
+    echo "Client ID: $CLIENT_ID"
+    echo "Client Secret: $CLIENT_SECRET"
+    echo "Scope: $SCOPE"
 
     if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$CLIENT_SECRET" || -z "$SCOPE" ]]; then
       echo "Usage: generateAccessToken <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <CLIENT_SECRET> <SCOPE>"
