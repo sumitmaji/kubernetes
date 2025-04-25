@@ -2438,6 +2438,100 @@ installRegistryWithCertMgr(){
   addPolicyToSyncSecrets
 }
 
+fetch_client_secret() {
+  # Parameters
+  local KEYCLOAK_URL=$1
+  local REALM_NAME=$2
+  local CLIENT_ID=$3
+  local ADMIN_USERNAME=$4
+  local ADMIN_PASSWORD=$5
+
+  # Validate input
+  if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$ADMIN_USERNAME" || -z "$ADMIN_PASSWORD" ]]; then
+    echo "Usage: fetch_client_secret <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <ADMIN_USERNAME> <ADMIN_PASSWORD>"
+    return 1
+  fi
+
+  # Fetch admin access token
+  ACCESS_TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$ADMIN_USERNAME" \
+    -d "password=$ADMIN_PASSWORD" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" | jq -r '.access_token')
+
+  if [ -z "$ACCESS_TOKEN" ]; then
+    echo "Failed to fetch access token. Please check your credentials."
+    return 1
+  fi
+
+  # Fetch client UUID from the realm
+  CLIENT_UUID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
+
+  if [ -z "$CLIENT_UUID" ]; then
+    echo "Client '$CLIENT_ID' not found in realm '$REALM_NAME'."
+    return 1
+  fi
+
+  # Fetch client secret
+  CLIENT_SECRET=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID/client-secret" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r '.value')
+
+  if [ -z "$CLIENT_SECRET" ]; then
+    echo "Failed to fetch client secret for client '$CLIENT_ID'."
+    return 1
+  fi
+
+  # Return the client secret
+  echo "$CLIENT_SECRET"
+}
+
+debugScope(){
+  # This function is used to debug the scope of the keycloak client
+  # It will fetch the client secret and print it
+  KEYCLOAK_URL=$(fullKeycloakUrl)
+  REALM_NAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
+  CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
+  ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
+
+  CLIENT_SECRET=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM_NAME" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
+  echo "Client Secret: $CLIENT_SECRET"
+  if [[ -z "$CLIENT_SECRET" ]]; then
+    echoFailed "Failed to fetch client secret, please check the logs!"
+    exit 1
+  fi
+  echoSuccess "Client Secret fetched successfully!"
+  generateAccessToken "$KEYCLOAK_URL" "$REALM_NAME" "$CLIENT_ID" "$CLIENT_SECRET" "openid profile email"
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Failed to generate access token, please check the logs!"
+    exit 1
+  fi  
+}
+
+generateAccessToken() {
+    local KEYCLOAK_URL=$1
+    local REALM_NAME=$2
+    local CLIENT_ID=$3
+    local CLIENT_SECRET=$4
+    local SCOPE=$5
+
+    if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$CLIENT_SECRET" || -z "$SCOPE" ]]; then
+      echo "Usage: generateAccessToken <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <CLIENT_SECRET> <SCOPE>"
+      return 1
+    fi
+
+    curl -s -X POST "$KEYCLOAK_URL/realms/$REALM_NAME/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "client_id=$CLIENT_ID" \
+      -d "client_secret=$CLIENT_SECRET" \
+      -d "grant_type=client_credentials" \
+      -d "scope=$SCOPE" | jq -r '.access_token'
+  }
+
 installKeycloakWithCertMgr(){
   keycloakInst
 
