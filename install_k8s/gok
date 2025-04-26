@@ -2943,7 +2943,7 @@ jupyterHubInst() {
     --set proxy.secretToken="${JUPYTERHUB_SECRET}" \
     --set hub.config.GenericOAuthenticator.client_id="${CLIENT_ID}" \
     --set hub.config.GenericOAuthenticator.client_secret="${CLIENT_SECRET}" \
-    --set hub.config.GenericOAuthenticator.oauth_callback_url="https://${defaultSubdomain}/hub/oauth_callback" \
+    --set hub.config.GenericOAuthenticator.oauth_callback_url="https://$(defaultSubdomain)/hub/oauth_callback" \
     --set hub.config.GenericOAuthenticator.authorize_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
     --set hub.config.GenericOAuthenticator.token_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
     --set hub.config.GenericOAuthenticator.userdata_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
