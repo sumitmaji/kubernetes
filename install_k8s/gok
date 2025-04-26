@@ -2938,6 +2938,8 @@ oauth2ProxyInst(){
     --set "extraArgs[20]=--standard-logging=true" \
     --set "extraArgs[21]=--auth-logging=true" \
     --set "extraArgs[22]=--request-logging=true" \
+    --set "extraArgs[23]=--cookie-refresh=1h" \
+    --set "extraArgs[24]=--cookie-expire=8h" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
