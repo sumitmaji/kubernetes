@@ -3,6 +3,7 @@ debug:
 hub:
   extraEnv:
     OAUTH2_TLS_VERIFY: "false"
+    CURL_CA_BUNDLE: ""
   db:
     type: sqlite-pvc
     pvc:
