@@ -2941,23 +2941,23 @@ jupyterHubInst() {
   helm install jupyterhub jupyterhub/jupyterhub \
     --namespace jupyterhub \
     --set proxy.secretToken="${JUPYTERHUB_SECRET}" \
+    --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml" \
     $(if [[ "$ENABLE_OAUTH2" == "true" ]]; then
-      echo "--set hub.config.GenericOAuthenticator.client_id=\"${CLIENT_ID}\" \
-      --set hub.config.GenericOAuthenticator.client_secret=\"${CLIENT_SECRET}\" \
-      --set hub.config.GenericOAuthenticator.oauth_callback_url=\"https://$(defaultSubdomain).$(rootDomain)/hub/oauth_callback\" \
-      --set hub.config.GenericOAuthenticator.authorize_url=\"https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth\" \
-      --set hub.config.GenericOAuthenticator.token_url=\"https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token\" \
-      --set hub.config.GenericOAuthenticator.userdata_url=\"https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo\" \
-      --set hub.config.GenericOAuthenticator.login_service=\"keycloak\" \
-      --set hub.config.GenericOAuthenticator.username_claim=\"preferred_username\" \
-      --set hub.config.GenericOAuthenticator.userdata_params.state=\"state\" \
+      echo "--set hub.config.GenericOAuthenticator.client_id=${CLIENT_ID} \
+      --set hub.config.GenericOAuthenticator.client_secret=${CLIENT_SECRET} \
+      --set hub.config.GenericOAuthenticator.oauth_callback_url=https://$(defaultSubdomain).$(rootDomain)/hub/oauth_callback \
+      --set hub.config.GenericOAuthenticator.authorize_url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth \
+      --set hub.config.GenericOAuthenticator.token_url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token \
+      --set hub.config.GenericOAuthenticator.userdata_url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo \
+      --set hub.config.GenericOAuthenticator.login_service=keycloak \
+      --set hub.config.GenericOAuthenticator.username_claim=preferred_username \
+      --set hub.config.GenericOAuthenticator.userdata_params.state=state \
       --set hub.config.GenericOAuthenticator.allow_all=true \
       --set hub.config.GenericOAuthenticator.tls_verify=false \
-      --set hub.config.GenericOAuthenticator.admin_users[0]=\"admin\" \
-      --set hub.config.GenericOAuthenticator.admin_users[1]=\"skmaji1\" \
-      --set hub.config.JupyterHub.authenticator_class=\"generic-oauth\""
+      --set hub.config.GenericOAuthenticator.admin_users[0]=admin \
+      --set hub.config.GenericOAuthenticator.admin_users[1]=skmaji1 \
+      --set hub.config.JupyterHub.authenticator_class=generic-oauth"
     fi)
-    --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml"
 
   # Wait for the JupyterHub pods to be ready
   echo "Waiting for JupyterHub services to be up..."
