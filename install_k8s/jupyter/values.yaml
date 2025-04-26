@@ -2,7 +2,7 @@ debug:
   enabled: true
 hub:
   extraEnv:
-    OAUTH2_TLS_VERIFY: "false"
+    OAUTH2_TLS_VERIFY: '0'
     CURL_CA_BUNDLE: ""
   db:
     type: sqlite-pvc
