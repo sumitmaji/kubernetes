@@ -1,6 +1,8 @@
 debug:
   enabled: true
 hub:
+  extraEnv:
+    OAUTH2_TLS_VERIFY: false
   db:
     type: sqlite-pvc
     pvc:
