@@ -2866,6 +2866,10 @@ patchDashboardWithOauth(){
   patchOauth2Secure kubernetes-dashboard kubernetes-dashboard https://kube.gokcloud.com/dashboard/
 }
 
+patchJupyterWithOauth() {
+  patchOauth2Secure jupyterhub jupyterhub https://$(defaultSubdomain).$(rootDomain)/hub/
+}
+
 checkAndPatchDashboard() {
   # Check if the oauth2-proxy service is running
   echo "Checking if oauth2-proxy service is running..."
@@ -2874,6 +2878,17 @@ checkAndPatchDashboard() {
     patchDashboardWithOauth
   else
     echo "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
+  fi
+}
+
+checkAndPatchHub() {
+  # Check if the oauth2-proxy service is running
+  echo "Checking if oauth2-proxy service is running..."
+  if kubectl get pods -n oauth2 -l app.kubernetes.io/name=oauth2-proxy 2>/dev/null | grep -q "Running"; then
+    echo "oauth2-proxy service is running. Proceeding to patch JupyterHub..."
+    patchJupyterWithOauth
+  else
+    echo "oauth2-proxy service is not running. Please ensure it is running before patching JupyterHub."
   fi
 }
 
@@ -2896,7 +2911,51 @@ oauth2ProxyReset(){
   kubectl delete ns oauth2
 }
 
+jupyterHubInst() {
+  # Add the Helm repository for JupyterHub
+  helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
+  helm repo update
 
+  # Create the storage class for JupyterHub using the generic method
+  createLocalStorageClassAndPV "jupyter-storage" "jupyter-pv" "/data/volumes/jupyter"
+
+  # Create a namespace for JupyterHub
+  kubectl create namespace jupyterhub || echo "Namespace jupyterhub already exists"
+
+  # Generate a random secret token for JupyterHub
+  JUPYTERHUB_SECRET=$(openssl rand -hex 32)
+
+  # Create a Kubernetes secret for the JupyterHub proxy
+  kubectl create secret generic hub-secret \
+    --from-literal=hub-secret-key="${JUPYTERHUB_SECRET}" \
+    --namespace jupyterhub || echo "Secret hub-secret already exists"
+
+  # Install JupyterHub using Helm with the provided values.yaml
+  helm install jupyterhub jupyterhub/jupyterhub \
+    --namespace jupyterhub \
+    --set proxy.secretToken="${JUPYTERHUB_SECRET}" \
+    --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml"
+
+  # Wait for the JupyterHub pods to be ready
+  echo "Waiting for JupyterHub services to be up..."
+  kubectl --namespace jupyterhub wait --for=condition=Ready pods --all --timeout=300s
+
+  gok patch ingress jupyterhub jupyterhub letsencrypt $(defaultSubdomain)
+  checkAndPatchHub
+
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "JupyterHub services are now up!"
+    echoSuccess "Access it using https://master.cloud.com"
+  else
+    echoFailed "JupyterHub services timed out. Please check the logs!"
+  fi
+}
+
+jupyterHubReset() {
+  helm uninstall jupyterhub -n jupyterhub
+  emptyLocalFsStorage "JupyterHub" "jupyter-pv" "jupyter-storage" "/data/volumes/jupyter"
+  kubectl delete ns jupyterhub
+}
 
 oauth2ProxyInst(){
 
@@ -3448,6 +3507,8 @@ function installCmd() {
     installLdap
   elif [ "$COMPONENT" == "dashboard" ]; then
     installDashboardwithCertManager
+  elif [ "$COMPONENT" == "jupyter" ]; then
+    jupyterHubInst
   elif [ "$COMPONENT" == "vault" ]; then
     vaultInstall
   elif [ "$COMPONENT" == "keycloak" ]; then
@@ -3537,6 +3598,8 @@ EOF
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
     fluentdReset
+  elif [ "$COMPONENT" == "jupyter" ]; then
+    jupyterHubReset
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset
