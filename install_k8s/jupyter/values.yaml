@@ -1,4 +1,6 @@
 hub:
+  debug:
+    enabled: true
   db:
     type: sqlite-pvc
     pvc:
