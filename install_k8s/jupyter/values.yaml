@@ -5,7 +5,9 @@ hub:
       storageClassName: "jupyter-storage"
       accessModes:
         - ReadWriteOnce
-      size: 1Gi  # Use `size` instead of `resources.requests.storage`
+      resources:
+        requests:
+          storage: 1Gi
 
 singleuser:
   storage:
