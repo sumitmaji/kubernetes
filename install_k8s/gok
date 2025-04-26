@@ -2941,15 +2941,15 @@ jupyterHubInst() {
   helm install jupyterhub jupyterhub/jupyterhub \
     --namespace jupyterhub \
     --set proxy.secretToken="${JUPYTERHUB_SECRET}" \
-    --set auth.type=custom \
-    --set auth.custom.className=oauthenticator.generic.GenericOAuthenticator \
-    --set auth.custom.config.client_id="${CLIENT_ID}" \
-    --set auth.custom.config.client_secret="${CLIENT_SECRET}" \
-    --set auth.custom.config.oauth_callback_url="https://${defaultSubdomain}/hub/oauth_callback" \
-    --set auth.custom.config.authorize_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
-    --set auth.custom.config.token_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
-    --set auth.custom.config.userdata_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
-    --set auth.custom.config.username_key=preferred_username \
+    --set hub.auth.type=custom \
+    --set hub.auth.custom.className=oauthenticator.generic.GenericOAuthenticator \
+    --set hub.auth.custom.config.client_id="${CLIENT_ID}" \
+    --set hub.auth.custom.config.client_secret="${CLIENT_SECRET}" \
+    --set hub.auth.custom.config.oauth_callback_url="https://${defaultSubdomain}/hub/oauth_callback" \
+    --set hub.auth.custom.config.authorize_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
+    --set hub.auth.custom.config.token_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
+    --set hub.auth.custom.config.userdata_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --set hub.auth.custom.config.username_key=preferred_username \
     --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml"
 
   # Wait for the JupyterHub pods to be ready
