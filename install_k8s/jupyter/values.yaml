@@ -1,9 +1,21 @@
 debug:
   enabled: true
 hub:
+  extraConfig:
+    disableSSLVerification: |
+      import ssl
+      from tornado.httpclient import AsyncHTTPClient
+      from tornado.curl_httpclient import CurlAsyncHTTPClient
+
+      # Disable SSL verification globally
+      ssl_ctx = ssl.create_default_context()
+      ssl_ctx.check_hostname = False
+      ssl_ctx.verify_mode = ssl.CERT_NONE
+      AsyncHTTPClient.configure(CurlAsyncHTTPClient, defaults=dict(ssl_options=ssl_ctx))
   extraEnv:
-    OAUTH2_TLS_VERIFY: '0'
+    OAUTH2_TLS_VERIFY: "false"
     CURL_CA_BUNDLE: ""
+    REQUESTS_CA_BUNDLE: ""
   db:
     type: sqlite-pvc
     pvc:
