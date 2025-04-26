@@ -2941,15 +2941,18 @@ jupyterHubInst() {
   helm install jupyterhub jupyterhub/jupyterhub \
     --namespace jupyterhub \
     --set proxy.secretToken="${JUPYTERHUB_SECRET}" \
-    --set hub.auth.type=custom \
-    --set hub.auth.custom.className=oauthenticator.generic.GenericOAuthenticator \
-    --set hub.auth.custom.config.client_id="${CLIENT_ID}" \
-    --set hub.auth.custom.config.client_secret="${CLIENT_SECRET}" \
-    --set hub.auth.custom.config.oauth_callback_url="https://${defaultSubdomain}/hub/oauth_callback" \
-    --set hub.auth.custom.config.authorize_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
-    --set hub.auth.custom.config.token_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
-    --set hub.auth.custom.config.userdata_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
-    --set hub.auth.custom.config.username_key=preferred_username \
+    --set hub.config.GenericOAuthenticator.client_id="${CLIENT_ID}" \
+    --set hub.config.GenericOAuthenticator.client_secret="${CLIENT_SECRET}" \
+    --set hub.config.GenericOAuthenticator.oauth_callback_url="https://${defaultSubdomain}/hub/oauth_callback" \
+    --set hub.config.GenericOAuthenticator.authorize_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
+    --set hub.config.GenericOAuthenticator.token_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
+    --set hub.config.GenericOAuthenticator.userdata_url="https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --set hub.config.GenericOAuthenticator.login_service="keycloak" \
+    --set hub.config.GenericOAuthenticator.username_claim="preferred_username" \
+    --set hub.config.GenericOAuthenticator.userdata_params.state="state" \
+    --set hub.config.GenericOAuthenticator.allow_all=true \
+    --set hub.config.GenericOAuthenticator.admin_users[0]="admin" \
+    --set hub.config.JupyterHub.authenticator_class="generic-oauth" \
     --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml"
 
   # Wait for the JupyterHub pods to be ready
