@@ -2953,6 +2953,7 @@ jupyterHubInst() {
     --set hub.config.GenericOAuthenticator.allow_all=true \
     --set hub.config.GenericOAuthenticator.tls_verify=false \
     --set hub.config.GenericOAuthenticator.admin_users[0]="admin" \
+    --set hub.config.GenericOAuthenticator.admin_users[1]="skmaji1" \
     --set hub.config.JupyterHub.authenticator_class="generic-oauth" \
     --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml"
 
