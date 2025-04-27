@@ -3049,7 +3049,7 @@ EOF
 
 resetEclipseChe(){
   # Uninstall Eclipse Che
-  k delete deployment --all -n eclipse-che
+  kubectl delete deployment --all -n eclipse-che
   chectl server:delete --delete-namespace --delete-all
   [[ $? -ne 0 ]] && echoFailed "Eclipse Che uninstallation failed, please check the logs!" && return 1
   kubectl delete configmap keycloak-certs -n eclipse-che
