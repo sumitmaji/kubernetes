@@ -2,4 +2,4 @@ KEYCLOAK_ROOT=${KEYCLOAK}.${GOK_ROOT_DOMAIN}
 REALM=${REALM}
 KEYCLOAK_CLIENT_ID=${OIDC_CLIENT_ID}
 USER_NAME=skmaji1
-CALLBACK_URL=https://${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}/*,https://localhost/*,https://spin-gate.${GOK_ROOT_DOMAIN}/*,https://jenkins.${GOK_ROOT_DOMAIN}/*,https://jupyterhub.${GOK_ROOT_DOMAIN}/*
+CALLBACK_URL=https://${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}/*,https://localhost/*,https://spin-gate.${GOK_ROOT_DOMAIN}/*,https://jenkins.${GOK_ROOT_DOMAIN}/*,https://jupyterhub.${GOK_ROOT_DOMAIN}/*,https://che.${GOK_ROOT_DOMAIN}/*
