@@ -2,8 +2,15 @@ debug:
   enabled: true
 hub:
   config:
-    JupyterHub:
-      base_url: /hub/
+    cull:
+      enabled: false
+      timeout: 3600
+      every: 600
+      users:
+        - skmaji1
+        - admin
+    # JupyterHub:
+    #   base_url: /hub/
   extraConfig:
     disableSSLVerification: |
       import ssl
@@ -42,6 +49,7 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     ingress.kubernetes.io/ssl-passthrough: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
   ingressClassName: "nginx"
   hosts:
    - master.cloud.com
