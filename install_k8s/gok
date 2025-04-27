@@ -2996,6 +2996,8 @@ eclipseCheInst(){
   CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
   CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
   REALM_NAME=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
+
+  createLocalStorageClassAndPV "eclipse-che-storage" "eclipse-che-pv" "/data/volumes/eclipse-che"
   
   # Install Chectl
   wget https://che-incubator.github.io/chectl/install.sh
@@ -3009,6 +3011,13 @@ eclipseCheInst(){
 kind: CheCluster
 apiVersion: org.eclipse.che/v2
 spec:
+  devEnvironments:
+    storage:
+      perUserStrategyPvcConfig:
+        claimSize: 2Gi 
+        storageClass: eclipse-che-storage
+      pvcStrategy: per-user 
+    
   networking:
     auth:
       oAuthClientName: ${CLIENT_ID}
@@ -3044,6 +3053,7 @@ EOF
   # Deploy Eclipse Che using chectl
   chectl server:deploy --platform k8s --domain che.gokcloud.com --che-operator-cr-patch-yaml che-patch.yaml --skip-cert-manager
   [[ $? -eq 0 ]] && echoSuccess "Eclipse Che is now installed and running!" || echoFailed "Eclipse Che installation failed, please check the logs!"
+  emptyLocalFsStorage "Eclipse Che" "eclipse-che-pv" "eclipse-che-storage" "/data/volumes/eclipse-che"
   rm -f keycloak-ca.crt che-patch.yaml install.sh
 }
 
