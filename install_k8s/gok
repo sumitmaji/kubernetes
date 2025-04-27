@@ -2940,7 +2940,7 @@ jupyterHubInst() {
   keycloakUrl="https://$(fullKeycloakUrl)"
   REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
   OAUTH2_HOST="$(fullKeycloakUrl)"
-  ENABLE_OAUTH2="false"
+  ENABLE_OAUTH2="true"
 
   # Install JupyterHub using Helm with the provided values.yaml
   helm install jupyterhub jupyterhub/jupyterhub \
@@ -2981,6 +2981,9 @@ jupyterHubInst() {
 
 jupyterHubReset() {
   helm uninstall jupyterhub -n jupyterhub
+  kubectl delete secret hub-secret -n jupyterhub
+  kubectl delete pod --all -n jupyterhub
+  kubectl delete pvc --all -n jupyterhub
   emptyLocalFsStorage "JupyterHub" "jupyter-pv" "jupyter-storage" "/data/volumes/jupyter"
   emptyLocalFsStorage "JupyterHub User" "jupyter-user-pv" "jupyter-user-storage" "/data/volumes/jupyter-user"
   kubectl delete ns jupyterhub
