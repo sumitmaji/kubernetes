@@ -2977,6 +2977,7 @@ jupyterHubInst() {
 jupyterHubReset() {
   helm uninstall jupyterhub -n jupyterhub
   emptyLocalFsStorage "JupyterHub" "jupyter-pv" "jupyter-storage" "/data/volumes/jupyter"
+  emptyLocalFsStorage "JupyterHub User" "jupyter-user-pv" "jupyter-user-storage" "/data/volumes/jupyter-user"
   kubectl delete ns jupyterhub
 }
 
