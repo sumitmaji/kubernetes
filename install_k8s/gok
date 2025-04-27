@@ -44,6 +44,7 @@ export REGISTRY=registry
 export KEYCLOAK=keycloak
 export SPINNAKER=spinnaker
 export VAULT=vault
+export JUPYTERHUB=jupyterhub
 export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
@@ -84,6 +85,10 @@ defaultSubdomain(){
 
 keycloakSubdomain(){
   echo "$KEYCLOAK"
+}
+
+jupyterHubSubdomain(){
+  echo "$JUPYTERHUB"
 }
 
 fullDefaultUrl(){
@@ -2963,8 +2968,8 @@ jupyterHubInst() {
   echo "Waiting for JupyterHub services to be up..."
   kubectl --namespace jupyterhub wait --for=condition=Ready pods --all --timeout=300s
 
-  gok patch ingress jupyterhub jupyterhub letsencrypt $(defaultSubdomain)
-  checkAndPatchHub
+  gok patch ingress jupyterhub jupyterhub letsencrypt $(jupyterHubSubdomain)
+  # checkAndPatchHub
 
   if [[ $? -eq 0 ]]; then
     echoSuccess "JupyterHub services are now up!"
