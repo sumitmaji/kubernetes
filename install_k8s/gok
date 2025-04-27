@@ -3053,7 +3053,6 @@ EOF
   # Deploy Eclipse Che using chectl
   chectl server:deploy --platform k8s --domain che.gokcloud.com --che-operator-cr-patch-yaml che-patch.yaml --skip-cert-manager
   [[ $? -eq 0 ]] && echoSuccess "Eclipse Che is now installed and running!" || echoFailed "Eclipse Che installation failed, please check the logs!"
-  emptyLocalFsStorage "Eclipse Che" "eclipse-che-pv" "eclipse-che-storage" "/data/volumes/eclipse-che"
   rm -f keycloak-ca.crt che-patch.yaml install.sh
 }
 
@@ -3063,6 +3062,7 @@ resetEclipseChe(){
   chectl server:delete --delete-namespace --delete-all
   [[ $? -ne 0 ]] && echoFailed "Eclipse Che uninstallation failed, please check the logs!" && return 1
   kubectl delete configmap keycloak-certs -n eclipse-che || echo "ConfigMap keycloak-certs already deleted or does not exist"
+  emptyLocalFsStorage "Eclipse Che" "eclipse-che-pv" "eclipse-che-storage" "/data/volumes/eclipse-che"
   echoSuccess "Eclipse Che has been uninstalled successfully!"
 }
 
