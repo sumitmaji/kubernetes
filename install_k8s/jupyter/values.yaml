@@ -1,6 +1,16 @@
 debug:
   enabled: true
 hub:
+  config:
+    cull:
+      enabled: false
+      timeout: 3600
+      every: 600
+      users:
+        - skmaji1
+        - admin
+    JupyterHub:
+      base_url: /hub/
   extraConfig:
     disableSSLVerification: |
       import ssl
