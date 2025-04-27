@@ -9,8 +9,8 @@ hub:
       users:
         - skmaji1
         - admin
-    # JupyterHub:
-    #   base_url: /hub/
+    JupyterHub:
+      base_url: /hub/
   extraConfig:
     disableSSLVerification: |
       import ssl
