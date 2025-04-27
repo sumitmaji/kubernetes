@@ -2,6 +2,12 @@ hub:
   config:
     GenericOAuthenticator:
       validate_server_cert: false
+      scope:
+        - openid
+        - profile
+        - email
+        - sub
+        - groups
     cull:
       enabled: false
       timeout: 3600
