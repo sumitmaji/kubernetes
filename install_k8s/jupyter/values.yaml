@@ -26,7 +26,9 @@ hub:
 
 singleuser:
   storage:
-    capacity: 10Gi
+    dynamic:
+      storageClass: "jupyter-user-storage"
+    capacity: 2Gi
 
 ingress:
   enabled: true

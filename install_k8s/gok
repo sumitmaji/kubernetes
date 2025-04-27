@@ -2918,7 +2918,7 @@ jupyterHubInst() {
 
   # Create the storage class for JupyterHub using the generic method
   createLocalStorageClassAndPV "jupyter-storage" "jupyter-pv" "/data/volumes/jupyter"
-
+  createLocalStorageClassAndPV "jupyter-user-storage" "jupyter-user-pv" "/data/volumes/jupyter-user"
   # Create a namespace for JupyterHub
   kubectl create namespace jupyterhub || echo "Namespace jupyterhub already exists"
 
