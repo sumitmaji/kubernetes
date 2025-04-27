@@ -2998,7 +2998,7 @@ eclipseCheInst(){
   REALM_NAME=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
   
   # Install Chectl
-  wget -sL  https://che-incubator.github.io/chectl/install.sh
+  wget https://che-incubator.github.io/chectl/install.sh
   chmod +x install.sh
   ./install.sh
   [[ $? -ne 0 ]] && echoFailed "Chectl installation failed, please check the logs!" && return 1
