@@ -1,7 +1,7 @@
-debug:
-  enabled: true
 hub:
   config:
+    GenericOAuthenticator:
+      validate_server_cert: false
     cull:
       enabled: false
       timeout: 3600
