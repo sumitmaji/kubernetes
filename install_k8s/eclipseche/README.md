@@ -102,8 +102,9 @@ Ensure that Eclipse Che is installed and running in your Kubernetes cluster. If 
           remotes:
             origin: https://github.com/sumitmaji/springboot-example.git
    ```
+3. Put it in git and refer to it e.g. https://raw.githubusercontent.com/sumitmaji/javaparser/refs/heads/master/devfile.yaml in eclipse che.
 
-3. Start the workspace.
+4. Start the workspace.
 
 ---
 
