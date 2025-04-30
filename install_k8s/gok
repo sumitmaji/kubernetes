@@ -3021,6 +3021,37 @@ installDocker(){
   echoSuccess "Current user added to the docker group. Please log out and log back in for changes to take effect."
 }
 
+# Method to remove claimRef from a specific Persistent Volume
+# removeClaimRefFromPV "eclipse-che-pv"
+removeClaimRefFromPV() {
+  local pv_name=$1
+
+  if [ -z "$pv_name" ]; then
+    echo "Error: No PV name provided."
+    return 1
+  fi
+
+  # Check if the PV exists and is in the "Released" state
+  pv_state=$(kubectl get pv "$pv_name" --no-headers | awk '{print $5}')
+  if [ "$pv_state" != "Released" ]; then
+    echo "Error: PV '$pv_name' is not in the 'Released' state. Current state: $pv_state"
+    return 1
+  fi
+
+  echo "Processing PV: $pv_name"
+
+  # Patch the PV to remove the claimRef
+  kubectl patch pv "$pv_name" --type=json -p='[{"op": "remove", "path": "/spec/claimRef"}]'
+
+  if [ $? -eq 0 ]; then
+    echo "Successfully removed claimRef from PV: $pv_name"
+    return 0
+  else
+    echo "Failed to remove claimRef from PV: $pv_name"
+    return 1
+  fi
+}
+
 
 eclipseCheInst(){
 
