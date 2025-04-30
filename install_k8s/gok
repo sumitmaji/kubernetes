@@ -44,6 +44,7 @@ export REGISTRY=registry
 export KEYCLOAK=keycloak
 export SPINNAKER=spinnaker
 export VAULT=vault
+export JUPYTERHUB=jupyterhub
 export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
@@ -84,6 +85,10 @@ defaultSubdomain(){
 
 keycloakSubdomain(){
   echo "$KEYCLOAK"
+}
+
+jupyterHubSubdomain(){
+  echo "$JUPYTERHUB"
 }
 
 fullDefaultUrl(){
@@ -1897,6 +1902,165 @@ debugVault(){
   popd
 }
 
+createVaultSecretStore() {
+  # Initialize variables
+  local secret_path=""
+  local role_name=""
+  local policy_name=""
+  local secret_provider_class_name=""
+  local prefix=""
+  local namespace="default"
+  local kv_pairs=()
+  local secret_name=""
+
+  # Parse command-line arguments
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -p|--secret-path)
+        secret_path="$2"
+        shift 2
+        ;;
+      -r|--role-name)
+        role_name="$2"
+        shift 2
+        ;;
+      -l|--policy-name)
+        policy_name="$2"
+        shift 2
+        ;;
+      -s|--secret-provider-class-name)
+        secret_provider_class_name="$2"
+        shift 2
+        ;;
+      -x|--prefix)
+        prefix="$2"
+        shift 2
+        ;;
+      -n|--namespace)
+        namespace="$2"
+        shift 2
+        ;;
+      -k|--key-value)
+        kv_pairs+=("$2")
+        shift 2
+        ;;
+      --secret-name)
+        secret_name="$2"
+        shift 2
+        ;;
+      *)
+        echo "Unknown option: $1"
+        echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> [--secret-name <secret_name>]"
+        return 1
+        ;;
+    esac
+  done
+
+  # Validate required arguments
+  if [[ -z "$secret_path" || -z "$role_name" || -z "$policy_name" || -z "$secret_provider_class_name" || -z "$prefix" || ${#kv_pairs[@]} -eq 0 ]]; then
+    echo "Usage: createVaultSecretStore -p <secret_path> -r <role_name> -l <policy_name> -s <secret_provider_class_name> -x <prefix> -n <namespace> -k <key=value> [--secret-name <secret_name>]"
+    return 1
+  fi
+
+  # Default secret name if not provided
+  if [[ -z "$secret_name" ]]; then
+    secret_name="${secret_provider_class_name}-secret"
+  fi
+
+  echo "SECRET_PATH: $secret_path"
+  echo "ROLE_NAME: $role_name"
+  echo "POLICY_NAME: $policy_name"
+  echo "SECRET_PROVIDER_CLASS_NAME: $secret_provider_class_name"
+  echo "PREFIX: $prefix"
+  echo "NAMESPACE: $namespace"
+  echo "KV_PAIRS: ${kv_pairs[*]}"
+  echo "SECRET_NAME: $secret_name"
+
+  vaultLogin
+
+  # Create the secret in Vault with multiple key-value pairs
+  if kubectl exec -it vault-0 -n vault -- vault kv get "$secret_path" >/dev/null 2>&1; then
+    echo "Secret at path $secret_path already exists in Vault. Skipping creation."
+  else
+    local secret_command="vault kv put $secret_path"
+    for kv_pair in "${kv_pairs[@]}"; do
+      secret_command+=" $kv_pair"
+    done
+    kubectl exec -it vault-0 -n vault -- $secret_command
+  fi
+
+  # Create a policy for the secret
+  if kubectl exec -it vault-0 -n vault -- vault policy read "$policy_name" >/dev/null 2>&1; then
+    echo "Policy $policy_name already exists in Vault. Skipping creation."
+  else
+    kubectl exec -i vault-0 -n vault -- vault policy write "$policy_name" - <<EOF
+path "$secret_path" {
+  capabilities = ["read", "list"]
+}
+EOF
+  fi
+
+  # Create a role for Kubernetes authentication
+  if kubectl exec -it vault-0 -n vault -- vault read auth/kubernetes/role/"$role_name" >/dev/null 2>&1; then
+    echo "Role $role_name already exists in Vault. Skipping creation."
+  else
+    kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$role_name" \
+      bound_service_account_names=* \
+      bound_service_account_namespaces="$namespace" \
+      policies="$policy_name" \
+      ttl=24h
+  fi
+
+  # Generate the `objects` section dynamically
+  local objects=""
+  for kv_pair in "${kv_pairs[@]}"; do
+    local key=$(echo "$kv_pair" | cut -d '=' -f 1)
+    objects+="      - objectName: \"$prefix-$key\"\n"
+    objects+="        objectType: \"kv\"\n"
+    objects+="        secretPath: \"$secret_path\"\n"
+    objects+="        secretKey: \"$key\"\n"
+    objects+="        objectVersion: \"\"\n"
+  done
+
+  # Add the `secretObjects` section
+  local secret_objects="  secretObjects:\n"
+  secret_objects+="    - secretName: $secret_name\n"
+  secret_objects+="      type: Opaque\n"
+  secret_objects+="      data:\n"
+  for kv_pair in "${kv_pairs[@]}"; do
+    local key=$(echo "$kv_pair" | cut -d '=' -f 1)
+    secret_objects+="        - objectName: \"$prefix-$key\"\n"
+    secret_objects+="          key: \"$key\"\n"
+  done
+
+  # Generate the YAML for the SecretProviderClass
+  local yaml=$(cat <<EOF
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: "$secret_provider_class_name"
+  namespace: "$namespace"
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "https://vault.gokcloud.com"
+    roleName: "$role_name"
+    skipVerify: "true"
+    vaultSkipTLSVerify: "true"
+    objects: |
+$objects
+$secret_objects
+EOF
+)
+
+  # Echo the generated YAML
+  echo "Generated YAML:"
+  printf "$yaml"
+
+  # Apply the YAML
+  printf "$yaml" | kubectl apply -f -
+}
+
 exampleSecretStoreInVaule(){
   vaultLogin
   kubectl exec -it vault-0 -n vault -- vault kv put secret/my-secret username="my-username" password="my-password"
@@ -1935,10 +2099,16 @@ spec:
     skipVerify: "true"   
     vaultSkipTLSVerify: "true"                 
     objects: |
-      - objectName: "my-secret"
+      - objectName: "my-username"
         objectType: "kv"
         secretPath: "secret/my-secret"
         objectVersion: ""
+        secretKey: "username"
+      - objectName: "my-password"
+        objectType: "kv"
+        secretPath: "secret/my-secret"
+        objectVersion: ""
+        secretKey: "password"
 EOF
 
   cat <<EOF | kubectl apply -f -
@@ -2129,6 +2299,24 @@ keycloakReset(){
   emptyLocalFsStorage "Keycloak" "keycloak-pv" "keycloak-storage" "/data/volumes/pv3"
   kubectl delete ns keycloak
   kubectl get secret oauth-secrets >/dev/null 2>&1
+
+  # vaultLogin
+  # kubectl delete secretProviderClass keycloak-admin-secret-provider -n keycloak >/dev/null 2>&1
+  # kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/admin
+  # kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-admin-role
+  # kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-admin-policy
+
+  # kubectl delete secretProviderClass keycloak-postgresql-secret-provider -n keycloak >/dev/null 2>&1
+  # kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/postgresql
+  # kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-postgresql-role
+  # kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-postgresql-policy
+  # kubectl delete secret keycloak-secrets -n keycloak >/dev/null 2>&1
+  # kubectl delete secret keycloak-postgresql -n keycloak >/dev/null 2>&1
+  # kubectl delete secret keycloak-secrets -n kube-system >/dev/null 2>&1
+  # kubectl delete secret keycloak-postgresql -n kube-system >/dev/null 2>&1
+  # kubectl delete secret keycloak-secrets -n default >/dev/null 2>&1
+  # kubectl delete secret keycloak-postgresql -n default >/dev/null 2>&1
+
 }
 
 keycloakInst(){
@@ -2136,18 +2324,43 @@ keycloakInst(){
   #Hence removing the below 2 lines
   #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
   #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
+  kubectl create ns keycloak
+  KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
+  KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
+  
+  # createVaultSecretStore \
+  # -p "secret/keycloak/admin" \
+  # -r "keycloak-admin-role" \
+  # -l "keycloak-admin-policy" \
+  # -s "keycloak-admin-secret-provider" \
+  # -x "keycloak" \
+  # -n "keycloak" \
+  # -k "adminUser=${KEYCLOAK_ADMIN_USERNAME}" \
+  # -k "adminPassword=${KEYCLOAK_ADMIN_PASSWORD}"
+  
   POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
   POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+
+  # createVaultSecretStore \
+  # -p "secret/keycloak/postgresql" \
+  # -r "keycloak-postgresql-role" \
+  # -l "keycloak-postgresql-policy" \
+  # -s "keycloak-postgresql-secret-provider" \
+  # -x "keycloak" \
+  # -n "keycloak" \
+  # -k "username=${POSTGRESQL_USERNAME}" \
+  # -k "password=${POSTGRESQL_PASSWORD}"
+  
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
   REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
 
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="user" \
+    --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
     --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-    --from-literal=OAUTH_REALM="${REALM}"  -n keycloak
-    #--from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_adminpwd}" -n keycloak
+    --from-literal=OAUTH_REALM="${REALM}"  -n keycloak \
+    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak
 
   kubectl create secret generic keycloak-postgresql \
     --from-literal=username="${POSTGRESQL_USERNAME}" \
@@ -2159,8 +2372,48 @@ keycloakInst(){
   helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --set ingress.hostname="$hostname" \
-        --create-namespace \
-        --values $MOUNT_PATH/kubernetes/install_k8s/keycloak/values2.yaml
+        --set auth.adminUser="$KEYCLOAK_ADMIN_USERNAME" \
+        --set auth.adminPassword="$KEYCLOAK_ADMIN_PASSWORD" \
+        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml
+}
+
+addPolicyToSyncSecrets(){
+  cat <<EOF | kubectl apply -f -  
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: sync-regcred
+spec:
+  rules:
+    - name: sync-regcred-secret
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      generate:
+        apiVersion: v1
+        kind: Secret
+        name: regcred
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        clone:
+          namespace: kube-system
+          name: regcred
+    - name: patch-serviceaccount
+      match:
+        any:
+          - resources:
+              kinds:
+                - ServiceAccount
+              namespaces:
+                - "*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            imagePullSecrets:
+              - name: regcred
+EOF
 }
 
 installRegistryWithCertMgr(){
@@ -2187,7 +2440,195 @@ installRegistryWithCertMgr(){
   [[ $? -eq 0 ]] && echoSuccess "OK" || echoFailed "FAILED"
   openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)'
   [[ $? -eq 0 ]] && echoSuccess "Registry certificate verification succeeded" || echoFailed "Registry certificate verification failed"
+  addPolicyToSyncSecrets
 }
+
+fetch_client_secret() {
+  # Parameters
+  local KEYCLOAK_URL=$1
+  local REALM_NAME=$2
+  local CLIENT_ID=$3
+  local ADMIN_USERNAME=$4
+  local ADMIN_PASSWORD=$5
+
+  # Validate input
+  if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$ADMIN_USERNAME" || -z "$ADMIN_PASSWORD" ]]; then
+    echo "Usage: fetch_client_secret <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <ADMIN_USERNAME> <ADMIN_PASSWORD>"
+    return 1
+  fi
+
+  # Fetch admin access token
+  ACCESS_TOKEN=$(curl -s -X POST https://"$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$ADMIN_USERNAME" \
+    -d "password=$ADMIN_PASSWORD" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" | jq -r '.access_token')
+
+  if [ -z "$ACCESS_TOKEN" ]; then
+    echo "Failed to fetch access token. Please check your credentials."
+    return 1
+  fi
+
+  # Fetch client UUID from the realm
+  CLIENT_UUID=$(curl -s -X GET https://"$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
+
+  if [ -z "$CLIENT_UUID" ]; then
+    echo "Client '$CLIENT_ID' not found in realm '$REALM_NAME'."
+    return 1
+  fi
+
+  # Fetch client secret
+  CLIENT_SECRET=$(curl -s -X GET https://"$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID/client-secret" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r '.value')
+
+  if [ -z "$CLIENT_SECRET" ]; then
+    echo "Failed to fetch client secret for client '$CLIENT_ID'."
+    return 1
+  fi
+
+  # Return the client secret
+  echo "$CLIENT_SECRET"
+}
+
+create_sub_scope() {
+  # Parameters
+  local KEYCLOAK_URL=$1
+  local REALM_NAME=$2
+  local ADMIN_USERNAME=$3
+  local ADMIN_PASSWORD=$4
+  local CLIENT_ID=$5
+
+  # Validate input
+  if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$ADMIN_USERNAME" || -z "$ADMIN_PASSWORD" || -z "$CLIENT_ID" ]]; then
+    echo "Usage: create_sub_scope <KEYCLOAK_URL> <REALM_NAME> <ADMIN_USERNAME> <ADMIN_PASSWORD> <CLIENT_ID>"
+    return 1
+  fi
+
+  # Fetch admin access token
+  ACCESS_TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$ADMIN_USERNAME" \
+    -d "password=$ADMIN_PASSWORD" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" | jq -r '.access_token')
+
+  if [ -z "$ACCESS_TOKEN" ]; then
+    echo "Failed to fetch access token. Please check your credentials."
+    return 1
+  fi
+
+  # Create the `sub` client scope
+  CLIENT_SCOPE_ID=$(curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM_NAME/client-scopes" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "name": "sub",
+          "description": "Custom scope for the sub claim",
+          "protocol": "openid-connect"
+        }' | jq -r '.id')
+
+  if [ -z "$CLIENT_SCOPE_ID" ]; then
+    echo "Failed to create client scope 'sub'. It may already exist."
+    CLIENT_SCOPE_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/client-scopes" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" | jq -r '.[] | select(.name=="sub") | .id')
+  fi
+
+  echo "Client Scope ID for 'sub': $CLIENT_SCOPE_ID"
+
+  # Add a protocol mapper for the `sub` claim
+  curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM_NAME/client-scopes/$CLIENT_SCOPE_ID/protocol-mappers/models" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "name": "sub-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "sub",
+            "claim.name": "sub",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }'
+
+  echo "Protocol mapper for 'sub' added successfully."
+
+  # Fetch client UUID
+  CLIENT_UUID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
+
+  if [ -z "$CLIENT_UUID" ]; then
+    echo "Client '$CLIENT_ID' not found in realm '$REALM_NAME'."
+    return 1
+  fi
+
+  # Assign the `sub` scope to the client
+  curl -s -X PUT "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID/optional-client-scopes/$CLIENT_SCOPE_ID" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json"
+
+  echo "Client scope 'sub' assigned to client '$CLIENT_ID'."
+
+  # Verify the configuration
+  echo "Verifying the configuration..."
+  curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq
+
+  echo "Automation for 'sub' scope creation completed successfully."
+}
+
+debugScope(){
+  # This function is used to debug the scope of the keycloak client
+  # It will fetch the client secret and print it
+  KEYCLOAK_URL=$(fullKeycloakUrl)
+  REALM_NAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
+  CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
+  ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
+
+  CLIENT_SECRET=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM_NAME" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
+  echo "Client Secret: $CLIENT_SECRET"
+  if [[ -z "$CLIENT_SECRET" ]]; then
+    echoFailed "Failed to fetch client secret, please check the logs!"
+    return 1
+  fi
+  echoSuccess "Client Secret fetched successfully!"
+  generateAccessToken "$KEYCLOAK_URL" "$REALM_NAME" "$CLIENT_ID" "$CLIENT_SECRET" "openid profile email"
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Failed to generate access token, please check the logs!"
+    return 1
+  fi  
+}
+
+generateAccessToken() {
+    local KEYCLOAK_URL=$1
+    local REALM_NAME=$2
+    local CLIENT_ID=$3
+    local CLIENT_SECRET=$4
+    local SCOPE=$5
+
+    if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$CLIENT_SECRET" || -z "$SCOPE" ]]; then
+      echo "Usage: generateAccessToken <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <CLIENT_SECRET> <SCOPE>"
+      return 1
+    fi
+
+    curl -s -X POST https://"$KEYCLOAK_URL/realms/$REALM_NAME/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "client_id=$CLIENT_ID" \
+      -d "client_secret=$CLIENT_SECRET" \
+      -d "grant_type=client_credentials" \
+      -d "scope=$SCOPE" | jq -r '.access_token'
+  }
 
 installKeycloakWithCertMgr(){
   keycloakInst
@@ -2210,6 +2651,13 @@ installKeycloakWithCertMgr(){
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
 
   python3 $MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py all $ADMIN_ID $ADMIN_PWD $CLIENT_ID $REALM
+
+  KEYCLOAK_URL=$(fullKeycloakUrl)
+  # Example usage
+  create_sub_scope "https://${KEYCLOAK_URL}" "${REALM}" "${ADMIN_ID}" "${ADMIN_PWD}" "${CLIENT_ID}"
+  
+  #create_sub_scope "https://keycloak.gokcloud.com" "GokDevelopers" "keycloakadmin" "ssumit@1234" "gok-developers-client"
+
   oauth2Secret
   # Check if LDAP service is running
   echo "Checking if LDAP service is running..."
@@ -2223,6 +2671,7 @@ installKeycloakWithCertMgr(){
   fi
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
+  chmod +x setup_user_federation.sh setup_group_mappers.sh
   ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
   if [[ $? -ne 0 ]]; then
     echoFailed "User Federation creation failed, please check the logs!"
@@ -2231,7 +2680,7 @@ installKeycloakWithCertMgr(){
   fi
   echoSuccess "User Federation created successfully!"
   echo "Creating Keycloak Groups"
-  ./setup_group_mapper.sh $ADMIN_ID $ADMIN_PWD
+  ./setup_group_mappers.sh $ADMIN_ID $ADMIN_PWD
   if [[ $? -ne 0 ]]; then
     echoFailed "Keycloak Groups creation failed, please check the logs!"
     popd
@@ -2422,6 +2871,10 @@ patchDashboardWithOauth(){
   patchOauth2Secure kubernetes-dashboard kubernetes-dashboard https://kube.gokcloud.com/dashboard/
 }
 
+patchJupyterWithOauth() {
+  patchOauth2Secure jupyterhub jupyterhub https://$(defaultSubdomain).$(rootDomain)/hub/
+}
+
 checkAndPatchDashboard() {
   # Check if the oauth2-proxy service is running
   echo "Checking if oauth2-proxy service is running..."
@@ -2430,6 +2883,17 @@ checkAndPatchDashboard() {
     patchDashboardWithOauth
   else
     echo "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
+  fi
+}
+
+checkAndPatchHub() {
+  # Check if the oauth2-proxy service is running
+  echo "Checking if oauth2-proxy service is running..."
+  if kubectl get pods -n oauth2 -l app.kubernetes.io/name=oauth2-proxy 2>/dev/null | grep -q "Running"; then
+    echo "oauth2-proxy service is running. Proceeding to patch JupyterHub..."
+    patchJupyterWithOauth
+  else
+    echo "oauth2-proxy service is not running. Please ensure it is running before patching JupyterHub."
   fi
 }
 
@@ -2452,7 +2916,188 @@ oauth2ProxyReset(){
   kubectl delete ns oauth2
 }
 
+#export NODE_TLS_REJECT_UNAUTHORIZED=0
+jupyterHubInst() {
+  # Add the Helm repository for JupyterHub
+  helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
+  helm repo update
 
+  # Create the storage class for JupyterHub using the generic method
+  createLocalStorageClassAndPV "jupyter-storage" "jupyter-pv" "/data/volumes/jupyter"
+  createLocalStorageClassAndPV "jupyter-user-storage" "jupyter-user-pv" "/data/volumes/jupyter-user"
+  # Create a namespace for JupyterHub
+  kubectl create namespace jupyterhub || echo "Namespace jupyterhub already exists"
+
+  # Generate a random secret token for JupyterHub
+  JUPYTERHUB_SECRET=$(openssl rand -hex 32)
+
+  # Create a Kubernetes secret for the JupyterHub proxy
+  kubectl create secret generic hub-secret \
+    --from-literal=hub-secret-key="${JUPYTERHUB_SECRET}" \
+    --namespace jupyterhub || echo "Secret hub-secret already exists"
+
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  keycloakUrl="https://$(fullKeycloakUrl)"
+  REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
+  OAUTH2_HOST="$(fullKeycloakUrl)"
+  ENABLE_OAUTH2="true"
+
+  # Install JupyterHub using Helm with the provided values.yaml
+  helm install jupyterhub jupyterhub/jupyterhub \
+    --namespace jupyterhub \
+    --set proxy.secretToken="${JUPYTERHUB_SECRET}" \
+    --values "${MOUNT_PATH}/kubernetes/install_k8s/jupyter/values.yaml" \
+    $(if [[ "$ENABLE_OAUTH2" == "true" ]]; then
+      echo "--set hub.config.GenericOAuthenticator.client_id=${CLIENT_ID} \
+      --set hub.config.GenericOAuthenticator.client_secret=${CLIENT_SECRET} \
+      --set hub.config.GenericOAuthenticator.oauth_callback_url=https://$(jupyterHubSubdomain).$(rootDomain)/oauth_callback \
+      --set hub.config.GenericOAuthenticator.authorize_url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth \
+      --set hub.config.GenericOAuthenticator.token_url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token \
+      --set hub.config.GenericOAuthenticator.userdata_url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo \
+      --set hub.config.GenericOAuthenticator.login_service=keycloak \
+      --set hub.config.GenericOAuthenticator.username_claim=preferred_username \
+      --set hub.config.GenericOAuthenticator.userdata_params.state=state \
+      --set hub.config.GenericOAuthenticator.allow_all=true \
+      --set hub.config.GenericOAuthenticator.tls_verify=false \
+      --set hub.config.GenericOAuthenticator.admin_users[0]=admin \
+      --set hub.config.GenericOAuthenticator.admin_users[1]=skmaji1 \
+      --set hub.config.JupyterHub.authenticator_class=generic-oauth"
+    fi)
+
+  # Wait for the JupyterHub pods to be ready
+  echo "Waiting for JupyterHub services to be up..."
+  kubectl --namespace jupyterhub wait --for=condition=Ready pods --all --timeout=300s
+
+  gok patch ingress jupyterhub jupyterhub letsencrypt $(jupyterHubSubdomain)
+  # checkAndPatchHub
+
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "JupyterHub services are now up!"
+    echoSuccess "Access it using https://master.cloud.com"
+  else
+    echoFailed "JupyterHub services timed out. Please check the logs!"
+  fi
+}
+
+jupyterHubReset() {
+  helm uninstall jupyterhub -n jupyterhub
+  kubectl delete secret hub-secret -n jupyterhub
+  kubectl delete pod --all -n jupyterhub
+  kubectl delete pvc --all -n jupyterhub
+  emptyLocalFsStorage "JupyterHub" "jupyter-pv" "jupyter-storage" "/data/volumes/jupyter"
+  emptyLocalFsStorage "JupyterHub User" "jupyter-user-pv" "jupyter-user-storage" "/data/volumes/jupyter-user"
+  kubectl delete ns jupyterhub
+}
+
+installKubectlClient(){
+  # Install kubectl client
+  if ! command -v kubectl &> /dev/null; then
+    echo "kubectl not found, installing..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+    echoSuccess "kubectl installed successfully!"
+  else
+    echo "kubectl is already installed."
+  fi
+}   
+
+installDocker(){
+  # Install Docker
+  if ! command -v docker &> /dev/null; then
+    echo "Docker not found, installing..."
+    sudo apt-get update
+    sudo apt-get install -y docker.io
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    echoSuccess "Docker installed successfully!"
+  else
+    echo "Docker is already installed."
+  fi
+
+  # Add current user to the docker group
+  sudo usermod -aG docker $USER
+  echoSuccess "Current user added to the docker group. Please log out and log back in for changes to take effect."
+}
+
+
+eclipseCheInst(){
+
+  # Fetch OIDC client secret and other required parameters from the secret
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  REALM_NAME=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
+
+  createLocalStorageClassAndPV "eclipse-che-storage" "eclipse-che-pv" "/data/volumes/eclipse-che"
+  
+  # Install Chectl
+  wget https://che-incubator.github.io/chectl/install.sh
+  chmod +x install.sh
+  ./install.sh
+  [[ $? -ne 0 ]] && echoFailed "Chectl installation failed, please check the logs!" && return 1
+  echoSuccess "Chectl installed successfully!"
+
+  # Create a patch file for CheCluster
+  cat > che-patch.yaml << EOF
+kind: CheCluster
+apiVersion: org.eclipse.che/v2
+spec:
+  devEnvironments:
+    secondsOfInactivityBeforeIdling: -1
+    storage:
+      perUserStrategyPvcConfig:
+        claimSize: 2Gi 
+        storageClass: eclipse-che-storage
+      pvcStrategy: per-user 
+    
+  networking:
+    auth:
+      oAuthClientName: ${CLIENT_ID}
+      oAuthSecret: ${CLIENT_SECRET}
+      identityProviderURL: "https://$(fullKeycloakUrl)/realms/${REALM_NAME}"
+      gateway:
+        oAuthProxy:
+          cookieExpireSeconds: 300
+  components:
+    cheServer:
+      extraVolumes:
+        - name: keycloak-ca
+          configMap:
+            name: keycloak-certs
+      extraVolumeMounts:
+        - name: keycloak-ca
+          mountPath: /etc/ssl/certs/keycloak-ca.crt
+          subPath: keycloak-ca.crt
+          readOnly: true
+      extraProperties:
+        CHE_OIDC_USERNAME__CLAIM: email
+        CHE_OIDC_SKIP_CERTIFICATE_VERIFICATION: "true"
+        REQUESTS_CA_BUNDLE: /etc/ssl/certs/keycloak-ca.crt
+EOF
+
+  kubectl create ns eclipse-che || echo "Namespace eclipse-che already exists"
+
+  # Create a secret for Keycloak CA certificate
+  kubectl get secret keycloak-gokcloud-com -n keycloak -o jsonpath="{.data['ca\.crt']}" | base64 -d > keycloak-ca.crt
+  kubectl create configmap keycloak-certs --from-file=keycloak-ca.crt=keycloak-ca.crt -n eclipse-che
+  kubectl label configmap keycloak-certs app.kubernetes.io/part-of=che.eclipse.org app.kubernetes.io/component=ca-bundle -n eclipse-che
+
+  # Deploy Eclipse Che using chectl
+  chectl server:deploy --platform k8s --domain che.gokcloud.com --che-operator-cr-patch-yaml che-patch.yaml --skip-cert-manager
+  [[ $? -eq 0 ]] && echoSuccess "Eclipse Che is now installed and running!" || echoFailed "Eclipse Che installation failed, please check the logs!"
+  rm -f keycloak-ca.crt che-patch.yaml install.sh
+}
+
+resetEclipseChe(){
+  # Uninstall Eclipse Che
+  kubectl delete deployment --all -n eclipse-che
+  chectl server:delete --delete-namespace --delete-all
+  [[ $? -ne 0 ]] && echoFailed "Eclipse Che uninstallation failed, please check the logs!" && return 1
+  kubectl delete configmap keycloak-certs -n eclipse-che || echo "ConfigMap keycloak-certs already deleted or does not exist"
+  emptyLocalFsStorage "Eclipse Che" "eclipse-che-pv" "eclipse-che-storage" "/data/volumes/eclipse-che"
+  echoSuccess "Eclipse Che has been uninstalled successfully!"
+}
 
 oauth2ProxyInst(){
 
@@ -2494,6 +3139,8 @@ oauth2ProxyInst(){
     --set "extraArgs[20]=--standard-logging=true" \
     --set "extraArgs[21]=--auth-logging=true" \
     --set "extraArgs[22]=--request-logging=true" \
+    --set "extraArgs[23]=--cookie-refresh=1h" \
+    --set "extraArgs[24]=--cookie-expire=8h" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
@@ -2831,6 +3478,8 @@ kyvernoInst(){
   helm install kyverno --namespace kyverno kyverno/kyverno --create-namespace
   waitForServiceAvailable kyverno
   sleep 10
+
+  #grants the cluster-admin role to two specific ServiceAccounts
 cat <<EOF | kubectl apply -f -
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -2848,6 +3497,7 @@ subjects:
   name: kyverno-background-controller
   namespace: kyverno
 EOF
+
 
 cat <<EOF | kubectl apply -f -
 apiVersion: kyverno.io/v1
@@ -2999,6 +3649,10 @@ function installCmd() {
     installLdap
   elif [ "$COMPONENT" == "dashboard" ]; then
     installDashboardwithCertManager
+  elif [ "$COMPONENT" == "jupyter" ]; then
+    jupyterHubInst
+  elif [ "$COMPONENT" == "che" ]; then
+    eclipseCheInst
   elif [ "$COMPONENT" == "vault" ]; then
     vaultInstall
   elif [ "$COMPONENT" == "keycloak" ]; then
@@ -3088,6 +3742,10 @@ EOF
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
     fluentdReset
+  elif [ "$COMPONENT" == "jupyter" ]; then
+    jupyterHubReset
+  elif [ "$COMPONENT" == "che" ]; then
+    resetEclipseChe
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset

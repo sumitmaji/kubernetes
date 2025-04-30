@@ -330,6 +330,8 @@ kube        IN  A   $(getMasterIp)
 fluentd     IN  A   $(getMasterIp)
 opensearch  IN  A   $(getMasterIp)
 vault       IN  A   $(getMasterIp)
+jupyterhub  IN  A   $(getMasterIp)
+che         IN  A   $(getMasterIp)
 EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF

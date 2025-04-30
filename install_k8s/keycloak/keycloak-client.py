@@ -123,7 +123,7 @@ def tokens():
   sys.stderr.write("Login: ")
   login = input()
   password = getpass.getpass()
-  secret = getpass.getpass("Client Secret: ")
+  secret = fetch_client_secret(env.get("KEYCLOAK_CLIENT_ID"))
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/realms/{REALM}/protocol/openid-connect/token",
     data={
@@ -322,6 +322,39 @@ def realm():
     headers=authHeader(),
   )
   [print(r["realm"]) for r in resp.json()]
+
+def fetch_client_secret(client_id):
+    """
+    Fetch the client secret for a specific client in the realm.
+
+    Args:
+        client_id (str): The client ID for which the secret is to be fetched.
+
+    Returns:
+        str: The client secret if successful, or an error message if not.
+    """
+    try:
+        # Get the client UUID (ID) using the client ID
+        client_uuid = getId(client_id, 'clients', 'clientId')
+
+        # Fetch the client secret using the client UUID
+        resp = requests.get(
+            f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/{client_uuid}/client-secret",
+            headers=authHeader(),
+        )
+        resp.raise_for_status()
+
+        # Extract and return the client secret
+        client_secret = resp.json().get("value")
+        if client_secret:
+            logger.info(f"Client Secret for client '{client_id}': {client_secret}")
+            return client_secret
+        else:
+            logger.error(f"Client secret not found for client '{client_id}'.")
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching client secret for client '{client_id}': {str(e)}")
+        return None
 
 
 def main():

@@ -1,4 +1,7 @@
 proxy: edge
+# auth:
+#   adminUser: "keycloakadmin"
+#   adminPassword: ""
 extraEnvVars:
   - name: KEYCLOAK_LOG_LEVEL
     valueFrom:
@@ -7,17 +10,14 @@ extraEnvVars:
         key: KEYCLOAK_LOG_LEVEL 
 
 #Admin user is "user" and password is fetched from the secret keycloak with key "admin-password"
-#  - name: KEYCLOAK_ADMIN
-#    valueFrom:
-#      secretKeyRef:
-#        name: keycloak-secrets
-#        key: KEYCLOAK_ADMIN
-#  - name: KEYCLOAK_ADMIN_PASSWORD
-#    valueFrom:
-#      secretKeyRef:
-#        name: keycloak-secrets
-#        key: KEYCLOAK_ADMIN_PASSWORD
-
+  # - name: KEYCLOAK_ADMIN
+  #   valueFrom:
+  #     fieldRef:
+  #       fieldPath: metadata.annotations['vault.hashicorp.com/agent-inject-secret-ADMIN_USER']
+  # - name: KEYCLOAK_ADMIN_PASSWORD
+  #   valueFrom:
+  #     fieldRef:
+  #       fieldPath: metadata.annotations['vault.hashicorp.com/agent-inject-secret-ADMIN_PASSWORD']
 ingress:
   ## @param ingress.enabled Enable ingress record generation for Keycloak
   ##
@@ -86,3 +86,33 @@ postgresql:
   common:
     global:
       storageClass: "keycloak-storage"
+## @param extraVolumes Optionally specify extra list of additional volumes for Keycloak pods
+##
+# extraVolumes:
+#   - name: secrets-store-inline
+#     csi:
+#       driver: secrets-store.csi.k8s.io
+#       readOnly: true
+#       volumeAttributes:
+#         secretProviderClass: "keycloak-admin-secret-provider"
+
+## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts for Keycloak container(s)
+##
+# extraVolumeMounts:
+#   - name: secrets-store-inline
+#     mountPath: "/mnt/secrets-store"
+#     readOnly: true
+
+# podAnnotations:
+#   vault.hashicorp.com/agent-inject: "true"
+#   vault.hashicorp.com/role: "keycloak-admin-role"
+#   vault.hashicorp.com/agent-inject-secret-admin_password: "secret/keycloak/admin"
+#   vault.hashicorp.com/agent-inject-secret-admin_user: "secret/keycloak/admin"
+#   vault.hashicorp.com/agent-inject-template-admin_password: |
+#     {{`{{- with secret "secret/keycloak/admin" -}}`}}
+#     {{`{{ .Data.adminPassword }}`}}
+#     {{`{{- end }}`}}
+#   vault.hashicorp.com/agent-inject-template-admin_user: |
+#     {{`{{- with secret "secret/keycloak/admin" -}}`}}
+#     {{`{{ .Data.adminUser }}`}}
+#     {{`{{- end }}`}}
