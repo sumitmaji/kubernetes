@@ -2990,6 +2990,38 @@ jupyterHubReset() {
   kubectl delete ns jupyterhub
 }
 
+installKubectlClient(){
+  # Install kubectl client
+  if ! command -v kubectl &> /dev/null; then
+    echo "kubectl not found, installing..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+    echoSuccess "kubectl installed successfully!"
+  else
+    echo "kubectl is already installed."
+  fi
+}   
+
+installDocker(){
+  # Install Docker
+  if ! command -v docker &> /dev/null; then
+    echo "Docker not found, installing..."
+    sudo apt-get update
+    sudo apt-get install -y docker.io
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    echoSuccess "Docker installed successfully!"
+  else
+    echo "Docker is already installed."
+  fi
+
+  # Add current user to the docker group
+  sudo usermod -aG docker $USER
+  echoSuccess "Current user added to the docker group. Please log out and log back in for changes to take effect."
+}
+
+
 eclipseCheInst(){
 
   # Fetch OIDC client secret and other required parameters from the secret

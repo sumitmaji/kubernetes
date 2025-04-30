@@ -216,3 +216,32 @@ EOF
 ---
 
 This documentation now includes the use of the gok script for automating the installation and uninstallation of Eclipse Che, along with manual installation steps for reference.
+
+# Note
+
+The current removal of eclipse che does not stop all the pods, so after executing `gok reset che` follow below steps
+
+1. Open a new tab and login to box.
+2. change the namespace to `eclipse-che`
+3. stop the running containers
+  ```console
+    kubectl delete deployment --all
+  ``
+
+If you delete the workspace from eclipse-che, the `persistance volument` will not be freed from the previous claim, to make it available follow below steps
+
+1. Edit the `persistance volume`
+  ```console
+    kubectl edit pv eclipse-che-pv
+  ``` 
+2. Remove the tag `claimRef`
+  ```yaml
+    claimRef:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      name: claim-devworkspace
+      namespace: skmaji1-outlook-com-che-x4x051
+      resourceVersion: "5663200"
+      uid: 4e5d4d41-f91a-4bc0-b863-2dd064335c3d
+
+  ```
