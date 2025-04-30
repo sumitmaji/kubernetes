@@ -3012,6 +3012,7 @@ kind: CheCluster
 apiVersion: org.eclipse.che/v2
 spec:
   devEnvironments:
+    secondsOfInactivityBeforeIdling: -1
     storage:
       perUserStrategyPvcConfig:
         claimSize: 2Gi 
