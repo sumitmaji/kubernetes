@@ -63,6 +63,25 @@ controller:
                 value: "true"
               templates:
               - containers:
+                - args: "--context=git://github.com/scriptcamp/kubernetes-kaniko --destination=registry.gokcloud.com/kaniko-demo-image:1.0 --skip-tls-verify --insecure"
+                  image: "gcr.io/kaniko-project/executor:latest"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/home/jenkins/agent"
+                hostNetwork: false
+                label: "kaniko"
+                name: "kaniko"
+                namespace: "jenkins"
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
+              - containers:
                 - image: "jenkins/inbound-agent:latest"
                   livenessProbe:
                     failureThreshold: 0
