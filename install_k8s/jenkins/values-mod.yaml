@@ -77,6 +77,11 @@ controller:
                 label: "kaniko"
                 name: "kaniko"
                 namespace: "jenkins"
+                volumes:
+                - secretVolume:
+                    mountPath: "/kaniko/.docker"
+                    optional: false
+                    secretName: "docker-credentials"
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
