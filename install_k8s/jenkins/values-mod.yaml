@@ -81,7 +81,7 @@ controller:
                 - secretVolume:
                     mountPath: "/kaniko/.docker"
                     optional: false
-                    secretName: "docker-credentials"
+                    secretName: "registry-credentials"
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
