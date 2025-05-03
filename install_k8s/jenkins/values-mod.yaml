@@ -46,7 +46,7 @@ controller:
       kaniko-configuration: |
         jenkins:
           clouds:
-          - gok-kubernetes:
+          - kubernetes:
               connectTimeout: 5
               containerCapStr: "10"
               credentialsId: "my-k8s-token"
