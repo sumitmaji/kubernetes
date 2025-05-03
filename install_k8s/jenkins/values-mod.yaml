@@ -63,6 +63,24 @@ controller:
                 value: "true"
               templates:
               - containers:
+                - image: "jenkins/inbound-agent:latest"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/home/jenkins/agent"
+                hostNetwork: false
+                label: "kubeagent"
+                name: "devops-tool"
+                namespace: "jenkins"
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
+              - containers:
                 - args: "^${computer.jnlpmac} ^${computer.name}"
                   image: "registry.access.redhat.com/openshift3/jenkins-slave-maven-rhel7"
                   livenessProbe:
@@ -95,6 +113,7 @@ controller:
                 hostNetwork: false
                 label: "nodejs"
                 name: "nodejs"
+                namespace: "jenkins"
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
