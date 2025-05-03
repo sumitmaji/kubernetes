@@ -195,6 +195,7 @@ controller:
     - matrix-auth:latest
     - blueocean:latest
     - ansicolor:latest
+    - strict-crumb-issuer:latest
 
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true

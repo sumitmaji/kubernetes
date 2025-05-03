@@ -3215,6 +3215,20 @@ waitForServiceAvailable(){
   [[ $? -eq 0 ]] && echoSuccess "Service is now up!" || echoFailed "Service timed-out, please check!!"
 }
 
+enableJenkins(){
+  USERNAME=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
+  PASSWORD=$(promptSecret "Enter Jenkins Password: ")
+
+  docker exec -it halyard hal config ci jenkins enable
+
+  docker exec -it halyard hal config ci jenkins master add gok-jenkins-master \
+    --address https://jenkins.gokcloud.com \
+    --username ${USERNAME} \
+    --password ${PASSWORD}
+
+  docker exec -it halyard hal deploy apply
+}
+
 spinnakerInst(){
   CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
   CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
