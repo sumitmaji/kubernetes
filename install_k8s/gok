@@ -1357,6 +1357,31 @@ opensearchDashInst(){
     [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!\n You can access the service using https://opensearch.gokcloud.com" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
 }
 
+createJenkinsPipeline() {
+  # Prompt for Jenkins username and API token
+  JENKINS_USER=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
+  JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token: ")
+
+  # Prompt for Jenkins URL and pipeline details
+  JENKINS_URL=$(promptUserInput "Enter Jenkins URL (https://jenkins.gokcloud.com): " "https://jenkins.gokcloud.com")
+  PIPELINE_NAME=$(promptUserInput "Enter Pipeline Name: " "Kaniko-Pipeline")
+
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/jenkins"
+  # Make the API call to create the pipeline
+  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$JENKINS_URL/createItem?name=$PIPELINE_NAME" \
+    --user "$JENKINS_USER:$JENKINS_API_TOKEN" \
+    -H "Content-Type: application/xml" \
+    --data-binary @pipeline-config.xml)
+
+  popd
+  # Check the response
+  if [ "$RESPONSE" -eq 200 ]; then
+    echoSuccess "Pipeline '$PIPELINE_NAME' created successfully!"
+  else
+    echoFailed "Failed to create pipeline. HTTP Status Code: $RESPONSE"
+  fi
+}
+
 jenkinsInst() {
   helm repo add jenkins https://charts.jenkins.io
   helm repo update
