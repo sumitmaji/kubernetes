@@ -46,7 +46,7 @@ controller:
       kaniko-configuration: |
         jenkins:
           clouds:
-          - kubernetes:
+          - gok-kubernetes:
               connectTimeout: 5
               containerCapStr: "10"
               credentialsId: "my-k8s-token"
@@ -55,7 +55,7 @@ controller:
               jenkinsTunnel: "jenkins-agent.jenkins.svc.cloud.uat:50000"
               jenkinsUrl: "http://jenkins.jenkins.svc.cloud.uat:8080"
               maxRequestsPerHostStr: "32"
-              name: "kubernetes"
+              name: "gok-kubernetes"
               namespace: "jenkins"
               readTimeout: 15
               podLabels:
