@@ -663,3 +663,198 @@ Test the token by making an API request or using the Jenkins CLI to ensure it wo
 ### **Important Notes**
 - Keep the API token secure, as it provides access to your Jenkins account.
 - If the token is compromised, revoke it from your user profile and generate a new one.
+
+
+# **Documentation for Installing Jenkins and Creating a Jenkins Pipeline Using gok**
+
+This guide provides step-by-step instructions for installing Jenkins and creating a Jenkins pipeline using the gok utility.
+
+---
+
+## **1. Installing Jenkins**
+
+### **Prerequisites**
+- Ensure gok is installed and configured on your system.
+- Kubernetes cluster is up and running.
+- Helm is installed on your system.
+
+### **Steps to Install Jenkins**
+1. **Run the Jenkins Installation Command**:
+   Use the following gok command to install Jenkins:
+   ```bash
+   ./gok install jenkins
+   ```
+
+2. **Provide Required Inputs**:
+   During the installation process, you will be prompted to provide the following:
+   - **Jenkins Admin Password**: Enter a secure password for the Jenkins admin user.
+   - **Docker Registry Credentials**: Ensure the Docker registry credentials are available in `/root/.docker/config.json`.
+
+3. **What Happens During Installation**:
+   - A namespace `jenkins` is created in the Kubernetes cluster.
+   - Secrets for Jenkins admin credentials and Docker registry credentials are created.
+   - Jenkins is deployed using Helm with the configuration specified in `values-mod.yaml`.
+   - A Persistent Volume (PV) is created for Jenkins storage.
+
+4. **Verify Jenkins Installation**:
+   After the installation, verify that Jenkins is running:
+   ```bash
+   kubectl get pods -n jenkins
+   ```
+   Ensure all pods are in the `Running` state.
+
+5. **Access Jenkins**:
+   - Jenkins will be available at the URL specified during installation (e.g., `https://jenkins.gokcloud.com`).
+   - Use the admin credentials to log in.
+
+---
+
+## **2. Creating a Jenkins Pipeline**
+
+### **Prerequisites**
+- Jenkins is installed and running.
+- You have the Jenkins admin username and API token.
+
+### **Steps to Create a Jenkins Pipeline**
+1. **Run the Pipeline Creation Command**:
+   Use the following gok command to create a Jenkins pipeline:
+   ```bash
+   source gok
+   createJenkinsPipeline
+   ```
+
+2. **Provide Required Inputs**:
+   During the pipeline creation process, you will be prompted to provide the following:
+   - **Jenkins Username**: Enter the Jenkins admin username (default: `skmaji1`).
+   - **Jenkins API Token**: Enter the API token for the Jenkins admin user.
+   - **Jenkins URL**: Enter the Jenkins URL (default: `https://jenkins.gokcloud.com`).
+   - **Pipeline Name**: Enter the name of the pipeline (default: `Kaniko-Pipeline`).
+
+3. **Pipeline Configuration**:
+   The pipeline configuration is read from the `pipeline-config.xml` file located in the `kubernetes/install_k8s/jenkins` directory. Ensure this file is correctly configured before running the command.
+
+4. **Verify Pipeline Creation**:
+   After the pipeline is created, verify it in the Jenkins dashboard:
+   - Log in to Jenkins.
+   - Navigate to the pipeline name you provided (e.g., `Kaniko-Pipeline`).
+
+---
+
+## **3. Example Pipeline Configuration**
+
+The `pipeline-config.xml` file contains the pipeline definition. Below is an example configuration for a Kaniko-based pipeline:
+
+```xml
+<flow-definition plugin="workflow-job">
+  <description>Kaniko Pipeline</description>
+  <keepDependencies>false</keepDependencies>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps">
+    <script>
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'gok-kubernetes'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    tty: true
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ["tail"]
+    args: ["-f", "/dev/null"]
+    volumeMounts:
+      - name: docker-credentials
+        mountPath: /kaniko/.docker
+  volumes:
+    - name: docker-credentials
+      secret:
+        secretName: registry-credentials
+            """
+        }
+    }
+    environment {
+        IMAGE_NAME = 'registry.gokcloud.com/kaniko-demo-image'
+        IMAGE_TAG = "${BUILD_ID}"
+    }
+    stages {
+        stage('Build and Push Docker Image') {
+            steps {
+                container('kaniko') {
+                   sh """
+                        /kaniko/executor \\
+                            --context git://github.com/scriptcamp/kubernetes-kaniko \\
+                            --destination ${IMAGE_NAME}:${IMAGE_TAG} \\
+                            --destination ${IMAGE_NAME}:latest \\
+                            --cache=true \\
+                            --insecure \\
+                            --skip-tls-verify
+                    """
+                }
+            }
+        }
+    }
+}
+</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+</flow-definition>
+```
+
+---
+
+## **4. Troubleshooting**
+
+### **Jenkins Installation Issues**
+- **Pods Not Running**:
+  - Check the logs of the Jenkins pod:
+    ```bash
+    kubectl logs <jenkins-pod-name> -n jenkins
+    ```
+  - Ensure the Persistent Volume (PV) is correctly configured.
+
+- **Cannot Access Jenkins**:
+  - Verify the ingress configuration:
+    ```bash
+    kubectl describe ingress jenkins -n jenkins
+    ```
+
+### **Pipeline Creation Issues**
+- **Pipeline Not Created**:
+  - Verify the API token and Jenkins URL.
+  - Check the response code from the `gok create pipeline` command.
+
+- **Pipeline Fails to Run**:
+  - Check the logs of the pipeline run in the Jenkins dashboard.
+  - Ensure the `pipeline-config.xml` file is correctly configured.
+
+---
+
+## **5. Additional Commands**
+
+### **Reset Jenkins**
+To reset Jenkins, use the following command:
+```bash
+gok reset jenkins
+```
+
+### **Start Jenkins**
+To start Jenkins, use the following command:
+```bash
+gok start jenkins
+```
+
+---
+
+## **6. Summary**
+
+- Use `gok install jenkins` to install Jenkins.
+- Use `gok create pipeline` to create a Jenkins pipeline.
+- Ensure the `pipeline-config.xml` file is correctly configured for your pipeline requirements.
+- Troubleshoot issues using the provided commands and logs.
+
+This guide simplifies the process of installing Jenkins and creating pipelines using the gok utility.
