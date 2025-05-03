@@ -63,7 +63,8 @@ controller:
                 value: "true"
               templates:
               - containers:
-                - args: "--context=git://github.com/scriptcamp/kubernetes-kaniko --destination=registry.gokcloud.com/kaniko-demo-image:1.0 --skip-tls-verify --insecure"
+                - args: "60"
+                  command: ["sleep"]
                   image: "gcr.io/kaniko-project/executor:latest"
                   livenessProbe:
                     failureThreshold: 0
