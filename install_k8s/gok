@@ -1360,11 +1360,11 @@ opensearchDashInst(){
 createJenkinsPipeline() {
   # Prompt for Jenkins username and API token
   JENKINS_USER=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
-  JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token: ")
+  JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token(Check README.md for steps): ")
 
   # Prompt for Jenkins URL and pipeline details
   JENKINS_URL=$(promptUserInput "Enter Jenkins URL (https://jenkins.gokcloud.com): " "https://jenkins.gokcloud.com")
-  PIPELINE_NAME=$(promptUserInput "Enter Pipeline Name: " "Kaniko-Pipeline")
+  PIPELINE_NAME=$(promptUserInput "Enter Pipeline Name(Kaniko-Pipeline): " "Kaniko-Pipeline")
 
   pushd "$MOUNT_PATH/kubernetes/install_k8s/jenkins"
   # Make the API call to create the pipeline
