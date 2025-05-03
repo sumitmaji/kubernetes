@@ -64,7 +64,7 @@ controller:
               templates:
               - containers:
                 - args: "60"
-                  command: ["sleep"]
+                  command: "sleep"
                   image: "gcr.io/kaniko-project/executor:latest"
                   livenessProbe:
                     failureThreshold: 0
