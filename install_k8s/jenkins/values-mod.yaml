@@ -82,6 +82,9 @@ controller:
                     mountPath: "/kaniko/.docker"
                     optional: false
                     secretName: "docker-credentials"
+                    items:
+                    - key: .dockerconfigjson
+                      path: config.json
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
