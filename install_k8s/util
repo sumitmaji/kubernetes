@@ -53,6 +53,71 @@ bash(){
   kubectl exec -it "$name" -n $RELEASE_NAME -- /bin/bash
 }
 
+bashv2(){
+  # Fetch all pods in the namespace
+  pods=$(kubectl get po -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{print $1}')
+  if [ -z "$pods" ]; then
+    echo "No pods found in namespace $RELEASE_NAME."
+    return 1
+  fi
+
+  # Initialize variables for indexed display
+  indexed_data=""
+  pod_index=1
+
+  # Iterate through each pod to fetch its containers
+  while read -r pod_name; do
+    # Fetch init containers and regular containers for the pod
+    containers=$(kubectl get pod "$pod_name" -n $RELEASE_NAME -o jsonpath='{range .spec.initContainers[*]}{.name}{" (init)"}{"\n"}{end}{range .spec.containers[*]}{.name}{"\n"}{end}')
+    if [ -z "$containers" ]; then
+      containers="No containers found"
+    fi
+
+    # Add pod and its containers to indexed data
+    container_index=1
+    container_details=""
+    while read -r container; do
+      container_details+="$container($container_index) "
+      container_index=$((container_index + 1))
+    done <<< "$containers"
+
+    indexed_data+="$pod_index>> $pod_name $container_details\n"
+    pod_index=$((pod_index + 1))
+  done <<< "$pods"
+
+  # Display the indexed pods and containers
+  echo -e "$indexed_data"
+  echo "Enter Pod Index and Container Index (e.g., 1,3):"
+  read input
+
+  # Split the input into pod index and container index
+  IFS=',' read -r POD_INDEX CONTAINER_INDEX <<< "$input"
+
+  # Validate the input
+  if ! [[ "$POD_INDEX" =~ ^[0-9]+$ ]] || ! [[ "$CONTAINER_INDEX" =~ ^[0-9]+$ ]]; then
+    echo "Invalid input. Please enter in the format pod-index,container-index (e.g., 1,3)."
+    return 1
+  fi
+
+  # Get the selected pod name
+  pod_name=$(echo -e "$indexed_data" | grep "^$POD_INDEX>>" | awk '{print $2}')
+  if [ -z "$pod_name" ]; then
+    echo "Invalid pod index selected."
+    return 1
+  fi
+
+  # Get the selected container name
+  container_name=$(kubectl get pod "$pod_name" -n $RELEASE_NAME -o jsonpath='{range .spec.initContainers[*]}{.name}{"\n"}{end}{range .spec.containers[*]}{.name}{"\n"}{end}' | awk "NR==$CONTAINER_INDEX {print \$1}")
+  if [ -z "$container_name" ]; then
+    echo "Invalid container index selected."
+    return 1
+  fi
+
+  # Execute into the selected container
+  echo "Opening terminal on pod: $pod_name, container: $container_name"
+  kubectl exec -it "$pod_name" -n $RELEASE_NAME -c "$container_name" -- /bin/bash
+}
+
 desc(){
   type=$1
   data=$(kubectl get $type -n $RELEASE_NAME 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $0}')

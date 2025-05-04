@@ -3453,6 +3453,14 @@ kubernetes:
     type: secret
 EOF
 
+  cat <<EOF > /home/spinnaker/.hal/default/service-settings/igor.yml
+kubernetes:
+  volumes:
+  - id: internal-trust-store
+    mountPath: /etc/ssl/certs/java
+    type: secret
+EOF
+
   docker exec -it halyard hal deploy apply
 }
 
