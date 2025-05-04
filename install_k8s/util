@@ -66,6 +66,10 @@ pods(){
   kubectl get po -n $RELEASE_NAME "$@"
 }
 
+kwatch(){
+  kubectl get po --watch
+}
+
 all(){
   kubectl get all -n $RELEASE_NAME "$@"
 }
