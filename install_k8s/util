@@ -13,9 +13,36 @@ release(){
 }
 
 kcd(){
-  #alias kcd='kubectl config set-context $(kubectl config current-context) --namespace'
-  kubectl config set-context $(kubectl config current-context) --namespace $1
-  release $1
+  # Check if a namespace is provided as an argument
+  if [ -z "$1" ]; then
+    # No namespace provided, list all namespaces with indexes
+    echo "No namespace provided. Listing available namespaces:"
+    namespaces=$(kubectl get ns 2>/dev/null | sed -e '1d' | awk '{printf "%d>>\t%s\n", NR, $1}')
+    if [ -z "$namespaces" ]; then
+      echo "No namespaces found."
+      return 1
+    fi
+
+    # Display the namespaces
+    echo "$namespaces"
+    echo "Enter the Index Number to select a namespace:"
+    read INDEX
+
+    # Get the selected namespace
+    namespace=$(echo "$namespaces" | grep "^$INDEX>>" | awk '{print $2}')
+    if [ -z "$namespace" ]; then
+      echo "Invalid index selected."
+      return 1
+    fi
+  else
+    # Namespace provided as an argument
+    namespace=$1
+  fi
+
+  # Set the namespace in the current context
+  echo "Switching to namespace: $namespace"
+  kubectl config set-context $(kubectl config current-context) --namespace "$namespace"
+  release "$namespace"
 }
 
 current(){
