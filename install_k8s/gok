@@ -3215,6 +3215,16 @@ waitForServiceAvailable(){
   [[ $? -eq 0 ]] && echoSuccess "Service is now up!" || echoFailed "Service timed-out, please check!!"
 }
 
+resolveDns() {
+  local domain=$1
+  if [ -z "$domain" ]; then
+    echo "Usage: resolveDns <domain>"
+    return 1
+  fi
+
+  kubectl run -it --rm dnsutils --image=busybox:1.28 --restart=Never -- nslookup "$domain"
+}
+
 enableJenkins(){
   USERNAME=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
   PASSWORD=$(promptSecret "Enter Jenkins Password: ")
