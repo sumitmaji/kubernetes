@@ -1,15 +1,6 @@
 controller:
   javaOpts: >
     -Djava.util.logging.config.file=/var/jenkins_home/logging.properties
-
-  volumes:
-    - name: logging-config
-      configMap:
-        name: jenkins-logging-config
-  volumeMounts:
-    - name: logging-config
-      mountPath: /var/jenkins_home/logging.properties
-      subPath: logging.properties
   
   additionalConfig:
     logging.properties: |
@@ -274,6 +265,9 @@ persistence:
   subPath:
   # -- Additional volumes
   volumes:
+  - name: jekins-logging-config
+    configMap:
+      name: jenkins-logging-config
   - name: oic-auth-clientid
     secret:
       secretName: oic-auth
@@ -303,6 +297,9 @@ persistence:
 
   # -- Additional mounts
   mounts:
+  - name: jekins-logging-config
+    mountPath: /var/jenkins_home/logging.properties
+    subPath: logging.properties
   - name: oic-auth-clientid
     mountPath: /run/secrets/clientID
     subPath: clientID
