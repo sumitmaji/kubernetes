@@ -929,3 +929,98 @@ kubectl rollout restart deployment jenkins -n jenkins
 - If you are using a custom namespace or cluster role, update the values-mod.yaml file accordingly.
 
 By following these steps, Jenkins should be able to authenticate with the Kubernetes cluster using the `my-k8s-token` credentials.
+
+
+# **To keep the `Jenkinsfile` in a Git repository and refer to it in Jenkins, follow these steps:**
+
+
+### **1. Store the `Jenkinsfile` in a Git Repository**
+1. Create a Git repository (if you don't already have one).
+2. Add the `Jenkinsfile` to the repository:
+   ```bash
+   git init
+   git add Jenkinsfile
+   git commit -m "Add Jenkinsfile"
+   git remote add origin <repository-url>
+   git push -u origin main
+   ```
+   Replace `<repository-url>` with the URL of your Git repository.
+
+---
+
+### **2. Create a Pipeline Job in Jenkins**
+1. Log in to Jenkins.
+2. From the Jenkins dashboard, click **"New Item"**.
+3. Enter a name for your pipeline (e.g., `Git-Pipeline`).
+4. Select **"Pipeline"** as the project type.
+5. Click **"OK"**.
+
+---
+
+### **3. Configure the Pipeline**
+1. In the pipeline configuration page, scroll down to the **Pipeline** section.
+2. Select **"Pipeline script from SCM"**.
+3. In the **SCM** dropdown, select **"Git"**.
+4. Enter the repository URL in the **Repository URL** field.
+   - Example: `https://github.com/your-username/your-repo.git`
+5. If the repository is private, add credentials:
+   - Click **Add** next to the **Credentials** dropdown.
+   - Enter your Git username and password or personal access token.
+   - Save the credentials and select them from the dropdown.
+6. Specify the branch to use (e.g., `main` or `master`).
+7. Enter the path to the `Jenkinsfile` in the **Script Path** field (default: `Jenkinsfile`).
+
+---
+
+### **4. Save and Run the Pipeline**
+1. Click **"Save"** to save the pipeline configuration.
+2. From the pipeline's dashboard, click **"Build Now"** to trigger the pipeline.
+3. Monitor the build progress in the **Build History** section.
+4. Click on the build number to view the console output and logs.
+
+---
+
+### **Example Jenkinsfile**
+Here’s an example `Jenkinsfile` for a simple pipeline:
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building...'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Testing...'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying...'
+            }
+        }
+    }
+}
+```
+
+---
+
+### **Advantages of Keeping the Jenkinsfile in Git**
+1. **Version Control**:
+   - Changes to the pipeline are tracked in Git, making it easy to review and roll back changes.
+2. **Collaboration**:
+   - Developers can collaborate on the pipeline script using Git workflows.
+3. **Centralized Management**:
+   - The pipeline script is stored alongside the application code, ensuring consistency.
+
+---
+
+### **Summary**
+- Store the `Jenkinsfile` in a Git repository.
+- Configure the Jenkins pipeline to use **"Pipeline script from SCM"**.
+- Specify the repository URL, branch, and path to the `Jenkinsfile`.
+- Save and run the pipeline to execute the script from Git.
+
+Similar code found with 3 license types

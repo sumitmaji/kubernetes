@@ -1383,7 +1383,7 @@ callJenkinsApi(){
   echo "$response"
 }
 
-createJenkinsPipeline() {
+createExampleJenkinsPipeline() {
   # Prompt for Jenkins username and API token
   JENKINS_USER=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
   JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token(Check README.md for steps): ")
@@ -1406,6 +1406,63 @@ createJenkinsPipeline() {
   else
     echoFailed "Failed to create pipeline. HTTP Status Code: $RESPONSE"
   fi
+}
+
+
+createJenkinsPipeline() {
+  # Prompt for Jenkins username and API token
+  JENKINS_USER=$(promptUserInput "Enter Jenkins Username(skmaji1): " "skmaji1")
+  JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token: ")
+
+  # Prompt for Jenkins URL and pipeline details
+  JENKINS_URL=$(promptUserInput "Enter Jenkins URL (e.g., https://jenkins.gokcloud.com): " "https://jenkins.gokcloud.com")
+  PIPELINE_NAME=$(promptUserInput "Enter Pipeline Name: " "Git-Pipeline")
+  GIT_REPO_URL=$(promptUserInput "Enter Git Repository URL (e.g., https://github.com/your-username/your-repo.git): ")
+  GIT_BRANCH=$(promptUserInput "Enter Git Branch (e.g., main): " "main")
+  CREDENTIALS_ID=$(promptUserInput "Enter Jenkins Credentials ID: ")
+
+  # Create the pipeline configuration XML
+  cat <<EOF > pipeline-config.xml
+<flow-definition plugin="workflow-job">
+  <description>Pipeline created automatically to refer to Jenkinsfile in Git</description>
+  <keepDependencies>false</keepDependencies>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>${GIT_REPO_URL}</url>
+          <credentialsId>${CREDENTIALS_ID}</credentialsId>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>*/${GIT_BRANCH}</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+    </scm>
+    <scriptPath>Jenkinsfile</scriptPath>
+    <lightweight>true</lightweight>
+  </definition>
+  <triggers/>
+</flow-definition>
+EOF
+
+  # Make the API call to create the pipeline
+  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$JENKINS_URL/createItem?name=$PIPELINE_NAME" \
+    --user "$JENKINS_USER:$JENKINS_API_TOKEN" \
+    -H "Content-Type: application/xml" \
+    --data-binary @pipeline-config.xml)
+
+  # Check the response
+  if [ "$RESPONSE" -eq 200 ]; then
+    echoSuccess "Pipeline '$PIPELINE_NAME' created successfully!"
+  else
+    echoFailed "Failed to create pipeline. HTTP Status Code: $RESPONSE"
+  fi
+
+  # Clean up the temporary XML file
+  rm -f pipeline-config.xml
 }
 
 jenkinsInst() {
