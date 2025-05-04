@@ -1,46 +1,25 @@
 controller:
-  # JCasC:
-  #   configScripts:
-  #     welcome-message: |
-  #       jenkins:
-  #         systemMessage: Welcome, this Jenkins is configured and managed as code.
-  #     authorization-strategy: |
-  #       jenkins:
-  #         authorizationStrategy:
-  #           roleBased:
-  #             roles:
-  #               global:
-  #                 - name: "admin"
-  #                   permissions:
-  #                     - "Overall/Administer"
-  #                   entries:
-  #                     - user: "skmaji1"
-  #                 - name: "anonymous"
-  #                   permissions:
-  #                     - "Overall/Read"
-  #                   entries:
-  #                     - user: "anonymous"
+  javaOpts: >
+    -Djava.util.logging.config.file=/var/jenkins_home/logging.properties
 
-  #     security-realm: |
-  #       jenkins:
-  #         securityRealm:
-  #           keycloak:
-  #             keycloakJson: |-
-  #               {
-  #                 "realm": "${realm}",
-  #                 "auth-server-url": "${keycloakUrl}",
-  #                 "ssl-required": "external",
-  #                 "resource": "${clientID}",
-  #                 "credentials": {
-  #                   "secret": "${clientSecret}"
-  #                 },
-  #                 "confidential-port": 0,
-  #                 "disable-trust-manager": true
-  #               }
-  #             keycloakRespectAccessTokenTimeout: false
-  #             keycloakValidate: false
-  #             userNameField: "preferred_username"
-  #             groupsClaim: "groups"
+  volumes:
+    - name: logging-config
+      configMap:
+        name: jenkins-logging-config
+  volumeMounts:
+    - name: logging-config
+      mountPath: /var/jenkins_home/logging.properties
+      subPath: logging.properties
+  
+  additionalConfig:
+    logging.properties: |
+      .level=ALL
+      hudson.level=ALL
+      jenkins.level=ALL
+      org.jenkinsci.level=ALL
+      java.util.logging.ConsoleHandler.level=ALL
+      java.util.logging.ConsoleHandler.formatter=java.util.logging.SimpleFormatter
+
   JCasC:
     configScripts:
       kaniko-configuration: |
