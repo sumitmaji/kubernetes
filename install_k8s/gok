@@ -1357,6 +1357,32 @@ opensearchDashInst(){
     [[ $? -eq 0 ]] && echoSuccess "Opensearch dashboard service now up!\n You can access the service using https://opensearch.gokcloud.com" || echoFailed "Opensearch dashboard service timed-out, plaese check!!"
 }
 
+
+callJenkinsApi(){
+
+  # Jenkins API URL
+  JENKINS_URL="https://jenkins.gokcloud.com/api/xml"
+  QUERY_PARAMS="tree=jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url]]]]]]]]]]"
+  EXCLUDE_PARAMS="exclude=/*/*/*/action[not(totalCount)]"
+
+  # Jenkins credentials
+  JENKINS_USER=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
+  JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token(Check README.md for steps): ")
+
+  # Make the API call
+  response=$(curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN" "$JENKINS_URL?$QUERY_PARAMS&$EXCLUDE_PARAMS")
+
+  # Check if the response is empty
+  if [ -z "$response" ]; then
+    echo "Failed to fetch data from Jenkins API. Please check your credentials or URL."
+    exit 1
+  fi
+
+  # Print the response
+  echo "Jenkins API Response:"
+  echo "$response"
+}
+
 createJenkinsPipeline() {
   # Prompt for Jenkins username and API token
   JENKINS_USER=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
