@@ -1362,15 +1362,15 @@ callJenkinsApi(){
 
   # Jenkins API URL
   JENKINS_URL="https://jenkins.gokcloud.com/api/xml"
-  QUERY_PARAMS="tree=jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url],jobs[name,lastBuild[actions[failCount,skipCount,totalCount,urlName],duration,number,timestamp,result,building,url]]]]]]]]]]"
-  EXCLUDE_PARAMS="exclude=/*/*/*/action[not(totalCount)]"
+  QUERY_PARAMS="tree=jobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%2Cjobs%5Bname%2ClastBuild%5Bactions%5BfailCount%2CskipCount%2CtotalCount%2CurlName%5D%2Cduration%2Cnumber%2Ctimestamp%2Cresult%2Cbuilding%2Curl%5D%5D%5D%5D%5D%5D%5D%5D%5D%5D"
+  EXCLUDE_PARAMS="exclude=%2F*%2F*%2F*%2Faction%5Bnot%28totalCount%29%5D"
 
   # Jenkins credentials
   JENKINS_USER=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
   JENKINS_API_TOKEN=$(promptSecret "Enter Jenkins API Token(Check README.md for steps): ")
 
   # Make the API call
-  response=$(curl -sv -u "$JENKINS_USER:$JENKINS_API_TOKEN" "$JENKINS_URL?$QUERY_PARAMS&$EXCLUDE_PARAMS")
+  response=$(curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN" "$JENKINS_URL?$QUERY_PARAMS&$EXCLUDE_PARAMS")
 
   # Check if the response is empty
   if [ -z "$response" ]; then
