@@ -3236,6 +3236,8 @@ enableJenkins(){
     --username ${USERNAME} \
     --password ${PASSWORD}
 
+  docker exec -it halyard hal config ci jenkins master edit gok-jenkins-master --csrf true
+
   docker exec -it halyard hal deploy apply
 }
 
