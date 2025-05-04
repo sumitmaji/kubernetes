@@ -858,3 +858,74 @@ gok start jenkins
 - Troubleshoot issues using the provided commands and logs.
 
 This guide simplifies the process of installing Jenkins and creating pipelines using the gok utility.
+
+
+The error **`No credentials found with id my-k8s-token`** indicates that Jenkins cannot find the Kubernetes credentials (`my-k8s-token`) specified in the values-mod.yaml file. This is required for Jenkins to authenticate with the Kubernetes cluster.
+
+---
+
+### **Steps to Resolve**
+
+#### **1. Verify the Kubernetes Credentials in Jenkins**
+1. Go to **Manage Jenkins > Credentials** in the Jenkins UI.
+2. Check if a credential with the ID `my-k8s-token` exists under the appropriate scope (e.g., "Global" or "System").
+3. If the credential does not exist, create it.
+
+#### **2. Create the Kubernetes Credentials**
+If the credentials are missing, create them in Jenkins:
+
+1. **Generate a Kubernetes Service Account Token**:
+   - Create a service account in the `jenkins` namespace:
+     ```bash
+     kubectl create serviceaccount jenkins -n jenkins
+     ```
+   - Bind the service account to a cluster role with sufficient permissions:
+     ```bash
+     kubectl create clusterrolebinding jenkins-binding \
+       --clusterrole=cluster-admin \
+       --serviceaccount=jenkins:jenkins
+     ```
+   - Retrieve the token for the service account:
+     ```bash
+     kubectl get secret $(kubectl get serviceaccount jenkins -n jenkins -o jsonpath="{.secrets[0].name}") -n jenkins -o jsonpath="{.data.token}" | base64 --decode
+     ```
+
+2. **Add the Token to Jenkins**:
+   - Go to **Manage Jenkins > Credentials > System > Global credentials (unrestricted)**.
+   - Click **Add Credentials**.
+   - Select **Kubernetes Service Account Token** as the credential type.
+   - Enter the token retrieved in the previous step.
+   - Set the **ID** to `my-k8s-token` (this must match the `credentialsId` in the values-mod.yaml file).
+
+---
+
+#### **3. Update the values-mod.yaml File**
+Ensure the `credentialsId` in the values-mod.yaml file matches the ID of the credentials you just created:
+```yaml
+credentialsId: "my-k8s-token"
+```
+
+---
+
+#### **4. Restart Jenkins**
+After updating the credentials, restart Jenkins to apply the changes:
+```bash
+kubectl rollout restart deployment jenkins -n jenkins
+```
+
+---
+
+#### **5. Verify the Configuration**
+1. Check the Jenkins logs to ensure the Kubernetes plugin is able to authenticate:
+   ```bash
+   kubectl logs -l app.kubernetes.io/component=jenkins-controller -n jenkins
+   ```
+2. Look for messages indicating successful connection to the Kubernetes cluster.
+
+---
+
+### **Additional Notes**
+- Ensure the service account has sufficient permissions to manage pods in the `jenkins` namespace.
+- If you are using a custom namespace or cluster role, update the values-mod.yaml file accordingly.
+
+By following these steps, Jenkins should be able to authenticate with the Kubernetes cluster using the `my-k8s-token` credentials.
