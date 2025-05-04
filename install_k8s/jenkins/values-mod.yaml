@@ -13,6 +13,7 @@ controller:
   
   additionalConfig:
     logging.properties: |
+      handlers=java.util.logging.ConsoleHandler
       .level=ALL
       hudson.level=ALL
       jenkins.level=ALL
