@@ -1375,7 +1375,7 @@ callJenkinsApi(){
   # Check if the response is empty
   if [ -z "$response" ]; then
     echo "Failed to fetch data from Jenkins API. Please check your credentials or URL."
-    exit 1
+    return 1
   fi
 
   # Print the response
