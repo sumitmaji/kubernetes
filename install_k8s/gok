@@ -1413,6 +1413,10 @@ jenkinsInst() {
   helm repo update
   kubectl create ns jenkins
 
+  kubectl create configmap jenkins-logging-config \
+  --from-file=${MOUNT_PATH}/kubernetes/install_k8s/jenkins/logging.properties \
+  -n jenkins
+
   ADMIN_PASSWORD=$(promptSecret "Enter Jenkins Admin Password: ")
   kubectl create secret generic jenkins-admin-password \
     --from-literal=jenkins-admin-password="${ADMIN_PASSWORD}" -n jenkins
