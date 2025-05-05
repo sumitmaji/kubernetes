@@ -462,10 +462,12 @@ chartInst() {
     return 1
   fi
 
-  # Step 5: Add the ChartMuseum Repository to Helm
-  # helm repo add my-chartmuseum https://chartmuseum.example.com --username <your-username> --password <your-password>
-  # helm repo update
+  helm plugin install https://github.com/chartmuseum/helm-push
 
+  # Step 5: Add the ChartMuseum Repository to Helm
+  helm repo add gok https://chart.gokcloud.com --username sumit --password abcdef
+  helm repo update
+  #helm cm-push ldap-0.1.0.tgz gok
   echo "Helm repository added successfully!"
 }
 
