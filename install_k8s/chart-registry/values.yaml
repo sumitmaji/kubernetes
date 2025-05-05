@@ -8,9 +8,8 @@ ingress:
   pathType: ImplementationSpecific
   ingressClassName: "nginx"
   hosts:
-    - host: master.cloud.com
-      paths:
-        - /
+    - name: master.cloud.com
+      path: /
       tls: true
       tlsSecret: appingress-tls
   annotations:
