@@ -3,3 +3,20 @@ persistence:
   accessMode: ReadWriteOnce
   size: 3Gi
   storageClass: "chart-storage"
+ingress:
+  enabled: true
+  pathType: ImplementationSpecific
+  ingressClassName: "nginx"
+  hosts:
+    - host: master.cloud.com
+      paths:
+        - /
+      tls: true
+      tlsSecret: appingress-tls
+  annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/ingress.allow-http: "false"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      ingress.kubernetes.io/ssl-passthrough: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
