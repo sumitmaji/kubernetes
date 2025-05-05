@@ -1,3 +1,7 @@
+env:
+  secret:
+    BASIC_AUTH_USER: sumit
+    BASIC_AUTH_PASS: abcdef
 persistence:
   enabled: true
   accessMode: ReadWriteOnce
