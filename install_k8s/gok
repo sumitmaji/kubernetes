@@ -447,9 +447,9 @@ chartInst() {
     --set persistence.storageClass="chart-storage" \
     --set env.open.STORAGE="local" \
     --set env.open.STORAGE_LOCAL_ROOTDIR="/charts" \
-    --values "$MOUNT_PAHT"/kubernetes/install_k8s/helm-registry/values.yaml
+    --values "$MOUNT_PATH"/kubernetes/install_k8s/chart-registry/values.yaml
 
-  gok patch ingress chartmuseum chartmuseum letsencrypt chartmuseum
+  gok patch ingress chartmuseum chartmuseum letsencrypt chart
 
   # Step 4: Verify ChartMuseum Installation
   echo "Waiting for ChartMuseum to be ready..."
