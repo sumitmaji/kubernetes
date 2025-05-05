@@ -3890,6 +3890,8 @@ function installCmd() {
     jupyterHubInst
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
+  elif [ "$COMPONENT" == "chart" ]; then
+    chartInst
   elif [ "$COMPONENT" == "vault" ]; then
     vaultInstall
   elif [ "$COMPONENT" == "keycloak" ]; then
@@ -3973,6 +3975,8 @@ EOF
     vaultReset
   elif [ "$COMPONENT" == "ingress" ]; then
     ingressUnInst
+  elif [ "$COMPONENT" == "chart" ]; then
+    resetChart
   elif [ "$COMPONENT" == "ldap" ]; then
     ldapReset
   elif [ "$COMPONENT" == "registry" ]; then
