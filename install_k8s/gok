@@ -420,6 +420,54 @@ ingressInst() {
   waitForServiceAvailable ingress-nginx
 }
 
+resetChart(){
+  echo "Resetting ChartMuseum installation..."
+  helm uninstall chartmuseum --namespace chartmuseum
+  emptyLocalFsStorage "ChartMuseum" "chart-pv" "chart-storage" "/data/volumes/chart-storage"
+  kubectl delete namespace chartmuseum
+  echo "ChartMuseum has been reset successfully."
+}
+
+
+chartInst() {
+  # Step 1: Create a namespace for ChartMuseum
+  kubectl create namespace chartmuseum || echo "Namespace chartmuseum already exists"
+
+  # Step 2: Install ChartMuseum using Helm
+  helm repo add chartmuseum https://chartmuseum.github.io/charts
+  helm repo update
+  
+  createLocalStorageClassAndPV "chart-storage" "chart-pv" "/data/volumes/chart-storage"
+
+  # Install ChartMuseum with persistent storage
+  helm install chartmuseum chartmuseum/chartmuseum \
+    --namespace chartmuseum \
+    --set persistence.enabled=true \
+    --set persistence.size=10Gi \
+    --set persistence.storageClass="chart-storage" \
+    --set env.open.STORAGE="local" \
+    --set env.open.STORAGE_LOCAL_ROOTDIR="/charts"
+
+  gok patch ingress chartmuseum chartmuseum letsencrypt chartmuseum
+
+  # Step 4: Verify ChartMuseum Installation
+  echo "Waiting for ChartMuseum to be ready..."
+  kubectl --namespace chartmuseum wait --for=condition=Ready pods --all --timeout=120s
+  if [[ $? -eq 0 ]]; then
+    echo "ChartMuseum is now up and running!"
+    echo "Access it at: https://chartmuseum.gokcloud.com"
+  else
+    echo "ChartMuseum setup timed out. Please check the logs."
+    return 1
+  fi
+
+  # Step 5: Add the ChartMuseum Repository to Helm
+  # helm repo add my-chartmuseum https://chartmuseum.example.com --username <your-username> --password <your-password>
+  # helm repo update
+
+  echo "Helm repository added successfully!"
+}
+
 dockrInst() {
 
   echo "Installing docker"
@@ -3547,6 +3595,10 @@ kubernetes:
     mountPath: /etc/ssl/certs/java
     type: secret
 EOF
+
+  docker exec -it halyard hal config artifact github enable
+  docker exec -it halyard hal config artifact github account add gok-github
+
 
   docker exec -it halyard hal deploy apply
 }
