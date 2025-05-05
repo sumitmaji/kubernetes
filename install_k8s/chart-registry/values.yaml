@@ -1,4 +1,6 @@
 env:
+  open:
+    DISABLE_API: false
   secret:
     BASIC_AUTH_USER: sumit
     BASIC_AUTH_PASS: abcdef
