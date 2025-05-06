@@ -1,6 +1,7 @@
 configs:
   secret:
-    abcdef: "abcdef"
+    extra:
+      abcdef: "abcdef"
   cm:
     oidc.config: |
       name: Keycloak
