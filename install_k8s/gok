@@ -3610,6 +3610,41 @@ EOF
   docker exec -it halyard hal deploy apply
 }
 
+argocdReset(){
+  helm uninstall argocd
+  kubectl delete ns argocd
+  # emptyLocalFsStorage "ArgoCD" "argocd-pv" "argocd-storage" "/data/volumes/argocd" "argocd"
+}
+
+argocdInst(){
+  CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
+  CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
+  REALM_NAME=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
+  OAUTH2_HOST="$(fullKeycloakUrl)"
+  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)"
+
+  kubectl create ns argocd
+  helm repo add argo https://argoproj.github.io/argo-helm
+  helm repo update
+  helm install argocd argo/argo-cd --namespace argocd \
+    --set server.extraArgs={--insecure} \
+    --set server.extraArgs={--oidc-issuer-url=https://${OAUTH2_HOST}/realms/${REALM_NAME}} \
+    --set server.extraArgs={--oidc-client-id=${CLIENT_ID}} \
+    --set server.extraArgs={--oidc-client-secret=${CLIENT_SECRET}} \
+    --set server.extraArgs={--oidc-username-claim=email} \
+    --set server.extraArgs={--oidc-groups-claim=groups} \
+    --set server.extraArgs={--oidc-scope=openid,email,profile,groups} \
+    --values "${MOUNT_PATH}"/kubernetes/install_k8s/argocd/values.yaml
+
+  #kubectl create secret generic argocd-secret -n argocd \
+  #--from-literal=oidc.clientId=$CLIENT_ID \
+  #--from-literal=oidc.clientSecret=$CLIENT_SECRET \
+  #--from-literal=oidc.issuerUrl=$OAUTH2_HOST \
+  #--from-literal=oidc.scopes="openid email profile groups" \
+  #--from-literal=oidc.usernameClaim=email \
+  #--from-literal=oidc.groupsClaim=groups
+}
+
 getUserInfo(){
   curl https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth?client_id=gok-developers-client&redirect_uri=https://localhost/login&response_type=code&scope=openid%20email%20profile&state=eLUwT2
 
@@ -3897,6 +3932,8 @@ function installCmd() {
     jupyterHubInst
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
+  elif [ "$COMPONENT" == "argocd" ]; then
+    argocdInst
   elif [ "$COMPONENT" == "chart" ]; then
     chartInst
   elif [ "$COMPONENT" == "vault" ]; then
@@ -3986,6 +4023,8 @@ EOF
     resetChart
   elif [ "$COMPONENT" == "ldap" ]; then
     ldapReset
+  elif [ "$COMPONENT" == "argocd" ]; then
+    argocdReset
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
