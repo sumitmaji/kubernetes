@@ -3616,7 +3616,7 @@ EOF
 }
 
 argocdReset(){
-  helm uninstall argocd
+  helm uninstall argocd -n argocd
   kubectl delete ns argocd
   # emptyLocalFsStorage "ArgoCD" "argocd-pv" "argocd-storage" "/data/volumes/argocd" "argocd"
 }
