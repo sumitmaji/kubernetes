@@ -1,11 +1,8 @@
 configs:
-  secret:
-    extra:
-      oidc.keycloak.clientSecret: "abcdef"
   cm:
     oidc.config: |
       name: Keycloak
-      issuer: https://keycloak.cloud.com/realms/master
+      issuer: https://keycloak.gokcloud.com/realms/master
       clientID: GokDevelopers
       clientSecret: $oidc.keycloak.clientSecret
       requestedIDTokenClaims:
