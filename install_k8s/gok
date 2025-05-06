@@ -45,6 +45,7 @@ export KEYCLOAK=keycloak
 export SPINNAKER=spinnaker
 export VAULT=vault
 export JUPYTERHUB=jupyterhub
+export ARGOCD=argocd
 export DEFAULT_SUBDOMAIN=kube
 export GROUP_NAME=$GOK_ROOT_DOMAIN
 #ldap, oidc
@@ -85,6 +86,10 @@ defaultSubdomain(){
 
 keycloakSubdomain(){
   echo "$KEYCLOAK"
+}
+
+argocdSubdomain(){
+  echo "$ARGOCD"
 }
 
 jupyterHubSubdomain(){
@@ -3629,6 +3634,8 @@ argocdInst(){
   helm install argocd argo/argo-cd --namespace argocd \
     --set configs.secret.extra."oidc\.keycloak\.clientSecret"="${CLIENT_SECRET}" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/argocd/values.yaml
+
+  gok patch ingress argocd-server argocd letsencrypt $(argocdSubdomain)
  
   #kubectl create secret generic argocd-secret -n argocd \
   #--from-literal=oidc.clientId=$CLIENT_ID \
