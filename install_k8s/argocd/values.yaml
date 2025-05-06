@@ -1,3 +1,19 @@
+configs:
+  secret:
+    abcdef: "abcdef"
+  cm:
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.cloud.com/realms/master
+      clientID: GokDevelopers
+      clientSecret: $oidc.azuread.clientSecret
+      requestedIDTokenClaims:
+        groups:
+          essential: true
+      requestedScopes:
+        - openid
+        - profile
+        - email
 server:
   ingress:
     enabled: true

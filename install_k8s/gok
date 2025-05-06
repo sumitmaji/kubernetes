@@ -3627,15 +3627,8 @@ argocdInst(){
   helm repo add argo https://argoproj.github.io/argo-helm
   helm repo update
   helm install argocd argo/argo-cd --namespace argocd \
-    --set server.extraArgs={--insecure} \
-    --set server.extraArgs={--oidc-issuer-url=https://${OAUTH2_HOST}/realms/${REALM_NAME}} \
-    --set server.extraArgs={--oidc-client-id=${CLIENT_ID}} \
-    --set server.extraArgs={--oidc-client-secret=${CLIENT_SECRET}} \
-    --set server.extraArgs={--oidc-username-claim=email} \
-    --set server.extraArgs={--oidc-groups-claim=groups} \
-    --set server.extraArgs={--oidc-scope=openid,email,profile,groups} \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/argocd/values.yaml
-
+ 
   #kubectl create secret generic argocd-secret -n argocd \
   #--from-literal=oidc.clientId=$CLIENT_ID \
   #--from-literal=oidc.clientSecret=$CLIENT_SECRET \
