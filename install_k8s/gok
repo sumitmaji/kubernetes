@@ -3602,6 +3602,10 @@ EOF
   docker exec -it halyard hal config artifact github enable
   docker exec -it halyard hal config artifact github account add gok-github
 
+  docker exec -it halyard hal config artifact helm enable
+  docker exec -it halyard hal config artifact helm account add gok-helm \
+    --repository https://chart.gokcloud.com --username sumit --password abcdef
+
 
   docker exec -it halyard hal deploy apply
 }
