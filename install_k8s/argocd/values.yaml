@@ -3,6 +3,7 @@ configs:
     server.insecure: "true"
   cm:
     url: https://argocd.gokcloud.com
+    oidc.tls.insecure.skip.verify: "true"
     oidc.config: |
       name: Keycloak
       issuer: https://keycloak.gokcloud.com/realms/master
