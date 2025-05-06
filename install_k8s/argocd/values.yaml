@@ -6,8 +6,8 @@ configs:
     oidc.tls.insecure.skip.verify: "true"
     oidc.config: |
       name: Keycloak
-      issuer: https://keycloak.gokcloud.com/realms/master
-      clientID: GokDevelopers
+      issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
+      clientID: gok-developers-client
       clientSecret: $oidc.keycloak.clientSecret
       requestedIDTokenClaims:
         groups:
