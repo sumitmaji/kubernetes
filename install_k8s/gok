@@ -3633,6 +3633,7 @@ argocdInst(){
   helm repo update
   helm install argocd argo/argo-cd --namespace argocd \
     --set configs.secret.extra."oidc\.keycloak\.clientSecret"="${CLIENT_SECRET}" \
+    --set configs.secret.argocdServerAdminPassword="sumit" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/argocd/values.yaml
 
   gok patch ingress argocd-server argocd letsencrypt $(argocdSubdomain)
