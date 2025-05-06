@@ -1,5 +1,5 @@
 configs:
-  rback:
+  rbac:
     policy.csv: |
       g, administrators, role:admin
       g, developers, role:developer
