@@ -3022,6 +3022,10 @@ kcAdminPwd(){
   kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode
 }
 
+argocdAdminPwd(){
+  kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.admin\.password}' | base64 -d
+}
+
 installPrometheusGrafanaWithCertMgr(){
 
   createLocalStorageClassAndPV "prometheus-storage" "prometheus-pv" "/data/volumes/pv1"
