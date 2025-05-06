@@ -7,7 +7,7 @@ configs:
       name: Keycloak
       issuer: https://keycloak.cloud.com/realms/master
       clientID: GokDevelopers
-      clientSecret: $oidc.azuread.clientSecret
+      clientSecret: $oidc.keycloak.clientSecret
       requestedIDTokenClaims:
         groups:
           essential: true
