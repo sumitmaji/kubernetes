@@ -236,3 +236,47 @@ You should see the PV in the `Bound` state and associated with the new PVC.
 - Verify that the PV is now in the `Available` or `Bound` state.
 
 This process ensures that the PV can be reused for new workloads.
+
+
+# **Not able to go to class on hover of class name**
+
+The issue you're describing is likely related to your IDE's indexing or project configuration. Here are some steps to resolve it:
+
+1. **Ensure Proper Maven Import**:
+   - Open the terminal in your project directory and run:
+     ```bash
+     mvn clean install
+     ```
+   - This will ensure all dependencies are downloaded and the project is built correctly.
+
+2. **Refresh the Project in VS Code**:
+   - In VS Code, open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on macOS) and search for `Java: Clean Java Language Server Workspace`.
+   - Select it and restart the IDE when prompted.
+
+3. **Check Maven Configuration**:
+   - Ensure the pom.xml file is correctly configured and there are no errors in it. You can verify this by running:
+     ```bash
+     mvn validate
+     ```
+
+4. **Enable Java Extensions**:
+   - Ensure you have the required Java extensions installed in VS Code, such as:
+     - `Language Support for Java(TM) by Red Hat`
+     - `Debugger for Java`
+     - `Maven for Java`
+
+5. **Rebuild the Index**:
+   - If the issue persists, delete the `.classpath`, `.project`, and `.settings` files/folders (if they exist) in your project directory.
+   - Then, reopen the project in VS Code to let it regenerate these files.
+
+6. **Check for Dependency Issues**:
+   - If any dependencies are missing or unresolved, they can cause navigation issues. Ensure all dependencies in your pom.xml are resolved.
+
+7. **Verify the Dev Container Setup**:
+   - Since you're working in a dev container, ensure the container has all necessary tools installed (e.g., Maven, JDK). You can verify this by running:
+     ```bash
+     mvn -v
+     java -version
+     ```
+
+After performing these steps, you should be able to navigate to class declarations in your Spring Boot project. Let me know if the issue persists!
