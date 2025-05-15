@@ -1,46 +1,17 @@
 controller:
-  # JCasC:
-  #   configScripts:
-  #     welcome-message: |
-  #       jenkins:
-  #         systemMessage: Welcome, this Jenkins is configured and managed as code.
-  #     authorization-strategy: |
-  #       jenkins:
-  #         authorizationStrategy:
-  #           roleBased:
-  #             roles:
-  #               global:
-  #                 - name: "admin"
-  #                   permissions:
-  #                     - "Overall/Administer"
-  #                   entries:
-  #                     - user: "skmaji1"
-  #                 - name: "anonymous"
-  #                   permissions:
-  #                     - "Overall/Read"
-  #                   entries:
-  #                     - user: "anonymous"
+  javaOpts: >
+    -Djava.util.logging.config.file=/var/jenkins_home/logging.properties
+  
+  additionalConfig:
+    logging.properties: |
+      handlers=java.util.logging.ConsoleHandler
+      .level=INFO
+      hudson.level=INFO
+      jenkins.level=INFO
+      org.jenkinsci.level=INFO
+      java.util.logging.ConsoleHandler.level=INFO
+      java.util.logging.ConsoleHandler.formatter=java.util.logging.SimpleFormatter
 
-  #     security-realm: |
-  #       jenkins:
-  #         securityRealm:
-  #           keycloak:
-  #             keycloakJson: |-
-  #               {
-  #                 "realm": "${realm}",
-  #                 "auth-server-url": "${keycloakUrl}",
-  #                 "ssl-required": "external",
-  #                 "resource": "${clientID}",
-  #                 "credentials": {
-  #                   "secret": "${clientSecret}"
-  #                 },
-  #                 "confidential-port": 0,
-  #                 "disable-trust-manager": true
-  #               }
-  #             keycloakRespectAccessTokenTimeout: false
-  #             keycloakValidate: false
-  #             userNameField: "preferred_username"
-  #             groupsClaim: "groups"
   JCasC:
     configScripts:
       kaniko-configuration: |
@@ -52,16 +23,58 @@ controller:
               credentialsId: "my-k8s-token"
               serverUrl: "https://kubernetes.default"
               skipTlsVerify: true
-              jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
-              jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+              jenkinsTunnel: "jenkins-agent.jenkins.svc.cloud.uat:50000"
+              jenkinsUrl: "http://jenkins.jenkins.svc.cloud.uat:8080"
               maxRequestsPerHostStr: "32"
-              name: "kubernetes"
+              name: "gok-kubernetes"
               namespace: "jenkins"
               readTimeout: 15
               podLabels:
               - key: "jenkins/jenkins-jenkins-agent"
                 value: "true"
               templates:
+              - containers:
+                - args: "--context=git://github.com/scriptcamp/kubernetes-kaniko --destination=registry.gokcloud.com/kaniko-demo-image:1.0 --skip-tls-verify --insecure"
+                  image: "gcr.io/kaniko-project/executor:latest"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/home/jenkins/agent"
+                hostNetwork: false
+                label: "kaniko"
+                name: "kaniko"
+                namespace: "jenkins"
+                volumes:
+                - secretVolume:
+                    mountPath: "/kaniko/.docker"
+                    optional: false
+                    secretName: "registry-credentials"
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
+              - containers:
+                - image: "jenkins/inbound-agent:latest"
+                  livenessProbe:
+                    failureThreshold: 0
+                    initialDelaySeconds: 0
+                    periodSeconds: 0
+                    successThreshold: 0
+                    timeoutSeconds: 0
+                  name: "jnlp"
+                  workingDir: "/home/jenkins/agent"
+                hostNetwork: false
+                label: "kubeagent"
+                name: "devops-tool"
+                namespace: "jenkins"
+                workspaceVolume:
+                  emptyDirWorkspaceVolume:
+                    memory: false
+                yamlMergeStrategy: "override"
               - containers:
                 - args: "^${computer.jnlpmac} ^${computer.name}"
                   image: "registry.access.redhat.com/openshift3/jenkins-slave-maven-rhel7"
@@ -76,6 +89,7 @@ controller:
                 hostNetwork: false
                 label: "maven"
                 name: "maven"
+                namespace: "jenkins"
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
@@ -94,6 +108,7 @@ controller:
                 hostNetwork: false
                 label: "nodejs"
                 name: "nodejs"
+                namespace: "jenkins"
                 workspaceVolume:
                   emptyDirWorkspaceVolume:
                     memory: false
@@ -151,6 +166,7 @@ controller:
     - matrix-auth:latest
     - blueocean:latest
     - ansicolor:latest
+    - strict-crumb-issuer:latest
 
   admin:
     # -- Admin username created as a secret if `controller.admin.createSecret` is true
@@ -249,6 +265,9 @@ persistence:
   subPath:
   # -- Additional volumes
   volumes:
+  - name: jekins-logging-config
+    configMap:
+      name: jenkins-logging-config
   - name: oic-auth-clientid
     secret:
       secretName: oic-auth
@@ -278,6 +297,9 @@ persistence:
 
   # -- Additional mounts
   mounts:
+  - name: jekins-logging-config
+    mountPath: /var/jenkins_home/logging.properties
+    subPath: logging.properties
   - name: oic-auth-clientid
     mountPath: /run/secrets/clientID
     subPath: clientID

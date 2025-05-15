@@ -1,0 +1,47 @@
+configs:
+  rbac:
+    policy.csv: |
+      g, administrators, role:admin
+      g, developers, role:developer
+    policy.default: role:readonly
+    # Policy rules are in the form:
+    #  p, subject, resource, action, object, effect
+    # Role definitions and bindings are in the form:
+    #  g, subject, inherited-subject
+    # policy.csv: |
+    #   p, role:org-admin, applications, *, */*, allow
+    #   p, role:org-admin, clusters, get, *, allow
+    #   p, role:org-admin, repositories, *, *, allow
+    #   p, role:org-admin, logs, get, *, allow
+    #   p, role:org-admin, exec, create, */*, allow
+    #   g, your-github-org:your-team, role:org-admin
+  params:
+    server.insecure: "true"
+  cm:
+    url: https://argocd.gokcloud.com
+    oidc.tls.insecure.skip.verify: "true"
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
+      clientID: gok-developers-client
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedIDTokenClaims:
+        groups:
+          essential: true
+      requestedScopes:
+        - openid
+        - profile
+        - email
+server:
+  ingress:
+    enabled: true
+    pathType: ImplementationSpecific
+    ingressClassName: "nginx"
+    hostname: master.cloud.com
+    tls: true
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+      kubernetes.io/ingress.class: nginx
+      kubernetes.io/ingress.allow-http: "false"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      ingress.kubernetes.io/ssl-passthrough: "true"

@@ -124,3 +124,159 @@ This should resolve the **`spawn kubectl ENOENT`** error.
 - Use `sudo usermod -aG docker sumit` to add `sumit` to the `docker` group.
 - Log out and log back in for the changes to take effect.
 - Test Docker access to ensure it works without `sudo`.
+
+
+# Steps to Make the PV Available Again
+
+#### 1. **Delete the Bound PVC**
+Ensure that the PVC (`claim-devworkspace`) associated with the PV is deleted. Run the following command to delete the PVC:
+```bash
+kubectl delete pvc claim-devworkspace -n skmaji1-outlook-com-che-x4x051
+```
+
+---
+
+#### 2. **Edit the PV to Reset Its State**
+Manually edit the PV to reset its state from `Released` to `Available`:
+
+1. Open the PV for editing:
+   ```bash
+   kubectl edit pv eclipse-che-pv
+   ```
+
+2. Find the `claimRef` section in the YAML file and remove it. For example:
+   ```yaml
+   spec:
+     claimRef:
+       apiVersion: v1
+       kind: PersistentVolumeClaim
+       name: claim-devworkspace
+       namespace: skmaji1-outlook-com-che-x4x051
+   ```
+
+   After removing the `claimRef`, the `spec` section should look like this:
+   ```yaml
+   spec:
+     capacity:
+       storage: 10Gi
+     accessModes:
+       - ReadWriteOnce
+     persistentVolumeReclaimPolicy: Retain
+     storageClassName: eclipse-che-storage
+     local:
+       path: /data/volumes/eclipse-che
+     nodeAffinity:
+       required:
+         nodeSelectorTerms:
+           - matchExpressions:
+               - key: kubernetes.io/hostname
+                 operator: In
+                 values:
+                   - master.cloud.com
+   ```
+
+3. Save and close the editor.
+
+---
+
+#### 3. **Verify the PV State**
+Check the state of the PV to ensure it is now `Available`:
+```bash
+kubectl get pv eclipse-che-pv
+```
+
+You should see output like this:
+```plaintext
+NAME             CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM   STORAGECLASS          REASON   AGE
+eclipse-che-pv   10Gi       RWO            Retain           Available           eclipse-che-storage           10m
+```
+
+---
+
+#### 4. **Rebind the PV to a New PVC**
+If you need to reuse the PV, create a new PVC that matches the PV's `storageClassName` and `capacity`. For example:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: new-claim-devworkspace
+  namespace: skmaji1-outlook-com-che-x4x051
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: eclipse-che-storage
+```
+
+Apply the PVC:
+```bash
+kubectl apply -f pvc.yaml
+```
+
+---
+
+#### 5. **Verify the Binding**
+Check if the PV is now bound to the new PVC:
+```bash
+kubectl get pv
+kubectl get pvc -n skmaji1-outlook-com-che-x4x051
+```
+
+You should see the PV in the `Bound` state and associated with the new PVC.
+
+---
+
+### Summary
+- Delete the old PVC (`claim-devworkspace`).
+- Edit the PV to remove the `claimRef` and reset its state to `Available`.
+- Create a new PVC to bind the PV if needed.
+- Verify that the PV is now in the `Available` or `Bound` state.
+
+This process ensures that the PV can be reused for new workloads.
+
+
+# **Not able to go to class on hover of class name**
+
+The issue you're describing is likely related to your IDE's indexing or project configuration. Here are some steps to resolve it:
+
+1. **Ensure Proper Maven Import**:
+   - Open the terminal in your project directory and run:
+     ```bash
+     mvn clean install
+     ```
+   - This will ensure all dependencies are downloaded and the project is built correctly.
+
+2. **Refresh the Project in VS Code**:
+   - In VS Code, open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P` on macOS) and search for `Java: Clean Java Language Server Workspace`.
+   - Select it and restart the IDE when prompted.
+
+3. **Check Maven Configuration**:
+   - Ensure the pom.xml file is correctly configured and there are no errors in it. You can verify this by running:
+     ```bash
+     mvn validate
+     ```
+
+4. **Enable Java Extensions**:
+   - Ensure you have the required Java extensions installed in VS Code, such as:
+     - `Language Support for Java(TM) by Red Hat`
+     - `Debugger for Java`
+     - `Maven for Java`
+
+5. **Rebuild the Index**:
+   - If the issue persists, delete the `.classpath`, `.project`, and `.settings` files/folders (if they exist) in your project directory.
+   - Then, reopen the project in VS Code to let it regenerate these files.
+
+6. **Check for Dependency Issues**:
+   - If any dependencies are missing or unresolved, they can cause navigation issues. Ensure all dependencies in your pom.xml are resolved.
+
+7. **Verify the Dev Container Setup**:
+   - Since you're working in a dev container, ensure the container has all necessary tools installed (e.g., Maven, JDK). You can verify this by running:
+     ```bash
+     mvn -v
+     java -version
+     ```
+
+After performing these steps, you should be able to navigate to class declarations in your Spring Boot project. Let me know if the issue persists!

@@ -332,6 +332,7 @@ opensearch  IN  A   $(getMasterIp)
 vault       IN  A   $(getMasterIp)
 jupyterhub  IN  A   $(getMasterIp)
 che         IN  A   $(getMasterIp)
+chart       IN  A   $(getMasterIp)
 EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF

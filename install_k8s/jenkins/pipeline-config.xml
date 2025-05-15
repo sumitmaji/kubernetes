@@ -1,0 +1,68 @@
+<flow-definition plugin="workflow-job">
+  <description>Kaniko Pipeline</description>
+  <keepDependencies>false</keepDependencies>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps">
+    <script>
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'gok-kubernetes'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    tty: true
+    resources:
+       requests:
+          memory: "1Gi"
+          cpu: "1"
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ["tail"]
+    args: ["-f", "/dev/null"]
+    tty: true
+    resources:
+        requests:
+            memory: "1Gi"
+            cpu: "1"
+    volumeMounts:
+      - name: docker-credentials
+        mountPath: /kaniko/.docker
+  volumes:
+    - name: docker-credentials
+      secret:
+        secretName: registry-credentials
+            """
+        }
+    }
+    environment {
+        IMAGE_NAME = 'registry.gokcloud.com/kaniko-demo-image'
+        IMAGE_TAG = "${BUILD_ID}"
+    }
+    stages {
+        stage('Build and Push Docker Image') {
+            steps {
+                container('kaniko') {
+                   sh """
+                        /kaniko/executor \\
+                            --context git://github.com/scriptcamp/kubernetes-kaniko \\
+                            --destination ${IMAGE_NAME}:${IMAGE_TAG} \\
+                            --destination ${IMAGE_NAME}:latest \\
+                            --cache=true \\
+                            --insecure \\
+                            --skip-tls-verify
+                    """
+                }
+            }
+        }
+    }
+}
+</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+</flow-definition>
+
