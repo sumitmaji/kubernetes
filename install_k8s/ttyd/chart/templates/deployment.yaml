@@ -24,6 +24,7 @@ spec:
             - -c
             - |
               set -ex
+              apt-get update
               apk add --no-cache curl bash docker-cli openssl
               # Install kubectl
               KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
