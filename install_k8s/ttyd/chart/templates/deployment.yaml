@@ -26,7 +26,12 @@ spec:
               set -ex
               apk add --no-cache curl bash docker-cli openssl
               # Install kubectl
-              curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+              KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+              curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+              if ! file kubectl | grep -q 'ELF'; then
+                echo "kubectl download failed!"
+                exit 1
+              fi
               install -m 755 kubectl /tools/kubectl
               # Install helm
               curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
