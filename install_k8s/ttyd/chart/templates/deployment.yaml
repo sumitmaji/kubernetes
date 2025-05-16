@@ -12,6 +12,29 @@ spec:
       labels:
         app: {{ include "ttyd.name" . }}
     spec:
+      volumes:
+        - name: tools
+          emptyDir: {}
+      initContainers:
+        - name: install-tools
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              set -ex
+              apk add --no-cache curl bash docker-cli openssl
+              # Install kubectl
+              curl -LO https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl
+              install -m 755 kubectl /tools/kubectl
+              # Install helm
+              curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+              mv /usr/local/bin/helm /tools/helm
+              # Copy docker client
+              cp /usr/bin/docker /tools/docker
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
       containers:
         - name: ttyd
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -20,5 +43,11 @@ spec:
           args: ["-W", "bash"]
           ports:
             - containerPort: 7681
+          env:
+            - name: PATH
+              value: "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
