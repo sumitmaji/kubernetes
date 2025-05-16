@@ -3372,6 +3372,38 @@ resolveDns() {
   kubectl run -it --rm dnsutils --image=busybox:1.28 --restart=Never -- nslookup "$domain"
 }
 
+ttydReset() {
+  helm uninstall ttyd -n ttyd
+  kubectl delete ns ttyd
+  echo "ttyd has been uninstalled and the namespace deleted."
+}
+
+ttydInst() {
+  # Create namespace for ttyd
+  kubectl create namespace ttyd || echo "Namespace ttyd already exists"
+
+  # Add Helm repo if needed (ttyd uses Docker image directly, so no repo needed)
+  # Prepare a minimal values.yaml if you want customization
+
+  # Install ttyd using a local chart directory or a published chart
+  helm install ttyd ${MOUNT_PATH}/kubernetes/install_k8s/ttyd \
+    --namespace ttyd \
+    --set ingress.enabled=true \
+    --set ingress.host="ttyd.$(rootDomain)"
+
+  gok patch ingress ttyd ttyd letsencrypt ttyd
+
+  echo "Waiting for ttyd to be ready..."
+  kubectl --namespace ttyd wait --for=condition=Ready pods --all --timeout=120s
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "ttyd is now up! Access it at: https://ttyd.$(rootDomain)"
+  else
+    echoFailed "ttyd setup timed out. Please check the logs."
+    return 1
+  fi
+}
+
+
 enableJenkins(){
   USERNAME=$(promptUserInput "Enter Jenkins Username (skmaji1): " "skmaji1")
   PASSWORD=$(promptSecret "Enter Jenkins Password: ")
@@ -3938,6 +3970,8 @@ function installCmd() {
     jupyterHubInst
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
+  elif [ "$COMPONENT" == "ttyd" ]; then
+    ttydInst
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdInst
   elif [ "$COMPONENT" == "chart" ]; then
@@ -4039,6 +4073,8 @@ EOF
     jupyterHubReset
   elif [ "$COMPONENT" == "che" ]; then
     resetEclipseChe
+  elif [ "$COMPONENT" == "ttyd" ]; then
+    ttydReset
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset

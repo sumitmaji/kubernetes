@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ttyd.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "ttyd.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "ttyd.name" . }}
+    spec:
+      containers:
+        - name: ttyd
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["bash"]
+          ports:
+            - containerPort: 7681
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

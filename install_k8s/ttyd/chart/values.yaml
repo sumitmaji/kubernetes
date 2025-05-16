@@ -1,0 +1,23 @@
+replicaCount: 1
+
+image:
+  repository: tsl0922/ttyd
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: ttyd.example.com
+  annotations: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
