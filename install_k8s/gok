@@ -3386,7 +3386,7 @@ ttydInst() {
   # Prepare a minimal values.yaml if you want customization
 
   # Install ttyd using a local chart directory or a published chart
-  helm install ttyd ${MOUNT_PATH}/kubernetes/install_k8s/ttyd \
+  helm install ttyd ${MOUNT_PATH}/kubernetes/install_k8s/ttyd/chart \
     --namespace ttyd \
     --set ingress.enabled=true \
     --set ingress.host="ttyd.$(rootDomain)"
