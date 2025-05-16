@@ -17,7 +17,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["ttyd"]
-          args: ["bash"]
+          args: ["-W", "bash"]
           ports:
             - containerPort: 7681
           resources:
