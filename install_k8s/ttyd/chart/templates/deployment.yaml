@@ -12,6 +12,7 @@ spec:
       labels:
         app: {{ include "ttyd.name" . }}
     spec:
+      serviceAccountName: ttyd-admin
       volumes:
         - name: tools
           emptyDir: {}
