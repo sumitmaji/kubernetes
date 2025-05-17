@@ -15,4 +15,4 @@ rules:
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["rolebindings", "roles"]
-    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch", "bind", "escalate"]
