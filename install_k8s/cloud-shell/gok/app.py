@@ -171,10 +171,6 @@ def ensure_ttyd_pod(username, token):
                                 "value": "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
                             },
                             {
-                                "name": "KUBECONFIG",
-                                "value": "/tools/kubeconfig"
-                            },
-                            {
                                 "name": "KUBE_TOKEN",
                                 "value": token
                             }
