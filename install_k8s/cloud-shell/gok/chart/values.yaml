@@ -12,5 +12,6 @@ service:
 ingress:
   enabled: true
   host: cloudshell.gokcloud.com
-  annotations: {}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
 resources: {}

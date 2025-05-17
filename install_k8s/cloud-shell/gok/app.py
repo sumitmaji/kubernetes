@@ -103,7 +103,8 @@ def ensure_ttyd_ingress(username):
                         "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600",
                         "nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
                         "nginx.ingress.kubernetes.io/ssl-redirect": "true",
-                        "cert-manager.io/cluster-issuer": "gokselfsign-ca-cluster-issuer"
+                        "cert-manager.io/cluster-issuer": "gokselfsign-ca-cluster-issuer",
+                        "nginx.ingress.kubernetes.io/rewrite-target": "/"
                     }
                 },
                 "spec": {
