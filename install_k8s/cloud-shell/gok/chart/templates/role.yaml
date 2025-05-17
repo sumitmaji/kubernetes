@@ -4,8 +4,8 @@ metadata:
   name: cloudshell-manager
   namespace: cloudshell
 rules:
-  - apiGroups: [""]
-    resources: ["pods", "services"]
+- apiGroups: [""]
+    resources: ["pods", "services", "serviceaccounts"]
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
   - apiGroups: ["apps"]
     resources: ["deployments"]
@@ -13,6 +13,6 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["serviceaccounts"]
-    verbs: ["get", "list", "create", "update", "patch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings", "roles"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
