@@ -2,6 +2,7 @@ import os
 import jwt
 from flask import Flask, request, redirect
 from kubernetes import client, config
+from flask import render_template_string
 
 app = Flask(__name__)
 
@@ -268,6 +269,21 @@ def ensure_ttyd_ingress(username):
         else:
             raise
 
+@app.route("/status/<username>")
+def status(username):
+    v1 = client.CoreV1Api()
+    service_name = get_service_name(username)
+    try:
+        svc = v1.read_namespaced_service(service_name, NAMESPACE)
+        # Optionally, check pod status as well
+        pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
+        if pods.items and all(pod.status.phase == "Running" for pod in pods.items):
+            return {"ready": True}
+    except Exception:
+        pass
+    return {"ready": False}
+
+
 @app.route("/")
 def index():
     auth_header = request.headers.get("Authorization")
@@ -286,7 +302,32 @@ def index():
     ensure_ttyd_ingress(username)
 
     user_url = f"https://cloudshell.gokcloud.com/user/{username}/"
-    return redirect(user_url)
+    # Serve progress page with JS polling
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Starting your Cloud Shell...</title>
+      <script>
+        async function poll() {
+          let resp = await fetch("/status/{{username}}");
+          let data = await resp.json();
+          if (data.ready) {
+            window.location.href = "{{user_url}}";
+          } else {
+            setTimeout(poll, 2000);
+          }
+        }
+        window.onload = poll;
+      </script>
+    </head>
+    <body>
+      <h2>Starting your Cloud Shell...</h2>
+      <p>Please wait while your environment is being prepared.</p>
+      <div id="spinner" style="font-size:48px;">⏳</div>
+    </body>
+    </html>
+    """, username=username, user_url=user_url)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
