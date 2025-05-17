@@ -14,6 +14,7 @@ spec:
       labels:
         app: {{ include "cloudshell.name" . }}
     spec:
+      serviceAccountName: cloudshell-sa
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
