@@ -3095,7 +3095,7 @@ cloudshellInst() {
   helm install cloudshell ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok/chart -n cloudshell
 
   # Patch ingress with letsencrypt and oauth if needed
-  gok patch ingress cloudshell cloudshell letsencrypt cloudshell
+  gok patch ingress cloudshell-cloudshell cloudshell letsencrypt cloudshell
   patchCloudshellWithOauth
 
   echo "Waiting for cloudshell to be ready..."
