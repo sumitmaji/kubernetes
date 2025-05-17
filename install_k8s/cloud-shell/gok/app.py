@@ -310,7 +310,7 @@ def index():
       <title>Starting your Cloud Shell...</title>
       <script>
         async function poll() {
-          let resp = await fetch("/status/{{username}}");
+          let resp = await fetch("/shell/status/{{username}}");
           let data = await resp.json();
           if (data.ready) {
             window.location.href = "{{user_url}}";
