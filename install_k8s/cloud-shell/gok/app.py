@@ -1,5 +1,6 @@
 import os
 import jwt
+import re
 from flask import Flask, request, redirect, abort, render_template_string
 from kubernetes import client, config
 
@@ -229,7 +230,7 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate/$user",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate/",
                         "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
@@ -268,14 +269,23 @@ def ensure_ttyd_ingress(username):
         else:
             raise
 
-@app.route("/validate/<username>")
-def validate_user(username):
+@app.route("/validate")
+def validate_user():
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return "Unauthorized", 401
     token = auth_header.split(" ", 1)[1]
     userinfo = get_user_info_from_token(token)
     current_user = userinfo["username"]
+
+    # Extract original URI from header
+    orig_uri = request.headers.get("X-Original-URI", "")
+    # Match /user/<username> (optionally with trailing slash or path)
+    m = re.match(r"^/user/([^/]+)", orig_uri)
+    if not m:
+        abort(400, "Bad request: cannot extract username from path")
+    username = m.group(1)
+
     if current_user != username:
         abort(403, "Forbidden: You cannot access another user's terminal.")
     return {"allowed": True}
