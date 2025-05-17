@@ -95,8 +95,8 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://auth.gokcloud.com/oauth2/auth",
-                        "nginx.ingress.kubernetes.io/auth-signin": "https://auth.gokcloud.com/oauth2/start?rd=https://$host$request_uri",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://kube.gokcloud.com/oauth2/auth",
+                        "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
                         "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
@@ -107,7 +107,7 @@ def ensure_ttyd_ingress(username):
                     }
                 },
                 "spec": {
-                    "ingeressClassName": "nginx",
+                    "ingressClassName": "nginx",
                     "tls": [{
                         "hosts": ["cloudshell.gokcloud.com"],
                         "secretName": "cloudshell-gokcloud-com"
@@ -116,7 +116,7 @@ def ensure_ttyd_ingress(username):
                         "host": "cloudshell.gokcloud.com",
                         "http": {
                             "paths": [{
-                                "path": f"/user/{username}/",
+                                "path": f"/user/{username}",
                                 "pathType": "Prefix",
                                 "backend": {
                                     "service": {
