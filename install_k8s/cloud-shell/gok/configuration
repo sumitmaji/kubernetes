@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/cloudshell
+REGISTRY=master.cloud.com:5000
+REPO_NAME=cloudshell
+CONTAINER_NAME=tcloudshelltyd
+BUILD_PATH=/tmp
+RELEASE_NAME=cloudshell
+PATH_TO_CHART=chart
+DEPLOY=true
