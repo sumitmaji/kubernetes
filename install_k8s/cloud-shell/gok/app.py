@@ -1,6 +1,6 @@
 import os
 import jwt
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 from kubernetes import client, config
 
 app = Flask(__name__)
@@ -44,13 +44,59 @@ def ensure_ttyd_pod(username):
                 "labels": {"user": username}
             },
             "spec": {
-                "containers": [{
-                    "name": "ttyd",
-                    "image": TTYD_IMAGE,
-                    "command": ["ttyd"],
-                    "args": ["-W", "bash"],
-                    "ports": [{"containerPort": TTYD_PORT}]
-                }]
+                "volumes": [
+                    {"name": "tools", "emptyDir": {}}
+                ],
+                "initContainers": [
+                    {
+                        "name": "install-tools",
+                        "image": "alpine:3.19",
+                        "command": [
+                            "sh", "-c",
+                            """
+                            set -ex
+                            apk update
+                            apk add --no-cache curl bash docker-cli openssl file
+                            # Install kubectl
+                            KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+                            curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                            if ! file kubectl | grep -q 'ELF'; then
+                              echo "kubectl download failed!"
+                              exit 1
+                            fi
+                            install -m 755 kubectl /tools/kubectl
+                            # Install helm
+                            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                            mv /usr/local/bin/helm /tools/helm
+                            # Copy docker client
+                            cp /bin/docker /tools/docker
+                            """
+                        ],
+                        "volumeMounts": [
+                            {"name": "tools", "mountPath": "/tools"}
+                        ]
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "ttyd",
+                        "image": TTYD_IMAGE,
+                        "imagePullPolicy": "IfNotPresent",
+                        "command": ["ttyd"],
+                        "args": ["-W", "bash"],
+                        "ports": [{"containerPort": TTYD_PORT}],
+                        "env": [
+                            {
+                                "name": "PATH",
+                                "value": "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                            }
+                        ],
+                        "resources": {},  # Add resource limits if needed
+                        "volumeMounts": [
+                            {"name": "tools", "mountPath": "/tools"}
+                        ]
+                    }
+                ]
             }
         }
         v1.create_namespaced_pod(namespace=NAMESPACE, body=pod_manifest)
@@ -150,11 +196,7 @@ def index():
     ensure_ttyd_ingress(username)
 
     user_url = f"https://cloudshell.gokcloud.com/user/{username}/"
-    return jsonify({
-        "userid": userid,
-        "username": username,
-        "ttyd_url": user_url
-    })
+    return redirect(user_url)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
