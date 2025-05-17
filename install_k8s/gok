@@ -3052,6 +3052,10 @@ patchJupyterWithOauth() {
   patchOauth2Secure jupyterhub jupyterhub https://$(defaultSubdomain).$(rootDomain)/hub/
 }
 
+patchTtydWithOauth() {
+  patchOauth2Secure ttyd ttyd https://ttyd.$(rootDomain)
+}
+
 checkAndPatchDashboard() {
   # Check if the oauth2-proxy service is running
   echo "Checking if oauth2-proxy service is running..."
@@ -3392,6 +3396,7 @@ ttydInst() {
     --set ingress.host="ttyd.$(rootDomain)"
 
   gok patch ingress ttyd ttyd letsencrypt ttyd
+  patchTtydWithOauth
 
   echo "Waiting for ttyd to be ready..."
   kubectl --namespace ttyd wait --for=condition=Ready pods --all --timeout=120s
