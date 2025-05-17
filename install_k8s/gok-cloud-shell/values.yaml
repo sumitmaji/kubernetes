@@ -27,10 +27,9 @@ hub:
 
 singleuser:
   image:
-    name: tsl0922/ttyd
+    name: sumit/ttyd
     tag: latest
-  cmd: ["/usr/local/bin/ttyd"]
-  args: ["-p", "7681", "-W", "bash"]
+  cmd: ["ttyd -p 7681 -W bash"]
   defaultUrl: "/proxy/7681/"
   storage:
     dynamic:
