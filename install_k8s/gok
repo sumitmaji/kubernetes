@@ -3057,7 +3057,7 @@ patchTtydWithOauth() {
 }
 
 patchCloudshellWithOauth() {
-  patchOauth2Secure cloudshell cloudshell https://cloudshell.$(rootDomain)
+  patchOauth2Secure cloudshell-cloudshell cloudshell https://cloudshell.$(rootDomain)
 }
 
 checkAndPatchDashboard() {
