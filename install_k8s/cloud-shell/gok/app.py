@@ -12,7 +12,7 @@ else:
     config.load_kube_config()
 
 NAMESPACE = "cloudshell"
-TTYD_IMAGE = "registry.gokcloud.com/ttyd:latest"
+TTYD_IMAGE = "tsl0922/ttyd"
 TTYD_PORT = 7681
 
 def get_user_info_from_token(token):
