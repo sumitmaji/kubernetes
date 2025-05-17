@@ -96,7 +96,7 @@ def ensure_ttyd_pod(username, token):
                 "labels": {"user": username}
             },
             "spec": {
-                "serviceAccountName": sa_name,
+                # "serviceAccountName": sa_name,
                 "volumes": [
                     {"name": "tools", "emptyDir": {}}
                 ],
