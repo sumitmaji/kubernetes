@@ -52,25 +52,26 @@ def ensure_ttyd_pod(username):
                         "name": "install-tools",
                         "image": "alpine:3.19",
                         "command": [
-                            "sh", "-c",
-                            """
-                            set -ex
-                            apk update
-                            apk add --no-cache curl bash docker-cli openssl file
-                            # Install kubectl
-                            KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
-                            curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-                            if ! file kubectl | grep -q 'ELF'; then
-                              echo "kubectl download failed!"
-                              exit 1
-                            fi
-                            install -m 755 kubectl /tools/kubectl
-                            # Install helm
-                            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-                            mv /usr/local/bin/helm /tools/helm
-                            # Copy docker client
-                            cp /bin/docker /tools/docker
-                            """
+                            "sh",
+                            "-c",
+                            (
+                                "set -ex\n"
+                                "apk update\n"
+                                "apk add --no-cache curl bash docker-cli openssl file\n"
+                                "# Install kubectl\n"
+                                "KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)\n"
+                                "curl -LO \"https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl\"\n"
+                                "if ! file kubectl | grep -q 'ELF'; then\n"
+                                "  echo \"kubectl download failed!\"\n"
+                                "  exit 1\n"
+                                "fi\n"
+                                "install -m 755 kubectl /kubectl\n"
+                                "# Install helm\n"
+                                "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash\n"
+                                "mv /usr/local/bin/helm /helm\n"
+                                "# Copy docker client\n"
+                                "cp /bin/docker /docker\n"
+                            )
                         ],
                         "volumeMounts": [
                             {"name": "tools", "mountPath": "/tools"}
