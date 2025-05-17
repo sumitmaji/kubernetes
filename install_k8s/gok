@@ -3056,6 +3056,10 @@ patchTtydWithOauth() {
   patchOauth2Secure ttyd ttyd https://ttyd.$(rootDomain)
 }
 
+patchCloudshellWithOauth() {
+  patchOauth2Secure cloudshell cloudshell https://cloudshell.$(rootDomain)
+}
+
 checkAndPatchDashboard() {
   # Check if the oauth2-proxy service is running
   echo "Checking if oauth2-proxy service is running..."
@@ -3078,6 +3082,32 @@ checkAndPatchHub() {
   fi
 }
 
+cloudshellReset() {
+  helm uninstall cloudshell -n cloudshell
+  kubectl delete ns cloudshell
+  echo "cloudshell has been uninstalled and the namespace deleted."
+}
+
+cloudshellInst() {
+  # Create namespace for cloudshell
+  kubectl create namespace cloudshell || echo "Namespace cloudshell already exists"
+
+  helm install cloudshell ${MOUNT_PATH}/kubernetes/cloud-shell/cloudshell -n cloudshell
+
+  # Patch ingress with letsencrypt and oauth if needed
+  gok patch ingress cloudshell cloudshell letsencrypt cloudshell
+  patchCloudshellWithOauth
+
+  echo "Waiting for cloudshell to be ready..."
+  kubectl --namespace cloudshell wait --for=condition=Ready pods --all --timeout=120s
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "cloudshell is now up! Access it at: https://cloudshell.$(rootDomain)"
+  else
+    echoFailed "cloudshell setup timed out. Please check the logs."
+    return 1
+  fi
+}
+
 installDashboardwithCertManager(){
   dashboardInst
   # No need to generate the certificate.
@@ -3089,6 +3119,13 @@ installDashboardwithCertManager(){
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace kubernetes-dashboard
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
+
+# add_audience_mapper_to_groups_scope \
+#   "https://keycloak.gokcloud.com" \
+#   "GokDevelopers" \
+#   "admin" \
+#   "your-admin-password" \
+#   "gok-developers-client"
 
 add_audience_mapper_to_groups_scope() {
   # Required inputs
@@ -4103,6 +4140,8 @@ function installCmd() {
     eclipseCheInst
   elif [ "$COMPONENT" == "ttyd" ]; then
     ttydInst
+  elif [ "$COMPONENT" == "cloudshell" ]; then
+    cloudshellInst
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdInst
   elif [ "$COMPONENT" == "chart" ]; then
@@ -4206,6 +4245,8 @@ EOF
     resetEclipseChe
   elif [ "$COMPONENT" == "ttyd" ]; then
     ttydReset
+  elif [ "$COMPONENT" == "cloudshell" ]; then
+    cloudshellReset
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset

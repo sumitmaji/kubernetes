@@ -1,0 +1,21 @@
+replicaCount: 1
+
+image:
+  repository: gokcloud/cloudshell-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  host: cloudshell.gokcloud.com
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/auth-url: "https://auth.gokcloud.com/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://auth.gokcloud.com/oauth2/start?rd=https://$host$request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: Authorization
+
+resources: {}

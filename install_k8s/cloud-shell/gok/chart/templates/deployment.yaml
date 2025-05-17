@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudshell.fullname" . }}
+  labels:
+    app: {{ include "cloudshell.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "cloudshell.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "cloudshell.name" . }}
+    spec:
+      containers:
+        - name: cloudshell
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
