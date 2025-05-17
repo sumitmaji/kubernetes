@@ -284,7 +284,7 @@ def validate_user():
     # Match /user/<username> (optionally with trailing slash or path)
     m = re.match(r"^/user/([^/]+)", orig_uri)
     if not m:
-        abort(400, "Bad request: cannot extract username from path, current_user: {current_user} orig_uri: {orig_uri}")
+        abort(400, f"Bad request: cannot extract username from path, current_user: {current_user} orig_uri: {orig_uri}")
     username = m.group(1)
 
     if current_user != username:
