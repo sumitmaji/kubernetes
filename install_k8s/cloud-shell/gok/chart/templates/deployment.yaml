@@ -14,6 +14,8 @@ spec:
       labels:
         app: {{ include "cloudshell.name" . }}
     spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
         - name: cloudshell
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
