@@ -14,7 +14,7 @@ spec:
       http:
         paths:
           - path: /shell(.*)
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: {{ include "cloudshell.fullname" . }}
