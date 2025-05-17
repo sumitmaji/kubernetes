@@ -1,8 +1,7 @@
 import os
 import jwt
-from flask import Flask, request, redirect
+from flask import Flask, request, redirect, abort, render_template_string
 from kubernetes import client, config
-from flask import render_template_string
 
 app = Flask(__name__)
 
@@ -20,7 +19,8 @@ def get_user_info_from_token(token):
     payload = jwt.decode(token, options={"verify_signature": False})
     return {
         "userid": payload.get("sub"),
-        "username": payload.get("preferred_username")
+        "username": payload.get("preferred_username"),
+        "groups": payload.get("groups", [])
     }
 
 def get_pod_name(username):
@@ -88,7 +88,6 @@ def ensure_ttyd_pod(username, token):
     sa_name = f"user-{username}"
     pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
     if not pods.items:
-        # The initContainer writes the kubeconfig using the token
         pod_manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -230,7 +229,7 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://kube.gokcloud.com/oauth2/auth",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate/$user",
                         "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
@@ -269,20 +268,38 @@ def ensure_ttyd_ingress(username):
         else:
             raise
 
+@app.route("/validate/<username>")
+def validate_user(username):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return "Unauthorized", 401
+    token = auth_header.split(" ", 1)[1]
+    userinfo = get_user_info_from_token(token)
+    current_user = userinfo["username"]
+    if current_user != username:
+        abort(403, "Forbidden: You cannot access another user's terminal.")
+    return {"allowed": True}
+
 @app.route("/status/<username>")
 def status(username):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return "Unauthorized", 401
+    token = auth_header.split(" ", 1)[1]
+    userinfo = get_user_info_from_token(token)
+    current_user = userinfo["username"]
+    if current_user != username:
+        abort(403, "Forbidden")
     v1 = client.CoreV1Api()
     service_name = get_service_name(username)
     try:
         svc = v1.read_namespaced_service(service_name, NAMESPACE)
-        # Optionally, check pod status as well
         pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
         if pods.items and all(pod.status.phase == "Running" for pod in pods.items):
             return {"ready": True}
     except Exception:
         pass
     return {"ready": False}
-
 
 @app.route("/")
 def index():
@@ -310,7 +327,7 @@ def index():
       <title>Starting your Cloud Shell...</title>
       <script>
         async function poll() {
-          let resp = await fetch("/shell/status/{{username}}");
+          let resp = await fetch("/shell/status/{{username}}", {headers: {"Authorization": document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] ? "Bearer " + document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] : ""}});
           let data = await resp.json();
           if (data.ready) {
             window.location.href = "{{user_url}}";
