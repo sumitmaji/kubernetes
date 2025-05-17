@@ -1,6 +1,6 @@
 import os
 import jwt
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, redirect
 from kubernetes import client, config
 
 app = Flask(__name__)
@@ -31,11 +31,12 @@ def get_service_name(username):
 def get_ingress_name(username):
     return f"ttyd-{username}"
 
-def ensure_ttyd_pod(username):
+def ensure_ttyd_pod(username, token):
     v1 = client.CoreV1Api()
     pod_name = get_pod_name(username)
     pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
     if not pods.items:
+        # The initContainer writes the kubeconfig using the token
         pod_manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -51,6 +52,12 @@ def ensure_ttyd_pod(username):
                     {
                         "name": "install-tools",
                         "image": "alpine:3.19",
+                        "env": [
+                            {
+                                "name": "KUBE_TOKEN",
+                                "value": token
+                            }
+                        ],
                         "command": [
                             "sh",
                             "-c",
@@ -71,6 +78,26 @@ def ensure_ttyd_pod(username):
                                 "mv /usr/local/bin/helm /tools/helm\n"
                                 "# Copy docker client\n"
                                 "cp /usr/bin/docker /tools/docker\n"
+                                "# Write kubeconfig\n"
+                                "cat <<EOF > /tools/kubeconfig\n"
+                                "apiVersion: v1\n"
+                                "kind: Config\n"
+                                "clusters:\n"
+                                "- cluster:\n"
+                                "    server: https://kubernetes.default.svc\n"
+                                "    insecure-skip-tls-verify: true\n"
+                                "  name: k8s\n"
+                                "users:\n"
+                                "- name: user\n"
+                                "  user:\n"
+                                "    token: $KUBE_TOKEN\n"
+                                "contexts:\n"
+                                "- context:\n"
+                                "    cluster: k8s\n"
+                                "    user: user\n"
+                                "  name: k8s\n"
+                                "current-context: k8s\n"
+                                "EOF\n"
                             )
                         ],
                         "volumeMounts": [
@@ -90,9 +117,17 @@ def ensure_ttyd_pod(username):
                             {
                                 "name": "PATH",
                                 "value": "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+                            },
+                            {
+                                "name": "KUBECONFIG",
+                                "value": "/tools/kubeconfig"
+                            },
+                            {
+                                "name": "KUBE_TOKEN",
+                                "value": token
                             }
                         ],
-                        "resources": {},  # Add resource limits if needed
+                        "resources": {},
                         "volumeMounts": [
                             {"name": "tools", "mountPath": "/tools"}
                         ]
@@ -192,7 +227,7 @@ def index():
     userid = userinfo["userid"]
 
     # Ensure pod, service, and ingress exist
-    ensure_ttyd_pod(username)
+    ensure_ttyd_pod(username, token)
     ensure_ttyd_service(username)
     ensure_ttyd_ingress(username)
 
