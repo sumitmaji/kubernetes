@@ -278,10 +278,10 @@ def validate_user():
     userinfo = get_user_info_from_token(token)
     current_user = userinfo["username"]
 
-    print(current_user)
+    app.logger.info(f"current_user: {current_user}")
     # Extract original URI from header
     orig_uri = request.headers.get("X-Original-URI", "")
-    print(f"orig_uri: {orig_uri}")
+    app.logger.info(f"orig_uri: {orig_uri}")
     # Match /user/<username> (optionally with trailing slash or path)
     m = re.match(r"^/user/([^/]+)", orig_uri)
     if not m:
