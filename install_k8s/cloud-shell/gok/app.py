@@ -53,6 +53,7 @@ def index():
                 "containers": [{
                     "name": "ttyd",
                     "image": TTYD_IMAGE,
+                    "command": ["ttyd"],
                     "args": ["-W", "bash"],
                     "ports": [{"containerPort": TTYD_PORT}]
                 }]
