@@ -3,7 +3,7 @@ replicaCount: 1
 image:
   repository: tsl0922/ttyd
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP
