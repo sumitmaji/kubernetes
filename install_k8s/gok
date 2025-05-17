@@ -3090,6 +3090,71 @@ installDashboardwithCertManager(){
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+add_audience_mapper_to_groups_scope() {
+  # Required inputs
+  local KEYCLOAK_URL=$1         # e.g. https://keycloak.gokcloud.com
+  local REALM=$2                # e.g. GokDevelopers
+  local ADMIN_USER=$3           # e.g. admin
+  local ADMIN_PASS=$4           # e.g. <admin-password>
+  local CLIENT_ID=$5            # e.g. gok-developers-client
+
+  # Get admin access token
+  local ADMIN_TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -d "username=$ADMIN_USER" \
+    -d "password=$ADMIN_PASS" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" \
+    | jq -r .access_token)
+
+  if [[ -z "$ADMIN_TOKEN" || "$ADMIN_TOKEN" == "null" ]]; then
+    echo "Failed to get admin token"
+    return 1
+  fi
+
+  # Get client UUID
+  local CLIENT_UUID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM/clients" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
+
+  if [[ -z "$CLIENT_UUID" ]]; then
+    echo "Client $CLIENT_ID not found"
+    return 1
+  fi
+
+  # Add Audience protocol mapper to client
+  curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_UUID/protocol-mappers/models" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"name\": \"audience-groups\",
+      \"protocol\": \"openid-connect\",
+      \"protocolMapper\": \"oidc-audience-mapper\",
+      \"consentRequired\": false,
+      \"config\": {
+        \"included.client.audience\": \"$CLIENT_ID\",
+        \"id.token.claim\": \"true\",
+        \"access.token.claim\": \"true\"
+      }
+    }"
+
+  echo "Audience protocol mapper added to client $CLIENT_ID."
+
+  # (Optional) Assign groups scope to client if not already assigned
+  # Get groups client scope ID
+  local GROUPS_SCOPE_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/$REALM/client-scopes" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    | jq -r '.[] | select(.name=="groups") | .id')
+
+  if [[ -n "$GROUPS_SCOPE_ID" ]]; then
+    # Assign as default client scope if not already
+    curl -s -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_UUID/default-client-scopes/$GROUPS_SCOPE_ID" \
+      -H "Authorization: Bearer $ADMIN_TOKEN"
+    echo "Assigned 'groups' scope to client $CLIENT_ID."
+  else
+    echo "No 'groups' client scope found, skipping scope assignment."
+  fi
+}
+
 generate_kubeconfig() {
   read -p "Enter your Kubernetes API server URL (e.g., https://kubernetes.default.svc): " KUBE_API
   read -p "Enter your Kubernetes namespace: " KUBE_NAMESPACE
