@@ -27,9 +27,11 @@ hub:
 
 singleuser:
   image:
-    name: sumit/ttyd
+    name: registry.gokcloud.com/ttyd
     tag: latest
-  cmd: ["ttyd -p 7681 -W bash"]
+    pullSecrets:
+      - gokcloud-regcred
+  cmd: ["/usr/local/bin/ttyd", "-p","7681", "-W", "bash"]
   defaultUrl: "/proxy/7681/"
   storage:
     dynamic:
