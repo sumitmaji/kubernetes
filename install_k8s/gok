@@ -3510,7 +3510,7 @@ oauth2ProxyInst(){
     --set "extraArgs[14]=--user-id-claim=sub" \
     --set "extraArgs[15]=--cookie-domain=.gokcloud.com" \
     --set "extraArgs[16]=--cookie-secure=true" \
-    --set "extraArgs[17]=--pass-access-token" \
+    --set "extraArgs[17]=--pass-access-token=true" \
     --set "extraArgs[18]=--pass-authorization-header=true" \
     --set "extraArgs[19]=--oidc-issuer-url=${OAUTH2_OIDC_ISSUE_URL}" \
     --set "extraArgs[20]=--standard-logging=true" \
