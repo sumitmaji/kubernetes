@@ -3090,6 +3090,40 @@ installDashboardwithCertManager(){
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+generate_kubeconfig() {
+  read -p "Enter your Kubernetes API server URL (e.g., https://kubernetes.default.svc): " KUBE_API
+  read -p "Enter your Kubernetes namespace: " KUBE_NAMESPACE
+  read -p "Enter your Bearer token: " KUBE_TOKEN
+
+  # Optional: set a context name
+  CONTEXT_NAME="user-ttyd"
+
+  cat > kubeconfig <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: ${KUBE_API}
+    insecure-skip-tls-verify: true
+  name: cluster
+users:
+- name: user
+  user:
+    token: ${KUBE_TOKEN}
+contexts:
+- context:
+    cluster: cluster
+    user: user
+    namespace: ${KUBE_NAMESPACE}
+  name: ${CONTEXT_NAME}
+current-context: ${CONTEXT_NAME}
+EOF
+
+  echo "Kubeconfig written to ./kubeconfig"
+  echo "To use it, run:"
+  echo "  export KUBECONFIG=$(pwd)/kubeconfig"
+}
+
 get_keycloak_token() {
   read -p "Keycloak URL (default: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token): " KEYCLOAK_URL
   KEYCLOAK_URL=${KEYCLOAK_URL:-https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token}
