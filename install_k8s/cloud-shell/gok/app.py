@@ -230,7 +230,7 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://kube.gokcloud.com/oauth2/auth",
                         "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
