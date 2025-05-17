@@ -275,8 +275,8 @@ def index():
     userid = userinfo["userid"]
     groups = userinfo.get("groups", [])
 
-    ensure_serviceaccount(username)
-    ensure_rolebinding(username, groups)
+    # ensure_serviceaccount(username)
+    # ensure_rolebinding(username, groups)
     ensure_ttyd_pod(username, token)
     ensure_ttyd_service(username)
     ensure_ttyd_ingress(username)
