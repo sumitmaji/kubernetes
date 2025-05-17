@@ -65,12 +65,12 @@ def ensure_ttyd_pod(username):
                                 "  echo \"kubectl download failed!\"\n"
                                 "  exit 1\n"
                                 "fi\n"
-                                "install -m 755 kubectl /kubectl\n"
+                                "install -m 755 kubectl /tools/kubectl\n"
                                 "# Install helm\n"
                                 "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash\n"
-                                "mv /usr/local/bin/helm /helm\n"
+                                "mv /usr/local/bin/helm /tools/helm\n"
                                 "# Copy docker client\n"
-                                "cp /bin/docker /docker\n"
+                                "cp /bin/docker /tools/docker\n"
                             )
                         ],
                         "volumeMounts": [
