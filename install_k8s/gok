@@ -3092,7 +3092,7 @@ cloudshellInst() {
   # Create namespace for cloudshell
   kubectl create namespace cloudshell || echo "Namespace cloudshell already exists"
 
-  helm install cloudshell ${MOUNT_PATH}/kubernetes/cloud-shell/gok/chart -n cloudshell
+  helm install cloudshell ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok/chart -n cloudshell
 
   # Patch ingress with letsencrypt and oauth if needed
   gok patch ingress cloudshell cloudshell letsencrypt cloudshell
