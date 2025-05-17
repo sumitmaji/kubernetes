@@ -70,7 +70,7 @@ def ensure_ttyd_pod(username):
                                 "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash\n"
                                 "mv /usr/local/bin/helm /tools/helm\n"
                                 "# Copy docker client\n"
-                                "cp /bin/docker /tools/docker\n"
+                                "cp /usr/bin/docker /tools/docker\n"
                             )
                         ],
                         "volumeMounts": [
