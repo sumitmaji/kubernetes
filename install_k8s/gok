@@ -3090,6 +3090,33 @@ installDashboardwithCertManager(){
   [[ $? -eq 0 ]] && echoSuccess "Dashboard services are now up!\nAccess it using https://$(defaultSubdomain).$(rootDomain)/dashboard/" || echoFailed "Keycloak services timed-out, plaese check!!"
 }
 
+get_keycloak_token() {
+  read -p "Keycloak URL (default: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token): " KEYCLOAK_URL
+  KEYCLOAK_URL=${KEYCLOAK_URL:-https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token}
+
+  read -p "Client ID: " CLIENT_ID
+  read -p "Client Secret: " CLIENT_SECRET
+  read -p "Username: " USERNAME
+  read -s -p "Password: " PASSWORD
+  echo
+
+  TOKEN_RESPONSE=$(curl -s -X POST "$KEYCLOAK_URL" \
+    -d "client_id=$CLIENT_ID" \
+    -d "client_secret=$CLIENT_SECRET" \
+    -d "grant_type=password" \
+    -d "username=$USERNAME" \
+    -d "password=$PASSWORD")
+
+  ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*' | grep -o '[^"]*$')
+  if [ -n "$ACCESS_TOKEN" ]; then
+    echo "Your access token:"
+    echo "$ACCESS_TOKEN"
+  else
+    echo "Failed to get token. Response:"
+    echo "$TOKEN_RESPONSE"
+  fi
+}
+
 oauth2ProxyReset(){
   helm uninstall oauth2proxy -n oauth2
 
