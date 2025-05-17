@@ -31,9 +31,60 @@ def get_service_name(username):
 def get_ingress_name(username):
     return f"ttyd-{username}"
 
+def ensure_serviceaccount(username):
+    v1 = client.CoreV1Api()
+    sa_name = f"user-{username}"
+    try:
+        v1.read_namespaced_service_account(sa_name, NAMESPACE)
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            sa_manifest = {
+                "apiVersion": "v1",
+                "kind": "ServiceAccount",
+                "metadata": {"name": sa_name}
+            }
+            v1.create_namespaced_service_account(namespace=NAMESPACE, body=sa_manifest)
+        else:
+            raise
+
+def ensure_rolebinding(username, groups):
+    rbac_v1 = client.RbacAuthorizationV1Api()
+    rb_name = f"user-{username}-binding"
+    sa_name = f"user-{username}"
+    # Example: Give admin if in administrators, else developer role
+    if "administrators" in groups:
+        role = "admin"
+    elif "developers" in groups:
+        role = "edit"
+    else:
+        role = "view"
+    try:
+        rbac_v1.read_namespaced_role_binding(rb_name, NAMESPACE)
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            rb_manifest = {
+                "apiVersion": "rbac.authorization.k8s.io/v1",
+                "kind": "RoleBinding",
+                "metadata": {"name": rb_name},
+                "subjects": [{
+                    "kind": "ServiceAccount",
+                    "name": sa_name,
+                    "namespace": NAMESPACE
+                }],
+                "roleRef": {
+                    "kind": "ClusterRole",
+                    "name": role,
+                    "apiGroup": "rbac.authorization.k8s.io"
+                }
+            }
+            rbac_v1.create_namespaced_role_binding(namespace=NAMESPACE, body=rb_manifest)
+        else:
+            raise
+
 def ensure_ttyd_pod(username, token):
     v1 = client.CoreV1Api()
     pod_name = get_pod_name(username)
+    sa_name = f"user-{username}"
     pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
     if not pods.items:
         # The initContainer writes the kubeconfig using the token
@@ -45,6 +96,7 @@ def ensure_ttyd_pod(username, token):
                 "labels": {"user": username}
             },
             "spec": {
+                "serviceAccountName": sa_name,
                 "volumes": [
                     {"name": "tools", "emptyDir": {}}
                 ],
@@ -225,8 +277,10 @@ def index():
     userinfo = get_user_info_from_token(token)
     username = userinfo["username"]
     userid = userinfo["userid"]
+    groups = userinfo.get("groups", [])
 
-    # Ensure pod, service, and ingress exist
+    ensure_serviceaccount(username)
+    ensure_rolebinding(username, groups)
     ensure_ttyd_pod(username, token)
     ensure_ttyd_service(username)
     ensure_ttyd_ingress(username)
