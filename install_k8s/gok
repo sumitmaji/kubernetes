@@ -3502,7 +3502,7 @@ oauth2ProxyInst(){
     --set "extraArgs[6]=--keycloak-group=developers" \
     --set "extraArgs[7]=--allowed-group=administrators" \
     --set "extraArgs[8]=--allowed-group=developers" \
-    --set "extraArgs[9]=--scope=openid email profile groups sub" \
+    --set "extraArgs[9]=--scope=openid email profile groups sub offline_access" \
     --set "extraArgs[10]=--ssl-insecure-skip-verify" \
     --set "extraArgs[11]=--set-authorization-header=true" \
     --set "extraArgs[12]=--whitelist-domain=.gokcloud.com" \
@@ -3518,6 +3518,7 @@ oauth2ProxyInst(){
     --set "extraArgs[22]=--request-logging=true" \
     --set "extraArgs[23]=--cookie-refresh=1h" \
     --set "extraArgs[24]=--cookie-expire=8h" \
+    --set "extraArgs[25]=--set-xauthrequest=true" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)

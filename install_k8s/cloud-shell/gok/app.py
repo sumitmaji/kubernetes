@@ -318,10 +318,17 @@ def status(username):
 
 @app.route("/")
 def index():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+# Prefer X-Auth-Request-Access-Token if present (for nginx auth_request mode)
+    token = (
+        request.headers.get("X-Auth-Request-Access-Token")
+        or (
+            request.headers.get("Authorization").split(" ", 1)[1]
+            if request.headers.get("Authorization", "").startswith("Bearer ")
+            else None
+        )
+    )
+    if not token:
         return "Unauthorized", 401
-    token = auth_header.split(" ", 1)[1]
     userinfo = get_user_info_from_token(token)
     username = userinfo["username"]
     userid = userinfo["userid"]
