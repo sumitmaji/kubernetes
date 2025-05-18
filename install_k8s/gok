@@ -3110,6 +3110,41 @@ cloudshellInst() {
   fi
 }
 
+consoleReset() {
+  helm uninstall console -n console
+  kubectl delete ns console
+  echo "console has been uninstalled and the namespace deleted."
+}
+
+patchConsoleWithOauth() {
+  patchOauth2Secure console-console console https://console.$(rootDomain)/
+}
+
+consoleInst() {
+  # Create namespace for console
+  kubectl create namespace console || echo "Namespace console already exists"
+
+  # Copy image pull secret if needed
+  copySecret regcred kube-system console
+
+  # Install console using Helm chart (adjust path if needed)
+  helm install console ${MOUNT_PATH}/kubernetes/install_k8s/console/app/chart -n console
+
+  # Patch ingress with letsencrypt and oauth if needed
+  gok patch ingress console-console console letsencrypt console
+  # Optionally patch with oauth if you use oauth2-proxy or similar
+  patchConsoleWithOauth
+
+  echo "Waiting for console to be ready..."
+  kubectl --namespace console wait --for=condition=Ready pods --all --timeout=120s
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "console is now up! Access it at: https://console.$(rootDomain)/"
+  else
+    echoFailed "console setup timed out. Please check the logs."
+    return 1
+  fi
+}
+
 installDashboardwithCertManager(){
   dashboardInst
   # No need to generate the certificate.
@@ -4145,6 +4180,8 @@ function installCmd() {
     ttydInst
   elif [ "$COMPONENT" == "cloudshell" ]; then
     cloudshellInst
+  elif [ "$COMPONENT" == "console" ]; then
+    consoleInst
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdInst
   elif [ "$COMPONENT" == "chart" ]; then
@@ -4250,6 +4287,8 @@ EOF
     ttydReset
   elif [ "$COMPONENT" == "cloudshell" ]; then
     cloudshellReset
+  elif [ "$COMPONENT" == "console" ]; then
+    consoleReset
   elif [ "$COMPONENT" == "opensearch" ]; then
     opensearchDashReset
     opensearchReset

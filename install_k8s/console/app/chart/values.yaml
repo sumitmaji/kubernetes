@@ -1,0 +1,21 @@
+replicaCount: 1
+
+image:
+  repository: your-docker-repo/console
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: console.gokcloud.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
