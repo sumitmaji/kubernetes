@@ -12,6 +12,8 @@ spec:
       labels:
         app: {{ include "console.name" . }}
     spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

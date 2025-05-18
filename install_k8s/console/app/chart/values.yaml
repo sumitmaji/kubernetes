@@ -1,9 +1,9 @@
 replicaCount: 1
 
 image:
-  repository: your-docker-repo/console
+  repository: registry.gokcloud.com/console
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP
