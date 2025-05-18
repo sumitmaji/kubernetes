@@ -230,7 +230,7 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate?uri=$request_uri",
                         "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
@@ -239,10 +239,7 @@ def ensure_ttyd_ingress(username):
                         "nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
                         "nginx.ingress.kubernetes.io/ssl-redirect": "true",
                         "cert-manager.io/cluster-issuer": "gokselfsign-ca-cluster-issuer",
-                        "nginx.ingress.kubernetes.io/rewrite-target": "/",
-                        "nginx.ingress.kubernetes.io/configuration-snippet": (
-                            "proxy_set_header X-My-Original-Uri $request_uri;\n"
-                        )
+                        "nginx.ingress.kubernetes.io/rewrite-target": "/"
                     }
                 },
                 "spec": {
@@ -285,7 +282,7 @@ def validate_user():
     orig_uri = (
         request.headers.get("X-Original-URI") 
         or request.headers.get("X-Forwarded-Uri")
-        or request.headers.get("X-My-Original-Uri", "")
+        or request.args.get("uri", "")
     )
 
     # Match /user/<username> (optionally with trailing slash or path)
