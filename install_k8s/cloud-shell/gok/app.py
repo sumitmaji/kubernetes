@@ -316,12 +316,72 @@ def status(username):
         pass
     return {"ready": False}
 
+@app.route("/delete", methods=["GET", "POST"])
+def delete_user_resources():
+    # Extract token (prefer X-Auth-Request-Access-Token)
+    token = (
+        request.headers.get("X-Auth-Request-Access-Token")
+        or (
+            request.headers.get("Authorization").split(" ", 1)[1]
+            if request.headers.get("Authorization", "").startswith("Bearer ")
+            else None
+        )
+    )
+    if not token:
+        return "Unauthorized", 401
+    userinfo = get_user_info_from_token(token)
+    username = userinfo["username"]
+
+    # Optionally, get username from POST data and ensure it matches
+    req_data = request.get_json(silent=True) or {}
+    req_username = req_data.get("username", username)
+    if req_username != username:
+        return "Forbidden: You can only delete your own resources.", 403
+
+    v1 = client.CoreV1Api()
+    networking_v1 = client.NetworkingV1Api()
+
+    pod_name = get_pod_name(username)
+    service_name = get_service_name(username)
+    ingress_name = get_ingress_name(username)
+
+    # Delete Pod
+    try:
+        v1.delete_namespaced_pod(pod_name, NAMESPACE)
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            return f"Error deleting pod: {e}", 500
+
+    # Delete Service
+    try:
+        v1.delete_namespaced_service(service_name, NAMESPACE)
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            return f"Error deleting service: {e}", 500
+
+    # Delete Ingress
+    try:
+        networking_v1.delete_namespaced_ingress(ingress_name, NAMESPACE)
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            return f"Error deleting ingress: {e}", 500
+
+    return {"status": "deleted", "user": username}
+
+
 @app.route("/")
 def index():
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+# Prefer X-Auth-Request-Access-Token if present (for nginx auth_request mode)
+    token = (
+        request.headers.get("X-Auth-Request-Access-Token")
+        or (
+            request.headers.get("Authorization").split(" ", 1)[1]
+            if request.headers.get("Authorization", "").startswith("Bearer ")
+            else None
+        )
+    )
+    if not token:
         return "Unauthorized", 401
-    token = auth_header.split(" ", 1)[1]
     userinfo = get_user_info_from_token(token)
     username = userinfo["username"]
     userid = userinfo["userid"]
