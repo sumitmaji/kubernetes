@@ -279,7 +279,7 @@ def validate_user():
     current_user = userinfo["username"]
 
     # Extract original URI from header
-    orig_uri = request.headers.get("X-Original-URI", "")
+    orig_uri = request.headers.get("X-Original-URI") or request.headers.get("X-Forwarded-Uri", "")
 
     # Match /user/<username> (optionally with trailing slash or path)
     m = re.match(r"^/user/([^/]+)", orig_uri)
