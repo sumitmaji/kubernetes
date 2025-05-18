@@ -3,6 +3,7 @@ FROM node:20 AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
+ENV NODE_OPTIONS=--openssl-legacy-provider
 COPY frontend/ ./
 RUN npm run build
 
