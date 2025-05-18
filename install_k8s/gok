@@ -3103,7 +3103,7 @@ cloudshellInst() {
   echo "Waiting for cloudshell to be ready..."
   kubectl --namespace cloudshell wait --for=condition=Ready pods --all --timeout=120s
   if [[ $? -eq 0 ]]; then
-    echoSuccess "cloudshell is now up! Access it at: https://cloudshell.$(rootDomain)"
+    echoSuccess "cloudshell is now up! Access it at: https://cloudshell.$(rootDomain)/shell"
   else
     echoFailed "cloudshell setup timed out. Please check the logs."
     return 1
