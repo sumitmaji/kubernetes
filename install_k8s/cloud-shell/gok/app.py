@@ -239,7 +239,8 @@ def ensure_ttyd_ingress(username):
                         "nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
                         "nginx.ingress.kubernetes.io/ssl-redirect": "true",
                         "cert-manager.io/cluster-issuer": "gokselfsign-ca-cluster-issuer",
-                        "nginx.ingress.kubernetes.io/rewrite-target": "/"
+                        "nginx.ingress.kubernetes.io/rewrite-target": "/",
+                        "nginx.ingress.kubernetes.io/configuration-snippet": "proxy_set_header X-My-Original-Uri $request_uri;"
                     }
                 },
                 "spec": {
@@ -279,7 +280,11 @@ def validate_user():
     current_user = userinfo["username"]
 
     # Extract original URI from header
-    orig_uri = request.headers.get("X-Original-URI") or request.headers.get("X-Forwarded-Uri", "")
+    orig_uri = (
+        request.headers.get("X-Original-URI") 
+        or request.headers.get("X-Forwarded-Uri")
+        or request.headers.get("X-My-Original-Uri", "")
+    )
 
     # Match /user/<username> (optionally with trailing slash or path)
     m = re.match(r"^/user/([^/]+)", orig_uri)
