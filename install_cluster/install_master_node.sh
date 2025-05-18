@@ -333,6 +333,9 @@ vault       IN  A   $(getMasterIp)
 jupyterhub  IN  A   $(getMasterIp)
 che         IN  A   $(getMasterIp)
 chart       IN  A   $(getMasterIp)
+argocd      IN  A   $(getMasterIp)
+ttyd        IN  A   $(getMasterIp)
+cloudshell  IN  A   $(getMasterIp)
 EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF
