@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/gok-controller
+REGISTRY=master.cloud.com:5000
+REPO_NAME=gok-controller
+CONTAINER_NAME=gok-controller
+BUILD_PATH=/tmp
+RELEASE_NAME=gok-controller
+PATH_TO_CHART=chart
+DEPLOY=true
