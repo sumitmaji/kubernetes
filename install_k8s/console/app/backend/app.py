@@ -7,6 +7,15 @@ app = Flask(
     static_url_path=""       # Serve static files at root
 )
 
+@app.route("/api/v1/userinfo")
+def userinfo():
+    # Example static user info; replace with real user data as needed
+    user = {
+        "username": "johndoe",
+        "email": "johndoe@example.com"
+    }
+    return jsonify(user)
+
 @app.route("/")
 def index():
     # Serve the React index.html

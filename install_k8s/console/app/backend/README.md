@@ -31,7 +31,7 @@ This is the backend of the my-fullstack-app project, built using Python and Flas
    ```
 
 ## Usage
-The backend API is accessible at `http://localhost:5000`. You can interact with the various endpoints defined in `app.py`.
+The backend API is accessible at `http://localhost:8080`. You can interact with the various endpoints defined in `app.py`.
 
 ## Contributing
 If you wish to contribute to this project, please fork the repository and submit a pull request with your changes.
