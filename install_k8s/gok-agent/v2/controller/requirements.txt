@@ -1,0 +1,6 @@
+flask
+flask-socketio
+pika
+python-jose
+requests
+watchdog

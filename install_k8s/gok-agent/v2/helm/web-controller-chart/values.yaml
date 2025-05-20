@@ -1,0 +1,36 @@
+replicaCount: 1
+image:
+  api: yourrepo/web-controller-api:latest
+  frontend: yourrepo/web-controller-frontend:latest
+
+rabbitmqHost: mq
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: web-controller.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - web-controller.example.com
+      secretName: web-controller-tls
+
+vault:
+  enabled: true
+  agentInjector: true
+  role: "web-controller"
+  secretPath: "secret/data/web-controller"
+
+oidc:
+  issuer: https://accounts.google.com
+  clientId: YOUR_CLIENT_ID
+  requiredRole: user
