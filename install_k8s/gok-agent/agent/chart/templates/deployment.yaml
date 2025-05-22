@@ -16,6 +16,8 @@ spec:
     spec:
       hostPID: true
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
         - name: agent-backend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
