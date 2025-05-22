@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-backend
+  labels:
+    app: agent-backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: agent-backend
+  template:
+    metadata:
+      labels:
+        app: agent-backend
+    spec:
+      hostPID: true
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: agent-backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+          - name: host-root
+            mountPath: /host
+            mountPropagation: Bidirectional
+          env:
+            - name: OAUTH_ISSUER
+              value: "{{ .Values.env.OAUTH_ISSUER }}"
+            - name: OAUTH_CLIENT_ID
+              value: "{{ .Values.env.OAUTH_CLIENT_ID }}"
+            - name: REQUIRED_ROLE
+              value: "{{ .Values.env.REQUIRED_ROLE }}"
+            - name: RABBITMQ_HOST
+              value: "{{ .Values.env.RABBITMQ_HOST }}"
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+          type: Directory
