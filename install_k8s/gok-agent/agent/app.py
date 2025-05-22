@@ -20,7 +20,7 @@ ROLE_COMMANDS = {
 # --- OAUTH/JWT CONFIG ---
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://accounts.google.com")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
-REQUIRED_ROLE = os.environ.get("REQUIRED_ROLE", "user")
+REQUIRED_ROLE = os.environ.get("REQUIRED_ROLE", "administrators")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
 RESULTS_QUEUE = 'results'
 
