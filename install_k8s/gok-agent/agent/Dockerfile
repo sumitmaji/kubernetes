@@ -6,4 +6,4 @@ COPY app.py requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "agent_backend.py"]
+CMD ["python", "app.py"]
