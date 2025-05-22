@@ -2443,6 +2443,25 @@ vaultInstall() {
 
 }
 
+gokAgentReset(){
+  # Uninstall Gok Agent using Helm
+  helm uninstall gok-agent -n gok-agent
+
+  # Delete the Gok Agent namespace
+  kubectl delete ns gok-agent
+}
+
+
+gokAgentInstall(){
+  # Create namespace for gok-agent
+  kubectl create namespace gok-agent
+
+  # Install Vault using Helm
+  helm install gok-agent ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent/chart \
+    --namespace gok-agent
+
+}
+
 vaultReset() {
   # Uninstall Vault using Helm
   helm uninstall vault -n vault
@@ -4184,6 +4203,8 @@ function installCmd() {
     consoleInst
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdInst
+  elif [ "$COMPONENT" == "gok-agent" ]; then
+    gokAgentInstall
   elif [ "$COMPONENT" == "chart" ]; then
     chartInst
   elif [ "$COMPONENT" == "vault" ]; then
@@ -4273,6 +4294,8 @@ EOF
     resetChart
   elif [ "$COMPONENT" == "ldap" ]; then
     ldapReset
+  elif [ "$COMPONENT" == "gok-agent" ]; then
+    gokAgentReset
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdReset
   elif [ "$COMPONENT" == "registry" ]; then
