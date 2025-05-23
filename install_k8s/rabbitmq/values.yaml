@@ -2,6 +2,12 @@ auth:
   username: rabbitmq
   password: rabbitmq
 
+extraEnvVars:
+  - name: RABBITMQ_LOGS
+    value: "-"
+  - name: RABBITMQ_LOG_LEVEL
+    value: "debug"
+
 persistence:
   enabled: true
   storageClass: "rabbitmq-storage"
