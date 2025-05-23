@@ -37,14 +37,4 @@ spec:
               value: "{{ .Values.oidc.clientId }}"
             - name: REQUIRED_ROLE
               value: "{{ .Values.oidc.requiredRole }}"
-          volumeMounts:
-            - name: vault-secrets
-              mountPath: /vault/secrets
-              readOnly: true
-        - name: frontend
-          image: "{{ .Values.image.frontend }}"
-          ports:
-            - containerPort: 3000
-      volumes:
-        - name: vault-secrets
-          emptyDir: {}
+          
