@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  api: registry.gokcloud.com/web-controller:latest
+  api: registry.gokcloud.com/gok-controller:latest
   frontend: yourrepo/web-controller-frontend:latest
 
 rabbitmqHost: rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat

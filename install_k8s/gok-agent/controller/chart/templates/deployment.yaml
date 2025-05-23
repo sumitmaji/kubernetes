@@ -23,6 +23,8 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: web-controller-sa
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
         - name: api
           image: "{{ .Values.image.api }}"
