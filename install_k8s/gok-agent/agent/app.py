@@ -129,6 +129,25 @@ def on_message(ch, method, properties, body):
         logging.error(f"Malformed message or processing error: {str(e)}")
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
+def ensure_results_queue():
+    """Ensure the 'results' queue exists in RabbitMQ, create if not present."""
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+    )
+    channel = connection.channel()
+    # Passive declare: check if queue exists, create if not
+    try:
+        channel.queue_declare(queue=RESULTS_QUEUE, passive=True)
+        logging.info(f"Queue '{RESULTS_QUEUE}' already exists.")
+    except pika.exceptions.ChannelClosedByBroker:
+        # Queue does not exist, create it
+        channel = connection.channel()  # Reopen channel after exception
+        channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
+        logging.info(f"Queue '{RESULTS_QUEUE}' created.")
+    finally:
+        connection.close()
+
 def main():
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
     connection = pika.BlockingConnection(
@@ -143,4 +162,5 @@ def main():
     channel.start_consuming()
 
 if __name__ == '__main__':
+    ensure_results_queue()
     main()
