@@ -238,4 +238,4 @@ def index():
 
 if __name__ == "__main__":
     Thread(target=start_secrets_watcher, args=(app, jwt), daemon=True).start()
-    socketio.run(app, host="0.0.0.0", port=8080)
+    socketio.run(app, host="0.0.0.0", port=8080, allow_unsafe_werkzeug=True)
