@@ -38,7 +38,7 @@ function App() {
 
   const connectSocket = (batch_id) => {
     if (socketRef.current) socketRef.current.disconnect();
-    const socket = io(API_URL, {
+    const socket = io("https://controller.gokcloud.com", {
       transports: ["websocket"]
     });
     socketRef.current = socket;
