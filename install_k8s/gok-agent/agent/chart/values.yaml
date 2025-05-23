@@ -11,6 +11,6 @@ serviceAccount:
 
 env:
   OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
-  OAUTH_CLIENT_ID: "YOUR_CLIENT_ID"
-  REQUIRED_ROLE: "user"
-  RABBITMQ_HOST: "mq"
+  OAUTH_CLIENT_ID: "gok-developers-client"
+  REQUIRED_ROLE: "administrators"
+  RABBITMQ_HOST: "rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat"
