@@ -1,0 +1,10 @@
+auth:
+  username: rabbitmq
+  password: rabbitmq
+
+persistence:
+  enabled: true
+  storageClass: "rabbitmq-storage"
+  accessModes:
+    - ReadWriteOnce
+  size: 3Gi

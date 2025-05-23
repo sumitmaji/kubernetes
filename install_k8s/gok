@@ -3876,6 +3876,29 @@ EOF
   docker exec -it halyard hal deploy apply
 }
 
+rabbitmqReset(){
+  kubectl delete all --all -n rabbitmq
+  kubectl delete ns rabbitmq
+  emptyLocalFsStorage "RabbitMQ" "rabbitmq-pv" "rabbitmq-storage" "/data/volumes/rabbitmq" "rabbitmq"
+}
+
+rabbitmqInst(){
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm repo update
+
+  kubectl create namespace rabbitmq || true
+  createLocalStorageClassAndPV "rabbitmq-storage" "rabbitmq-pv" "/data/volumes/rabbitmq"
+  
+  helm install rabbitmq bitnami/rabbitmq \
+    --namespace rabbitmq \
+    --create-namespace \
+    --values "${MOUNT_PATH}"/kubernetes/install_k8s/rabbitmq/values.yaml
+
+  kubectl get secret --namespace rabbitmq rabbitmq -o jsonpath="{.data.rabbitmq-password}" | base64 --decode
+  echo
+}
+
+
 argocdReset(){
   helm uninstall argocd -n argocd
   kubectl delete ns argocd
@@ -4207,6 +4230,8 @@ function installCmd() {
     gokAgentInstall
   elif [ "$COMPONENT" == "chart" ]; then
     chartInst
+  elif [ "$COMPONENT" == "rabbitmq" ]; then
+    rabbitmqInst
   elif [ "$COMPONENT" == "vault" ]; then
     vaultInstall
   elif [ "$COMPONENT" == "keycloak" ]; then
@@ -4304,6 +4329,8 @@ EOF
     fluentdReset
   elif [ "$COMPONENT" == "jupyter" ]; then
     jupyterHubReset
+  elif [ "$COMPONENT" == "rabbitmq" ]; then
+    rabbitmqReset
   elif [ "$COMPONENT" == "che" ]; then
     resetEclipseChe
   elif [ "$COMPONENT" == "ttyd" ]; then
