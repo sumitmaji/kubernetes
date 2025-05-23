@@ -42,7 +42,9 @@ RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
 
 def get_jwks():
     try:
-        jwks_uri = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration").json()["jwks_uri"]
+        # Skip SSL verification for both requests
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
+        jwks_uri = oidc_conf["jwks_uri"]
         return requests.get(jwks_uri, verify=False).json()
     except Exception as e:
         logging.error(f"Failed to fetch JWKS: {e}")
