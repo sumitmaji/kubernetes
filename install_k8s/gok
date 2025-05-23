@@ -2474,6 +2474,15 @@ gokControllerReset(){
 gokControllerInstall(){
   # Create namespace for gok-controller
   kubectl create namespace gok-controller
+  
+  createVaultSecretStore \
+  -p "secret/web-controller" \
+  -r "web-controller" \
+  -l "web-controller-policy" \
+  -s "web-controller-provider" \
+  -x "web-controller" \
+  -n "gok-controller" \
+  -k "api-token=adfasdfasdfasdfasd"
 
   # Install Vault using Helm
   helm install gok-controller ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller/chart \

@@ -27,7 +27,7 @@ vault:
   enabled: true
   agentInjector: true
   role: "web-controller"
-  secretPath: "secret/data/web-controller"
+  secretPath: "secret/web-controller"
 
 oidc:
   issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
