@@ -19,7 +19,7 @@ resources:
 extraConfiguration: |-
   vm_memory_high_watermark.relative = 0.8
 
-clusterDomain: cluster.uat
+clusterDomain: cloud.uat
 
 extraEnvVars:
   - name: RABBITMQ_LOGS
