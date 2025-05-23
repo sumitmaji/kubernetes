@@ -48,9 +48,18 @@ def start_secrets_watcher(app, jwt=None):
 
 # --- OIDC/JWT helpers ---
 def get_jwks():
-    jwks_uri = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration").json()["jwks_uri"]
-    return requests.get(jwks_uri).json()
+    try:
+        # Skip SSL verification for both requests
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
+        jwks_uri = oidc_conf["jwks_uri"]
+        return requests.get(jwks_uri, verify=False).json()
+    except Exception as e:
+        logging.error(f"Failed to fetch JWKS: {e}")
+        return {"keys": []}
+
+
 JWKS = get_jwks()
+
 def verify_id_token(token):
     try:
         unverified_header = jose_jwt.get_unverified_header(token)
