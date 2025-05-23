@@ -2,8 +2,8 @@ auth:
   username: rabbitmq
   password: rabbitmq
 
-image:
-  debug: true
+# image:
+#   debug: true
 
 clustering:
   enabled: false
