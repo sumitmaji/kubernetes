@@ -7,7 +7,7 @@ rabbitmqHost: rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat
 
 service:
   type: ClusterIP
-  port: 80
+  port: 8080
 
 ingress:
   enabled: true
