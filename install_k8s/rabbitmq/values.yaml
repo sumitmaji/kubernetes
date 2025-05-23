@@ -5,6 +5,9 @@ auth:
 image:
   debug: true
 
+clustering:
+  enabled: false
+
 extraConfiguration: |-
   vm_memory_high_watermark.relative = 0.8
 
