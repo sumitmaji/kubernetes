@@ -2462,6 +2462,33 @@ gokAgentInstall(){
 
 }
 
+gokControllerReset(){
+  # Uninstall Gok Controller using Helm
+  helm uninstall gok-controller -n gok-controller
+
+  # Delete the Gok Controller namespace
+  kubectl delete ns gok-controller
+}
+
+
+gokControllerInstall(){
+  # Create namespace for gok-controller
+  kubectl create namespace gok-controller
+
+  # Install Vault using Helm
+  helm install gok-controller ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller/chart \
+    --namespace gok-controller
+
+  # Patch the ingress with Let's Encrypt
+  gok patch ingress web-controller gok-controller letsencrypt controller
+  patchControllerWithOauth
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Failed to patch Gok Controller ingress with Let's Encrypt!"
+    return 1
+  fi
+  echoSuccess "Gok Controller ingress patched successfully with Let's Encrypt!"
+}
+
 vaultReset() {
   # Uninstall Vault using Helm
   helm uninstall vault -n vault
@@ -3077,6 +3104,10 @@ patchTtydWithOauth() {
 
 patchCloudshellWithOauth() {
   patchOauth2Secure cloudshell-cloudshell cloudshell https://cloudshell.$(rootDomain)
+}
+
+patchControllerWithOauth() {
+  patchOauth2Secure web-controller gok-controller https://controller.$(rootDomain)
 }
 
 checkAndPatchDashboard() {
@@ -4228,6 +4259,8 @@ function installCmd() {
     argocdInst
   elif [ "$COMPONENT" == "gok-agent" ]; then
     gokAgentInstall
+  elif [ "$COMPONENT" == "gok-controller" ]; then
+    gokControllerInstall
   elif [ "$COMPONENT" == "chart" ]; then
     chartInst
   elif [ "$COMPONENT" == "rabbitmq" ]; then
@@ -4321,6 +4354,8 @@ EOF
     ldapReset
   elif [ "$COMPONENT" == "gok-agent" ]; then
     gokAgentReset
+  elif [ "$COMPONENT" == "gok-controller" ]; then
+    gokControllerReset
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdReset
   elif [ "$COMPONENT" == "registry" ]; then
