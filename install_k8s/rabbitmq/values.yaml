@@ -5,6 +5,9 @@ auth:
 image:
   debug: true
 
+extraConfiguration: |-
+  vm_memory_high_watermark.relative = 0.8
+
 extraEnvVars:
   - name: RABBITMQ_LOGS
     value: "-"
