@@ -6,7 +6,7 @@ import logging
 import requests
 from datetime import timedelta
 from functools import wraps
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
@@ -232,9 +232,15 @@ def invalid_token_callback(callback):
     log_access("invalid_token", None, request.remote_addr, details=callback, status="failed")
     return jsonify({"msg": "Invalid token"}), 401
 
+# Catch-all route to serve React for client-side routing
+@app.errorhandler(404)
+def not_found(e):
+    return send_from_directory(app.static_folder, "index.html")
+
 @app.route("/")
 def index():
-    return "Agent Controller API is running."
+    # Serve the React index.html
+    return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
     Thread(target=start_secrets_watcher, args=(app, jwt), daemon=True).start()
