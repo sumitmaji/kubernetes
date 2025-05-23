@@ -13,14 +13,14 @@ spec:
     metadata:
       labels:
         app: web-controller
-      {{- if .Values.vault.enabled }}
+{{- if .Values.vault.enabled }}
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "{{ .Values.vault.role }}"
         vault.hashicorp.com/agent-inject-secret-web-controller: "{{ .Values.vault.secretPath }}"
         vault.hashicorp.com/agent-inject-template-web-controller: |
           {{- printf "{\"api-token\": \"{{ .Data.data.api-token }}\"}" }}
-        {{- end }}
+{{- end }}
     spec:
       serviceAccountName: web-controller-sa
       imagePullSecrets:
