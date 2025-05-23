@@ -26,6 +26,7 @@ spec:
       containers:
         - name: api
           image: "{{ .Values.image.api }}"
+          imagePullPolicy: Always
           env:
             - name: VAULT_SECRETS_PATH
               value: "/vault/secrets"
