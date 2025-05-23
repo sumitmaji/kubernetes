@@ -5,6 +5,18 @@ import logging
 import json
 from jose import jwt
 import requests
+import sys
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# file_handler = logging.FileHandler('agent.log')
+# file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+logger.handlers = [console_handler]
 
 # --- RBAC CONFIG ---
 # Example RBAC config, replace with your actual config or import from a file
@@ -26,12 +38,12 @@ RESULTS_QUEUE = 'results'
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "rabbitmq")
 RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
 
-logging.basicConfig(filename='agent.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+# logging.basicConfig(filename='agent.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
 def get_jwks():
     try:
         jwks_uri = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration").json()["jwks_uri"]
-        return requests.get(jwks_uri).json()
+        return requests.get(jwks_uri, verify=False).json()
     except Exception as e:
         logging.error(f"Failed to fetch JWKS: {e}")
         return {"keys": []}
