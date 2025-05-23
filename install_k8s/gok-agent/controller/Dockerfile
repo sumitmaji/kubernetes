@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY api.py vault.py requirements.txt ./
+COPY app.py vault.py requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
