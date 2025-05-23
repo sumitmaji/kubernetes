@@ -2,6 +2,9 @@ auth:
   username: rabbitmq
   password: rabbitmq
 
+image:
+  debug: true
+
 extraEnvVars:
   - name: RABBITMQ_LOGS
     value: "-"
