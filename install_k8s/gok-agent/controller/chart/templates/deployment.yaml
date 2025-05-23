@@ -20,7 +20,7 @@ spec:
         vault.hashicorp.com/agent-inject-secret-web-controller: "{{ .Values.vault.secretPath }}"
         vault.hashicorp.com/agent-inject-template-web-controller: |
           {{- printf "{\"api-token\": \"{{ .Data.data.api-token }}\"}" }}
-      {{- end }}
+        {{- end }}
     spec:
       serviceAccountName: web-controller-sa
       imagePullSecrets:
