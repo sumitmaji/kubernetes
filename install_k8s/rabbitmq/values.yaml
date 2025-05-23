@@ -7,4 +7,3 @@ persistence:
   storageClass: "rabbitmq-storage"
   accessModes:
     - ReadWriteOnce
-  size: 3Gi
