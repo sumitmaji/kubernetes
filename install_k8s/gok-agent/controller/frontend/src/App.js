@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import io from "socket.io-client";
 
+const API_URL = process.env.REACT_APP_API_URL || "https://controller.gokcloud.com";
+
 function App() {
   const [commands, setCommands] = useState("");
   const [batchId, setBatchId] = useState("");
@@ -9,9 +11,8 @@ function App() {
   const [user, setUser] = useState("");
   const socketRef = useRef(null);
 
-  // Fetch user info from backend (relies on oauth2-proxy to set headers/cookies)
   useEffect(() => {
-    fetch(`/logininfo`)
+    fetch(`${API_URL}/logininfo`)
       .then(res => res.json())
       .then(data => setUser(data.user || ""))
       .catch(() => setUser(""));
@@ -20,7 +21,7 @@ function App() {
   const sendCommands = async () => {
     setResults([]);
     setBatchId("");
-    const res = await fetch(`/send-command-batch`, {
+    const res = await fetch(`${API_URL}/send-command-batch`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -38,7 +39,7 @@ function App() {
 
   const connectSocket = (batch_id) => {
     if (socketRef.current) socketRef.current.disconnect();
-    const socket = io("https://controller.gokcloud.com", {
+    const socket = io(API_URL, {
       transports: ["websocket"]
     });
     socketRef.current = socket;
