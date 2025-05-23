@@ -23,6 +23,8 @@ OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
 REQUIRED_ROLE = os.environ.get("REQUIRED_ROLE", "administrators")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
 RESULTS_QUEUE = 'results'
+RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "rabbitmq")
+RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
 
 logging.basicConfig(filename='agent.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
@@ -128,7 +130,10 @@ def on_message(ch, method, properties, body):
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
 def main():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST))
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+    )
     channel = connection.channel()
     channel.queue_declare(queue='commands')
     channel.queue_declare(queue=RESULTS_QUEUE)
