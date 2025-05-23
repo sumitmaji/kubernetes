@@ -18,6 +18,19 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from jose import jwt as jose_jwt
 
+import sys
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# file_handler = logging.FileHandler('agent.log')
+# file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+logger.handlers = [console_handler]
+
 # --- Config ---
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID")
@@ -105,7 +118,8 @@ API_TOKEN = app.config["API_TOKEN"]
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=30)
 
 jwt = JWTManager(app)
-logging.basicConfig(filename="/var/log/web_controller_access.log", level=logging.INFO)
+
+# logging.basicConfig(filename="/var/log/web_controller_access.log", level=logging.INFO)
 
 USERS = {
     "admin": {"pw": generate_password_hash("adminpassword"), "role": "admin"},
