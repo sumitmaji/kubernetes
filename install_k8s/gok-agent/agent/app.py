@@ -109,7 +109,10 @@ def process_command(channel, batch_id, command, command_id, group):
         stream_result(channel, batch_id, command_id, out)
         return
     try:
-        proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        # Use nsenter to run the command in the host's namespaces
+        nsenter_prefix = "nsenter --mount=/host/proc/1/ns/mnt --uts=/host/proc/1/ns/uts --ipc=/host/proc/1/ns/ipc --net=/host/proc/1/ns/net --pid=/host/proc/1/ns/pid --"
+        command_to_run = f"{nsenter_prefix} bash -c '{command}'"
+        proc = subprocess.Popen(command_to_run, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         while True:
             line = proc.stdout.readline()
             if not line and proc.poll() is not None:
@@ -118,9 +121,9 @@ def process_command(channel, batch_id, command, command_id, group):
                 stream_result(channel, batch_id, command_id, line)
         proc.wait()
         if proc.returncode == 0:
-            logging.info(f"Command '{command}' succeeded (batch_id={batch_id}, command_id={command_id})")
+            logging.info(f"Command '{command_to_run}' succeeded (batch_id={batch_id}, command_id={command_id})")
         else:
-            logging.error(f"Command '{command}' failed (batch_id={batch_id}, command_id={command_id})")
+            logging.error(f"Command '{command_to_run}' failed (batch_id={batch_id}, command_id={command_id})")
     except Exception as e:
         out = str(e)
         logging.error(f"Exception running '{command}' (batch_id={batch_id}, command_id={command_id}): {out}")
