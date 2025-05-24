@@ -99,6 +99,9 @@ def require_oauth(required_group=None):
                 if isinstance(groups, str):
                     groups = [groups]
                 if required_group not in groups:
+                    print(f"User groups: {groups}")
+                    print(f"Required group: {required_group}")
+
                     return jsonify({"msg": "Insufficient group"}), 403
             return f(*args, **kwargs)
         return wrapper
