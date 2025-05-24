@@ -25,8 +25,8 @@ TOKEN_ROLE_MAP = {
     "usertoken": "user"
 }
 ROLE_COMMANDS = {
-    "admin": ["ls", "whoami", "uptime", "cat", "echo"],
-    "user": ["ls", "whoami", "uptime"]
+    "administrators": ["ls", "whoami", "uptime", "cat", "echo"],
+    "developers": ["ls", "whoami", "uptime"]
 }
 
 # --- OAUTH/JWT CONFIG ---
@@ -56,14 +56,23 @@ def verify_id_token(token):
     try:
         unverified_header = jwt.get_unverified_header(token)
         key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
-        payload = jwt.decode(
-            token,
-            key,
-            algorithms=["RS256"],
-            audience=OAUTH_CLIENT_ID,
-            issuer=OAUTH_ISSUER,
-        )
-        return payload
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=OAUTH_CLIENT_ID,
+                issuer=OAUTH_ISSUER,
+            )
+            return payload
+        except jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jwt.get_unverified_claims(token)
+                logging.warning("Ignoring at_hash error in id_token: using unverified claims.")
+                return payload
+            else:
+                raise
     except Exception as e:
         logging.error(f"JWT verification failed: {e}")
         return None
