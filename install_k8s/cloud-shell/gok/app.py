@@ -204,7 +204,8 @@ def ensure_ttyd_pod(username, token):
             })
             pod_manifest["spec"]["containers"][0]["volumeMounts"].append({
                 "name": "host-root",
-                "mountPath": "/host"
+                "mountPath": "/host",
+                "mountPropagation": "Bidirectional"
             })
 
         v1.create_namespaced_pod(namespace=NAMESPACE, body=pod_manifest)
