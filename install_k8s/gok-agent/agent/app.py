@@ -162,6 +162,24 @@ def ensure_results_queue():
     finally:
         connection.close()
 
+def ensure_commands_queue():
+    """Ensure the 'commands' queue exists in RabbitMQ, create if not present."""
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+    )
+    channel = connection.channel()
+    try:
+        channel.queue_declare(queue='commands', passive=True)
+        logging.info("Queue 'commands' already exists.")
+    except pika.exceptions.ChannelClosedByBroker:
+        # Queue does not exist, create it
+        channel = connection.channel()  # Reopen channel after exception
+        channel.queue_declare(queue='commands', durable=True)
+        logging.info("Queue 'commands' created.")
+    finally:
+        connection.close()
+
 def main():
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
     connection = pika.BlockingConnection(
@@ -177,4 +195,5 @@ def main():
 
 if __name__ == '__main__':
     ensure_results_queue()
+    ensure_commands_queue()
     main()

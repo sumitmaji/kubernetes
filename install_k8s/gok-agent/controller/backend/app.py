@@ -4,57 +4,48 @@ import json
 import pika
 import logging
 import requests
-from datetime import timedelta
 from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
-from flask_jwt_extended import (
-    JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
-)
 from werkzeug.security import check_password_hash, generate_password_hash
 from vault import get_vault_secrets
 from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from jose import jwt as jose_jwt
-
 import sys
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# file_handler = logging.FileHandler('agent.log')
-# file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-
 logger.handlers = [console_handler]
 
 # --- Config ---
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID")
-REQUIRED_ROLE = os.environ.get("REQUIRED_ROLE", "user")
+REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "user")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "mq")
+RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "rabbitmq")
+RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
 
 # --- Vault secret reload logic ---
 class SecretReloadHandler(FileSystemEventHandler):
-    def __init__(self, app, jwt=None):
+    def __init__(self, app):
         self.app = app
-        self.jwt = jwt
 
     def on_modified(self, event):
         if event.src_path.endswith("web-controller"):
             secrets = get_vault_secrets()
-            self.app.config["JWT_SECRET_KEY"] = secrets.get("jwt-secret", self.app.config.get("JWT_SECRET_KEY"))
             self.app.config["API_TOKEN"] = secrets.get("api-token", self.app.config.get("API_TOKEN"))
             global API_TOKEN
             API_TOKEN = secrets.get("api-token", self.app.config.get("API_TOKEN"))
             print("Secrets reloaded from Vault!")
 
-def start_secrets_watcher(app, jwt=None):
+def start_secrets_watcher(app):
     path = os.environ.get("VAULT_SECRETS_PATH", "/vault/secrets/")
-    event_handler = SecretReloadHandler(app, jwt)
+    event_handler = SecretReloadHandler(app)
     observer = Observer()
     observer.schedule(event_handler, path=path, recursive=False)
     observer.start()
@@ -62,14 +53,12 @@ def start_secrets_watcher(app, jwt=None):
 # --- OIDC/JWT helpers ---
 def get_jwks():
     try:
-        # Skip SSL verification for both requests
         oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
         jwks_uri = oidc_conf["jwks_uri"]
         return requests.get(jwks_uri, verify=False).json()
     except Exception as e:
         logging.error(f"Failed to fetch JWKS: {e}")
         return {"keys": []}
-
 
 JWKS = get_jwks()
 
@@ -85,7 +74,7 @@ def verify_id_token(token):
         print("JWT verification failed:", e)
         return None
 
-def require_oauth(required_role=None):
+def require_oauth(required_group=None):
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
@@ -97,11 +86,12 @@ def require_oauth(required_role=None):
             if not payload:
                 return jsonify({"msg": "Invalid token"}), 401
             request.user = payload
-            if required_role:
-                roles = payload.get("roles", [])
-                if isinstance(roles, str): roles = [roles]
-                if required_role not in roles:
-                    return jsonify({"msg": "Insufficient role"}), 403
+            if required_group:
+                groups = payload.get("groups", [])
+                if isinstance(groups, str):
+                    groups = [groups]
+                if required_group not in groups:
+                    return jsonify({"msg": "Insufficient group"}), 403
             return f(*args, **kwargs)
         return wrapper
     return decorator
@@ -116,19 +106,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initial load
 vault_secrets = get_vault_secrets()
-app.config["JWT_SECRET_KEY"] = vault_secrets.get("jwt-secret", "changeme")
 app.config["API_TOKEN"] = vault_secrets.get("api-token", "changeme")
 API_TOKEN = app.config["API_TOKEN"]
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=30)
-
-jwt = JWTManager(app)
-
-# logging.basicConfig(filename="/var/log/web_controller_access.log", level=logging.INFO)
-
-USERS = {
-    "admin": {"pw": generate_password_hash("adminpassword"), "role": "admin"},
-    "user": {"pw": generate_password_hash("userpassword"), "role": "user"}
-}
 
 def log_access(event, username=None, ip=None, details=None, status="success"):
     log_entry = {
@@ -140,38 +119,21 @@ def log_access(event, username=None, ip=None, details=None, status="success"):
     }
     logging.info(json.dumps(log_entry))
 
-@app.route("/login", methods=["POST"])
-def login():
-    data = request.json or {}
-    username = data.get("username")
-    password = data.get("password")
-    user = USERS.get(username)
-    ip = request.remote_addr
-    if not user or not check_password_hash(user["pw"], password):
-        log_access("login", username, ip, details="invalid credentials", status="failed")
-        return jsonify({"msg": "Invalid credentials"}), 401
-    access_token = create_access_token(
-        identity=username,
-        additional_claims={"role": user["role"]}
-    )
-    log_access("login", username, ip, status="success")
-    return jsonify(access_token=access_token)
-
 @app.route("/logininfo")
 @require_oauth()
 def logininfo():
     return jsonify({
-        "user": request.user.get("name"),
+        "user": request.user.get("username"),
         "userid": request.user.get("sub"),
-        "roles": request.user.get("roles", []),
+        "groups": request.user.get("groups", []),
         "email": request.user.get("email"),
     })
 
 @app.route("/send-command-batch", methods=["POST"])
-@require_oauth(REQUIRED_ROLE)
+@require_oauth(REQUIRED_GROUP)
 def send_command_batch():
     username = request.user.get("name") or request.user.get("sub")
-    role = request.user.get("roles", [])
+    groups = request.user.get("groups", [])
     ip = request.remote_addr
     data = request.json or {}
     commands = data.get("commands", [])
@@ -181,15 +143,18 @@ def send_command_batch():
     user_info = {
         "sub": request.user.get("sub"),
         "name": request.user.get("name"),
-        "roles": request.user.get("roles", []),
+        "groups": request.user.get("groups", []),
         "id_token": request.headers.get("Authorization").split(" ", 1)[1]
     }
     batch_id = publish_batch(commands, user_info)
-    log_access("send-command-batch", username, ip, details={"batch_id": batch_id, "role": role})
-    return jsonify({"msg": "Command batch accepted", "batch_id": batch_id, "issued_by": user_info["sub"], "role": role}), 200
+    log_access("send-command-batch", username, ip, details={"batch_id": batch_id, "groups": groups})
+    return jsonify({"msg": "Command batch accepted", "batch_id": batch_id, "issued_by": user_info["sub"], "groups": groups}), 200
 
 def publish_batch(commands, user_info):
-    connection = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST))
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+    )
     channel = connection.channel()
     batch_id = user_info["sub"] + "-" + str(abs(hash(json.dumps(commands))))
     msg = {
@@ -226,16 +191,6 @@ def start_worker():
     if not hasattr(socketio, "result_thread"):
         socketio.result_thread = socketio.start_background_task(rabbitmq_result_worker)
 
-@jwt.unauthorized_loader
-def unauthorized_callback(callback):
-    log_access("unauthorized", None, request.remote_addr, details=callback, status="failed")
-    return jsonify({"msg": "Missing or invalid token"}), 401
-
-@jwt.invalid_token_loader
-def invalid_token_callback(callback):
-    log_access("invalid_token", None, request.remote_addr, details=callback, status="failed")
-    return jsonify({"msg": "Invalid token"}), 401
-
 # Catch-all route to serve React for client-side routing
 @app.errorhandler(404)
 def not_found(e):
@@ -247,5 +202,5 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
-    Thread(target=start_secrets_watcher, args=(app, jwt), daemon=True).start()
+    Thread(target=start_secrets_watcher, args=(app,), daemon=True).start()
     socketio.run(app, host="0.0.0.0", port=8080, allow_unsafe_werkzeug=True)

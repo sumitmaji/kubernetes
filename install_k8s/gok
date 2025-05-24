@@ -2462,6 +2462,18 @@ gokAgentInstall(){
 
 }
 
+# Function to delete old Docker images
+# that are not tagged as "latest"
+# Usage: deleteOldDockerImages <image_name>
+deleteOldDockerImages() {
+  IMAGE_NAME="$1"
+  if [[ -z "$IMAGE_NAME" ]]; then
+    echo "Usage: deleteOldDockerImages <image_name>"
+    return 1
+  fi
+  docker images | grep "registry.gokcloud.com/${IMAGE_NAME}" | grep -v latest | awk '{print $3}' | xargs -r docker rmi
+}
+
 gokControllerReset(){
   # Uninstall Gok Controller using Helm
   helm uninstall gok-controller -n gok-controller
