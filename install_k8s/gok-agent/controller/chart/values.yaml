@@ -1,9 +1,6 @@
 replicaCount: 1
 image:
   api: registry.gokcloud.com/web-controller:latest
-  frontend: yourrepo/web-controller-frontend:latest
-
-rabbitmqHost: rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat
 
 service:
   type: ClusterIP
@@ -33,3 +30,8 @@ oidc:
   issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
   clientId: gok-developers-client
   requiredGroup: administrators
+
+rabbitmq:
+  host: rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat
+  user: rabbitmq
+  password: rabbitmq
