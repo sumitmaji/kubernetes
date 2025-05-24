@@ -21,7 +21,7 @@ TOKEN_GROUP_MAP = {
     "usertoken": "developers"
 }
 GROUP_COMMANDS = {
-    "administrators": ["ls", "whoami", "uptime", "cat", "echo"],
+    "administrators": ["ls", "whoami", "uptime", "cat", "echo", "sleep"],
     "developers": ["ls", "whoami", "uptime"]
 }
 
