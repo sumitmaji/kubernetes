@@ -34,6 +34,8 @@ RESULTS_QUEUE = 'results'
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "rabbitmq")
 RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
 
+session_shells = {}
+
 def get_jwks():
     try:
         oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
@@ -102,32 +104,29 @@ def stream_result(channel, batch_id, command_id, output):
     }
     channel.basic_publish(exchange='', routing_key=RESULTS_QUEUE, body=json.dumps(result_msg))
 
+def get_shell_for_batch(batch_id):
+    if batch_id not in session_shells or session_shells[batch_id].poll() is not None:
+        # Start a new bash shell in the host namespace
+        nsenter_prefix = "nsenter --mount=/host/proc/1/ns/mnt --uts=/host/proc/1/ns/uts --ipc=/host/proc/1/ns/ipc --net=/host/proc/1/ns/net --pid=/host/proc/1/ns/pid --"
+        shell_cmd = f"{nsenter_prefix} bash"
+        proc = subprocess.Popen(shell_cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        session_shells[batch_id] = proc
+    return session_shells[batch_id]
+
 def process_command(channel, batch_id, command, command_id, group):
     if not is_command_allowed(group, command):
         out = f"Group '{group}' not allowed to run '{command}'"
-        logging.warning(f"{out} (batch_id={batch_id}, command_id={command_id})")
         stream_result(channel, batch_id, command_id, out)
         return
     try:
-        # Use nsenter to run the command in the host's namespaces
-        nsenter_prefix = "nsenter --mount=/host/proc/1/ns/mnt --uts=/host/proc/1/ns/uts --ipc=/host/proc/1/ns/ipc --net=/host/proc/1/ns/net --pid=/host/proc/1/ns/pid --"
-        command_to_run = f"{nsenter_prefix} bash -c '{command}'"
-        proc = subprocess.Popen(command_to_run, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        while True:
-            line = proc.stdout.readline()
-            if not line and proc.poll() is not None:
-                break
-            if line:
-                stream_result(channel, batch_id, command_id, line)
-        proc.wait()
-        if proc.returncode == 0:
-            logging.info(f"Command '{command_to_run}' succeeded (batch_id={batch_id}, command_id={command_id})")
-        else:
-            logging.error(f"Command '{command_to_run}' failed (batch_id={batch_id}, command_id={command_id})")
+        shell = get_shell_for_batch(batch_id)
+        shell.stdin.write(command + "\n")
+        shell.stdin.flush()
+        # Read output (this is simplified; you may want to read until a prompt or timeout)
+        output = shell.stdout.readline()
+        stream_result(channel, batch_id, command_id, output)
     except Exception as e:
-        out = str(e)
-        logging.error(f"Exception running '{command}' (batch_id={batch_id}, command_id={command_id}): {out}")
-        stream_result(channel, batch_id, command_id, out)
+        stream_result(channel, batch_id, command_id, str(e))
 
 def on_message(ch, method, properties, body):
     try:
