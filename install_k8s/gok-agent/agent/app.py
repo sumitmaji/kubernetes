@@ -10,21 +10,17 @@ import sys
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# file_handler = logging.FileHandler('agent.log')
-# file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-
 logger.handlers = [console_handler]
 
 # --- RBAC CONFIG ---
 # Example RBAC config, replace with your actual config or import from a file
-TOKEN_ROLE_MAP = {
-    "supersecrettoken": "admin",
-    "usertoken": "user"
+TOKEN_GROUP_MAP = {
+    "supersecrettoken": "administrators",
+    "usertoken": "developers"
 }
-ROLE_COMMANDS = {
+GROUP_COMMANDS = {
     "administrators": ["ls", "whoami", "uptime", "cat", "echo"],
     "developers": ["ls", "whoami", "uptime"]
 }
@@ -32,17 +28,14 @@ ROLE_COMMANDS = {
 # --- OAUTH/JWT CONFIG ---
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://accounts.google.com")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
-REQUIRED_ROLE = os.environ.get("REQUIRED_ROLE", "administrators")
+REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "administrators")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
 RESULTS_QUEUE = 'results'
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "rabbitmq")
 RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
 
-# logging.basicConfig(filename='agent.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-
 def get_jwks():
     try:
-        # Skip SSL verification for both requests
         oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
         jwks_uri = oidc_conf["jwks_uri"]
         return requests.get(jwks_uri, verify=False).json()
@@ -77,25 +70,25 @@ def verify_id_token(token):
         logging.error(f"JWT verification failed: {e}")
         return None
 
-def get_role_from_token(token):
+def get_group_from_token(token):
     # Try RBAC config first
-    if token in TOKEN_ROLE_MAP:
-        return TOKEN_ROLE_MAP[token]
+    if token in TOKEN_GROUP_MAP:
+        return TOKEN_GROUP_MAP[token]
     # Try JWT validation
     payload = verify_id_token(token)
     if payload:
-        roles = payload.get("roles", [])
-        if isinstance(roles, str):
-            roles = [roles]
-        # Return the first matching role in ROLE_COMMANDS
-        for role in roles:
-            if role in ROLE_COMMANDS:
-                return role
+        groups = payload.get("groups", [])
+        if isinstance(groups, str):
+            groups = [groups]
+        # Return the first matching group in GROUP_COMMANDS
+        for group in groups:
+            if group in GROUP_COMMANDS:
+                return group
     return None
 
-def is_command_allowed(role, command):
+def is_command_allowed(group, command):
     cmd = command.split()[0]
-    return role in ROLE_COMMANDS and cmd in ROLE_COMMANDS[role]
+    return group in GROUP_COMMANDS and cmd in GROUP_COMMANDS[group]
 
 def stream_result(channel, batch_id, command_id, output):
     result_msg = {
@@ -105,9 +98,9 @@ def stream_result(channel, batch_id, command_id, output):
     }
     channel.basic_publish(exchange='', routing_key=RESULTS_QUEUE, body=json.dumps(result_msg))
 
-def process_command(channel, batch_id, command, command_id, role):
-    if not is_command_allowed(role, command):
-        out = f"Role '{role}' not allowed to run '{command}'"
+def process_command(channel, batch_id, command, command_id, group):
+    if not is_command_allowed(group, command):
+        out = f"Group '{group}' not allowed to run '{command}'"
         logging.warning(f"{out} (batch_id={batch_id}, command_id={command_id})")
         stream_result(channel, batch_id, command_id, out)
         return
@@ -138,15 +131,15 @@ def on_message(ch, method, properties, body):
         # Support single command as well
         if not commands and 'command' in msg:
             commands = [{'command': msg['command'], 'command_id': msg.get('command_id', 'single')}]
-        role = get_role_from_token(token)
-        if not role:
-            logging.warning(f"Unauthorized or unknown token (batch_id={batch_id})")
+        group = get_group_from_token(token)
+        if not group:
+            logging.warning(f"Unauthorized or unknown token/group (batch_id={batch_id})")
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
         for cmd in commands:
             command = cmd['command']
             command_id = cmd.get('command_id', 'single')
-            process_command(ch, batch_id, command, command_id, role)
+            process_command(ch, batch_id, command, command_id, group)
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         logging.error(f"Malformed message or processing error: {str(e)}")
@@ -159,12 +152,10 @@ def ensure_results_queue():
         pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
     )
     channel = connection.channel()
-    # Passive declare: check if queue exists, create if not
     try:
         channel.queue_declare(queue=RESULTS_QUEUE, passive=True)
         logging.info(f"Queue '{RESULTS_QUEUE}' already exists.")
     except pika.exceptions.ChannelClosedByBroker:
-        # Queue does not exist, create it
         channel = connection.channel()  # Reopen channel after exception
         channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
         logging.info(f"Queue '{RESULTS_QUEUE}' created.")
@@ -182,7 +173,6 @@ def ensure_commands_queue():
         channel.queue_declare(queue='commands', passive=True)
         logging.info("Queue 'commands' already exists.")
     except pika.exceptions.ChannelClosedByBroker:
-        # Queue does not exist, create it
         channel = connection.channel()  # Reopen channel after exception
         channel.queue_declare(queue='commands', durable=True)
         logging.info("Queue 'commands' created.")
