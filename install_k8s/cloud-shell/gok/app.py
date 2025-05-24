@@ -207,6 +207,18 @@ def ensure_ttyd_pod(username, token):
                 "mountPath": "/host",
                 "mountPropagation": "Bidirectional"
             })
+            # Set ttyd to launch nsenter bash on the host by default
+            pod_manifest["spec"]["containers"][0]["args"] = [
+                "-W",
+                "nsenter",
+                "--mount=/host/proc/1/ns/mnt",
+                "--uts=/host/proc/1/ns/uts",
+                "--ipc=/host/proc/1/ns/ipc",
+                "--net=/host/proc/1/ns/net",
+                "--pid=/host/proc/1/ns/pid",
+                "--",
+                "bash"
+            ]
 
         v1.create_namespaced_pod(namespace=NAMESPACE, body=pod_manifest)
 
