@@ -36,6 +36,6 @@ spec:
               value: "{{ .Values.oidc.issuer }}"
             - name: OAUTH_CLIENT_ID
               value: "{{ .Values.oidc.clientId }}"
-            - name: REQUIRED_ROLE
-              value: "{{ .Values.oidc.requiredRole }}"
+            - name: REQUIRED_GROUP
+              value: "{{ .Values.oidc.requiredGroup }}"
           

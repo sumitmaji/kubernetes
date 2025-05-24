@@ -32,4 +32,4 @@ vault:
 oidc:
   issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
   clientId: gok-developers-client
-  requiredRole: administrators
+  requiredGroup: administrators
