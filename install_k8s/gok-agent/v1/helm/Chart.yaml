@@ -1,5 +1,0 @@
-apiVersion: v2
-name: web-controller
-description: Web controller for K8s host command agent (Vault-integrated)
-version: 0.2.0
-appVersion: "1.0.0"
