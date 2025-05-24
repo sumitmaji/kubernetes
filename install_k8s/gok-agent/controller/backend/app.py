@@ -187,7 +187,10 @@ def on_join(data):
         emit("joined", {"batch_id": batch_id})
 
 def rabbitmq_result_worker():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST))
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+    )
     channel = connection.channel()
     channel.queue_declare(queue="results")
     for method_frame, properties, body in channel.consume("results", inactivity_timeout=1):
