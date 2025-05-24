@@ -21,7 +21,7 @@ TOKEN_GROUP_MAP = {
     "usertoken": "developers"
 }
 GROUP_COMMANDS = {
-    "administrators": ["ls", "whoami", "uptime", "cat", "echo", "sleep"],
+    "administrators": ["*"],
     "developers": ["ls", "whoami", "uptime"]
 }
 
@@ -88,7 +88,11 @@ def get_group_from_token(token):
 
 def is_command_allowed(group, command):
     cmd = command.split()[0]
+    # Administrators can run any command
+    if group == "administrators":
+        return True
     return group in GROUP_COMMANDS and cmd in GROUP_COMMANDS[group]
+
 
 def stream_result(channel, batch_id, command_id, output):
     result_msg = {
