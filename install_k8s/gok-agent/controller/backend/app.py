@@ -66,10 +66,18 @@ def verify_id_token(token):
     try:
         unverified_header = jose_jwt.get_unverified_header(token)
         key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
-        payload = jose_jwt.decode(
-            token, key, algorithms=["RS256"], audience=OAUTH_CLIENT_ID, issuer=OAUTH_ISSUER,
-        )
-        return payload
+        try:
+            payload = jose_jwt.decode(
+                token, key, algorithms=["RS256"], audience=OAUTH_CLIENT_ID, issuer=OAUTH_ISSUER,
+            )
+            return payload
+        except jose_jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jose_jwt.get_unverified_claims(token)
+                return payload
+            else:
+                raise
     except Exception as e:
         print("JWT verification failed:", e)
         return None
