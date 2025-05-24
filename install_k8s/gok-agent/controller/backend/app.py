@@ -107,7 +107,11 @@ def require_oauth(required_role=None):
     return decorator
 
 # --- Flask app ---
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder="static",  # This is where your React build is copied
+    static_url_path=""       # Serve static files at root
+)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initial load
