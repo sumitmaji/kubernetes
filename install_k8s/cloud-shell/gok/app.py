@@ -219,6 +219,9 @@ def ensure_ttyd_pod(username, token):
                 "--",
                 "bash"
             ]
+            # Remove env for administrators
+            pod_manifest["spec"]["containers"][0].pop("env", None)
+
 
         v1.create_namespaced_pod(namespace=NAMESPACE, body=pod_manifest)
 
