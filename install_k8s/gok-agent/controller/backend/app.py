@@ -131,7 +131,8 @@ def log_access(event, username=None, ip=None, details=None, status="success"):
 @require_oauth()
 def logininfo():
     return jsonify({
-        "user": request.user.get("username"),
+        "user": request.user.get("preferred_username"),
+        "name": request.user.get("name"),
         "userid": request.user.get("sub"),
         "groups": request.user.get("groups", []),
         "email": request.user.get("email"),
