@@ -111,9 +111,15 @@ def process_command(channel, batch_id, command, command_id, group):
         stream_result(channel, batch_id, command_id, out)
         return
     try:
+        # Prepare environment setup before the actual command
+        setup = (
+            "export MOUNT_PATH=/root && "
+            "source /root/kubernetes/install_k8s/gok && "
+            "source /root/kubernetes/install_k8s/util && "
+        )
         # Use nsenter to run the command in the host's namespaces
         nsenter_prefix = "nsenter --mount=/host/proc/1/ns/mnt --uts=/host/proc/1/ns/uts --ipc=/host/proc/1/ns/ipc --net=/host/proc/1/ns/net --pid=/host/proc/1/ns/pid --"
-        command_to_run = f"{nsenter_prefix} bash -c '{command}'"
+        command_to_run = f"{nsenter_prefix} bash -c \"{setup}{command}\""
         proc = subprocess.Popen(command_to_run, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         while True:
             line = proc.stdout.readline()
