@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/agent
+REGISTRY=master.cloud.com:5000
+REPO_NAME=agent
+CONTAINER_NAME=agent
+BUILD_PATH=/tmp
+RELEASE_NAME=agent
+PATH_TO_CHART=chart
+DEPLOY=true

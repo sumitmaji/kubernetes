@@ -1,0 +1,34 @@
+auth:
+  username: rabbitmq
+  password: rabbitmq
+
+# image:
+#   debug: true
+
+clustering:
+  enabled: false
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    cpu: 500m
+
+extraConfiguration: |-
+  vm_memory_high_watermark.relative = 0.8
+
+clusterDomain: cloud.uat
+
+extraEnvVars:
+  - name: RABBITMQ_LOGS
+    value: "-"
+  - name: RABBITMQ_LOG_LEVEL
+    value: "debug"
+
+persistence:
+  enabled: true
+  storageClass: "rabbitmq-storage"
+  accessModes:
+    - ReadWriteOnce

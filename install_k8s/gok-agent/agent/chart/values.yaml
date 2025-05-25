@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: registry.gokcloud.com/agent
+  tag: latest
+  pullPolicy: Always
+
+serviceAccount:
+  create: true
+  name: agent-backend-sa
+
+env:
+  OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
+  OAUTH_CLIENT_ID: "gok-developers-client"
+  REQUIRED_ROLE: "administrators"
+  RABBITMQ_HOST: "rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat"

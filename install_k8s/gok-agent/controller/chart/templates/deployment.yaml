@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-controller
+  labels:
+    app: web-controller
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: web-controller
+  template:
+    metadata:
+      labels:
+        app: web-controller
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "{{ .Values.vault.role }}"
+        vault.hashicorp.com/agent-inject-secret-web-controller: "{{ .Values.vault.secretPath }}"
+        vault.hashicorp.com/agent-inject-template-web-controller: |
+          {{`{{- printf "{\"api-token\": \"{{ .Data.api-token }}\"}" }}`}}
+    spec:
+      serviceAccountName: web-controller-sa
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.api }}"
+          imagePullPolicy: Always
+          env:
+            - name: VAULT_SECRETS_PATH
+              value: "/vault/secrets"
+            - name: RABBITMQ_HOST
+              value: "{{ .Values.rabbitmqHost }}"
+            - name: OAUTH_ISSUER
+              value: "{{ .Values.oidc.issuer }}"
+            - name: OAUTH_CLIENT_ID
+              value: "{{ .Values.oidc.clientId }}"
+            - name: REQUIRED_GROUP
+              value: "{{ .Values.oidc.requiredGroup }}"
+          

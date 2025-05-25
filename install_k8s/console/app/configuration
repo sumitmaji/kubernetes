@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/console
+REGISTRY=master.cloud.com:5000
+REPO_NAME=console
+CONTAINER_NAME=console
+BUILD_PATH=/tmp
+RELEASE_NAME=console
+PATH_TO_CHART=chart
+DEPLOY=true

@@ -1,0 +1,38 @@
+replicaCount: 1
+image:
+  api: registry.gokcloud.com/web-controller:latest
+  
+rabbitmqHost: rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "web-controller"
+  hosts:
+    - host: web-controller.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - web-controller.example.com
+      secretName: web-controller-tls
+
+vault:
+  enabled: true
+  agentInjector: true
+  role: "web-controller"
+  secretPath: "secret/web-controller"
+
+oidc:
+  issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
+  clientId: gok-developers-client
+  requiredGroup: administrators
+  

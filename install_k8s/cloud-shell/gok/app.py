@@ -89,6 +89,11 @@ def ensure_ttyd_pod(username, token):
     sa_name = f"user-{username}"
     pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
     if not pods.items:
+        # Decode token to check groups
+        payload = jwt.decode(token, options={"verify_signature": False})
+        groups = payload.get("groups", [])
+        is_admin = "administrators" in groups
+
         pod_manifest = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -188,6 +193,36 @@ def ensure_ttyd_pod(username, token):
                 ]
             }
         }
+
+        # If user is administrator, add privileged, hostPath mount, and hostPID
+        if is_admin:
+            pod_manifest["spec"]["hostPID"] = True
+            pod_manifest["spec"]["containers"][0]["securityContext"] = {"privileged": True}
+            pod_manifest["spec"]["volumes"].append({
+                "name": "host-root",
+                "hostPath": {"path": "/", "type": "Directory"}
+            })
+            pod_manifest["spec"]["containers"][0]["volumeMounts"].append({
+                "name": "host-root",
+                "mountPath": "/host",
+                "mountPropagation": "Bidirectional"
+            })
+            # Set ttyd to launch nsenter bash on the host by default
+            pod_manifest["spec"]["containers"][0]["args"] = [
+                "-W",
+                "nsenter",
+                "--mount=/host/proc/1/ns/mnt",
+                "--uts=/host/proc/1/ns/uts",
+                "--ipc=/host/proc/1/ns/ipc",
+                "--net=/host/proc/1/ns/net",
+                "--pid=/host/proc/1/ns/pid",
+                "--",
+                "bash"
+            ]
+            # Remove env for administrators
+            pod_manifest["spec"]["containers"][0].pop("env", None)
+
+
         v1.create_namespaced_pod(namespace=NAMESPACE, body=pod_manifest)
 
 def ensure_ttyd_service(username):
