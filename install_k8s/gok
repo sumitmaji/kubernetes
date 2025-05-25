@@ -527,6 +527,7 @@ EOF
 }
 
 customDns() {
+  echo "Going to add custom dns server"
   #Adding custom dns server
   cat <<EOF | kubectl apply -f -
 apiVersion: v1
@@ -4321,6 +4322,7 @@ function installCmd() {
     calicoInst
     waitForServiceAvailable kube-system
     dnsUtils
+    customDns
     kcurl
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
