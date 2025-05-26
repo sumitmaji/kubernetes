@@ -4347,6 +4347,7 @@ function installCmd() {
     dnsUtils
     customDns
     kcurl
+    oauthAdmin
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
