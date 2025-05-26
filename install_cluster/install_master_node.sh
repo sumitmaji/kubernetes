@@ -336,6 +336,8 @@ chart       IN  A   $(getMasterIp)
 argocd      IN  A   $(getMasterIp)
 ttyd        IN  A   $(getMasterIp)
 cloudshell  IN  A   $(getMasterIp)
+controller  IN  A   $(getMasterIp)
+vault       IN  A   $(getMasterIp)
 EOF
 
   cat > /etc/bind/cloud.com.fwd << EOF
