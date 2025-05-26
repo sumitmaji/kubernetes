@@ -2906,8 +2906,6 @@ installKeycloakWithCertMgr(){
   # Example usage
   create_sub_scope "https://${KEYCLOAK_URL}" "${REALM}" "${ADMIN_ID}" "${ADMIN_PWD}" "${CLIENT_ID}"
   
-  #create_sub_scope "https://keycloak.gokcloud.com" "GokDevelopers" "keycloakadmin" "ssumit@1234" "gok-developers-client"
-
   oauth2Secret
   # Check if LDAP service is running
   echo "Checking if LDAP service is running..."
