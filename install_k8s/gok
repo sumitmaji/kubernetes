@@ -3155,11 +3155,11 @@ patchControllerWithOauth() {
 checkAndPatchDashboard() {
   # Check if the oauth2-proxy service is running
   echo "Checking if oauth2-proxy service is running..."
-  if kubectl get pods -n oauth2 -l app.kubernetes.io/name=oauth2-proxy 2>/dev/null | grep -q "Running"; then
+  if kubectl get pods -n oauth2 2>/dev/null | grep -q "Running"; then
     echo "oauth2-proxy service is running. Proceeding to patch the dashboard..."
     patchDashboardWithOauth
   else
-    echo "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
+    echoFailed "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
   fi
 }
 
