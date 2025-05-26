@@ -7,7 +7,7 @@ replicaCount: 1
 image:
   repository: master.cloud.com:5000/ldap
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: clusterIP

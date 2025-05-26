@@ -23,9 +23,9 @@ helm uninstall $RELEASE_NAME -n $NS || true
 
 SECRET_NAME=regcred
 kubectl create namespace $NS >/dev/null 2>&1 || true
-kubectl get secret $SECRET_NAME >/dev/null 2>&1 || kubectl create secret docker-registry \
-    $SECRET_NAME --docker-server=$(fullRegistryUrl) --docker-username=$DOCKER_USER --docker-password=$DOCKER_PASSWORD -n $NS
+
 kubectl patch serviceaccount default -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n $NS
+
 helm install $RELEASE_NAME $PATH_TO_CHART \
 --set image.repository=$(fullRegistryUrl)/$REPO_NAME \
 --namespace $NS \

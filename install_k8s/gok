@@ -2945,8 +2945,8 @@ installLdap(){
 
   LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
   KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
-  KERBEROS_KDC_PASSWORD=$(promptUserInput "Please enter Kerberos kdc password: ")
-  KERBEROS_ADM_PASSWORD=$(promptUserInput "Please enter Kerberos adm password: ")
+  KERBEROS_KDC_PASSWORD=$(promptSecret "Please enter Kerberos kdc password: ")
+  KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
   
   ./run_ldap.sh $LDAP_PASSWORD $KERBEROS_PASSWORD $KERBEROS_KDC_PASSWORD $KERBEROS_ADM_PASSWORD
   if [[ $? -ne 0 ]]; then
