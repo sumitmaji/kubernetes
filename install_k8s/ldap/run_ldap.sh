@@ -30,7 +30,7 @@ helm install $RELEASE_NAME $PATH_TO_CHART \
 --set image.repository=$(fullRegistryUrl)/$REPO_NAME \
 --namespace $NS \
 --set ldap.password="$LDAP_PASSWORD" \
---set kerberos.passwrd="$KERBEROS_USER" \
+--set kerberos.password="$KERBEROS_PASSWORD" \
 --set kerberos.kdcpassword="$KERBEROS_KDC_PASSWORD" \
 --set kerberos.admpassword="$KERBEROS_ADM_PASSWORD"
 
