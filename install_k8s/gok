@@ -3181,6 +3181,11 @@ cloudshellReset() {
 }
 
 cloudshellInst() {
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok
+  ./build.sh
+  ./tag_push.sh
+  popd
+
   # Create namespace for cloudshell
   kubectl create namespace cloudshell || echo "Namespace cloudshell already exists"
 
