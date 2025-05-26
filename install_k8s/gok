@@ -2920,7 +2920,9 @@ installKeycloakWithCertMgr(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
   chmod +x setup_user_federation.sh setup_group_mappers.sh
-  ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
+  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  
+  ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD $LDAP_PASSWORD
   if [[ $? -ne 0 ]]; then
     echoFailed "User Federation creation failed, please check the logs!"
     popd
