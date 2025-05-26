@@ -3155,7 +3155,7 @@ patchControllerWithOauth() {
 checkAndPatchDashboard() {
   # Check if the oauth2-proxy service is running
   echo "Checking if oauth2-proxy service is running..."
-  if kubectl get pods -n oauth2 2>/dev/null | grep -q "Running"; then
+  if kubectl get pods -n oauth2 -l app.kubernetes.io/name=oauth2-proxy 2>/dev/null | grep -q "Running"; then
     echo "oauth2-proxy service is running. Proceeding to patch the dashboard..."
     patchDashboardWithOauth
   else
@@ -3623,11 +3623,6 @@ oauth2ProxyInst(){
 
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
-    --set "extraVolumes[0].name=ca-cert" \
-    --set "extraVolumes[0].configMap.name=oauth2-ca-cert" \
-    --set "extraVolumeMounts[0].name=ca-cert" \
-    --set "extraVolumeMounts[0].mountPath=/etc/ssl/certs/issuer.crt" \
-    --set "extraVolumeMounts[0].subPath=issuer.crt" \
     --set "extraArgs[0]=--provider=oidc" \
     --set "extraArgs[1]=--login-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
     --set "extraArgs[2]=--redeem-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \

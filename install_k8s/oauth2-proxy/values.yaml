@@ -36,10 +36,17 @@ extraVolumes:
   - name: secrets
     secret:
       secretName: oauth-secrets
+  - name: ca-cert
+    configMap:
+      name: oauth2-ca-cert
 
 extraVolumeMounts:
   - name: secrets
     mountPath: /etc/secrets
+    readOnly: true
+  - name: ca-cert
+    mountPath: /etc/ssl/certs/issuer.crt
+    subPath: issuer.crt
     readOnly: true
 
 ingress:
