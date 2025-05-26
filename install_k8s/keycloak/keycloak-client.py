@@ -323,6 +323,40 @@ def realm():
   )
   [print(r["realm"]) for r in resp.json()]
 
+
+def set_access_token_lifetime(client_id, lifetime_seconds=86400):
+    """
+    Set the access token lifespan for a client in Keycloak.
+
+    Args:
+        client_id (str): The client ID for which the access token lifespan is to be set.
+        lifetime_seconds (int): The desired access token lifetime in seconds (default: 86400 = 24 hours).
+    """
+    try:
+        client_uuid = getId(client_id, 'clients', 'clientId')
+        # Fetch current client settings
+        resp = requests.get(
+            f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/{client_uuid}",
+            headers=authHeader(),
+        )
+        resp.raise_for_status()
+        client_settings = resp.json()
+        # Update the access token lifespan
+        if "attributes" not in client_settings:
+            client_settings["attributes"] = {}
+        client_settings["attributes"]["access.token.lifespan"] = str(lifetime_seconds)
+        # Update client
+        resp = requests.put(
+            f"https://{KEYCLOAK_ROOT}/admin/realms/{REALM}/clients/{client_uuid}",
+            json=client_settings,
+            headers=authHeader(),
+        )
+        resp.raise_for_status()
+        logger.info(f"Set access token lifespan to {lifetime_seconds} seconds for client '{client_id}'")
+    except Exception as e:
+        logger.error(f"Error setting access token lifespan for client '{client_id}': {str(e)}")
+
+
 def fetch_client_secret(client_id):
     """
     Fetch the client secret for a specific client in the realm.
@@ -391,6 +425,8 @@ if __name__ == '__main__':
   realm()
   logger.info("Creating client")
   client()
+  logger.info("Setting access token lifespan to 24 hours")
+  set_access_token_lifetime(KEYCLOAK_CLIENT_ID, 86400)
   logger.info("Creating scope")
   scope()
   logger.info("Creating group")
