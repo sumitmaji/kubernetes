@@ -43,3 +43,11 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+ldap:
+  password: "sumit"
+
+kerberos:
+  password: "admin"
+  kdcpassword: "sumit"
+  admpassword: "sumit"

@@ -2942,7 +2942,18 @@ installKeycloakWithCertMgr(){
 
 installLdap(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
-  ./run_ldap.sh
+
+  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
+  KERBEROS_KDC_PASSWORD=$(promptUserInput "Please enter Kerberos kdc password: ")
+  KERBEROS_ADM_PASSWORD=$(promptUserInput "Please enter Kerberos adm password: ")
+  
+  ./run_ldap.sh $LDAP_PASSWORD $KERBEROS_PASSWORD $KERBEROS_KDC_PASSWORD $KERBEROS_ADM_PASSWORD
+  if [[ $? -ne 0 ]]; then
+    echoFailed "LDAP installation failed, please check the logs!"
+    popd
+    return 1
+  fi
   gok patch ingress ldap ldap letsencrypt $(defaultSubdomain)
   popd
 }
