@@ -2920,7 +2920,9 @@ installKeycloakWithCertMgr(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
   chmod +x setup_user_federation.sh setup_group_mappers.sh
-  ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD "sumit"
+  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  
+  ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD $LDAP_PASSWORD
   if [[ $? -ne 0 ]]; then
     echoFailed "User Federation creation failed, please check the logs!"
     popd
@@ -2940,7 +2942,18 @@ installKeycloakWithCertMgr(){
 
 installLdap(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
-  ./run_ldap.sh
+
+  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
+  KERBEROS_KDC_PASSWORD=$(promptSecret "Please enter Kerberos kdc password: ")
+  KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
+  
+  ./run_ldap.sh $LDAP_PASSWORD $KERBEROS_PASSWORD $KERBEROS_KDC_PASSWORD $KERBEROS_ADM_PASSWORD
+  if [[ $? -ne 0 ]]; then
+    echoFailed "LDAP installation failed, please check the logs!"
+    popd
+    return 1
+  fi
   gok patch ingress ldap ldap letsencrypt $(defaultSubdomain)
   popd
 }
@@ -3146,7 +3159,7 @@ checkAndPatchDashboard() {
     echo "oauth2-proxy service is running. Proceeding to patch the dashboard..."
     patchDashboardWithOauth
   else
-    echo "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
+    echoFailed "oauth2-proxy service is not running. Please ensure it is running before patching the dashboard."
   fi
 }
 
@@ -3168,6 +3181,11 @@ cloudshellReset() {
 }
 
 cloudshellInst() {
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok
+  ./build.sh
+  ./tag_push.sh
+  popd
+
   # Create namespace for cloudshell
   kubectl create namespace cloudshell || echo "Namespace cloudshell already exists"
 
@@ -3605,6 +3623,9 @@ oauth2ProxyInst(){
       --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
       --from-literal=redirectUrl=oauth2/callback \
       -n oauth2
+
+  kubectl create configmap oauth2-ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n oauth2
+
   helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
     --set "extraArgs[0]=--provider=oidc" \
@@ -3617,7 +3638,7 @@ oauth2ProxyInst(){
     --set "extraArgs[7]=--allowed-group=administrators" \
     --set "extraArgs[8]=--allowed-group=developers" \
     --set "extraArgs[9]=--scope=openid email profile groups sub offline_access" \
-    --set "extraArgs[10]=--ssl-insecure-skip-verify" \
+    --set "extraArgs[10]=--ssl-insecure-skip-verify=false" \
     --set "extraArgs[11]=--set-authorization-header=true" \
     --set "extraArgs[12]=--whitelist-domain=.gokcloud.com" \
     --set "extraArgs[13]=--oidc-groups-claim=groups" \
@@ -4331,6 +4352,7 @@ function installCmd() {
     dnsUtils
     customDns
     kcurl
+    oauthAdmin
     echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
     echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
     ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
