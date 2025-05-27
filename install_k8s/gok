@@ -2505,6 +2505,11 @@ gokControllerReset(){
 
 
 gokControllerInstall(){
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller
+  ./build.sh
+  ./tag_push.sh
+  popd
+
   # Create namespace for gok-controller
   kubectl create namespace gok-controller
   
@@ -2516,6 +2521,8 @@ gokControllerInstall(){
   -x "web-controller" \
   -n "gok-controller" \
   -k "api-token=adfasdfasdfasdfasd"
+  
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-controller
 
   # Install Vault using Helm
   helm install gok-controller ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller/chart \

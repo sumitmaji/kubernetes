@@ -20,6 +20,10 @@ spec:
         vault.hashicorp.com/agent-inject-template-web-controller: |
           {{`{{- printf "{\"api-token\": \"{{ .Data.api-token }}\"}" }}`}}
     spec:
+      volumes:
+        - name: ca-cert
+          configMap:
+            name: ca-cert
       serviceAccountName: web-controller-sa
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
@@ -27,6 +31,10 @@ spec:
         - name: api
           image: "{{ .Values.image.api }}"
           imagePullPolicy: Always
+          volumeMounts:
+          - name: ca-cert
+            mountPath: /usr/local/share/ca-certificates/issuer.crt
+            subPath: issuer.crt
           env:
             - name: VAULT_SECRETS_PATH
               value: "/vault/secrets"
@@ -38,4 +46,6 @@ spec:
               value: "{{ .Values.oidc.clientId }}"
             - name: REQUIRED_GROUP
               value: "{{ .Values.oidc.requiredGroup }}"
+            - name: REQUESTS_CA_BUNDLE
+              value: /usr/local/share/ca-certificates/issuer.crt
           
