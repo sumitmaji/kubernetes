@@ -27,7 +27,7 @@ server:
 
   # Annotations for the ingress
   ingress:
-    enabled: true
+    enabled: false
     ingressClassName: "nginx"
     pathType: ImplementationSpecific
     hosts:
@@ -40,7 +40,7 @@ server:
         - vault.example.com
 
 ui:
-  enabled: true
+  enabled: false
 
 csi:
   enabled: true
