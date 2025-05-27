@@ -34,9 +34,9 @@ spec:
               value: {{ .Values.env.OAUTH_CLIENT_ID | quote }}            
           ports:
             - containerPort: 8080
-          # volumeMounts:
-          #   - name: ca-cert
-          #     mountPath: /usr/local/share/ca-certificates/issuer.crt
-          #     subPath: issuer.crt
+          volumeMounts:
+            - name: ca-cert
+              mountPath: /usr/local/share/ca-certificates/issuer.crt
+              subPath: issuer.crt
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
