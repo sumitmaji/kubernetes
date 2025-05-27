@@ -146,7 +146,10 @@ def ensure_ttyd_pod(username, token):
     pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
     if not pods.items:
         # Decode token to check groups
-        payload = jwt.decode(token, options={"verify_signature": False})
+        payload = get_user_info_from_token(token)
+        if not payload:
+            logging.error("Failed to decode token or get user info.")
+            return
         groups = payload.get("groups", [])
         is_admin = "administrators" in groups
 
