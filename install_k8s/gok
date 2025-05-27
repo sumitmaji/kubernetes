@@ -3194,6 +3194,8 @@ cloudshellInst() {
 
   copySecret regcred kube-system cloudshell
 
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n cloudshell
+
   helm install cloudshell ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok/chart -n cloudshell
 
   # Patch ingress with letsencrypt and oauth if needed

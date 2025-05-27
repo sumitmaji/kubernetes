@@ -1,8 +1,18 @@
 import os
-import jwt
 import re
+from jose import jwt
+import requests
+import logging
 from flask import Flask, request, redirect, abort, render_template_string
 from kubernetes import client, config
+import sys
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+logger.handlers = [console_handler]
 
 app = Flask(__name__)
 
@@ -12,17 +22,63 @@ if os.getenv("KUBERNETES_SERVICE_HOST"):
 else:
     config.load_kube_config()
 
+# --- OAUTH/JWT CONFIG ---
+OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://accounts.google.com")
+OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
+
 NAMESPACE = "cloudshell"
 TTYD_IMAGE = "tsl0922/ttyd"
 TTYD_PORT = 7681
 
+
+
+def get_jwks():
+    try:
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
+        jwks_uri = oidc_conf["jwks_uri"]
+        return requests.get(jwks_uri, verify=False).json()
+    except Exception as e:
+        logging.error(f"Failed to fetch JWKS: {e}")
+        return {"keys": []}
+
+JWKS = get_jwks()
+
+def verify_id_token(token):
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=OAUTH_CLIENT_ID,
+                issuer=OAUTH_ISSUER,
+            )
+            return payload
+        except jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jwt.get_unverified_claims(token)
+                logging.warning("Ignoring at_hash error in id_token: using unverified claims.")
+                return payload
+            else:
+                raise
+    except Exception as e:
+        logging.error(f"JWT verification failed: {e}")
+        return None
+
+
 def get_user_info_from_token(token):
-    payload = jwt.decode(token, options={"verify_signature": False})
-    return {
-        "userid": payload.get("sub"),
-        "username": payload.get("preferred_username"),
-        "groups": payload.get("groups", [])
-    }
+    payload = verify_id_token(token)
+    if payload:
+        return {
+            "userid": payload.get("sub"),
+            "username": payload.get("preferred_username"),
+            "groups": payload.get("groups", [])
+        }
+    # If verification fails, decode without signature verification
+    return None
 
 def get_pod_name(username):
     return f"ttyd-{username}"
