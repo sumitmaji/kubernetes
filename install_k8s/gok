@@ -2466,8 +2466,16 @@ gokAgentReset(){
 
 
 gokAgentInstall(){
+  
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent
+  ./build.sh
+  ./tag_push.sh
+  popd
+
   # Create namespace for gok-agent
   kubectl create namespace gok-agent
+
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-agent
 
   # Install Vault using Helm
   helm install gok-agent ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent/chart \

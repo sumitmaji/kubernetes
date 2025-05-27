@@ -28,6 +28,9 @@ spec:
           - name: host-root
             mountPath: /host
             mountPropagation: Bidirectional
+          - name: ca-cert
+            mountPath: /usr/local/share/ca-certificates/issuer.crt
+            subPath: issuer.crt
           env:
             - name: OAUTH_ISSUER
               value: "{{ .Values.env.OAUTH_ISSUER }}"
@@ -37,8 +40,13 @@ spec:
               value: "{{ .Values.env.REQUIRED_ROLE }}"
             - name: RABBITMQ_HOST
               value: "{{ .Values.env.RABBITMQ_HOST }}"
+            - name: REQUESTS_CA_BUNDLE
+              value: /usr/local/share/ca-certificates/issuer.crt
       volumes:
       - name: host-root
         hostPath:
           path: /
           type: Directory
+      - name: ca-cert
+        configMap:
+          name: ca-cert
