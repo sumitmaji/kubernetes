@@ -2389,9 +2389,9 @@ vaultInstall() {
     --namespace vault \
     --values $MOUNT_PATH/kubernetes/install_k8s/vault/values.yaml
 
-  # gok patch ingress vault vault letsencrypt vault
+  gok patch ingress vault vault letsencrypt vault
 
-  gok patch ingress vault vault letsencrypt $(defaultSubdomain)
+  # gok patch ingress vault vault letsencrypt $(defaultSubdomain)
 
   if [[ $? -ne 0 ]]; then
     echoFailed "Failed to patch Vault ingress with Let's Encrypt!"
