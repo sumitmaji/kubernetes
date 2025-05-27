@@ -174,7 +174,7 @@ def publish_batch(commands, user_info):
         "user_info": user_info,
         "batch_id": batch_id
     }
-    channel.queue_declare(queue="commands", durable=True)
+    channel.queue_declare(queue="commands")
     channel.basic_publish(exchange='', routing_key="commands", body=json.dumps(msg))
     connection.close()
     return batch_id
