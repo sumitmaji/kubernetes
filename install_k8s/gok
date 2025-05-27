@@ -3148,7 +3148,7 @@ patchTtydWithOauth() {
 }
 
 patchCloudshellWithOauth() {
-  patchOauth2Secure cloudshell-cloudshell cloudshell https://cloudshell.$(rootDomain)
+  patchOauth2Secure cloudshell-cloudshell cloudshell https://$(defaultSubdomain).$(rootDomain)
 }
 
 patchControllerWithOauth() {
@@ -3197,13 +3197,13 @@ cloudshellInst() {
   helm install cloudshell ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok/chart -n cloudshell
 
   # Patch ingress with letsencrypt and oauth if needed
-  gok patch ingress cloudshell-cloudshell cloudshell letsencrypt cloudshell
+  gok patch ingress cloudshell-cloudshell cloudshell letsencrypt $(defaultSubdomain)
   patchCloudshellWithOauth
 
   echo "Waiting for cloudshell to be ready..."
   kubectl --namespace cloudshell wait --for=condition=Ready pods --all --timeout=120s
   if [[ $? -eq 0 ]]; then
-    echoSuccess "cloudshell is now up! Access it at: https://cloudshell.$(rootDomain)/shell"
+    echoSuccess "cloudshell is now up! Access it at: https://$(defaultSubdomain).$(rootDomain)/cloudshell/home"
   else
     echoFailed "cloudshell setup timed out. Please check the logs."
     return 1

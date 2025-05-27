@@ -265,8 +265,8 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate?uri=$request_uri",
-                        "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://kube.gokcloud.com/cloudshell/home/validate?uri=$request_uri",
+                        "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://kube.gokcloud.com/cloudshell/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
                         "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
@@ -280,14 +280,14 @@ def ensure_ttyd_ingress(username):
                 "spec": {
                     "ingressClassName": "nginx",
                     "tls": [{
-                        "hosts": ["cloudshell.gokcloud.com"],
-                        "secretName": "cloudshell-gokcloud-com"
+                        "hosts": ["kube.gokcloud.com"],
+                        "secretName": "kube-gokcloud-com"
                     }],
                     "rules": [{
-                        "host": "cloudshell.gokcloud.com",
+                        "host": "kube.gokcloud.com",
                         "http": {
                             "paths": [{
-                                "path": f"/user/{username}",
+                                "path": f"/cloudshell/user/{username}",
                                 "pathType": "Prefix",
                                 "backend": {
                                     "service": {
@@ -321,7 +321,7 @@ def validate_user():
     )
 
     # Match /user/<username> (optionally with trailing slash or path)
-    m = re.match(r"^/user/([^/]+)", orig_uri)
+    m = re.match(r"^/cloudshell/user/([^/]+)", orig_uri)
     if not m:
         abort(400, f"Bad request: cannot extract username from path, current_user: {current_user} orig_uri: {orig_uri}")
     username = m.group(1)
@@ -428,7 +428,7 @@ def index():
     ensure_ttyd_service(username)
     ensure_ttyd_ingress(username)
 
-    user_url = f"https://cloudshell.gokcloud.com/user/{username}/"
+    user_url = f"https://kube.gokcloud.com/cloudshell/user/{username}/"
     # Serve progress page with JS polling
     return render_template_string("""
     <!DOCTYPE html>
@@ -437,7 +437,7 @@ def index():
       <title>Starting your Cloud Shell...</title>
       <script>
         async function poll() {
-          let resp = await fetch("/shell/status/{{username}}", {headers: {"Authorization": document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] ? "Bearer " + document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] : ""}});
+          let resp = await fetch("/cloudshell/home/status/{{username}}", {headers: {"Authorization": document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] ? "Bearer " + document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] : ""}});
           let data = await resp.json();
           if (data.ready) {
             window.location.href = "{{user_url}}";
