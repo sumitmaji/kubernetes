@@ -4,8 +4,8 @@ server:
   #     mount_path = "/var/run/secrets/kubernetes.io/serviceaccount"
   #     role       = "vault-role"
   #   }
-  # extraEnvironmentVars:
-  #   VAULT_SEAL_TYPE: "kubernetes"
+  extraEnvironmentVars:
+    VAULT_UI_BASE: "/vault/ui"
   #   VAULT_SEAL_K8S_MOUNT_PATH: "/var/run/secrets/kubernetes.io/serviceaccount"
   #   VAULT_SEAL_K8S_ROLE: "vault-role"
 
@@ -31,7 +31,7 @@ server:
     ingressClassName: "nginx"
     pathType: ImplementationSpecific
     annotations:
-      nginx.ingress.kubernetes.io/rewrite-target: /$2
+      nginx.ingress.kubernetes.io/rewrite-target: /vault/$2
     hosts:
     - host: vault.example.com
       paths:
