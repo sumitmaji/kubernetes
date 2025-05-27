@@ -2389,15 +2389,15 @@ vaultInstall() {
     --namespace vault \
     --values $MOUNT_PATH/kubernetes/install_k8s/vault/values.yaml
 
-  gok patch ingress vault vault letsencrypt vault
 
-  # gok patch ingress vault vault letsencrypt $(defaultSubdomain)
-
-  if [[ $? -ne 0 ]]; then
-    echoFailed "Failed to patch Vault ingress with Let's Encrypt!"
-    return 1
-  fi
-  echoSuccess "Vault ingress patched successfully with Let's Encrypt!"
+  # Valut UI is disabled, so ingress is not created
+  # gok patch ingress vault vault letsencrypt vault
+  # if [[ $? -ne 0 ]]; then
+  #   echoFailed "Failed to patch Vault ingress with Let's Encrypt!"
+  #   return 1
+  # fi
+  # echoSuccess "Vault ingress patched successfully with Let's Encrypt!"
+  
   echo "Vault installation started. This may take a few minutes..."
 
   kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-k8s-seal-role.yaml
