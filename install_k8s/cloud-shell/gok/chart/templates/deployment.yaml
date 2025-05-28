@@ -14,6 +14,10 @@ spec:
       labels:
         app: {{ include "cloudshell.name" . }}
     spec:
+      volumes:
+        - name: ca-cert
+          configMap:
+            name: ca-cert
       serviceAccountName: cloudshell-sa
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
@@ -21,7 +25,18 @@ spec:
         - name: cloudshell
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: REQUESTS_CA_BUNDLE
+              value: /usr/local/share/ca-certificates/issuer.crt
+            - name: OAUTH_ISSUER
+              value: {{ .Values.env.OAUTH_ISSUER | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.env.OAUTH_CLIENT_ID | quote }}            
           ports:
             - containerPort: 8080
+          volumeMounts:
+            - name: ca-cert
+              mountPath: /usr/local/share/ca-certificates/issuer.crt
+              subPath: issuer.crt
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

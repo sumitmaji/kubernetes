@@ -1,3 +1,4 @@
 flask
 pyjwt
 kubernetes
+python-jose

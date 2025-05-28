@@ -2466,8 +2466,16 @@ gokAgentReset(){
 
 
 gokAgentInstall(){
+  
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent
+  ./build.sh
+  ./tag_push.sh
+  popd
+
   # Create namespace for gok-agent
   kubectl create namespace gok-agent
+
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-agent
 
   # Install Vault using Helm
   helm install gok-agent ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent/chart \
@@ -2497,6 +2505,11 @@ gokControllerReset(){
 
 
 gokControllerInstall(){
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller
+  ./build.sh
+  ./tag_push.sh
+  popd
+
   # Create namespace for gok-controller
   kubectl create namespace gok-controller
   
@@ -2508,6 +2521,8 @@ gokControllerInstall(){
   -x "web-controller" \
   -n "gok-controller" \
   -k "api-token=adfasdfasdfasdfasd"
+  
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-controller
 
   # Install Vault using Helm
   helm install gok-controller ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller/chart \
@@ -3148,7 +3163,7 @@ patchTtydWithOauth() {
 }
 
 patchCloudshellWithOauth() {
-  patchOauth2Secure cloudshell-cloudshell cloudshell https://cloudshell.$(rootDomain)
+  patchOauth2Secure cloudshell-cloudshell cloudshell https://$(defaultSubdomain).$(rootDomain)
 }
 
 patchControllerWithOauth() {
@@ -3194,16 +3209,18 @@ cloudshellInst() {
 
   copySecret regcred kube-system cloudshell
 
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n cloudshell
+
   helm install cloudshell ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok/chart -n cloudshell
 
   # Patch ingress with letsencrypt and oauth if needed
-  gok patch ingress cloudshell-cloudshell cloudshell letsencrypt cloudshell
+  gok patch ingress cloudshell-cloudshell cloudshell letsencrypt $(defaultSubdomain)
   patchCloudshellWithOauth
 
   echo "Waiting for cloudshell to be ready..."
   kubectl --namespace cloudshell wait --for=condition=Ready pods --all --timeout=120s
   if [[ $? -eq 0 ]]; then
-    echoSuccess "cloudshell is now up! Access it at: https://cloudshell.$(rootDomain)/shell"
+    echoSuccess "cloudshell is now up! Access it at: https://$(defaultSubdomain).$(rootDomain)/cloudshell/home"
   else
     echoFailed "cloudshell setup timed out. Please check the logs."
     return 1
@@ -4314,6 +4331,9 @@ function installCmd() {
     gokAgentInstall
   elif [ "$COMPONENT" == "gok-controller" ]; then
     gokControllerInstall
+  elif [ "$COMPONENT" == "controller" ]; then
+    gok install gok-agent
+    gok install gok-controller
   elif [ "$COMPONENT" == "chart" ]; then
     chartInst
   elif [ "$COMPONENT" == "rabbitmq" ]; then
@@ -4411,6 +4431,9 @@ EOF
     gokAgentReset
   elif [ "$COMPONENT" == "gok-controller" ]; then
     gokControllerReset
+  elif [ "$COMPONENT" == "controller" ]; then
+    gok reset gok-agent
+    gok reset gok-controller
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdReset
   elif [ "$COMPONENT" == "registry" ]; then

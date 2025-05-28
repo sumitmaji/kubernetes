@@ -38,9 +38,9 @@ session_shells = {}
 
 def get_jwks():
     try:
-        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=True).json()
         jwks_uri = oidc_conf["jwks_uri"]
-        return requests.get(jwks_uri, verify=False).json()
+        return requests.get(jwks_uri, verify=True).json()
     except Exception as e:
         logging.error(f"Failed to fetch JWKS: {e}")
         return {"keys": []}
@@ -200,8 +200,8 @@ def main():
         pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
     )
     channel = connection.channel()
-    channel.queue_declare(queue='commands')
-    channel.queue_declare(queue=RESULTS_QUEUE)
+    channel.queue_declare(queue='commands', durable=True)
+    channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(queue='commands', on_message_callback=on_message)
     logging.info("Unified agent started, waiting for commands/batches...")

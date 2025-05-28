@@ -53,9 +53,9 @@ def start_secrets_watcher(app):
 # --- OIDC/JWT helpers ---
 def get_jwks():
     try:
-        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=False).json()
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=True).json()
         jwks_uri = oidc_conf["jwks_uri"]
-        return requests.get(jwks_uri, verify=False).json()
+        return requests.get(jwks_uri, verify=True).json()
     except Exception as e:
         logging.error(f"Failed to fetch JWKS: {e}")
         return {"keys": []}
@@ -174,7 +174,7 @@ def publish_batch(commands, user_info):
         "user_info": user_info,
         "batch_id": batch_id
     }
-    channel.queue_declare(queue="commands")
+    channel.queue_declare(queue="commands", durable=True)
     channel.basic_publish(exchange='', routing_key="commands", body=json.dumps(msg))
     connection.close()
     return batch_id
@@ -192,7 +192,7 @@ def rabbitmq_result_worker():
         pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
     )
     channel = connection.channel()
-    channel.queue_declare(queue="results")
+    channel.queue_declare(queue="results", durable=True)
     for method_frame, properties, body in channel.consume("results", inactivity_timeout=1):
         if body is not None:
             msg = json.loads(body)

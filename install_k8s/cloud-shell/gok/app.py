@@ -1,8 +1,18 @@
 import os
-import jwt
 import re
+from jose import jwt
+import requests
+import logging
 from flask import Flask, request, redirect, abort, render_template_string
 from kubernetes import client, config
+import sys
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+logger.handlers = [console_handler]
 
 app = Flask(__name__)
 
@@ -12,17 +22,63 @@ if os.getenv("KUBERNETES_SERVICE_HOST"):
 else:
     config.load_kube_config()
 
+# --- OAUTH/JWT CONFIG ---
+OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://accounts.google.com")
+OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
+
 NAMESPACE = "cloudshell"
 TTYD_IMAGE = "tsl0922/ttyd"
 TTYD_PORT = 7681
 
+
+
+def get_jwks():
+    try:
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=True).json()
+        jwks_uri = oidc_conf["jwks_uri"]
+        return requests.get(jwks_uri, verify=True).json()
+    except Exception as e:
+        logging.error(f"Failed to fetch JWKS: {e}")
+        return {"keys": []}
+
+JWKS = get_jwks()
+
+def verify_id_token(token):
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=OAUTH_CLIENT_ID,
+                issuer=OAUTH_ISSUER,
+            )
+            return payload
+        except jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jwt.get_unverified_claims(token)
+                logging.warning("Ignoring at_hash error in id_token: using unverified claims.")
+                return payload
+            else:
+                raise
+    except Exception as e:
+        logging.error(f"JWT verification failed: {e}")
+        return None
+
+
 def get_user_info_from_token(token):
-    payload = jwt.decode(token, options={"verify_signature": False})
-    return {
-        "userid": payload.get("sub"),
-        "username": payload.get("preferred_username"),
-        "groups": payload.get("groups", [])
-    }
+    payload = verify_id_token(token)
+    if payload:
+        return {
+            "userid": payload.get("sub"),
+            "username": payload.get("preferred_username"),
+            "groups": payload.get("groups", [])
+        }
+    # If verification fails, decode without signature verification
+    return None
 
 def get_pod_name(username):
     return f"ttyd-{username}"
@@ -90,7 +146,10 @@ def ensure_ttyd_pod(username, token):
     pods = v1.list_namespaced_pod(NAMESPACE, label_selector=f"user={username}")
     if not pods.items:
         # Decode token to check groups
-        payload = jwt.decode(token, options={"verify_signature": False})
+        payload = get_user_info_from_token(token)
+        if not payload:
+            logging.error("Failed to decode token or get user info.")
+            return
         groups = payload.get("groups", [])
         is_admin = "administrators" in groups
 
@@ -265,8 +324,8 @@ def ensure_ttyd_ingress(username):
                 "metadata": {
                     "name": ingress_name,
                     "annotations": {
-                        "nginx.ingress.kubernetes.io/auth-url": "https://cloudshell.gokcloud.com/shell/validate?uri=$request_uri",
-                        "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://cloudshell.gokcloud.com/user/{username}",
+                        "nginx.ingress.kubernetes.io/auth-url": "https://kube.gokcloud.com/cloudshell/home/validate?uri=$request_uri",
+                        "nginx.ingress.kubernetes.io/auth-signin": f"https://kube.gokcloud.com/oauth2/start?rd=https://kube.gokcloud.com/cloudshell/user/{username}",
                         "nginx.ingress.kubernetes.io/auth-response-headers": "Authorization",
                         "kubernetes.io/ingress.class": "nginx",
                         "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
@@ -280,14 +339,14 @@ def ensure_ttyd_ingress(username):
                 "spec": {
                     "ingressClassName": "nginx",
                     "tls": [{
-                        "hosts": ["cloudshell.gokcloud.com"],
-                        "secretName": "cloudshell-gokcloud-com"
+                        "hosts": ["kube.gokcloud.com"],
+                        "secretName": "kube-gokcloud-com"
                     }],
                     "rules": [{
-                        "host": "cloudshell.gokcloud.com",
+                        "host": "kube.gokcloud.com",
                         "http": {
                             "paths": [{
-                                "path": f"/user/{username}",
+                                "path": f"/cloudshell/user/{username}",
                                 "pathType": "Prefix",
                                 "backend": {
                                     "service": {
@@ -321,7 +380,7 @@ def validate_user():
     )
 
     # Match /user/<username> (optionally with trailing slash or path)
-    m = re.match(r"^/user/([^/]+)", orig_uri)
+    m = re.match(r"^/cloudshell/user/([^/]+)", orig_uri)
     if not m:
         abort(400, f"Bad request: cannot extract username from path, current_user: {current_user} orig_uri: {orig_uri}")
     username = m.group(1)
@@ -428,7 +487,7 @@ def index():
     ensure_ttyd_service(username)
     ensure_ttyd_ingress(username)
 
-    user_url = f"https://cloudshell.gokcloud.com/user/{username}/"
+    user_url = f"https://kube.gokcloud.com/cloudshell/user/{username}/"
     # Serve progress page with JS polling
     return render_template_string("""
     <!DOCTYPE html>
@@ -437,7 +496,7 @@ def index():
       <title>Starting your Cloud Shell...</title>
       <script>
         async function poll() {
-          let resp = await fetch("/shell/status/{{username}}", {headers: {"Authorization": document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] ? "Bearer " + document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] : ""}});
+          let resp = await fetch("/cloudshell/home/status/{{username}}", {headers: {"Authorization": document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] ? "Bearer " + document.cookie.split('; ').find(row => row.startsWith('Authorization='))?.split('=')[1] : ""}});
           let data = await resp.json();
           if (data.ready) {
             window.location.href = "{{user_url}}";
