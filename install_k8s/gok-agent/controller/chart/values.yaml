@@ -20,7 +20,7 @@ ingress:
     - host: web-controller.example.com
       paths:
         - path: /controller(.*)
-          pathType: Prefix
+          pathType: ImplementationSpecific
   tls:
     - hosts:
         - web-controller.example.com
