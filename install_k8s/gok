@@ -4331,6 +4331,9 @@ function installCmd() {
     gokAgentInstall
   elif [ "$COMPONENT" == "gok-controller" ]; then
     gokControllerInstall
+  elif [ "$COMPONENT" == "controller" ]; then
+    gok install gok-agent
+    gok install gok-controller
   elif [ "$COMPONENT" == "chart" ]; then
     chartInst
   elif [ "$COMPONENT" == "rabbitmq" ]; then
@@ -4428,6 +4431,9 @@ EOF
     gokAgentReset
   elif [ "$COMPONENT" == "gok-controller" ]; then
     gokControllerReset
+  elif [ "$COMPONENT" == "controller" ]; then
+    gok reset gok-agent
+    gok reset gok-controller
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdReset
   elif [ "$COMPONENT" == "registry" ]; then
