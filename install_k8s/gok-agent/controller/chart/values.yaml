@@ -19,8 +19,8 @@ ingress:
   hosts:
     - host: web-controller.example.com
       paths:
-        - path: /controller/socket.io/
-          pathType: Prefix
+        - path: /controller/socket.io
+          pathType: ImplementationSpecific
         - path: /controller(/|$)(.*)
           pathType: ImplementationSpecific
   tls:
