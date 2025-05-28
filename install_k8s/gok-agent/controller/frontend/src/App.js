@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import io from "socket.io-client";
 
-const API_URL = process.env.REACT_APP_API_URL || "https://controller.gokcloud.com";
+const API_URL = process.env.REACT_APP_API_URL || "https://kube.gokcloud.com/controller";
 
 function App() {
   const [commands, setCommands] = useState("");
