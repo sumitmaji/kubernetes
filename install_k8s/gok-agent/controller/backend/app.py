@@ -192,7 +192,7 @@ def rabbitmq_result_worker():
         pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
     )
     channel = connection.channel()
-    channel.queue_declare(queue="results")
+    channel.queue_declare(queue="results", durable=True)
     for method_frame, properties, body in channel.consume("results", inactivity_timeout=1):
         if body is not None:
             msg = json.loads(body)
