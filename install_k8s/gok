@@ -2529,14 +2529,13 @@ gokControllerInstall(){
     --namespace gok-controller
 
   # Patch the ingress with Let's Encrypt
-  gok patch ingress web-controller gok-controller letsencrypt $(defaultSubdomain)
+  gok patch ingress web-controller gok-controller letsencrypt controller
   patchControllerWithOauth
   if [[ $? -ne 0 ]]; then
     echoFailed "Failed to patch Gok Controller ingress with Let's Encrypt!"
     return 1
   fi
   echoSuccess "Gok Controller ingress patched successfully with Let's Encrypt!"
-  echoSuccess "Access Gok Controller at: https://$(defaultSubdomain).$(rootDomain)/controller"
 }
 
 vaultReset() {
@@ -3168,7 +3167,7 @@ patchCloudshellWithOauth() {
 }
 
 patchControllerWithOauth() {
-  patchOauth2Secure web-controller gok-controller https://$(defaultSubdomain).$(rootDomain)
+  patchOauth2Secure web-controller gok-controller https://controller.$(rootDomain)
 }
 
 checkAndPatchDashboard() {
