@@ -40,7 +40,8 @@ function App() {
   const connectSocket = (batch_id) => {
     if (socketRef.current) socketRef.current.disconnect();
     const socket = io(API_URL, {
-      transports: ["websocket"]
+      transports: ["websocket"],
+      path: "/controller/socket.io"
     });
     socketRef.current = socket;
     socket.on("connect", () => {
