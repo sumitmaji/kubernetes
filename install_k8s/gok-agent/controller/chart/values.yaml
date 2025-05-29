@@ -15,7 +15,6 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/websocket-services: "web-controller"
-    # nginx.ingress.kubernetes.io/rewrite-target: /$2
   hosts:
     - host: web-controller.example.com
       paths:
@@ -23,8 +22,6 @@ ingress:
           pathType: ImplementationSpecific
         - path: /controller(/|$)(.*)
           pathType: ImplementationSpecific
-          pathRewrite:
-            rewrite-target: /$2
 
   tls:
     - hosts:

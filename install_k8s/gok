@@ -2531,6 +2531,7 @@ gokControllerInstall(){
   # Patch the ingress with Let's Encrypt
   #gok patch ingress web-controller gok-controller letsencrypt controller
   gok patch ingress web-controller gok-controller letsencrypt $(defaultSubdomain)
+  gok patch ingress web-controller-socket gok-controller letsencrypt $(defaultSubdomain)
 
   patchControllerWithOauth
   if [[ $? -ne 0 ]]; then
@@ -3173,6 +3174,7 @@ patchCloudshellWithOauth() {
 patchControllerWithOauth() {
   #patchOauth2Secure web-controller gok-controller https://controller.$(rootDomain)
   patchOauth2Secure web-controller gok-controller https://$(defaultSubdomain).$(rootDomain)/controller
+  patchOauth2Secure web-controller-socket gok-controller https://$(defaultSubdomain).$(rootDomain)/controller
 
 }
 
