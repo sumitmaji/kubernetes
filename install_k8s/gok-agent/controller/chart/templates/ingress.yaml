@@ -13,6 +13,7 @@ spec:
     {{- range .Values.ingress.hosts }}
     - host: {{ .host }}
       http:
+      
         paths:
           - path: /controller
             pathType: ImplementationSpecific
