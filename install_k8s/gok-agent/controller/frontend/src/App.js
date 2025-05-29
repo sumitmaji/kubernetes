@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import io from "socket.io-client";
 
-const API_URL = process.env.REACT_APP_API_URL || "https://controller.gokcloud.com";
+// const API_URL = process.env.REACT_APP_API_URL || "https://controller.gokcloud.com";
+const API_URL = process.env.REACT_APP_API_URL || "https://kube.gokcloud.com/controller";
 
 function App() {
   const [commands, setCommands] = useState("");
@@ -40,7 +41,10 @@ function App() {
   const connectSocket = (batch_id) => {
     if (socketRef.current) socketRef.current.disconnect();
     const socket = io(API_URL, {
-      transports: ["websocket"]
+      // transports: ["websocket"]
+      transports: ["websocket"],
+      path: "/controller/socket.io"
+
     });
     socketRef.current = socket;
     socket.on("connect", () => {

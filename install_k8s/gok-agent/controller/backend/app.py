@@ -113,7 +113,9 @@ app = Flask(
     static_folder="static",  # This is where your React build is copied
     static_url_path=""       # Serve static files at root
 )
-socketio = SocketIO(app, cors_allowed_origins="*")
+#socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", path="/controller/socket.io")
+
 
 # Initial load
 vault_secrets = get_vault_secrets()
