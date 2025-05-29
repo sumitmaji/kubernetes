@@ -14,7 +14,7 @@ spec:
     - host: {{ .host }}
       http:
         paths:
-          - path: /controller(/|$)(.*)
+          - path: /controller
             pathType: ImplementationSpecific
             backend:
               service:
