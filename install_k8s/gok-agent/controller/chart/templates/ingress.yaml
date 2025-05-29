@@ -6,7 +6,6 @@ metadata:
   labels:
     app: web-controller
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
