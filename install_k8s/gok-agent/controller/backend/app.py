@@ -113,9 +113,7 @@ app = Flask(
     static_folder="static",  # This is where your React build is copied
     static_url_path=""       # Serve static files at root
 )
-
-socketio = SocketIO(app, cors_allowed_origins="*", path="/controller/socket.io")
-
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initial load
 vault_secrets = get_vault_secrets()
@@ -132,7 +130,7 @@ def log_access(event, username=None, ip=None, details=None, status="success"):
     }
     logging.info(json.dumps(log_entry))
 
-@app.route("/controller/logininfo")
+@app.route("/logininfo")
 @require_oauth()
 def logininfo():
     return jsonify({
@@ -143,7 +141,7 @@ def logininfo():
         "email": request.user.get("email"),
     })
 
-@app.route("/controller/send-command-batch", methods=["POST"])
+@app.route("/send-command-batch", methods=["POST"])
 @require_oauth(REQUIRED_GROUP)
 def send_command_batch():
     username = request.user.get("name") or request.user.get("sub")
@@ -213,7 +211,7 @@ def start_worker():
 def not_found(e):
     return send_from_directory(app.static_folder, "index.html")
 
-@app.route("/controller")
+@app.route("/")
 def index():
     # Serve the React index.html
     return send_from_directory(app.static_folder, "index.html")
