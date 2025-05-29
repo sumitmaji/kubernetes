@@ -13,10 +13,10 @@ spec:
     {{- range .Values.ingress.hosts }}
     - host: {{ .host }}
       http:
-      
+
         paths:
           - path: /controller
-            pathType: ImplementationSpecific
+            pathType: Prefix
             backend:
               service:
                 name: web-controller
