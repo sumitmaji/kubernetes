@@ -2536,6 +2536,7 @@ gokControllerInstall(){
     return 1
   fi
   echoSuccess "Gok Controller ingress patched successfully with Let's Encrypt!"
+  echoSuccess "Access Gok Controller at: https://controller.$(rootDomain)"
 }
 
 vaultReset() {
