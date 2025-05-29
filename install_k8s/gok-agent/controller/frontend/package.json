@@ -1,7 +1,6 @@
 {
   "name": "k8s-host-command-frontend",
   "version": "1.0.0",
-  "homepage": "/controller",
   "private": true,
   "scripts": {
     "start": "NODE_OPTIONS=--openssl-legacy-provider react-scripts start",
