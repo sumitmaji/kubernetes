@@ -17,6 +17,10 @@ spec:
         {{- range .paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
+            {{- if .pathRewrite }}
+            pathRewrite:
+              rewrite-target: {{ .pathRewrite.rewrite-target }}
+            {{- end }}
             backend:
               service:
                 name: web-controller
