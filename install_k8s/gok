@@ -3239,6 +3239,12 @@ patchConsoleWithOauth() {
 }
 
 consoleInst() {
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/console/app
+  ./build.sh
+  ./tag_push.sh
+  popd
+
+
   # Create namespace for console
   kubectl create namespace console || echo "Namespace console already exists"
 
