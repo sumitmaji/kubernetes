@@ -3385,7 +3385,8 @@ get_keycloak_token() {
   read -p "Keycloak URL (default: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token): " KEYCLOAK_URL
   KEYCLOAK_URL=${KEYCLOAK_URL:-https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token}
 
-  read -p "Client ID: " CLIENT_ID
+  read -p "Client ID (default: gok-developers-client): " CLIENT_ID
+  CLIENT_ID=${CLIENT_ID:-gok-developers-client}
   read -p "Client Secret: " CLIENT_SECRET
   read -p "Username: " USERNAME
   read -s -p "Password: " PASSWORD
