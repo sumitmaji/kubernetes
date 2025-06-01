@@ -3,13 +3,16 @@ from .config import Config
 from .auth.middleware import auth_middleware, register_error_handlers
 from .routes.user import user_ns
 from flask_restx import Api
+import os
 
 def create_app():
+    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
     app = Flask(
         __name__,
-        static_folder="backend/static",      # Path to your React build/static files
-        static_url_path=""           # Serve static files at root
+        static_folder=static_dir,
+        static_url_path=""
     )
+    print("STATIC FOLDER:", app.static_folder)
     app.config.from_object(Config)
 
     # Register Middleware
