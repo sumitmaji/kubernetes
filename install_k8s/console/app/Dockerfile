@@ -33,6 +33,7 @@ EXPOSE 8080
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV FLASK_APP=backend/run.py
 
 # Start Flask app with correct static path and socketio support
-CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8080", "--app", "backend/run.py"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=8080"]
