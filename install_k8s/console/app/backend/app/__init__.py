@@ -7,7 +7,7 @@ from flask_restx import Api
 def create_app():
     app = Flask(
         __name__,
-        static_folder="static",      # Path to your React build/static files
+        static_folder="backend/static",      # Path to your React build/static files
         static_url_path=""           # Serve static files at root
     )
     app.config.from_object(Config)
