@@ -3684,8 +3684,7 @@ oauth2ProxyInst(){
     --set "extraArgs[23]=--cookie-refresh=1h" \
     --set "extraArgs[24]=--cookie-expire=8h" \
     --set "extraArgs[25]=--set-xauthrequest=true" \
-    --set "extraArgs[26]=--api-route=/send-command-batch" \
-    --set "extraArgs[27]=--skip-jwt-bearer-tokens=true" \
+    --set "extraArgs[26]=--skip-jwt-bearer-tokens=true" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
