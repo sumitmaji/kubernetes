@@ -35,4 +35,4 @@ EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
 
 # Start Flask app
-CMD ["python", "backend/app.py"]
+CMD ["python", "backend/run.py"]
