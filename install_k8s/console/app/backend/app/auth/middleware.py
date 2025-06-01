@@ -9,8 +9,8 @@ import requests
 
 # Mock permissions map (should be externalized)
 PERMISSIONS = {
-    'admin': ['GET', 'POST', 'PUT', 'DELETE'],
-    'reader': ['GET']
+    'administrators': ['GET', 'POST', 'PUT', 'DELETE'],
+    'developers': ['GET']
 }
 
 
