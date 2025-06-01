@@ -26,7 +26,7 @@ COPY --from=frontend-build /app/frontend/build /app/backend/static
 
 # Install runtime dependencies
 COPY backend/requirements.txt /app/backend/
-RUN pip install --upgrade pip && pip install -r backend/requirements.txt
+RUN pip install --upgrade pip && pip install -r /app/backend/requirements.txt
 
 # Expose Flask port
 EXPOSE 8080
@@ -34,5 +34,5 @@ EXPOSE 8080
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Start Flask app
-CMD ["python", "backend/run.py"]
+# Start Flask app with correct static path and socketio support
+CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=8080", "--app", "backend/run.py"]
