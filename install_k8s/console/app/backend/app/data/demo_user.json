@@ -1,0 +1,8 @@
+{
+  "sub": "dev123",
+  "preferred_username": "devuser",
+  "email": "devuser@example.com",
+  "name": "Dev User",
+  "groups": ["admin"],
+  "roles": ["admin"]
+}

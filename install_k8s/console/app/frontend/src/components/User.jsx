@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../theme/ThemeContext';
-import api from './api'; // Import the api module
+import api from './api';
+// Change import to new component name
+import UserDataPopup from './UserDataPopup';
 
 const User = ({ username: propUsername, onLogin, onLogout }) => {
     const [open, setOpen] = useState(false);
     const { theme, switchTheme } = useTheme();
     const [username, setUsername] = useState(propUsername);
+    const [showTokenPopup, setShowTokenPopup] = useState(false);
 
     useEffect(() => {
-        // Fetch user info from backend API
         api.userinfo.get()
             .then(res => {
                 if (res.data && res.data.username) {
@@ -44,6 +46,19 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                         border: `1px solid ${theme.colors.border}`
                     }}
                 >
+                    <div
+                        className="user-dropdown-item"
+                        onClick={() => {
+                            setOpen(false);
+                            setShowTokenPopup(true);
+                        }}
+                        style={{
+                            color: theme.colors.primary,
+                            borderBottom: `1px solid ${theme.colors.border}`
+                        }}
+                    >
+                        Show Id Token
+                    </div>
                     <div
                         className="user-dropdown-item"
                         onClick={() => {
@@ -88,6 +103,8 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                     )}
                 </div>
             )}
+            {/* Use UserDataPopup instead of AccessTokenPopup */}
+            <UserDataPopup open={showTokenPopup} onClose={() => setShowTokenPopup(false)} />
         </div>
     );
 };
