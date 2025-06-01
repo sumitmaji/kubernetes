@@ -6,3 +6,5 @@ class Config:
     KEYCLOAK_REALM = os.environ.get('KEYCLOAK_REALM')
     KEYCLOAK_CLIENT_ID = os.environ.get('KEYCLOAK_CLIENT_ID')
     KEYCLOAK_PUBLIC_KEY = os.environ.get('KEYCLOAK_PUBLIC_KEY')  # PEM or base64 format
+    OAUTH_ISSUER = os.environ.get('OAUTH_ISSUER')
+    OAUTH_CLIENT_ID = os.environ.get('OAUTH_CLIENT_ID')

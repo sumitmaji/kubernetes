@@ -3251,6 +3251,8 @@ consoleInst() {
   # Copy image pull secret if needed
   copySecret regcred kube-system console
 
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n console
+
   # Install console using Helm chart (adjust path if needed)
   helm install console ${MOUNT_PATH}/kubernetes/install_k8s/console/app/chart -n console
 

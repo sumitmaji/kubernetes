@@ -1,10 +1,11 @@
 from flask import request, jsonify, g, current_app, send_from_directory
-import jwt
 from functools import wraps
 from app.config import Config
 from app.schemas.user_schema import UserSchema
 import os
 import json
+from jose import jwt
+import requests
 
 # Mock permissions map (should be externalized)
 PERMISSIONS = {
@@ -12,18 +13,53 @@ PERMISSIONS = {
     'reader': ['GET']
 }
 
+
+def get_jwks():
+    try:
+        oidc_conf = requests.get(f"{Config.OAUTH_ISSUER}/.well-known/openid-configuration", verify=True).json()
+        jwks_uri = oidc_conf["jwks_uri"]
+        return requests.get(jwks_uri, verify=True).json()
+    except Exception as e:
+        return {"keys": []}
+
+JWKS = get_jwks()
+
+def verify_id_token(token):
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=Config.OAUTH_CLIENT_ID,
+                issuer=Config.OAUTH_ISSUER,
+            )
+            return payload
+        except jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jwt.get_unverified_claims(token)
+                return payload
+            else:
+                raise
+    except Exception as e:
+        return None
+
 def verify_token(token):
     try:
         if current_app.debug:
             # Dev mode: use local secret and HS256
             payload = jwt.decode(token, "dev_secret", algorithms=['HS256'])
         else:
-            payload = jwt.decode(token, Config.KEYCLOAK_PUBLIC_KEY, algorithms=['RS256'])
+            payload = verify_id_token(token)
         return payload
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
         return None
+
 
 def get_dev_token():
     """Generate a dev token from demo_user.json if in debug mode and no token is provided."""
