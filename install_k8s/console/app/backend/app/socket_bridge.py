@@ -18,9 +18,10 @@ class SocketBridge:
     def _run(self, batch_id):
         @self.sio.event
         def connect():
+            print(f"Connected to target socket server at {self.target_host}:{self.target_port}")
             self.sio.emit("join", {"batch_id": batch_id})
 
-        @self.sio.on("results")
+        @self.sio.on("result")
         def on_results(data):
             # Forward as "result" to match React client expectation
             self.socketio_ws.emit("result", data, room=batch_id)

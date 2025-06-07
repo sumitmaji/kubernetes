@@ -4,10 +4,17 @@ import { useTheme } from "../theme/ThemeContext";
 const TOKEN_KEY = "user_provided_token";
 const API_URL = ""; // Use proxy from package.json
 
+// Use ws://127.0.0.1 if running on localhost, otherwise use default or env
+const WS_URL =
+  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "ws://127.0.0.1:8080"
+    : "";
+
 const CommandRunner = () => {
   const [commands, setCommands] = useState([""]);
   const [results, setResults] = useState([]);
   const [batchId, setBatchId] = useState(null);
+  const [joinedBatchId, setJoinedBatchId] = useState(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const socketRef = useRef(null);
@@ -29,13 +36,11 @@ const CommandRunner = () => {
     setResults([]);
     setBatchId(null);
     setLoading(true);
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
     try {
       const token = localStorage.getItem(TOKEN_KEY);
-      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const isLocalhost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
       const headers = { "Content-Type": "application/json" };
       if (isLocalhost && token) {
         headers["Authorization"] = `Bearer ${token}`;
@@ -49,7 +54,14 @@ const CommandRunner = () => {
       const data = await resp.json();
       if (resp.ok && data.batch_id) {
         setBatchId(data.batch_id);
-        connectSocket(data.batch_id);
+        // Only connect/join if not already joined for this batch_id
+        if (
+          !socketRef.current ||
+          !connected ||
+          joinedBatchId !== data.batch_id
+        ) {
+          connectSocket(data.batch_id);
+        }
       } else {
         setResults([data.error || "Failed to send command"]);
       }
@@ -60,14 +72,31 @@ const CommandRunner = () => {
   };
 
   const connectSocket = (batch_id) => {
-    const socket = io(API_URL || undefined, { transports: ["websocket"] });
+    // If already connected and joined for this batch_id, do nothing
+    if (
+      socketRef.current &&
+      socketRef.current.connected &&
+      joinedBatchId === batch_id
+    ) {
+      return;
+    }
+    // If socket exists but not for this batch, disconnect first
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    const socket = io(WS_URL, { transports: ["websocket"] });
     socketRef.current = socket;
     socket.on("connect", () => {
       setConnected(true);
       socket.emit("join", { batch_id });
+      setJoinedBatchId(batch_id);
     });
     socket.on("result", (msg) => setResults((prev) => [...prev, msg]));
-    socket.on("disconnect", () => setConnected(false));
+    socket.on("disconnect", () => {
+      setConnected(false);
+      setJoinedBatchId(null);
+    });
   };
 
   return (
@@ -78,7 +107,8 @@ const CommandRunner = () => {
         border: `1px solid ${theme.colors.border}`,
         borderRadius: 8,
         padding: 24,
-        maxWidth: 600,
+        width: "90vw",
+        maxWidth: "90vw",
         margin: "2rem auto",
         boxShadow: "0 2px 8px rgba(0,0,0,0.07)"
       }}
@@ -169,7 +199,7 @@ const CommandRunner = () => {
             {results.length === 0
               ? <span style={{ color: "#888" }}>No results yet.</span>
               : results.map((r, i) => (
-                <div key={i}>{typeof r === "string" ? r : JSON.stringify(r)}</div>
+                <div key={i}>{r.output}</div>
               ))}
           </pre>
         </div>

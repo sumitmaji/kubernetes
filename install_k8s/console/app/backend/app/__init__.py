@@ -35,8 +35,9 @@ def create_app():
     # Register error handlers
     register_error_handlers(app)
 
-    from .routes.command import command_bp
+    from .routes.command import command_bp, init_app
     app.register_blueprint(command_bp, url_prefix="/api/v1/command")
+    init_app(app)
 
     # Serve React index.html at root only if not in debug mode
     if not debug_mode:

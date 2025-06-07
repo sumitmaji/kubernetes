@@ -87,7 +87,6 @@ def get_dev_token():
 def auth_middleware():
     if request.path.startswith('/api/'):
         auth_header = request.headers.get('Authorization', '')
-        print(f"Auth header: {auth_header}")
         token = None
 
         if auth_header.startswith('Bearer '):

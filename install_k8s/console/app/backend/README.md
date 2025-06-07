@@ -124,3 +124,68 @@ React Client
 **In summary:**  
 - `/send_command` forwards commands to the target server and starts a socket bridge.
 - The bridge relays `"results"` from the target server to your React client as `"result"` events via WebSocket, using the `batch_id` as a room key.
+
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ReactUI
+    participant FlaskAPI
+    participant SocketBridge
+    participant TargetSocketServer
+
+    User->>ReactUI: Enter commands & click "Send Commands"
+    ReactUI->>FlaskAPI: POST /api/v1/command/send_command {commands}
+    FlaskAPI->>TargetSocketServer: POST /send_batch_command {commands}
+    TargetSocketServer-->>FlaskAPI: {batch_id}
+    alt batch_id received
+        FlaskAPI->>SocketBridge: Start SocketBridge(batch_id)
+        SocketBridge->>TargetSocketServer: Socket.IO connect
+        SocketBridge->>TargetSocketServer: emit "join" {batch_id}
+    end
+    FlaskAPI-->>ReactUI: {batch_id}
+    ReactUI->>FlaskAPI: WebSocket connect
+    ReactUI->>FlaskAPI: emit "join" {batch_id}
+    loop For each result
+        TargetSocketServer-->>SocketBridge: emit "results" {data, batch_id}
+        SocketBridge->>FlaskAPI: emit "result" {data} to room batch_id
+        FlaskAPI-->>ReactUI: emit "result" {data}
+    end
+```
+
+This code is part of the `run` method in the `SocketBridge` class. Here’s what it does and its purpose:
+
+---
+
+### **What it does:**
+
+1. **Defines a `connect` event handler** for the Socket.IO client (`self.sio`):
+   - When the connection to the target socket server is established, it prints a message and emits a `"join"` event with the `batch_id`.  
+   - This subscribes the backend to receive results for that specific batch from the target server.
+
+2. **Defines a `results` event handler**:
+   - When the target server emits a `"results"` event (with data for the batch), this handler is called.
+   - It prints the received data and then emits a `"result"` event to all frontend clients in the corresponding room (`batch_id`) using Flask-SocketIO (`self.socketio_ws.emit`).
+
+3. **Connects to the target server**:
+   - Tries to connect to the target server’s Socket.IO endpoint.
+   - Calls `self.sio.wait()` to keep the client running and listening for events.
+
+4. **Error handling**:
+   - If there’s an exception during connection or communication, it emits a `"result"` event with the error message to the frontend clients in the room.
+
+---
+
+### **Purpose:**
+
+- **Bridge/Relay:**  
+  This method acts as a bridge between the target server’s socket and your frontend clients.  
+  It listens for results from the target server and forwards them to the correct frontend clients via WebSocket, using the `batch_id` as a room key.
+
+- **Room-based Routing:**  
+  By emitting `"join"` with the `batch_id`, it ensures only the relevant results are received and forwarded to the correct clients.
+
+---
+
+**In summary:**  
+This code connects to the target server’s socket, subscribes to results for a specific batch, and relays those results to your frontend clients in real time.
