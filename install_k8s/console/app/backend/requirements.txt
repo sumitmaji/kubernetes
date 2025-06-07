@@ -16,4 +16,5 @@ Werkzeug>=3.0.0
 python-jose==3.3.0
 python-socketio==5.11.2
 flask_socketio==5.3.6
+websocket-client==1.8.0
 pytest

@@ -35,9 +35,14 @@ const CommandRunner = () => {
     }
     try {
       const token = localStorage.getItem(TOKEN_KEY);
+      const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      const headers = { "Content-Type": "application/json" };
+      if (isLocalhost && token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       const resp = await fetch(`/api/v1/command/send_command`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        headers,
         body: JSON.stringify({ commands: commands.filter(Boolean) }),
         credentials: "include"
       });

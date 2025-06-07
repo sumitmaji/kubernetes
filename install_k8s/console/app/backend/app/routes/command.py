@@ -8,8 +8,8 @@ command_bp = Blueprint("command", __name__)
 
 # Target server config (set these in your environment or .env)
 TARGET_SERVER_API = os.environ.get("TARGET_SERVER_API", "http://web-controller.gok-controller.svc:8080/send-command-batch")
-TARGET_SOCKET_HOST = os.environ.get("TARGET_SOCKET_HOST", "controller.gokcloud.com")
-TARGET_SOCKET_PORT = int(os.environ.get("TARGET_SOCKET_PORT", "9000"))
+TARGET_SOCKET_HOST = os.environ.get("TARGET_SOCKET_HOST", "web-controller.gok-controller.svc")
+TARGET_SOCKET_PORT = int(os.environ.get("TARGET_SOCKET_PORT", "8080"))
 
 # Keep track of active bridges per batch_id
 bridges = {}
@@ -46,7 +46,8 @@ def send_command():
 
     # Start socket bridge for this batch_id
     if batch_id not in bridges:
-        bridges[batch_id] = SocketBridge(current_app.socketio, TARGET_SOCKET_HOST, TARGET_SOCKET_PORT)
+        socketio = current_app.extensions["socketio"]
+        bridges[batch_id] = SocketBridge(socketio, TARGET_SOCKET_HOST, TARGET_SOCKET_PORT)
         bridges[batch_id].start(batch_id)
 
     return jsonify({"msg": "Command sent", "batch_id": batch_id}), 200

@@ -4,8 +4,9 @@ from app.config import Config
 from app.schemas.user_schema import UserSchema
 import os
 import json
-from jose import jwt
+from jose import jwt, exceptions as jose_exceptions
 import requests
+import traceback
 
 # Mock permissions map (should be externalized)
 PERMISSIONS = {
@@ -17,12 +18,15 @@ PERMISSIONS = {
 def get_jwks():
     try:
         # Disable SSL verification in debug mode
-        verify_ssl = not current_app.debug
+        debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1" or os.environ.get("FLASK_ENV") == "development"
+        verify_ssl = not debug_mode
 
         oidc_conf = requests.get(f"{Config.OAUTH_ISSUER}/.well-known/openid-configuration", verify=verify_ssl).json()
         jwks_uri = oidc_conf["jwks_uri"]
         return requests.get(jwks_uri, verify=verify_ssl).json()
     except Exception as e:
+        print(f"Error fetching JWKS: {e}")
+        traceback.print_exc()
         return {"keys": []}
 
 JWKS = get_jwks()
@@ -30,7 +34,12 @@ JWKS = get_jwks()
 def verify_id_token(token):
     try:
         unverified_header = jwt.get_unverified_header(token)
-        key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
+        try:
+            key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header.get("kid"))
+        except StopIteration:
+            print("No matching 'kid' found in JWKS for token header.")
+            traceback.print_exc()
+            return None
         try:
             payload = jwt.decode(
                 token,
@@ -41,6 +50,7 @@ def verify_id_token(token):
             )
             return payload
         except jwt.JWTError as e:
+            print(f"JWT Error: {e}")
             if "at_hash" in str(e):
                 # Ignore at_hash error if you don't have access_token
                 payload = jwt.get_unverified_claims(token)
@@ -48,22 +58,20 @@ def verify_id_token(token):
             else:
                 raise
     except Exception as e:
+        print(f"Error verifying ID token: {e}")
+        traceback.print_exc()
         return None
 
 def verify_token(token):
     try:
-        if current_app.debug:
-            # Dev mode: use local secret and HS256
-            try:
-                payload = jwt.decode(token, "dev_secret", algorithms=['HS256'])
-            except jwt.JWTError:
-                payload = jwt.get_unverified_claims(token)
-        else:
-            payload = verify_id_token(token)
+        payload = verify_id_token(token)
         return payload
-    except jwt.ExpiredSignatureError:
+    except jose_exceptions.JWTError as e:
+        traceback.print_exc()
         return None
-    except jwt.InvalidTokenError:
+    except Exception as e:
+        print(f"Unexpected error during token verification: {e}")
+        traceback.print_exc()
         return None
 
 
@@ -84,11 +92,6 @@ def auth_middleware():
 
         if auth_header.startswith('Bearer '):
             token = auth_header.split()[1]
-        elif current_app.debug:
-            # In dev mode, inject demo token if not provided
-            token = get_dev_token()
-            if token:
-                request.headers.environ['HTTP_AUTHORIZATION'] = f'Bearer {token}'
 
         if not token:
             return jsonify({'message': 'Unauthorized'}), 401
@@ -128,10 +131,6 @@ def keycloak_required(f):
 
         if auth_header.startswith('Bearer '):
             token = auth_header.split()[1]
-        elif current_app.debug:
-            token = get_dev_token()
-            if token:
-                request.headers.environ['HTTP_AUTHORIZATION'] = f'Bearer {token}'
 
         if not token:
             return jsonify({'message': 'Unauthorized'}), 401
@@ -173,6 +172,8 @@ def register_error_handlers(app):
     @app.errorhandler(404)
     def not_found(e):
         # Serve React index.html for unknown routes (SPA support)
+        if current_app.debug:
+            return "404 Not Found", 404
         return send_from_directory(app.static_folder, "index.html")
 
     @app.errorhandler(500)
