@@ -25,6 +25,9 @@ def create_app():
     # Register error handlers
     register_error_handlers(app)
 
+    from .routes.command import command_bp
+    app.register_blueprint(command_bp, url_prefix="/api/v1/command")
+
     # Serve React index.html at root
     from flask import send_from_directory
 

@@ -3,12 +3,14 @@ import { useTheme } from '../theme/ThemeContext';
 import api from './api';
 // Change import to new component name
 import UserDataPopup from './UserDataPopup';
+import ProvideTokenPopup from './ProvideTokenPopup';
 
 const User = ({ username: propUsername, onLogin, onLogout }) => {
     const [open, setOpen] = useState(false);
     const { theme, switchTheme } = useTheme();
     const [username, setUsername] = useState(propUsername);
     const [showTokenPopup, setShowTokenPopup] = useState(false);
+    const [showProvideToken, setShowProvideToken] = useState(false);
 
     useEffect(() => {
         api.userinfo.get()
@@ -63,6 +65,19 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                         className="user-dropdown-item"
                         onClick={() => {
                             setOpen(false);
+                            setShowProvideToken(true);
+                        }}
+                        style={{
+                            color: theme.colors.primary,
+                            borderBottom: `1px solid ${theme.colors.border}`
+                        }}
+                    >
+                        Provide Token
+                    </div>
+                    <div
+                        className="user-dropdown-item"
+                        onClick={() => {
+                            setOpen(false);
                             switchTheme();
                         }}
                         style={{
@@ -103,8 +118,8 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                     )}
                 </div>
             )}
-            {/* Use UserDataPopup instead of AccessTokenPopup */}
             <UserDataPopup open={showTokenPopup} onClose={() => setShowTokenPopup(false)} />
+            <ProvideTokenPopup open={showProvideToken} onClose={() => setShowProvideToken(false)} />
         </div>
     );
 };

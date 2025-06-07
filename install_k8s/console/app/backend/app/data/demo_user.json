@@ -3,6 +3,6 @@
   "preferred_username": "devuser",
   "email": "devuser@example.com",
   "name": "Dev User",
-  "groups": ["admin"],
-  "roles": ["admin"]
+  "groups": ["administrators"],
+  "roles": ["administrators"]
 }

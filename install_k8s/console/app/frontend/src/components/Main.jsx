@@ -1,5 +1,8 @@
 import React from 'react';
 import { useTheme } from '../theme/ThemeContext';
+import Tile from "./Tile";
+import CommandRunner from "./CommanRunner";
+
 
 const Main = () => {
     const { theme } = useTheme();
@@ -10,7 +13,9 @@ const Main = () => {
                 background: theme.colors.background
             }}
         >
-            <h1>MAIN</h1>
+            <Tile title="Run Commands">
+                <CommandRunner />
+            </Tile>
         </main>
     );
 };
