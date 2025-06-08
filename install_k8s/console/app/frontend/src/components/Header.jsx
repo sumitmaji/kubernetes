@@ -35,7 +35,12 @@ const Header = ({ username, onLogin, onLogout }) => {
             <div className="header-left" />
 
             <div className="header-right">
-                <span role="img" aria-label="console" style={{ fontSize: '1.5rem' }}>🖥️</span>
+                <span
+                    role="img"
+                    aria-label="console"
+                    style={{ fontSize: '1.5rem', cursor: 'pointer' }}
+                    onClick={() => window.open("http://kube.gokcloud.com/cloudshell/home", "_blank")}
+                >🖥️</span>
                 <span
                     className="header-divider"
                     style={{ background: theme.colors.text }}

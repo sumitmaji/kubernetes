@@ -34,6 +34,7 @@ const ServiceTile = ({ title, onOpen }) => (
 const Main = () => {
     const { theme } = useTheme();
     const [showRabbitmq, setShowRabbitmq] = useState(false);
+    const [showVault, setShowVault] = useState(false);
 
     return (
         <main
@@ -53,6 +54,30 @@ const Main = () => {
                     apiPrefix="rabbitmq"
                     actions={[
                         { label: "Logs", apiRoute: "logs" },
+                        { label: "Pods", apiRoute: "pods" }
+                    ]}
+                />
+            </Tile>
+            <Tile
+                title="Vault"
+            >
+                <ServiceConsole
+                    onClose={() => setShowVault(false)}
+                    apiPrefix="vault"
+                    actions={[
+                        { label: "Status", apiRoute: "status" },
+                        { label: "Pods", apiRoute: "pods" }
+                    ]}
+                />
+            </Tile>
+            <Tile
+                title="CloudShell"
+            >
+                <ServiceConsole
+                    onClose={() => setShowVault(false)}
+                    apiPrefix="cloudshell"
+                    actions={[
+                        { label: "Install", apiRoute: "install" },
                         { label: "Pods", apiRoute: "pods" }
                     ]}
                 />

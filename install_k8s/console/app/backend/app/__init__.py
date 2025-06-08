@@ -39,11 +39,13 @@ def create_app():
     # Initialize SocketIO handlers
     register_socketio_handlers(app)
 
-    from .routes.command import command_bp
-    app.register_blueprint(command_bp, url_prefix="/api/v1/command")
+    from app.routes.vault import vault_bp
+    from app.routes.rabbitmq import rabbitmq_bp
+    from app.routes.cloudshell import cloudshell_bp
 
-    from .routes.rabbitmq import rabbitmq_bp
+    app.register_blueprint(vault_bp, url_prefix="/api/v1/command/vault")
     app.register_blueprint(rabbitmq_bp, url_prefix="/api/v1/command/rabbitmq")
+    app.register_blueprint(cloudshell_bp, url_prefix="/api/v1/command/cloudshell")
 
     # Serve React index.html at root only if not in debug mode
     if not debug_mode:
