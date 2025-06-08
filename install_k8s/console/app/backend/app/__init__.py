@@ -5,6 +5,7 @@ from .routes.user import user_ns
 from flask_restx import Api
 import os
 from flask_socketio import SocketIO
+from app.socketio_handlers import register_socketio_handlers
 
 def create_app():
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1" or os.environ.get("FLASK_ENV") == "development"
@@ -35,9 +36,14 @@ def create_app():
     # Register error handlers
     register_error_handlers(app)
 
-    from .routes.command import command_bp, init_app
+    # Initialize SocketIO handlers
+    register_socketio_handlers(app)
+
+    from .routes.command import command_bp
     app.register_blueprint(command_bp, url_prefix="/api/v1/command")
-    init_app(app)
+
+    from .routes.rabbitmq import rabbitmq_bp
+    app.register_blueprint(rabbitmq_bp, url_prefix="/api/v1/command/rabbitmq")
 
     # Serve React index.html at root only if not in debug mode
     if not debug_mode:

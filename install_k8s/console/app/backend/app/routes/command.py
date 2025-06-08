@@ -3,6 +3,7 @@ import requests
 from flask import Blueprint, request, jsonify, current_app
 from flask_socketio import emit, join_room
 from app.socket_bridge import SocketBridge  # You will need to create this file
+from app.socketio_handlers import register_socketio_handlers
 
 command_bp = Blueprint("command", __name__)
 
@@ -13,23 +14,6 @@ TARGET_SOCKET_PORT = int(os.environ.get("TARGET_SOCKET_PORT", "8080"))
 
 # Keep track of active bridges per batch_id
 bridges = {}
-
-def register_socketio_handlers(app):
-    socketio = app.extensions["socketio"]
-
-    @socketio.on("join")
-    def handle_join(data):
-        batch_id = data.get("batch_id")
-        if batch_id:
-            join_room(batch_id)
-
-    @socketio.on("connect")
-    def handle_connect():
-        print("A client connected.")
-
-# Register the handler when the blueprint is registered
-def init_app(app):
-    register_socketio_handlers(app)
 
 @command_bp.route("/send_command", methods=["POST"])
 def send_command():

@@ -18,7 +18,7 @@ const Tile = ({ title, children, tileStyle, popupStyle }) => {
           padding: 24,
           margin: 16,
           borderRadius: 12,
-          background: "#f5f5f5",
+          background: "#e0e0e0",
           boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
           cursor: "pointer",
           minWidth: 180,
