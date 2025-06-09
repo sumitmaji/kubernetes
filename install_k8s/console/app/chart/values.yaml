@@ -19,3 +19,7 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+
+env:
+  OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
+  OAUTH_CLIENT_ID: "gok-developers-client"

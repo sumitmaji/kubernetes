@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../theme/ThemeContext';
-import api from './api'; // Import the api module
-
+import api from './api';
+import UserDataPopup from './UserDataPopup';
+import ProvideTokenPopup from './ProvideTokenPopup';
+const TOKEN_KEY = "user_provided_token";
 const User = ({ username: propUsername, onLogin, onLogout }) => {
     const [open, setOpen] = useState(false);
     const { theme, switchTheme } = useTheme();
     const [username, setUsername] = useState(propUsername);
+    const [showTokenPopup, setShowTokenPopup] = useState(false);
+    const [showProvideToken, setShowProvideToken] = useState(false);
 
     useEffect(() => {
-        // Fetch user info from backend API
         api.userinfo.get()
             .then(res => {
                 if (res.data && res.data.username) {
@@ -44,6 +47,36 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                         border: `1px solid ${theme.colors.border}`
                     }}
                 >
+                    {username && (
+                        <div
+                            className="user-dropdown-item"
+                            onClick={() => {
+                                setOpen(false);
+                                setShowTokenPopup(true);
+                            }}
+                            style={{
+                                color: theme.colors.primary,
+                                borderBottom: `1px solid ${theme.colors.border}`
+                            }}
+                        >
+                            Show Id Token
+                        </div>
+                    )}
+                    {!username && (
+                        <div
+                            className="user-dropdown-item"
+                            onClick={() => {
+                                setOpen(false);
+                                setShowProvideToken(true);
+                            }}
+                            style={{
+                                color: theme.colors.primary,
+                                borderBottom: `1px solid ${theme.colors.border}`
+                            }}
+                        >
+                            Provide Token
+                        </div>
+                    )}
                     <div
                         className="user-dropdown-item"
                         onClick={() => {
@@ -62,6 +95,8 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                             className="user-dropdown-item"
                             onClick={() => {
                                 setOpen(false);
+                                localStorage.removeItem(TOKEN_KEY);
+                                setUsername(null);
                                 onLogout && onLogout();
                             }}
                             style={{
@@ -88,6 +123,8 @@ const User = ({ username: propUsername, onLogin, onLogout }) => {
                     )}
                 </div>
             )}
+            <UserDataPopup open={showTokenPopup} onClose={() => setShowTokenPopup(false)} />
+            <ProvideTokenPopup open={showProvideToken} onClose={() => setShowProvideToken(false)} />
         </div>
     );
 };

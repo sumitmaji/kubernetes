@@ -3239,11 +3239,19 @@ patchConsoleWithOauth() {
 }
 
 consoleInst() {
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/console/app
+  ./build.sh
+  ./tag_push.sh
+  popd
+
+
   # Create namespace for console
   kubectl create namespace console || echo "Namespace console already exists"
 
   # Copy image pull secret if needed
   copySecret regcred kube-system console
+
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n console
 
   # Install console using Helm chart (adjust path if needed)
   helm install console ${MOUNT_PATH}/kubernetes/install_k8s/console/app/chart -n console
@@ -3385,7 +3393,8 @@ get_keycloak_token() {
   read -p "Keycloak URL (default: https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token): " KEYCLOAK_URL
   KEYCLOAK_URL=${KEYCLOAK_URL:-https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token}
 
-  read -p "Client ID: " CLIENT_ID
+  read -p "Client ID (default: gok-developers-client): " CLIENT_ID
+  CLIENT_ID=${CLIENT_ID:-gok-developers-client}
   read -p "Client Secret: " CLIENT_SECRET
   read -p "Username: " USERNAME
   read -s -p "Password: " PASSWORD
@@ -3675,6 +3684,7 @@ oauth2ProxyInst(){
     --set "extraArgs[23]=--cookie-refresh=1h" \
     --set "extraArgs[24]=--cookie-expire=8h" \
     --set "extraArgs[25]=--set-xauthrequest=true" \
+    --set "extraArgs[26]=--skip-jwt-bearer-tokens=true" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --create-namespace
   gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)

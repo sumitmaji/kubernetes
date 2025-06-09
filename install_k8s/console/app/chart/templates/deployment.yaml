@@ -12,6 +12,10 @@ spec:
       labels:
         app: {{ include "console.name" . }}
     spec:
+      volumes:
+        - name: ca-cert
+          configMap:
+            name: ca-cert
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
@@ -23,3 +27,13 @@ spec:
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
+            - name: REQUESTS_CA_BUNDLE
+              value: /usr/local/share/ca-certificates/issuer.crt
+            - name: OAUTH_ISSUER
+              value: {{ .Values.env.OAUTH_ISSUER | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.env.OAUTH_CLIENT_ID | quote }}
+          volumeMounts:
+            - name: ca-cert
+              mountPath: /usr/local/share/ca-certificates/issuer.crt
+              subPath: issuer.crt
