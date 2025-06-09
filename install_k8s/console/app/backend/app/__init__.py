@@ -39,6 +39,9 @@ def create_app():
     # Initialize SocketIO handlers
     register_socketio_handlers(app)
 
+    from .routes.command import command_bp
+    app.register_blueprint(command_bp, url_prefix="/api/v1/command")
+
     from app.routes.vault import vault_bp
     from app.routes.rabbitmq import rabbitmq_bp
     from app.routes.cloudshell import cloudshell_bp
