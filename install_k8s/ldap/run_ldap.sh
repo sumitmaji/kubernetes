@@ -37,3 +37,4 @@ helm install $RELEASE_NAME $PATH_TO_CHART \
 echo "Waiting for services to be up!!!!"
 kubectl --timeout=180s wait --for=condition=Ready pods --all --namespace "$NS"
 echoSuccess "$REPO_NAME service is up!!"
+echodSuccess "You can access the service at: https://kube.gokcloud.com/phpldapadmin/"
