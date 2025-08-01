@@ -46,7 +46,7 @@ controller:
   config:
     proxy-buffer-size: "16k"
     proxy-buffers: "4 16k"
-    proxy-busy-buffers-size: "32k"
+    proxy-busy-buffers-size: "64k"
 
   # -- Annotations to be added to the controller config configuration configmap.
   configAnnotations: {}
