@@ -420,9 +420,9 @@ ingressInst() {
     --set controller.service.nodePorts.https=443 \
     --set controller.service.type=NodePort \
     --set defaultBackend.enabled=true \
-    --set controller.config.proxy-buffer-size="144k" \
-    --set controller.config.proxy-buffers="4 144k" \
-    --set controller.config.proxy-busy-buffers-size="432k" \
+    --set controller.config.proxy-buffer-size="128k" \
+    --set controller.config.proxy-buffers="4 128k" \
+    --set controller.config.proxy-busy-buffers-size="384k" \
   #    -f charts/values.yaml
 
   waitForServiceAvailable ingress-nginx
