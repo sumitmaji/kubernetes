@@ -261,7 +261,9 @@ def group():
 
 # Create user and assign admin and dev group
 def user():
-  password = getpass.getpass('Password for Sample User: ')
+  password = env.get('SAMPLE_USER_PASSWORD')
+  if not password:
+    password = getpass.getpass('Password for Sample User: ')
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,

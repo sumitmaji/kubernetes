@@ -2006,14 +2006,14 @@ helmShowTemplate(){
 oauth2Secret(){
   CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
-  client_secret=$(promptSecret "Enter Client Secret: ")
-  ACTIVE_PROFILE=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")
-  OIDC_ISSUE_URL=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")
-  OIDC_USERNAME_CLAIM=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")
-  OIDC_GROUPS_CLAIM=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")
-  AUTH0_DOMAIN=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")
-  APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
-  JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
+  : "${client_secret:=$(promptSecret "Enter Client Secret: ")}"
+  : "${ACTIVE_PROFILE:=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")}"
+  : "${OIDC_ISSUE_URL:=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")}"
+  : "${OIDC_USERNAME_CLAIM:=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")}"
+  : "${OIDC_GROUPS_CLAIM:=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")}"
+  : "${AUTH0_DOMAIN:=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")}"
+  : "${APP_HOST:=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")}"
+  : "${JWKS_URL:=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")}"
   OAUTH_SERVER_URI="https://$(fullKeycloakUrl)"
 
   # If secret already exists then delete it
@@ -2948,7 +2948,7 @@ installKeycloakWithCertMgr(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
   chmod +x setup_user_federation.sh setup_group_mappers.sh
-  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  : "${LDAP_PASSWORD:=$(promptSecret "Please enter LDAP password for admin: ")}"
   
   ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD $LDAP_PASSWORD
   if [[ $? -ne 0 ]]; then
@@ -4426,9 +4426,28 @@ collectUserInputs(){
   echo "OIDC_CLIENT_ID='$OIDC_CLIENT_ID'" >> "$INPUT_FILE"
   echo "REALM='$REALM'" >> "$INPUT_FILE"
   
+  SAMPLE_USER_PASSWORD=$(promptSecret "Please enter sample user password (for user: skmaji1): ")
+  echo "SAMPLE_USER_PASSWORD='$SAMPLE_USER_PASSWORD'" >> "$INPUT_FILE"
+
   # Collect OAuth2 client secret
-  CLIENT_SECRET=$(promptSecret "Enter Client Secret: ")
-  echo "CLIENT_SECRET='$CLIENT_SECRET'" >> "$INPUT_FILE"
+  client_secret=$(promptSecret "Enter Client Secret: ")
+  ACTIVE_PROFILE=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")
+  OIDC_ISSUE_URL=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")
+  OIDC_USERNAME_CLAIM=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")
+  OIDC_GROUPS_CLAIM=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")
+  AUTH0_DOMAIN=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")
+  APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
+  JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
+  {
+    echo "client_secret='$client_secret'"
+    echo "ACTIVE_PROFILE='$ACTIVE_PROFILE'"
+    echo "OIDC_ISSUE_URL='$OIDC_ISSUE_URL'"
+    echo "OIDC_USERNAME_CLAIM='$OIDC_USERNAME_CLAIM'"
+    echo "OIDC_GROUPS_CLAIM='$OIDC_GROUPS_CLAIM'"
+    echo "AUTH0_DOMAIN='$AUTH0_DOMAIN'"
+    echo "APP_HOST='$APP_HOST'"
+    echo "JWKS_URL='$JWKS_URL'"
+  } >> "$INPUT_FILE"
   
   # Collect Vault inputs if needed
   # Add other inputs as needed...
