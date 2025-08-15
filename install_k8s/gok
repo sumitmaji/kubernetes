@@ -4395,8 +4395,8 @@ collectUserInputs(){
   DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
   DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
   {
-    echo "DOCKER_USERNAME='$DOCKER_USERNAME'"
-    echo "DOCKER_PASSWORD='$DOCKER_PASSWORD'"
+    echo "export DOCKER_USERNAME='$DOCKER_USERNAME'"
+    echo "export DOCKER_PASSWORD='$DOCKER_PASSWORD'"
   } >> "$INPUT_FILE"
   
   # Collect inputs for LDAP
@@ -4407,33 +4407,33 @@ collectUserInputs(){
   KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
 
   {
-    echo "LDAP_PASSWORD='$LDAP_PASSWORD'"
-    echo "KERBEROS_PASSWORD='$KERBEROS_PASSWORD'"
-    echo "KERBEROS_KDC_PASSWORD='$KERBEROS_KDC_PASSWORD'"
-    echo "KERBEROS_ADM_PASSWORD='$KERBEROS_ADM_PASSWORD'"
+    echo "export LDAP_PASSWORD='$LDAP_PASSWORD'"
+    echo "export KERBEROS_PASSWORD='$KERBEROS_PASSWORD'"
+    echo "export KERBEROS_KDC_PASSWORD='$KERBEROS_KDC_PASSWORD'"
+    echo "export KERBEROS_ADM_PASSWORD='$KERBEROS_ADM_PASSWORD'"
   } >> "$INPUT_FILE"
 
   # Collect inputs for Keycloak
   echo "=== Keycloak Configuration ==="
   KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
   KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
-  echo "KEYCLOAK_ADMIN_USERNAME='$KEYCLOAK_ADMIN_USERNAME'" >> "$INPUT_FILE"
-  echo "KEYCLOAK_ADMIN_PASSWORD='$KEYCLOAK_ADMIN_PASSWORD'" >> "$INPUT_FILE"
-  
+  echo "export KEYCLOAK_ADMIN_USERNAME='$KEYCLOAK_ADMIN_USERNAME'" >> "$INPUT_FILE"
+  echo "export KEYCLOAK_ADMIN_PASSWORD='$KEYCLOAK_ADMIN_PASSWORD'" >> "$INPUT_FILE"
+
   # Collect inputs for PostgreSQL
   POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
   POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
-  echo "POSTGRESQL_USERNAME='$POSTGRESQL_USERNAME'" >> "$INPUT_FILE"
-  echo "POSTGRESQL_PASSWORD='$POSTGRESQL_PASSWORD'" >> "$INPUT_FILE"
-  
+  echo "export POSTGRESQL_USERNAME='$POSTGRESQL_USERNAME'" >> "$INPUT_FILE"
+  echo "export POSTGRESQL_PASSWORD='$POSTGRESQL_PASSWORD'" >> "$INPUT_FILE"
+
   # Collect inputs for OIDC
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
   REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
-  echo "OIDC_CLIENT_ID='$OIDC_CLIENT_ID'" >> "$INPUT_FILE"
-  echo "REALM='$REALM'" >> "$INPUT_FILE"
+  echo "export OIDC_CLIENT_ID='$OIDC_CLIENT_ID'" >> "$INPUT_FILE"
+  echo "export REALM='$REALM'" >> "$INPUT_FILE"
   
   SAMPLE_USER_PASSWORD=$(promptSecret "Please enter sample user password (for user: skmaji1): ")
-  echo "SAMPLE_USER_PASSWORD='$SAMPLE_USER_PASSWORD'" >> "$INPUT_FILE"
+  echo "export SAMPLE_USER_PASSWORD='$SAMPLE_USER_PASSWORD'" >> "$INPUT_FILE"
 
   # Collect OAuth2 client secret
   ACTIVE_PROFILE=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")
@@ -4444,12 +4444,12 @@ collectUserInputs(){
   APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
   JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
   {
-    echo "ACTIVE_PROFILE='$ACTIVE_PROFILE'"
-    echo "OIDC_ISSUE_URL='$OIDC_ISSUE_URL'"
-    echo "OIDC_USERNAME_CLAIM='$OIDC_USERNAME_CLAIM'"
-    echo "OIDC_GROUPS_CLAIM='$OIDC_GROUPS_CLAIM'"
-    echo "AUTH0_DOMAIN='$AUTH0_DOMAIN'"
-    echo "APP_HOST='$APP_HOST'"
+    echo "export ACTIVE_PROFILE='$ACTIVE_PROFILE'"
+    echo "export OIDC_ISSUE_URL='$OIDC_ISSUE_URL'"
+    echo "export OIDC_USERNAME_CLAIM='$OIDC_USERNAME_CLAIM'"
+    echo "export OIDC_GROUPS_CLAIM='$OIDC_GROUPS_CLAIM'"
+    echo "export AUTH0_DOMAIN='$AUTH0_DOMAIN'"
+    echo "export APP_HOST='$APP_HOST'"
     echo "JWKS_URL='$JWKS_URL'"
   } >> "$INPUT_FILE"
   
