@@ -4444,7 +4444,6 @@ collectUserInputs(){
   APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
   JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
   {
-    echo "client_secret='$client_secret'"
     echo "ACTIVE_PROFILE='$ACTIVE_PROFILE'"
     echo "OIDC_ISSUE_URL='$OIDC_ISSUE_URL'"
     echo "OIDC_USERNAME_CLAIM='$OIDC_USERNAME_CLAIM'"
