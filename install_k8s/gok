@@ -4407,23 +4407,23 @@ function resetBaseServices(){
   echo "This will reset the following components: vault, rabbitmq, oauth2, keycloak, ldap, registry, kyverno, cert-manager, ingress."
   sleep 5
   gok reset vault
-  echo "Vault reset completed."
+  echoSuccess "Vault reset completed."
   gok reset rabbitmq
-  echo "RabbitMQ reset completed."
+  echoSuccess "RabbitMQ reset completed."
   gok reset oauth2
-  echo "OAuth2 reset completed."
+  echoSuccess "OAuth2 reset completed."
   gok reset keycloak
-  echo "Keycloak reset completed."
+  echoSuccess "Keycloak reset completed."
   gok reset ldap
-  echo "LDAP reset completed."
+  echoSuccess "LDAP reset completed."
   gok reset registry
-  echo "Registry reset completed."
+  echoSuccess "Registry reset completed."
   gok reset kyverno
-  echo "Kyverno reset completed."
+  echoSuccess "Kyverno reset completed."
   gok reset cert-manager
-  echo "Cert-Manager reset completed."
+  echoSuccess "Cert-Manager reset completed."
   gok reset ingress
-  echo "Ingress reset completed."
+  echoSuccess "Ingress reset completed."
 }
 
 
