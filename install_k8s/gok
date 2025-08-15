@@ -4598,6 +4598,8 @@ EOF
     istioReset
   elif [ "$COMPONENT" == "kyverno" ]; then
     kyvernoReset
+  elif [ "$COMPONENT" == "base-services" ]; then
+    resetBaseServices
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     kubeadm reset <<EOF
 y
