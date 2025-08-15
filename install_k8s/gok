@@ -4388,14 +4388,25 @@ collectUserInputs(){
   echo "=== Docker Registry Credentials ==="
   DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
   DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
-  echo "DOCKER_USERNAME='$DOCKER_USERNAME'" >> "$INPUT_FILE"
-  echo "DOCKER_PASSWORD='$DOCKER_PASSWORD'" >> "$INPUT_FILE"
+  {
+    echo "DOCKER_USERNAME='$DOCKER_USERNAME'"
+    echo "DOCKER_PASSWORD='$DOCKER_PASSWORD'"
+  } >> "$INPUT_FILE"
   
   # Collect inputs for LDAP
   echo "=== LDAP Configuration ==="
   LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
-  echo "LDAP_PASSWORD='$LDAP_PASSWORD'" >> "$INPUT_FILE"
-  
+  KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
+  KERBEROS_KDC_PASSWORD=$(promptSecret "Please enter Kerberos kdc password: ")
+  KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
+
+  {
+    echo "LDAP_PASSWORD='$LDAP_PASSWORD'"
+    echo "KERBEROS_PASSWORD='$KERBEROS_PASSWORD'"
+    echo "KERBEROS_KDC_PASSWORD='$KERBEROS_KDC_PASSWORD'"
+    echo "KERBEROS_ADM_PASSWORD='$KERBEROS_ADM_PASSWORD'"
+  } >> "$INPUT_FILE"
+
   # Collect inputs for Keycloak
   echo "=== Keycloak Configuration ==="
   KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
