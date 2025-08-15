@@ -435,7 +435,7 @@ resetChart(){
 
 baseInst(){
   echo "Installing base image"
-  pushd "$WORKING_DIR"/kubernetes/install_k8s/base || exit
+  pushd "$MOUNT_PATH"/kubernetes/install_k8s/base || exit
   find . -type f -name "*.sh" -exec chmod +x {} \;
   ./build.sh
   popd || exit
