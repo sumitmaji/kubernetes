@@ -1670,8 +1670,8 @@ genRegistryPassword(){
 
 imagePullSecrets(){
   # Create a secret for the registry
-  DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
-  DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
+  : "${DOCKER_USERNAME:=$(promptUserInput "Please enter docker user id: ")}"
+  : "${DOCKER_PASSWORD:=$(promptSecret "Please enter your docker password: ")}"
   DOCKER_EMAIL="skmaji@outlook.com"
 
   # Delete the secret if it already exists
@@ -2603,8 +2603,8 @@ keycloakInst(){
   #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
   #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
   kubectl create ns keycloak
-  KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
-  KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
+  : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
+  : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
   
   # createVaultSecretStore \
   # -p "secret/keycloak/admin" \
@@ -2616,8 +2616,8 @@ keycloakInst(){
   # -k "adminUser=${KEYCLOAK_ADMIN_USERNAME}" \
   # -k "adminPassword=${KEYCLOAK_ADMIN_PASSWORD}"
   
-  POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
-  POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+  : "${POSTGRESQL_USERNAME:=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")}"
+  : "${POSTGRESQL_PASSWORD:=$(promptSecret "Please enter postgresql password: ")}"
 
   # createVaultSecretStore \
   # -p "secret/keycloak/postgresql" \
@@ -2629,8 +2629,8 @@ keycloakInst(){
   # -k "username=${POSTGRESQL_USERNAME}" \
   # -k "password=${POSTGRESQL_PASSWORD}"
   
-  OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
-  REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
+  : "${OIDC_CLIENT_ID:=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")}"
+  : "${REALM:=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")}"
 
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
@@ -2971,10 +2971,10 @@ installKeycloakWithCertMgr(){
 installLdap(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
 
-  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
-  KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
-  KERBEROS_KDC_PASSWORD=$(promptSecret "Please enter Kerberos kdc password: ")
-  KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
+  : "${LDAP_PASSWORD:=${1:-$(promptSecret "Please enter LDAP password for admin: ")} }"
+  : "${KERBEROS_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos password: ")} }"
+  : "${KERBEROS_KDC_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos kdc password: ")} }"
+  : "${KERBEROS_ADM_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos adm password: ")} }"
   
   ./run_ldap.sh $LDAP_PASSWORD $KERBEROS_PASSWORD $KERBEROS_KDC_PASSWORD $KERBEROS_ADM_PASSWORD
   if [[ $? -ne 0 ]]; then
@@ -4322,6 +4322,7 @@ function taintNodeCmd() {
 
 function installBaseServices(){
   STATE_FILE="/tmp/base_services_install_state"
+  INPUT_FILE="/tmp/base_services_inputs"
   
   # Check current state
   if [ -f "$STATE_FILE" ]; then
@@ -4339,6 +4340,10 @@ function installBaseServices(){
     esac
   fi
   
+  # Pre-collect all user inputs
+  echo "Collecting required inputs for base services installation..."
+  collectUserInputs
+  
   # Pre-reboot services
   echo "Installing pre-reboot base services..."
   echo "starting_install" > "$STATE_FILE"
@@ -4346,9 +4351,8 @@ function installBaseServices(){
   gok install ingress
   gok install cert-manager
   
-  # Check if reboot is needed (cert-manager with self-signed certs)
+  # Check if reboot is needed
   if [[ "$CERTMANAGER_CHALANGE_TYPE" == "selfsigned" ]]; then
-    # Prepare for reboot
     echo "post_reboot" > "$STATE_FILE"
     
     # Create systemd service for post-reboot continuation
@@ -4371,32 +4375,93 @@ EOF
     echoWarning "Self-signed certificate added to root ca, rebooting system for it to take effect"
     sudo reboot
   else
-    # No reboot needed, continue with post-reboot services
     postRebootBaseServices
   fi
+}
+
+collectUserInputs(){
+  INPUT_FILE="/tmp/base_services_inputs"
+  
+  echo "# Base Services Installation Inputs" > "$INPUT_FILE"
+
+  # Collect Docker credentials
+  echo "=== Docker Registry Credentials ==="
+  DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
+  DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
+  echo "DOCKER_USERNAME='$DOCKER_USERNAME'" >> "$INPUT_FILE"
+  echo "DOCKER_PASSWORD='$DOCKER_PASSWORD'" >> "$INPUT_FILE"
+  
+  # Collect inputs for LDAP
+  echo "=== LDAP Configuration ==="
+  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  echo "LDAP_PASSWORD='$LDAP_PASSWORD'" >> "$INPUT_FILE"
+  
+  # Collect inputs for Keycloak
+  echo "=== Keycloak Configuration ==="
+  KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
+  KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
+  echo "KEYCLOAK_ADMIN_USERNAME='$KEYCLOAK_ADMIN_USERNAME'" >> "$INPUT_FILE"
+  echo "KEYCLOAK_ADMIN_PASSWORD='$KEYCLOAK_ADMIN_PASSWORD'" >> "$INPUT_FILE"
+  
+  # Collect inputs for PostgreSQL
+  POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
+  POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+  echo "POSTGRESQL_USERNAME='$POSTGRESQL_USERNAME'" >> "$INPUT_FILE"
+  echo "POSTGRESQL_PASSWORD='$POSTGRESQL_PASSWORD'" >> "$INPUT_FILE"
+  
+  # Collect inputs for OIDC
+  OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
+  REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
+  echo "OIDC_CLIENT_ID='$OIDC_CLIENT_ID'" >> "$INPUT_FILE"
+  echo "REALM='$REALM'" >> "$INPUT_FILE"
+  
+  # Collect OAuth2 client secret
+  CLIENT_SECRET=$(promptSecret "Enter Client Secret: ")
+  echo "CLIENT_SECRET='$CLIENT_SECRET'" >> "$INPUT_FILE"
+  
+  # Collect Vault inputs if needed
+  # Add other inputs as needed...
+  
+  echo "All inputs collected and saved to $INPUT_FILE"
 }
 
 postRebootBaseServices(){
   echo "Installing post-reboot base services..."
   
-  # Clean up systemd service if it exists
+  # Load saved inputs
+  INPUT_FILE="/tmp/base_services_inputs"
+  if [ -f "$INPUT_FILE" ]; then
+    source "$INPUT_FILE"
+    echo "Loaded saved user inputs"
+  else
+    echoFailed "Input file not found! Cannot continue without user inputs."
+    return 1
+  fi
+  
+  # Clean up systemd service
   if [ -f "/etc/systemd/system/base-services-post-reboot.service" ]; then
     systemctl disable base-services-post-reboot.service
     rm -f /etc/systemd/system/base-services-post-reboot.service
     systemctl daemon-reload
   fi
   
-  # Remove cron job if it exists
-  crontab -l | grep -v "installBaseServices" | crontab - 2>/dev/null || true
-  
+  # Install services using saved inputs
   gok install kyverno
   gok install registry
   gok install base
-  gok install ldap
-  gok install keycloak
+  
+  # Install LDAP with saved password
+  installLdap "$LDAP_PASSWORD"
+  
+  # Install Keycloak with saved credentials
+  installKeycloakWithSavedCredentials
+  
   gok install oauth2
   gok install rabibtmq
   gok install vault
+  
+  # Clean up input file
+  rm -f "$INPUT_FILE"
   
   echo "completed" > "/tmp/base_services_install_state"
   echoSuccess "Base services installation completed."
