@@ -433,6 +433,15 @@ resetChart(){
   echo "ChartMuseum has been reset successfully."
 }
 
+baseInst(){
+  echo "Installing base image"
+  pushd "$WORKING_DIR"/kubernetes/install_k8s/base || exit
+  find . -type f -name "*.sh" -exec chmod +x {} \;
+  ./build.sh
+  popd || exit
+  echoSuccess "Base image installed successfully!"
+}
+
 
 chartInst() {
   # Step 1: Create a namespace for ChartMuseum
@@ -4372,6 +4381,8 @@ function installCmd() {
     istioInst
   elif [ "$COMPONENT" == "kyverno" ]; then
     kyvernoInst
+  elif [ "$COMPONENT" == "base" ]; then
+    baseInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"

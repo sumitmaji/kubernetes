@@ -1,0 +1,4 @@
+IMAGE_NAME=sumit/base-trusty
+REPO_NAME=base-trusty
+CONTAINER_NAME=base-trusty
+DEPLOY=false
