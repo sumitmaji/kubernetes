@@ -4483,13 +4483,8 @@ postRebootBaseServices(){
   gok install kyverno
   gok install registry
   gok install base
-  
-  # Install LDAP with saved password
-  installLdap "$LDAP_PASSWORD"
-  
-  # Install Keycloak with saved credentials
-  installKeycloakWithSavedCredentials
-  
+  gok install ldap
+  gok install keycloak
   gok install oauth2
   gok install rabibtmq
   gok install vault
