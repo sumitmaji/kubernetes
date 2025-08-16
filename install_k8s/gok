@@ -4472,11 +4472,11 @@ Description=Base Services Post Reboot Setup
 After=multi-user.target
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=/root/post-reboot-script.sh
-RemainAfterExit=yes
-TimeoutStartSec=1800
-TimeoutStopSec=300
+Restart=no
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
