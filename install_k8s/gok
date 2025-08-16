@@ -4401,8 +4401,8 @@ collectUserInputs(){
 }
 
 function installBaseServices(){
-  STATE_FILE="/tmp/base_services_install_state"
-  INPUT_FILE="/tmp/base_services_inputs"
+  STATE_FILE="/root/base_services_install_state"
+  INPUT_FILE="/root/base_services_inputs"
   
   # Check current state
   if [ -f "$STATE_FILE" ]; then
@@ -4481,7 +4481,7 @@ postRebootBaseServices(){
   echo "Installing post-reboot base services..."
   
   # Load saved inputs
-  INPUT_FILE="/tmp/base_services_inputs"
+  INPUT_FILE="/root/base_services_inputs"
   if [ -f "$INPUT_FILE" ]; then
     source "$INPUT_FILE"
     echo "Loaded saved user inputs"
