@@ -4436,7 +4436,7 @@ function installBaseServices(){
     echo "post_reboot" > "$STATE_FILE"
     
     # Create systemd service for post-reboot continuation
-    cat > /etc/systemd/system/base-services-post-reboot.service <<EOF
+    cat > /etc/systemd/system/base-services-post-reboot-1.service <<EOF
 [Unit]
 Description=Base Services Post Reboot Setup
 After=multi-user.target
@@ -4468,7 +4468,7 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-    systemctl enable base-services-post-reboot.service
+    systemctl enable base-services-post-reboot-1.service
     
     echoWarning "Self-signed certificate added to root ca, rebooting system for it to take effect"
     sudo reboot
@@ -4491,9 +4491,9 @@ postRebootBaseServices(){
   fi
   
   # Clean up systemd service
-  if [ -f "/etc/systemd/system/base-services-post-reboot.service" ]; then
-    systemctl disable base-services-post-reboot.service
-    rm -f /etc/systemd/system/base-services-post-reboot.service
+  if [ -f "/etc/systemd/system/base-services-post-reboot-1.service" ]; then
+    systemctl disable base-services-post-reboot-1.service
+    rm -f /etc/systemd/system/base-services-post-reboot-1.service
     systemctl daemon-reload
   fi
   
