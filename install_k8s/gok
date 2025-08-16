@@ -4475,6 +4475,8 @@ After=multi-user.target
 Type=oneshot
 ExecStart=/root/post-reboot-script.sh
 RemainAfterExit=yes
+TimeoutStartSec=1800
+TimeoutStopSec=300
 
 [Install]
 WantedBy=multi-user.target
