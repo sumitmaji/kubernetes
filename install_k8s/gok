@@ -4442,11 +4442,14 @@ function installBaseServices(){
 export MOUNT_PATH=/root
 source $MOUNT_PATH/kubernetes/install_k8s/util
 source $MOUNT_PATH/kubernetes/install_k8s/gok
+export KUBECONFIG=/root/.kube/config
+
 for i in {1..30}; do
   if kubectl get nodes &>/dev/null; then
     echo "Kubernetes is up and running."
     break
   else
+    kubectl get nodes
     echo "Waiting for Kubernetes API to be available... ($i/30)"
     sleep 10
   fi
