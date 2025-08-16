@@ -4435,15 +4435,9 @@ function installBaseServices(){
   if [[ "$CERTMANAGER_CHALANGE_TYPE" == "selfsigned" ]]; then
     echo "post_reboot" > "$STATE_FILE"
     
-    # Create systemd service for post-reboot continuation
-    cat > /etc/systemd/system/base-services-post-reboot-1.service <<EOF
-[Unit]
-Description=Base Services Post Reboot Setup
-After=multi-user.target
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c '
+    # Create a separate script file instead of inline bash
+    cat > /root/post-reboot-script.sh <<'SCRIPT_EOF'
+#!/bin/bash
 # Wait for Kubernetes API to be available before proceeding
 for i in {1..30}; do
   if kubectl get nodes &>/dev/null; then
@@ -4460,8 +4454,23 @@ if ! kubectl get nodes &>/dev/null; then
   exit 1
 fi
 
-export MOUNT_PATH=/root && source $MOUNT_PATH/kubernetes/install_k8s/util && source $MOUNT_PATH/kubernetes/install_k8s/gok && installBaseServices
-'
+export MOUNT_PATH=/root
+source $MOUNT_PATH/kubernetes/install_k8s/util
+source $MOUNT_PATH/kubernetes/install_k8s/gok
+installBaseServices
+SCRIPT_EOF
+    
+    chmod +x /root/post-reboot-script.sh
+    
+    # Create systemd service for post-reboot continuation
+    cat > /etc/systemd/system/base-services-post-reboot-1.service <<EOF
+[Unit]
+Description=Base Services Post Reboot Setup
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/post-reboot-script.sh
 RemainAfterExit=yes
 
 [Install]
@@ -4490,10 +4499,11 @@ postRebootBaseServices(){
     return 1
   fi
   
-  # Clean up systemd service
+  # Clean up systemd service and script
   if [ -f "/etc/systemd/system/base-services-post-reboot-1.service" ]; then
     systemctl disable base-services-post-reboot-1.service
     rm -f /etc/systemd/system/base-services-post-reboot-1.service
+    rm -f /root/post-reboot-script.sh
     systemctl daemon-reload
   fi
   
@@ -4510,7 +4520,7 @@ postRebootBaseServices(){
   # Clean up input file
   rm -f "$INPUT_FILE"
   
-  echo "completed" > "/tmp/base_services_install_state"
+  echo "completed" > "/root/base_services_install_state"
   echoSuccess "Base services installation completed."
 }
 
