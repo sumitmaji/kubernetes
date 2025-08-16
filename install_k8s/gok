@@ -4327,7 +4327,7 @@ function taintNodeCmd() {
 }
 
 collectUserInputs(){
-  INPUT_FILE="/tmp/base_services_inputs"
+  INPUT_FILE="/root/base_services_inputs"
   
   echo "# Base Services Installation Inputs" > "$INPUT_FILE"
 
