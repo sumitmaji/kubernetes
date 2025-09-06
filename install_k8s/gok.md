@@ -1041,4 +1041,46 @@ gok resetBaseServices
 
 ---
 
-This covers the main methods and their user inputs in your gok script. If you need more detail for any specific function, let me know!
+## gok install options
+
+Below are the available `gok install <option>` commands, their purposes, and the corresponding method called in the script:
+
+| Option                | Purpose                                                                 | Method Called                |
+|-----------------------|-------------------------------------------------------------------------|------------------------------|
+| ingress               | Installs the ingress-nginx controller using Helm.                        | ingressInst                  |
+| cert-manager          | Installs cert-manager for managing TLS certificates.                     | setupCertiIssuers            |
+| kyverno               | Installs Kyverno policy engine for Kubernetes.                           | kyvernoInst                  |
+| registry              | Sets up a Docker registry with TLS certificates.                         | installRegistryWithCertMgr    |
+| base                  | Installs base services required for the Kubernetes cluster.              | baseInst                     |
+| ldap                  | Installs LDAP and manages user/group data.                              | installLdap                  |
+| keycloak              | Installs Keycloak with cert-manager integration.                         | installKeycloakWithCertMgr    |
+| oauth2                | Installs OAuth2 Proxy using Helm.                                       | oauth2ProxyInst               |
+| rabbitmq              | Installs RabbitMQ using Helm.                                            | rabbitmqInst                  |
+| vault                 | Installs Vault using Helm and configures it.                             | vaultInstall                  |
+| cloudshell            | Installs CloudShell for Kubernetes.                                      | cloudshellInst                |
+| console               | Installs Console for Kubernetes.                                         | consoleInst                   |
+| dashboard             | Installs the Kubernetes dashboard.                                       | installDashboardwithCertManager|
+| prometheus-grafana    | Installs Prometheus and Grafana monitoring stack.                        | installPrometheusGrafanaWithCertMgr|
+| chartmuseum           | Installs ChartMuseum with persistent storage and sets up Helm repo.       | chartInst                     |
+| gok-agent             | Installs Gok Agent using Helm.                                           | gokAgentInstall               |
+| gok-controller        | Installs Gok Controller using Helm.                                      | gokControllerInstall          |
+| eclipseche            | Installs Eclipse Che IDE on Kubernetes.                                  | eclipseCheInst                |
+| spinnaker             | Installs Spinnaker with S3 and OAuth integration.                        | spinnakerInst                 |
+| argocd                | Installs ArgoCD using Helm.                                              | argocdInst                    |
+| fluentd               | Installs Fluentd logging stack.                                          | fluentdInst                   |
+| opensearch            | Installs OpenSearch and its dashboard.                                   | opensearchDashInst            |
+| jenkins               | Installs Jenkins with OAuth and Docker integration.                      | jenkinsInst                   |
+| ttyd                  | Installs ttyd using Helm.                                                | ttydInst                      |
+| calico                | Installs Calico networking for Kubernetes.                               | calicoInst                    |
+| k8s                   | Installs Kubernetes master or worker node.                               | k8sInst                       |
+| helm                  | Installs Helm package manager.                                           | helmInst                      |
+| csi-driver            | Installs the CSI secrets store driver.                                   | csiDriverInstall              |
+| base-services         | Installs all base services required for the cluster (multi-service).      | installBaseServices           |
+| kubernetes-worker     | Installs a Kubernetes worker node.                                       | k8sInst "kubernetes-worker"   |
+
+**Usage Example:**
+```sh
+gok install <option>
+```
+
+**For more details on each option, see the corresponding method documentation above.**
