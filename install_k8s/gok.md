@@ -9,6 +9,11 @@ No user input required; used internally.
 
 **Inputs:** None
 
+**Example:**
+```sh
+gok getOAuth0Config
+```
+
 ---
 
 ### 2. **getKeycloakConfig**
@@ -17,6 +22,11 @@ Returns environment variables for Keycloak configuration.
 No user input required; used internally.
 
 **Inputs:** None
+
+**Example:**
+```sh
+gok getKeycloakConfig
+```
 
 ---
 
@@ -27,6 +37,11 @@ No user input required.
 
 **Inputs:** None
 
+**Example:**
+```sh
+gok rootDomain
+```
+
 ---
 
 ### 4. **sedRootDomain**
@@ -35,6 +50,11 @@ Prints the root domain with dots replaced by dashes.
 No user input required.
 
 **Inputs:** None
+
+**Example:**
+```sh
+gok sedRootDomain
+```
 
 ---
 
@@ -45,6 +65,15 @@ No user input required.
 
 **Inputs:** None
 
+**Example:**
+```sh
+gok registrySubdomain
+gok defaultSubdomain
+gok keycloakSubdomain
+gok argocdSubdomain
+gok jupyterHubSubdomain
+```
+
 ---
 
 ### 6. **fullDefaultUrl, fullRegistryUrl, fullKeycloakUrl, fullVaultUrl, fullSpinnakerUrl**
@@ -53,6 +82,15 @@ Prints the full URL for the respective service.
 No user input required.
 
 **Inputs:** None
+
+**Example:**
+```sh
+gok fullDefaultUrl
+gok fullRegistryUrl
+gok fullKeycloakUrl
+gok fullVaultUrl
+gok fullSpinnakerUrl
+```
 
 ---
 
@@ -64,6 +102,13 @@ Takes a message string as input.
 **Inputs:**  
 - Message string
 
+**Example:**
+```sh
+gok echoSuccess "Operation completed successfully"
+gok echoFailed "Operation failed"
+gok echoWarning "This is a warning"
+```
+
 ---
 
 ### 8. **replaceEnvVariable**
@@ -73,6 +118,11 @@ Takes a URL as input.
 
 **Inputs:**  
 - URL
+
+**Example:**
+```sh
+gok replaceEnvVariable https://example.com/file.yaml
+```
 
 ---
 
@@ -85,6 +135,11 @@ Takes a message and a default value.
 - Prompt message  
 - Default value
 
+**Example:**
+```sh
+gok promptUserInput "Enter your name: " "defaultName"
+```
+
 ---
 
 ### 10. **promptSecret**
@@ -94,6 +149,11 @@ Takes a message as input.
 
 **Inputs:**  
 - Prompt message
+
+**Example:**
+```sh
+gok promptSecret "Enter your password: "
+```
 
 ---
 
@@ -107,6 +167,11 @@ Needs secret name, namespace, and key.
 - Namespace  
 - Key
 
+**Example:**
+```sh
+gok dataFromSecret my-secret default password
+```
+
 ---
 
 ### 12. **createApp1**
@@ -116,6 +181,11 @@ No user input required.
 
 **Inputs:** None
 
+**Example:**
+```sh
+gok createApp1
+```
+
 ---
 
 ### 13. **kcurl**
@@ -124,6 +194,11 @@ Deploys a pod with curl installed for testing.
 No user input required.
 
 **Inputs:** None
+
+**Example:**
+```sh
+gok kcurl
+```
 
 ---
 
@@ -135,6 +210,11 @@ Takes a URL as input.
 **Inputs:**  
 - URL
 
+**Example:**
+```sh
+gok checkCurl https://kubernetes
+```
+
 ---
 
 ### 15. **checkCMWebhook**
@@ -143,6 +223,11 @@ Checks the cert-manager webhook using curl.
 No user input required.
 
 **Inputs:** None
+
+**Example:**
+```sh
+gok checkCMWebhook
+```
 
 ---
 
@@ -733,6 +818,11 @@ Prompts for Keycloak URL, client ID/secret, username, and password.
 - Username  
 - Password
 
+**Example:**
+```sh
+gok get_keycloak_token
+```
+
 ---
 
 ### 76. **oauth2ProxyReset, oauth2ProxyInst**
@@ -892,6 +982,62 @@ Inputs: command and component/resource names.
 **Inputs:**  
 - Command  
 - Component/resource name(s)
+
+---
+
+### 92. **postRebootBaseServices**
+**Description:**  
+Continues base services installation after a system reboot.  
+Loads saved user inputs and installs remaining services.
+
+**Inputs:** None
+
+**Example:**
+```sh
+gok postRebootBaseServices
+```
+
+---
+
+### 93. **collectUserInputs**
+**Description:**  
+Collects all required user inputs for base services installation and saves them to a file.  
+Prompts for credentials and configuration values interactively.
+
+**Inputs:** None (prompts interactively)
+
+**Example:**
+```sh
+gok collectUserInputs
+```
+
+---
+
+### 94. **installBaseServices**
+**Description:**  
+Installs all base services required for the Kubernetes cluster.  
+Handles pre-reboot and post-reboot installation steps.
+
+**Inputs:** None
+
+**Example:**
+```sh
+gok installBaseServices
+```
+
+---
+
+### 95. **resetBaseServices**
+**Description:**  
+Resets all base services in the cluster, including Vault, RabbitMQ, OAuth2, Keycloak, LDAP, Registry, Kyverno, Cert-Manager, and Ingress.  
+Useful for troubleshooting or reinstallation.
+
+**Inputs:** None
+
+**Example:**
+```sh
+gok resetBaseServices
+```
 
 ---
 
