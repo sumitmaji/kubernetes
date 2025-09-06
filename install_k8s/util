@@ -657,6 +657,10 @@ helmInst(){
   echoSuccess "$REPO_NAME service is up!!"
 }
 
+baseServicesSatus(){
+  journalctl -u base-services-post-reboot-1.service -f
+}
+
 
 utilHelp(){
   echo "kctl - kubectl with oauth"
