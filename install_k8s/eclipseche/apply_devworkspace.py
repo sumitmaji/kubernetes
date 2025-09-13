@@ -42,6 +42,18 @@ def cleanup_pvc_and_pv(ws_name):
                 v1.patch_persistent_volume(pv.metadata.name, {"spec": {"claimRef": None}})
                 print(f"Released PV: {pv.metadata.name}")
 
+# Utility: release PV for workspace PVCs (before deleting workspace)
+def release_pv_for_workspace(ws_name, namespace):
+    v1 = client.CoreV1Api()
+    label_selector = f"app.kubernetes.io/part-of=che,app.kubernetes.io/name=devworkspace,app.kubernetes.io/instance={ws_name}"
+    pvcs = v1.list_namespaced_persistent_volume_claim(namespace, label_selector=label_selector).items
+    for pvc in pvcs:
+        if pvc.spec.volume_name:
+            pv = v1.read_persistent_volume(pvc.spec.volume_name)
+            if pv.spec.claim_ref:
+                v1.patch_persistent_volume(pv.metadata.name, {"spec": {"claimRef": None}})
+                print(f"Released PV: {pv.metadata.name}")
+
 def main():
     try:
         config.load_kube_config()
@@ -67,6 +79,7 @@ def main():
     ensure_namespace(namespace)
 
     if DELETE_MODE:
+        release_pv_for_workspace(name, namespace)
         try:
             kdelete(crd_api, name)
             print(f"Deleted DevWorkspace '{name}' in namespace '{namespace}'.")
@@ -75,7 +88,6 @@ def main():
                 print(f"DevWorkspace '{name}' not found for deletion.")
             else:
                 raise
-        cleanup_pvc_and_pv(name)
         print("Cleanup complete.")
         return 0
 
