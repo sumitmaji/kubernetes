@@ -28,7 +28,7 @@ def kdelete(crd_api, name):
 # Utility: delete PVC and release PV
 def cleanup_pvc_and_pv(ws_name):
     v1 = client.CoreV1Api()
-    label_selector = f"app.kubernetes.io/part-of=che,app.kubernetes.io/name=devworkspace,app.kubernetes.io/instance={ws_name}"
+    label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user,app.kubernetes.io/instance={ws_name}"
     pvcs = v1.list_namespaced_persistent_volume_claim(NAMESPACE, label_selector=label_selector).items
     for pvc in pvcs:
         pvc_name = pvc.metadata.name
@@ -45,7 +45,7 @@ def cleanup_pvc_and_pv(ws_name):
 # Utility: release PV for workspace PVCs (before deleting workspace)
 def release_pv_for_workspace(ws_name, namespace):
     v1 = client.CoreV1Api()
-    label_selector = f"app.kubernetes.io/part-of=che,app.kubernetes.io/name=devworkspace,app.kubernetes.io/instance={ws_name}"
+    label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user,app.kubernetes.io/instance={ws_name}"
     pvcs = v1.list_namespaced_persistent_volume_claim(namespace, label_selector=label_selector).items
     for pvc in pvcs:
         if pvc.spec.volume_name:
