@@ -60,18 +60,21 @@ def wait_and_release_pv(ws_name, namespace, timeout=120):
     label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user"
     waited = 0
     poll = 5
+    pvcs_to_release = []
     while waited < timeout:
         pvcs = v1.list_namespaced_persistent_volume_claim(namespace, label_selector=label_selector).items
-        if not pvcs:
+        if pvcs:
+            pvcs_to_release = pvcs  # Keep latest PVCs for later PV release
+            print("Waiting for PVC deletion. PVCs still present:")
+            for pvc in pvcs:
+                print(f"- {pvc.metadata.name}")
+            time.sleep(poll)
+            waited += poll
+        else:
             print("PVC deleted, releasing PV(s)...")
             break
-        print("Waiting for PVC deletion. PVCs still present:")
-        for pvc in pvcs:
-            print(f"- {pvc.metadata.name}")
-        time.sleep(poll)
-        waited += poll
     # Release PV(s)
-    for pvc in pvcs:
+    for pvc in pvcs_to_release:
         if pvc.spec.volume_name:
             pv = v1.read_persistent_volume(pvc.spec.volume_name)
             if pv.spec.claim_ref:
