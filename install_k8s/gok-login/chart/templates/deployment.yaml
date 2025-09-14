@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gok-login.fullname" . }}
+  labels:
+    app: {{ include "gok-login.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "gok-login.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "gok-login.name" . }}
+    spec:
+      volumes:
+        - name: ca-cert
+          configMap:
+            name: ca-cert
+      serviceAccountName: gok-login-sa
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
+      containers:
+        - name: gok-login
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: REQUESTS_CA_BUNDLE
+              value: /usr/local/share/ca-certificates/issuer.crt
+            - name: OAUTH_ISSUER
+              value: {{ .Values.env.OAUTH_ISSUER | quote }}
+            - name: OAUTH_CLIENT_ID
+              value: {{ .Values.env.OAUTH_CLIENT_ID | quote }}
+            - name: KEYCLOAK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: oidc
+                  key: KEYCLOAK_URL
+            - name: CLIENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: oidc
+                  key: CLIENT_ID
+            - name: CLIENT_SECRET
+              valueFrom:
+                configMapKeyRef:
+                  name: oidc
+                  key: CLIENT_SECRET
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: ca-cert
+              mountPath: /usr/local/share/ca-certificates/issuer.crt
+              subPath: issuer.crt
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

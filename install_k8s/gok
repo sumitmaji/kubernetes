@@ -3260,6 +3260,39 @@ cloudshellReset() {
   echo "cloudshell has been uninstalled and the namespace deleted."
 }
 
+
+gokLoginInst() {
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-login
+  ./build.sh
+  ./tag_push.sh
+  popd
+
+  # Create namespace for gok-login
+  kubectl create namespace gok-login || echo "Namespace gok-login already exists"
+
+  # Copy image pull secret if needed
+  copySecret regcred kube-system gok-login
+
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-login
+
+  # Install gok-login using Helm chart (adjust path if needed)
+  helm install gok-login ${MOUNT_PATH}/kubernetes/install_k8s/gok-login/app/chart -n gok-login \
+  --set oidc.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)"
+
+  # Patch ingress with letsencrypt and oauth if needed
+  gok patch ingress gok-login-gok-login gok-login letsencrypt gok-login
+  patchOauth2Secure gok-login-gok-login gok-login https://gok-login.$(rootDomain)
+
+  echo "Waiting for gok-login to be ready..."
+  kubectl --namespace gok-login wait --for=condition=Ready pods --all --timeout=120s
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "gok-login is now up! Access it at: https://gok-login.$(rootDomain)/"
+  else
+    echoFailed "gok-login setup timed out. Please check the logs."
+    return 1
+  fi
+}
+
 cloudshellInst() {
   pushd ${MOUNT_PATH}/kubernetes/install_k8s/cloud-shell/gok
   ./build.sh
