@@ -852,6 +852,8 @@ EOF
 
 }
 
+
+
 addLetsEncryptStagingCertificates(){
   wget https://letsencrypt.org/certs/staging/letsencrypt-stg-root-x1.pem
   sudo cp letsencrypt-stg-root-x1.pem /usr/local/share/ca-certificates/
@@ -1647,6 +1649,52 @@ resetDockerRegistry(){
 
   emptyLocalFsStorage "Registry" "registry-pv" "registry-storage" "/data/volumes/pv4" "registry"
   kubectl delete ns registry
+}
+
+# createDevWorkspace and deleteDevWorkspace methods to prompt for namespace, username, workspace name, and manifest file, then call apply_devworkspace.py for create/delete actions.
+createDevWorkspace() {
+  echo "=== Create Che DevWorkspace ==="
+  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
+  USERNAME=$(promptUserInput "Enter username: " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
+  MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path: " "devworkspace.yaml")
+  export CHE_USER_NAMESPACE="$NAMESPACE"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export DW_FILE="$MANIFEST_FILE"
+  export DW_DELETE="false"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  if ! python3 -c "import kubernetes" &>/dev/null; then
+    apt-get install -y python3-kubernetes
+  else
+    echo "python3-kubernetes is already installed."
+  fi
+
+  if ! python3 -c "import yaml" &>/dev/null; then
+    apt-get install -y python3-yaml
+  else
+    echo "python3-yaml is already installed."
+  fi
+  apt get install -y python3-kubernetes
+  apt get install -y python3-yaml
+  python3 "$WORKING_DIR/eclipseche/apply_devworkspace.py"
+  popd || exit
+}
+
+deleteDevWorkspace() {
+  echo "=== Delete Che DevWorkspace ==="
+  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
+  USERNAME=$(promptUserInput "Enter username: " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
+  MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path: " "devworkspace.yaml")
+  export CHE_USER_NAMESPACE="$NAMESPACE"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export DW_FILE="$MANIFEST_FILE"
+  export DW_DELETE="true"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  python3 "$WORKING_DIR/eclipseche/apply_devworkspace.py"
+  popd || exit
 }
 
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
@@ -4571,6 +4619,8 @@ function installCmd() {
     installDashboardwithCertManager
   elif [ "$COMPONENT" == "jupyter" ]; then
     jupyterHubInst
+  elif [ "$COMPONENT" == "devworkspace" ]; then
+    createDevWorkspace
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
   elif [ "$COMPONENT" == "ttyd" ]; then
@@ -4694,6 +4744,8 @@ EOF
     gok reset gok-controller
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdReset
+  elif [ "$COMPONENT" == "devworkspace" ]; then
+    deleteDevWorkspace
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
