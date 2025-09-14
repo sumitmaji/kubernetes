@@ -28,7 +28,7 @@ def kdelete(crd_api, name):
 # Utility: delete PVC and release PV
 def cleanup_pvc_and_pv(ws_name):
     v1 = client.CoreV1Api()
-    label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user,app.kubernetes.io/instance={ws_name}"
+    label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user"
     pvcs = v1.list_namespaced_persistent_volume_claim(NAMESPACE, label_selector=label_selector).items
     for pvc in pvcs:
         pvc_name = pvc.metadata.name
@@ -47,6 +47,28 @@ def release_pv_for_workspace(ws_name, namespace):
     v1 = client.CoreV1Api()
     label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user"
     pvcs = v1.list_namespaced_persistent_volume_claim(namespace, label_selector=label_selector).items
+    for pvc in pvcs:
+        if pvc.spec.volume_name:
+            pv = v1.read_persistent_volume(pvc.spec.volume_name)
+            if pv.spec.claim_ref:
+                v1.patch_persistent_volume(pv.metadata.name, {"spec": {"claimRef": None}})
+                print(f"Released PV: {pv.metadata.name}")
+
+# Utility: wait for PVC deletion and then release PV
+def wait_and_release_pv(ws_name, namespace, timeout=120):
+    v1 = client.CoreV1Api()
+    label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user"
+    waited = 0
+    poll = 5
+    while waited < timeout:
+        pvcs = v1.list_namespaced_persistent_volume_claim(namespace, label_selector=label_selector).items
+        if not pvcs:
+            print("PVC deleted, releasing PV(s)...")
+            break
+        print("Waiting for PVC deletion...")
+        time.sleep(poll)
+        waited += poll
+    # Release PV(s)
     for pvc in pvcs:
         if pvc.spec.volume_name:
             pv = v1.read_persistent_volume(pvc.spec.volume_name)
@@ -79,7 +101,6 @@ def main():
     ensure_namespace(namespace)
 
     if DELETE_MODE:
-        release_pv_for_workspace(name, namespace)
         try:
             kdelete(crd_api, name)
             print(f"Deleted DevWorkspace '{name}' in namespace '{namespace}'.")
@@ -88,6 +109,7 @@ def main():
                 print(f"DevWorkspace '{name}' not found for deletion.")
             else:
                 raise
+        wait_and_release_pv(name, namespace)
         print("Cleanup complete.")
         return 0
 
