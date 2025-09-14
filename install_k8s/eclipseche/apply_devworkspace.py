@@ -65,7 +65,9 @@ def wait_and_release_pv(ws_name, namespace, timeout=120):
         if not pvcs:
             print("PVC deleted, releasing PV(s)...")
             break
-        print("Waiting for PVC deletion...")
+        print("Waiting for PVC deletion. PVCs still present:")
+        for pvc in pvcs:
+            print(f"- {pvc.metadata.name}")
         time.sleep(poll)
         waited += poll
     # Release PV(s)
