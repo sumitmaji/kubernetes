@@ -81,6 +81,42 @@ def wait_and_release_pv(ws_name, namespace, timeout=120):
                 v1.patch_persistent_volume(pv.metadata.name, {"spec": {"claimRef": None}})
                 print(f"Released PV: {pv.metadata.name}")
 
+# Utility: wait for PVC deletion, release PV, and delete namespace
+def wait_and_release_pv_and_delete_ns(ws_name, namespace, timeout=120):
+    v1 = client.CoreV1Api()
+    label_selector = f"controller.devfile.io/devworkspace_pvc_type=per-user"
+    waited = 0
+    poll = 5
+    pvcs_to_release = []
+    while waited < timeout:
+        pvcs = v1.list_namespaced_persistent_volume_claim(namespace, label_selector=label_selector).items
+        if pvcs:
+            pvcs_to_release = pvcs  # Keep latest PVCs for later PV release
+            print("Waiting for PVC deletion. PVCs still present:")
+            for pvc in pvcs:
+                print(f"- {pvc.metadata.name}")
+            time.sleep(poll)
+            waited += poll
+        else:
+            print("PVC deleted, releasing PV(s)...")
+            break
+    # Release PV(s)
+    for pvc in pvcs_to_release:
+        if pvc.spec.volume_name:
+            pv = v1.read_persistent_volume(pvc.spec.volume_name)
+            if pv.spec.claim_ref:
+                v1.patch_persistent_volume(pv.metadata.name, {"spec": {"claimRef": None}})
+                print(f"Released PV: {pv.metadata.name}")
+    # Delete namespace
+    try:
+        v1.delete_namespace(namespace)
+        print(f"Namespace '{namespace}' deleted.")
+    except ApiException as e:
+        if e.status == 404:
+            print(f"Namespace '{namespace}' not found for deletion.")
+        else:
+            print(f"Error deleting namespace '{namespace}': {e}")
+
 def main():
     try:
         config.load_kube_config()
@@ -114,7 +150,7 @@ def main():
                 print(f"DevWorkspace '{name}' not found for deletion.")
             else:
                 raise
-        wait_and_release_pv(name, namespace)
+        wait_and_release_pv_and_delete_ns(name, namespace)
         print("Cleanup complete.")
         return 0
 

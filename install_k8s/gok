@@ -1675,8 +1675,6 @@ createDevWorkspace() {
   else
     echo "python3-yaml is already installed."
   fi
-  apt get install -y python3-kubernetes
-  apt get install -y python3-yaml
   python3 "$WORKING_DIR/eclipseche/apply_devworkspace.py"
   popd || exit
 }
