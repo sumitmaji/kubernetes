@@ -3277,7 +3277,7 @@ gokLoginInst() {
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-login
 
   # Install gok-login using Helm chart (adjust path if needed)
-  helm install gok-login ${MOUNT_PATH}/kubernetes/install_k8s/gok-login/app/chart -n gok-login \
+  helm install gok-login ${MOUNT_PATH}/kubernetes/install_k8s/gok-login/chart -n gok-login \
   --set oidc.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)"
 
   # Patch ingress with letsencrypt and oauth if needed
