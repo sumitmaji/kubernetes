@@ -4675,6 +4675,8 @@ function installCmd() {
     rabbitmqInst
   elif [ "$COMPONENT" == "vault" ]; then
     vaultInstall
+  elif [ "$COMPONENT" == "gok-login" ]; then
+    gokLoginInst
   elif [ "$COMPONENT" == "keycloak" ]; then
     installKeycloakWithCertMgr
   elif [ "$COMPONENT" == "ingress" ]; then
@@ -4764,6 +4766,9 @@ EOF
     ingressUnInst
   elif [ "$COMPONENT" == "chart" ]; then
     resetChart
+  elif [ "$COMPONENT" == "gok-login" ]; then
+    helm uninstall gok-login -n gok-login
+    kubectl delete ns gok-login
   elif [ "$COMPONENT" == "ldap" ]; then
     ldapReset
   elif [ "$COMPONENT" == "gok-agent" ]; then
