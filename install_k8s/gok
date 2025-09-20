@@ -3271,8 +3271,8 @@ gokLoginInst() {
   # Create namespace for gok-login
   kubectl create namespace gok-login || echo "Namespace gok-login already exists"
 
-  # Copy image pull secret if needed
-  copySecret regcred kube-system gok-login
+  # # Copy image pull secret if needed
+  # copySecret regcred kube-system gok-login
 
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-login
 
