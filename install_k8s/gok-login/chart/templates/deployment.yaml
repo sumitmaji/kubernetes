@@ -18,7 +18,6 @@ spec:
         - name: ca-cert
           configMap:
             name: ca-cert
-      serviceAccountName: gok-login-sa
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
