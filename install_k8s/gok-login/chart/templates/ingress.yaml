@@ -13,7 +13,7 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /gok-login(.*)
+          - path: /login
             pathType: ImplementationSpecific
             backend:
               service:

@@ -10,8 +10,21 @@ if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
   exit 1
 fi
 
-RESPONSE=$(curl -s -X POST "$API_URL" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
+
+echo "API URL: $API_URL"
+echo "Username: $USERNAME"
+echo "Password: [hidden]"
+echo "Request payload: {\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}"
+
+if [ "$VERBOSE" = "1" ]; then
+  echo "Curl verbose mode enabled."
+  RESPONSE=$(curl -vk -X POST "$API_URL" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
+else
+  RESPONSE=$(curl -sk -X POST "$API_URL" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
+fi
 
 echo "Response: $RESPONSE"
