@@ -3282,7 +3282,8 @@ gokLoginInst() {
 
   # Patch ingress with letsencrypt and oauth if needed
   gok patch ingress gok-login-gok-login gok-login letsencrypt gok-login
-  patchOauth2Secure gok-login-gok-login gok-login https://gok-login.$(rootDomain)
+  # No need for oauth integrtion with ingress as user will provide username and password
+  # patchOauth2Secure gok-login-gok-login gok-login https://gok-login.$(rootDomain)
 
   echo "Waiting for gok-login to be ready..."
   kubectl --namespace gok-login wait --for=condition=Ready pods --all --timeout=120s
