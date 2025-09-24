@@ -38,10 +38,12 @@ fi
 
 echo "access_token extracted."
 
-mkdir -p /tools
-export KUBECONFIG=/tools/kubeconfig
-# Create kubeconfig file
-cat <<EOF > /tools/kubeconfig
+USER_HOME=$(eval echo "~$USER")
+KUBE_DIR="$USER_HOME/.kube"
+mkdir -p "$KUBE_DIR"
+
+# Create config file
+cat <<EOF > "$KUBE_DIR/config"
 apiVersion: v1
 kind: Config
 clusters:
@@ -61,4 +63,4 @@ contexts:
 current-context: k8s
 EOF
 
-echo "Kubeconfig created at /tools/kubeconfig"
+echo "Kubeconfig created at $KUBE_DIR/config"
