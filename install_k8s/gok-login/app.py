@@ -25,7 +25,8 @@ def login():
         'grant_type': 'password',
         'client_id': CLIENT_ID,
         'username': username,
-        'password': password
+        'password': password,
+        'scope': 'untrusted-audience'
     }
     if CLIENT_SECRET:
         payload['client_secret'] = CLIENT_SECRET
