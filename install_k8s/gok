@@ -2997,6 +2997,21 @@ installKeycloakWithCertMgr(){
   else
     echo "LDAP service is running. Proceeding with user federation creation."
   fi
+
+  # Create the audience scope
+  pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
+  echo "Creating audience scope"
+  chmod +x setup_kubernetes_audience.sh
+  ./setup_kubernetes_audience.sh $ADMIN_ID $ADMIN_PWD
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Audience scope creation failed, please check the logs!"
+    popd
+    exit 1
+  fi
+  echoSuccess "Audience scope created successfully!"
+  popd
+
+  # Create User Federation and Groups
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
   chmod +x setup_user_federation.sh setup_group_mappers.sh
