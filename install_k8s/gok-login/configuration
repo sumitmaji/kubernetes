@@ -1,0 +1,8 @@
+IMAGE_NAME=sumit/gok-login
+REGISTRY=master.cloud.com:5000
+REPO_NAME=gok-login
+CONTAINER_NAME=gok-login
+BUILD_PATH=/tmp
+RELEASE_NAME=gok-login
+PATH_TO_CHART=chart
+DEPLOY=true

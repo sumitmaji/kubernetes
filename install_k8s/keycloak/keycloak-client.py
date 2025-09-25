@@ -121,8 +121,10 @@ def getId(name, type, key):
 
 def tokens():
   sys.stderr.write("Login: ")
-  login = input()
-  password = getpass.getpass()
+  login = env.get('USER_NAME') if env.get('USER_NAME') else input()
+  password = env.get('SAMPLE_USER_PASSWORD')
+  if not password:
+    password = getpass.getpass()
   secret = fetch_client_secret(env.get("KEYCLOAK_CLIENT_ID"))
   resp = requests.post(
     f"https://{KEYCLOAK_ROOT}/realms/{REALM}/protocol/openid-connect/token",
@@ -261,7 +263,9 @@ def group():
 
 # Create user and assign admin and dev group
 def user():
-  password = getpass.getpass('Password for Sample User: ')
+  password = env.get('SAMPLE_USER_PASSWORD')
+  if not password:
+    password = getpass.getpass('Password for Sample User: ')
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,

@@ -65,7 +65,7 @@ cd ${MOUNT_PAHT}/kubernetes/install_k8s/cloud-shell/gok
 
   ```sh
   cd ${MOUNT_PATH}/kubernetes/install_k8s
-  ./gok install cloud-shell
+  ./gok install cloudshell
   ```
 
 - Deploy the backend (Flask app) and expose it (e.g., via a Deployment and Service).

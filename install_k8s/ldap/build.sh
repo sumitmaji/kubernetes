@@ -7,8 +7,10 @@ source configuration
 source $MOUNT_PATH/kubernetes/install_k8s/util
 
 # Prompt for LDAP password, default to "sumit" if no input
-read -p "Enter LDAP password [sumit]: " LDAP_PASSWORD
-LDAP_PASSWORD=${LDAP_PASSWORD:-sumit}
+if [ -z "$LDAP_PASSWORD" ]; then
+  read -p "Enter LDAP password [sumit]: " LDAP_PASSWORD
+  LDAP_PASSWORD=${LDAP_PASSWORD:-sumit}
+fi
 
 docker build --build-arg LDAP_DOMAIN=$DOMAIN_NAME \
  --build-arg REGISTRY=$(fullRegistryUrl) \

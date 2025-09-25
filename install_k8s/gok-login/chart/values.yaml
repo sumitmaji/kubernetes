@@ -1,0 +1,24 @@
+replicaCount: 1
+
+image:
+  repository: registry.gokcloud.com/gok-login
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 5000
+
+ingress:
+  enabled: true
+  host: gok-login.gokcloud.com
+  annotations: {}
+    
+resources: {}
+oidc:
+  keycloakUrl: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token"
+  clientId: "gok-developers-client"
+  clientSecret: ""
+env:
+  OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
+  OAUTH_CLIENT_ID: "gok-developers-client"

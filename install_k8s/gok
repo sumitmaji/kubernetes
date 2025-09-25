@@ -413,7 +413,7 @@ ingressInst() {
   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
   helm repo update
   helm install \
-    ingress-nginx ingress-nginx/ingress-nginx \
+    ingress-nginx ingress-nginx/ingress-nginx --version 4.12.1 \
     --namespace ingress-nginx \
     --create-namespace \
     --set controller.service.nodePorts.http=80 \
@@ -431,6 +431,15 @@ resetChart(){
   emptyLocalFsStorage "ChartMuseum" "chart-pv" "chart-storage" "/data/volumes/chart-storage"
   kubectl delete namespace chartmuseum
   echo "ChartMuseum has been reset successfully."
+}
+
+baseInst(){
+  echo "Installing base image"
+  pushd "$MOUNT_PATH"/kubernetes/install_k8s/base || exit
+  find . -type f -name "*.sh" -exec chmod +x {} \;
+  ./build.sh
+  popd || exit
+  echoSuccess "Base image installed successfully!"
 }
 
 
@@ -842,6 +851,8 @@ spec:
 EOF
 
 }
+
+
 
 addLetsEncryptStagingCertificates(){
   wget https://letsencrypt.org/certs/staging/letsencrypt-stg-root-x1.pem
@@ -1640,6 +1651,50 @@ resetDockerRegistry(){
   kubectl delete ns registry
 }
 
+# createDevWorkspace and deleteDevWorkspace methods to prompt for namespace, username, workspace name, and manifest file, then call apply_devworkspace.py for create/delete actions.
+createDevWorkspace() {
+  echo "=== Create Che DevWorkspace ==="
+  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
+  USERNAME=$(promptUserInput "Enter username: " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
+  MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path: " "devworkspace.yaml")
+  export CHE_USER_NAMESPACE="$NAMESPACE"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export DW_FILE="$MANIFEST_FILE"
+  export DW_DELETE="false"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  if ! python3 -c "import kubernetes" &>/dev/null; then
+    apt-get install -y python3-kubernetes
+  else
+    echo "python3-kubernetes is already installed."
+  fi
+
+  if ! python3 -c "import yaml" &>/dev/null; then
+    apt-get install -y python3-yaml
+  else
+    echo "python3-yaml is already installed."
+  fi
+  python3 "$WORKING_DIR/eclipseche/apply_devworkspace.py"
+  popd || exit
+}
+
+deleteDevWorkspace() {
+  echo "=== Delete Che DevWorkspace ==="
+  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
+  USERNAME=$(promptUserInput "Enter username: " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
+  MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path: " "devworkspace.yaml")
+  export CHE_USER_NAMESPACE="$NAMESPACE"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export DW_FILE="$MANIFEST_FILE"
+  export DW_DELETE="true"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  python3 "$WORKING_DIR/eclipseche/apply_devworkspace.py"
+  popd || exit
+}
+
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 # Generate User & Password
 genRegistryPassword(){
@@ -1661,8 +1716,8 @@ genRegistryPassword(){
 
 imagePullSecrets(){
   # Create a secret for the registry
-  DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
-  DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
+  : "${DOCKER_USERNAME:=$(promptUserInput "Please enter docker user id: ")}"
+  : "${DOCKER_PASSWORD:=$(promptSecret "Please enter your docker password: ")}"
   DOCKER_EMAIL="skmaji@outlook.com"
 
   # Delete the secret if it already exists
@@ -1994,17 +2049,72 @@ helmShowTemplate(){
     --dry-run
 }
 
+fetch_client_secret() {
+  # Parameters
+  local KEYCLOAK_URL=$1
+  local REALM_NAME=$2
+  local CLIENT_ID=$3
+  local ADMIN_USERNAME=$4
+  local ADMIN_PASSWORD=$5
+
+  # Validate input
+  if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$ADMIN_USERNAME" || -z "$ADMIN_PASSWORD" ]]; then
+    echo "Usage: fetch_client_secret <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <ADMIN_USERNAME> <ADMIN_PASSWORD>"
+    return 1
+  fi
+
+  # Fetch admin access token
+  ACCESS_TOKEN=$(curl -s -X POST https://"$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$ADMIN_USERNAME" \
+    -d "password=$ADMIN_PASSWORD" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli" | jq -r '.access_token')
+
+  if [ -z "$ACCESS_TOKEN" ]; then
+    echo "Failed to fetch access token. Please check your credentials."
+    return 1
+  fi
+
+  # Fetch client UUID from the realm
+  CLIENT_UUID=$(curl -s -X GET https://"$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
+
+  if [ -z "$CLIENT_UUID" ]; then
+    echo "Client '$CLIENT_ID' not found in realm '$REALM_NAME'."
+    return 1
+  fi
+
+  # Fetch client secret
+  CLIENT_SECRET=$(curl -s -X GET https://"$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID/client-secret" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" \
+    -H "Content-Type: application/json" | jq -r '.value')
+
+  if [ -z "$CLIENT_SECRET" ]; then
+    echo "Failed to fetch client secret for client '$CLIENT_ID'."
+    return 1
+  fi
+
+  # Return the client secret
+  echo "$CLIENT_SECRET"
+}
+
 oauth2Secret(){
   CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
-  client_secret=$(promptSecret "Enter Client Secret: ")
-  ACTIVE_PROFILE=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")
-  OIDC_ISSUE_URL=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")
-  OIDC_USERNAME_CLAIM=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")
-  OIDC_GROUPS_CLAIM=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")
-  AUTH0_DOMAIN=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")
-  APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
-  JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
+  KEYCLOAK_URL=$(fullKeycloakUrl)
+  ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
+
+  client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
+  : "${ACTIVE_PROFILE:=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")}"
+  : "${OIDC_ISSUE_URL:=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")}"
+  : "${OIDC_USERNAME_CLAIM:=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")}"
+  : "${OIDC_GROUPS_CLAIM:=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")}"
+  : "${AUTH0_DOMAIN:=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")}"
+  : "${APP_HOST:=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")}"
+  : "${JWKS_URL:=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")}"
   OAUTH_SERVER_URI="https://$(fullKeycloakUrl)"
 
   # If secret already exists then delete it
@@ -2594,8 +2704,8 @@ keycloakInst(){
   #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
   #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
   kubectl create ns keycloak
-  KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
-  KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
+  : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
+  : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
   
   # createVaultSecretStore \
   # -p "secret/keycloak/admin" \
@@ -2607,8 +2717,8 @@ keycloakInst(){
   # -k "adminUser=${KEYCLOAK_ADMIN_USERNAME}" \
   # -k "adminPassword=${KEYCLOAK_ADMIN_PASSWORD}"
   
-  POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
-  POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+  : "${POSTGRESQL_USERNAME:=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")}"
+  : "${POSTGRESQL_PASSWORD:=$(promptSecret "Please enter postgresql password: ")}"
 
   # createVaultSecretStore \
   # -p "secret/keycloak/postgresql" \
@@ -2620,8 +2730,8 @@ keycloakInst(){
   # -k "username=${POSTGRESQL_USERNAME}" \
   # -k "password=${POSTGRESQL_PASSWORD}"
   
-  OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
-  REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
+  : "${OIDC_CLIENT_ID:=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")}"
+  : "${REALM:=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")}"
 
   kubectl create ns keycloak
   kubectl create secret generic keycloak-secrets \
@@ -2712,56 +2822,7 @@ installRegistryWithCertMgr(){
   addPolicyToSyncSecrets
 }
 
-fetch_client_secret() {
-  # Parameters
-  local KEYCLOAK_URL=$1
-  local REALM_NAME=$2
-  local CLIENT_ID=$3
-  local ADMIN_USERNAME=$4
-  local ADMIN_PASSWORD=$5
 
-  # Validate input
-  if [[ -z "$KEYCLOAK_URL" || -z "$REALM_NAME" || -z "$CLIENT_ID" || -z "$ADMIN_USERNAME" || -z "$ADMIN_PASSWORD" ]]; then
-    echo "Usage: fetch_client_secret <KEYCLOAK_URL> <REALM_NAME> <CLIENT_ID> <ADMIN_USERNAME> <ADMIN_PASSWORD>"
-    return 1
-  fi
-
-  # Fetch admin access token
-  ACCESS_TOKEN=$(curl -s -X POST https://"$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "username=$ADMIN_USERNAME" \
-    -d "password=$ADMIN_PASSWORD" \
-    -d "grant_type=password" \
-    -d "client_id=admin-cli" | jq -r '.access_token')
-
-  if [ -z "$ACCESS_TOKEN" ]; then
-    echo "Failed to fetch access token. Please check your credentials."
-    return 1
-  fi
-
-  # Fetch client UUID from the realm
-  CLIENT_UUID=$(curl -s -X GET https://"$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients" \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -H "Content-Type: application/json" | jq -r ".[] | select(.clientId==\"$CLIENT_ID\") | .id")
-
-  if [ -z "$CLIENT_UUID" ]; then
-    echo "Client '$CLIENT_ID' not found in realm '$REALM_NAME'."
-    return 1
-  fi
-
-  # Fetch client secret
-  CLIENT_SECRET=$(curl -s -X GET https://"$KEYCLOAK_URL/admin/realms/$REALM_NAME/clients/$CLIENT_UUID/client-secret" \
-    -H "Authorization: Bearer $ACCESS_TOKEN" \
-    -H "Content-Type: application/json" | jq -r '.value')
-
-  if [ -z "$CLIENT_SECRET" ]; then
-    echo "Failed to fetch client secret for client '$CLIENT_ID'."
-    return 1
-  fi
-
-  # Return the client secret
-  echo "$CLIENT_SECRET"
-}
 
 create_sub_scope() {
   # Parameters
@@ -2936,10 +2997,25 @@ installKeycloakWithCertMgr(){
   else
     echo "LDAP service is running. Proceeding with user federation creation."
   fi
+
+  # Create the audience scope
+  pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
+  echo "Creating audience scope"
+  chmod +x setup_kubernetes_audience.sh
+  ./setup_kubernetes_audience.sh $ADMIN_ID $ADMIN_PWD
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Audience scope creation failed, please check the logs!"
+    popd
+    exit 1
+  fi
+  echoSuccess "Audience scope created successfully!"
+  popd
+
+  # Create User Federation and Groups
   pushd $MOUNT_PATH/kubernetes/install_k8s/keycloak
   echo "Creating User Federation"
   chmod +x setup_user_federation.sh setup_group_mappers.sh
-  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  : "${LDAP_PASSWORD:=$(promptSecret "Please enter LDAP password for admin: ")}"
   
   ./setup_user_federation.sh $ADMIN_ID $ADMIN_PWD $LDAP_PASSWORD
   if [[ $? -ne 0 ]]; then
@@ -2962,10 +3038,10 @@ installKeycloakWithCertMgr(){
 installLdap(){
   pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
 
-  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
-  KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
-  KERBEROS_KDC_PASSWORD=$(promptSecret "Please enter Kerberos kdc password: ")
-  KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
+  : "${LDAP_PASSWORD:=${1:-$(promptSecret "Please enter LDAP password for admin: ")} }"
+  : "${KERBEROS_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos password: ")} }"
+  : "${KERBEROS_KDC_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos kdc password: ")} }"
+  : "${KERBEROS_ADM_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos adm password: ")} }"
   
   ./run_ldap.sh $LDAP_PASSWORD $KERBEROS_PASSWORD $KERBEROS_KDC_PASSWORD $KERBEROS_ADM_PASSWORD
   if [[ $? -ne 0 ]]; then
@@ -3197,6 +3273,41 @@ cloudshellReset() {
   helm uninstall cloudshell -n cloudshell
   kubectl delete ns cloudshell
   echo "cloudshell has been uninstalled and the namespace deleted."
+}
+
+
+gokLoginInst() {
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-login
+  chmod +x build.sh tag_push.sh
+  ./build.sh
+  ./tag_push.sh
+  popd
+
+  # Create namespace for gok-login
+  kubectl create namespace gok-login || echo "Namespace gok-login already exists"
+
+  # # Copy image pull secret if needed
+  # copySecret regcred kube-system gok-login
+
+  kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-login
+
+  # Install gok-login using Helm chart (adjust path if needed)
+  helm install gok-login ${MOUNT_PATH}/kubernetes/install_k8s/gok-login/chart -n gok-login \
+  --set oidc.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)"
+
+  # Patch ingress with letsencrypt and oauth if needed
+  gok patch ingress gok-login-gok-login gok-login letsencrypt gok-login
+  # No need for oauth integrtion with ingress as user will provide username and password
+  # patchOauth2Secure gok-login-gok-login gok-login https://gok-login.$(rootDomain)
+
+  echo "Waiting for gok-login to be ready..."
+  kubectl --namespace gok-login wait --for=condition=Ready pods --all --timeout=120s
+  if [[ $? -eq 0 ]]; then
+    echoSuccess "gok-login is now up! Access it at: https://gok-login.$(rootDomain)/"
+  else
+    echoFailed "gok-login setup timed out. Please check the logs."
+    return 1
+  fi
 }
 
 cloudshellInst() {
@@ -4311,6 +4422,234 @@ function taintNodeCmd() {
   taintNode
 }
 
+collectUserInputs(){
+  INPUT_FILE="/root/base_services_inputs"
+  
+  echo "# Base Services Installation Inputs" > "$INPUT_FILE"
+
+  # Collect Docker credentials
+  echo "=== Docker Registry Credentials ==="
+  DOCKER_USERNAME=$(promptUserInput "Please enter docker user id: ")
+  DOCKER_PASSWORD=$(promptSecret "Please enter your docker password: ")
+  {
+    echo "export DOCKER_USERNAME='$DOCKER_USERNAME'"
+    echo "export DOCKER_PASSWORD='$DOCKER_PASSWORD'"
+  } >> "$INPUT_FILE"
+  
+  # Collect inputs for LDAP
+  echo "=== LDAP Configuration ==="
+  LDAP_PASSWORD=$(promptSecret "Please enter LDAP password for admin: ")
+  KERBEROS_PASSWORD=$(promptSecret "Please enter Kerberos password: ")
+  KERBEROS_KDC_PASSWORD=$(promptSecret "Please enter Kerberos kdc password: ")
+  KERBEROS_ADM_PASSWORD=$(promptSecret "Please enter Kerberos adm password: ")
+
+  {
+    echo "export LDAP_PASSWORD='$LDAP_PASSWORD'"
+    echo "export KERBEROS_PASSWORD='$KERBEROS_PASSWORD'"
+    echo "export KERBEROS_KDC_PASSWORD='$KERBEROS_KDC_PASSWORD'"
+    echo "export KERBEROS_ADM_PASSWORD='$KERBEROS_ADM_PASSWORD'"
+  } >> "$INPUT_FILE"
+
+  # Collect inputs for Keycloak
+  echo "=== Keycloak Configuration ==="
+  KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
+  KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
+  echo "export KEYCLOAK_ADMIN_USERNAME='$KEYCLOAK_ADMIN_USERNAME'" >> "$INPUT_FILE"
+  echo "export KEYCLOAK_ADMIN_PASSWORD='$KEYCLOAK_ADMIN_PASSWORD'" >> "$INPUT_FILE"
+
+  # Collect inputs for PostgreSQL
+  POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
+  POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+  echo "export POSTGRESQL_USERNAME='$POSTGRESQL_USERNAME'" >> "$INPUT_FILE"
+  echo "export POSTGRESQL_PASSWORD='$POSTGRESQL_PASSWORD'" >> "$INPUT_FILE"
+
+  # Collect inputs for OIDC
+  OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")
+  REALM=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")
+  echo "export OIDC_CLIENT_ID='$OIDC_CLIENT_ID'" >> "$INPUT_FILE"
+  echo "export REALM='$REALM'" >> "$INPUT_FILE"
+  
+  SAMPLE_USER_PASSWORD=$(promptSecret "Please enter sample user password (for user: skmaji1): ")
+  echo "export SAMPLE_USER_PASSWORD='$SAMPLE_USER_PASSWORD'" >> "$INPUT_FILE"
+
+  # Collect OAuth2 client secret
+  ACTIVE_PROFILE=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")
+  OIDC_ISSUE_URL=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")
+  OIDC_USERNAME_CLAIM=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")
+  OIDC_GROUPS_CLAIM=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")
+  AUTH0_DOMAIN=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")
+  APP_HOST=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")
+  JWKS_URL=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")
+  {
+    echo "export ACTIVE_PROFILE='$ACTIVE_PROFILE'"
+    echo "export OIDC_ISSUE_URL='$OIDC_ISSUE_URL'"
+    echo "export OIDC_USERNAME_CLAIM='$OIDC_USERNAME_CLAIM'"
+    echo "export OIDC_GROUPS_CLAIM='$OIDC_GROUPS_CLAIM'"
+    echo "export AUTH0_DOMAIN='$AUTH0_DOMAIN'"
+    echo "export APP_HOST='$APP_HOST'"
+    echo "JWKS_URL='$JWKS_URL'"
+  } >> "$INPUT_FILE"
+  
+  # Collect Vault inputs if needed
+  # Add other inputs as needed...
+  
+  echo "All inputs collected and saved to $INPUT_FILE"
+}
+
+function installBaseServices(){
+  STATE_FILE="/root/base_services_install_state"
+  INPUT_FILE="/root/base_services_inputs"
+  
+  # Check current state
+  if [ -f "$STATE_FILE" ]; then
+    STATE=$(cat "$STATE_FILE")
+    case "$STATE" in
+      "post_reboot")
+        echo "Continuing base services installation after reboot..."
+        postRebootBaseServices
+        return
+        ;;
+      "completed")
+        echo "Base services installation already completed"
+        return
+        ;;
+    esac
+  fi
+  
+  # Pre-collect all user inputs
+  echo "Collecting required inputs for base services installation..."
+  collectUserInputs
+  
+  # Pre-reboot services
+  echo "Installing pre-reboot base services..."
+  echo "starting_install" > "$STATE_FILE"
+  
+  gok install ingress
+  gok install cert-manager
+  
+  # Check if reboot is needed
+  if [[ "$CERTMANAGER_CHALANGE_TYPE" == "selfsigned" ]]; then
+    echo "post_reboot" > "$STATE_FILE"
+    
+    # Create a separate script file instead of inline bash
+    cat > /root/post-reboot-script.sh <<'SCRIPT_EOF'
+#!/bin/bash
+# Wait for Kubernetes API to be available before proceeding
+export MOUNT_PATH=/root
+source $MOUNT_PATH/kubernetes/install_k8s/util
+source $MOUNT_PATH/kubernetes/install_k8s/gok
+export KUBECONFIG=/root/.kube/config
+
+for i in {1..30}; do
+  if kubectl get nodes &>/dev/null; then
+    echo "Kubernetes is up and running."
+    break
+  else
+    kubectl get nodes
+    echo "Waiting for Kubernetes API to be available... ($i/30)"
+    sleep 10
+  fi
+done
+
+if ! kubectl get nodes &>/dev/null; then
+  echo "Kubernetes API is not available after waiting. Exiting."
+  exit 1
+fi
+
+installBaseServices
+SCRIPT_EOF
+    
+    chmod +x /root/post-reboot-script.sh
+    
+    # Create systemd service for post-reboot continuation
+    cat > /etc/systemd/system/base-services-post-reboot-1.service <<EOF
+[Unit]
+Description=Base Services Post Reboot Setup
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/root/post-reboot-script.sh
+Restart=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl enable base-services-post-reboot-1.service
+    
+    echoWarning "Self-signed certificate added to root ca, rebooting system for it to take effect"
+    sudo reboot
+  else
+    postRebootBaseServices
+  fi
+}
+
+postRebootBaseServices(){
+  echo "Installing post-reboot base services..."
+  
+  # Load saved inputs
+  INPUT_FILE="/root/base_services_inputs"
+  if [ -f "$INPUT_FILE" ]; then
+    source "$INPUT_FILE"
+    echo "Loaded saved user inputs"
+  else
+    echoFailed "Input file not found! Cannot continue without user inputs."
+    return 1
+  fi
+  
+  # Clean up systemd service and script
+  if [ -f "/etc/systemd/system/base-services-post-reboot-1.service" ]; then
+    systemctl disable base-services-post-reboot-1.service
+    rm -f /etc/systemd/system/base-services-post-reboot-1.service
+    rm -f /root/post-reboot-script.sh
+    systemctl daemon-reload
+  fi
+  
+  # Install services using saved inputs
+  gok install kyverno
+  gok install registry
+  gok install base
+  gok install ldap
+  gok install keycloak
+  gok install oauth2
+  gok install rabibtmq
+  gok install vault
+  
+  # Clean up input file
+  rm -f "$INPUT_FILE"
+  
+  echo "completed" > "/root/base_services_install_state"
+  echoSuccess "Base services installation completed."
+}
+
+function resetBaseServices(){
+  echo "Resetting base services..."
+  echo "This will reset the following components: vault, rabbitmq, oauth2, keycloak, ldap, registry, kyverno, cert-manager, ingress."
+  sleep 5
+  gok reset vault
+  echoSuccess "Vault reset completed."
+  gok reset rabbitmq
+  echoSuccess "RabbitMQ reset completed."
+  gok reset oauth2
+  echoSuccess "OAuth2 reset completed."
+  gok reset keycloak
+  echoSuccess "Keycloak reset completed."
+  gok reset ldap
+  echoSuccess "LDAP reset completed."
+  gok reset registry
+  echoSuccess "Registry reset completed."
+  gok reset kyverno
+  echoSuccess "Kyverno reset completed."
+  gok reset cert-manager
+  echoSuccess "Cert-Manager reset completed."
+  gok reset ingress
+  echoSuccess "Ingress reset completed."
+}
+
+
 function installCmd() {
   updateSys
   installDeps
@@ -4328,6 +4667,8 @@ function installCmd() {
     installDashboardwithCertManager
   elif [ "$COMPONENT" == "jupyter" ]; then
     jupyterHubInst
+  elif [ "$COMPONENT" == "devworkspace" ]; then
+    createDevWorkspace
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
   elif [ "$COMPONENT" == "ttyd" ]; then
@@ -4351,6 +4692,8 @@ function installCmd() {
     rabbitmqInst
   elif [ "$COMPONENT" == "vault" ]; then
     vaultInstall
+  elif [ "$COMPONENT" == "gok-login" ]; then
+    gokLoginInst
   elif [ "$COMPONENT" == "keycloak" ]; then
     installKeycloakWithCertMgr
   elif [ "$COMPONENT" == "ingress" ]; then
@@ -4372,9 +4715,13 @@ function installCmd() {
     istioInst
   elif [ "$COMPONENT" == "kyverno" ]; then
     kyvernoInst
+  elif [ "$COMPONENT" == "base" ]; then
+    baseInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst
     k8sInst "kubernetes-worker"
+  elif [ "$COMPONENT" == "base-services" ]; then
+    installBaseServices
   elif [ "$COMPONENT" == "kubernetes" ]; then
     dockrInst
     haInst
@@ -4436,6 +4783,9 @@ EOF
     ingressUnInst
   elif [ "$COMPONENT" == "chart" ]; then
     resetChart
+  elif [ "$COMPONENT" == "gok-login" ]; then
+    helm uninstall gok-login -n gok-login
+    kubectl delete ns gok-login
   elif [ "$COMPONENT" == "ldap" ]; then
     ldapReset
   elif [ "$COMPONENT" == "gok-agent" ]; then
@@ -4447,6 +4797,8 @@ EOF
     gok reset gok-controller
   elif [ "$COMPONENT" == "argocd" ]; then
     argocdReset
+  elif [ "$COMPONENT" == "devworkspace" ]; then
+    deleteDevWorkspace
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then
@@ -4478,6 +4830,8 @@ EOF
     istioReset
   elif [ "$COMPONENT" == "kyverno" ]; then
     kyvernoReset
+  elif [ "$COMPONENT" == "base-services" ]; then
+    resetBaseServices
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     kubeadm reset <<EOF
 y
