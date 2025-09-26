@@ -80,6 +80,16 @@ spec:
                 echo "No package.json found (skipping npm deps)."
               fi
 
+              if ! grep -q "### CHE_AUTO_VENV" "$HOME/.bashrc"; then
+              cat >> "$HOME/.bashrc" <<'BASHRC'
+              # ### CHE_AUTO_VENV
+              if [ -f "/projects/python-web-project/backend/.venv/bin/activate" ]; then
+                . "/projects/python-web-project/backend/.venv/bin/activate"
+              fi
+              # ### END CHE_AUTO_VENV
+              BASHRC
+              fi
+
               # ===== Keep container alive for IDE usage =====
               tail -f /dev/null
           memoryLimit: 4Gi
@@ -170,3 +180,20 @@ spec:
           workingDir: /projects/python-web-project
           commandLine: |
             . .venv/bin/activate && ruff check .
+      - id: run-backend
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project/backend
+          commandLine: . .venv/bin/activate && python app.py
+        group:
+          kind: run
+          isDefault: false
+
+      - id: run-frontend
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project/frontend
+          commandLine: npm start
+        group:
+          kind: run
+          isDefault: false
