@@ -21,16 +21,12 @@ spec:
           args:
             - |
               set -e
-              uid="$(id -u)"; gid="$(id -g)"
-              # Create fake passwd/group in /tmp and use nss_wrapper to expose them
-              echo "user:x:${uid}:${gid}:Dev User:/home/user:/bin/bash" > /tmp/passwd
-              echo "group:x:${gid}:" > /tmp/group
-              export NSS_WRAPPER_PASSWD=/tmp/passwd
-              export NSS_WRAPPER_GROUP=/tmp/group
-              export LD_PRELOAD=libnss_wrapper.so
+              # Use a writable home that doesn't depend on passwd entries
+              export HOME=/home/user
+              mkdir -p "$HOME" /home/user/.m2 || true
 
-              # Prepare HOME
-              mkdir -p /home/user && export HOME=/home/user
+              # (optional) show effective uid/gid without name resolution
+              echo "UID=$(id -u) GID=$(id -g)"
               # Wait until a project appears (starterProjects or CM mount)
               echo "Waiting for project checkout under /projects..."
               for i in {1..120}; do
