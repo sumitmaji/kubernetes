@@ -130,10 +130,11 @@ def main():
         print(f"Workspace directory for type '{workspace_type}' not found.")
         return 1
 
-    # Run create_configmap.py in the workspace directory
+    # Run create_config.py in the workspace directory
     create_configmap_path = os.path.join(workspace_dir, "create_configmap.py")
+    namespace = os.environ.get("CHE_USER_NAMESPACE", "che-user")
     if os.path.isfile(create_configmap_path):
-        subprocess.run([sys.executable, create_configmap_path, os.environ.get("CHE_USER_NAMESPACE", "che-user")], cwd=workspace_dir)
+        subprocess.run([sys.executable, create_configmap_path, namespace], cwd=workspace_dir)
     else:
         print(f"create_configmap.py not found in {workspace_dir}")
 
