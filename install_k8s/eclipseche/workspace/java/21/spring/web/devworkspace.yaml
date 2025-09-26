@@ -16,17 +16,12 @@ spec:
     components:
       - name: dev
         container:
-          image: maven:3.9.9-eclipse-temurin-21
+          # image: maven:3.9.9-eclipse-temurin-21
+          image: quay.io/devfile/universal-developer-image:latest
           command: ["bash","-lc"]
           args:
             - |
               set -e
-              # Use a writable home that doesn't depend on passwd entries
-              export HOME=/home/user
-              mkdir -p "$HOME" /home/user/.m2 || true
-
-              # (optional) show effective uid/gid without name resolution
-              echo "UID=$(id -u) GID=$(id -g)"
               # Wait until a project appears (starterProjects or CM mount)
               echo "Waiting for project checkout under /projects..."
               for i in {1..120}; do
