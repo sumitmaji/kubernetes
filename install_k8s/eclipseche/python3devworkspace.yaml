@@ -1,0 +1,114 @@
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: my-python-workspace
+  namespace: skmaji1-che
+spec:
+  routingClass: che
+  started: true
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: eclipse-che
+      controller.devfile.io/storage-type: per-user
+
+    components:
+      - name: dev
+        container:
+          image: python:3.11-bookworm
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -e
+              cd /projects
+              # create venv if missing
+              if [ ! -d ".venv" ]; then
+                python -m venv .venv
+              fi
+              . .venv/bin/activate
+              python -m pip install --upgrade pip
+              # install requirements.txt if present
+              if [ -f requirements.txt ]; then
+                echo "Installing requirements.txt..."
+                pip install -r requirements.txt
+              fi
+              # keep container alive for Che
+              tail -f /dev/null
+          memoryLimit: 4Gi
+          cpuLimit: 2000m
+          mountSources: true
+          sourceMapping: /projects
+          env:
+            - name: PIP_CACHE_DIR
+              value: /home/user/.cache/pip
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: pip-cache
+              path: /home/user/.cache/pip
+      - name: pip-cache
+        volume:
+          size: 2Gi
+
+    commands:
+      - id: py-info
+        exec:
+          component: dev
+          workingDir: ${PROJECT_SOURCE}
+          commandLine: |
+            echo "== Python & pip ==" && python --version && pip --version
+
+      - id: reinstall-reqs
+        exec:
+          component: dev
+          workingDir: ${PROJECT_SOURCE}
+          commandLine: |
+            . .venv/bin/activate && pip install -r requirements.txt
+
+      - id: test-pytest
+        exec:
+          component: dev
+          workingDir: ${PROJECT_SOURCE}
+          commandLine: |
+            . .venv/bin/activate && pytest -q
+          group:
+            kind: test
+            isDefault: true
+
+      - id: run-app
+        exec:
+          component: dev
+          workingDir: ${PROJECT_SOURCE}
+          commandLine: |
+            . .venv/bin/activate && python app.py
+          group:
+            kind: run
+
+      - id: format-black
+        exec:
+          component: dev
+          workingDir: ${PROJECT_SOURCE}
+          commandLine: |
+            . .venv/bin/activate && black .
+
+      - id: lint-ruff
+        exec:
+          component: dev
+          workingDir: ${PROJECT_SOURCE}
+          commandLine: |
+            . .venv/bin/activate && ruff check .
+
+    starterProjects:
+      - name: python-starter
+        files:
+          - path: requirements.txt
+            content: |
+              pytest
+              black
+              ruff
+          - path: app.py
+            content: |
+              print("Hello from Che Python workspace with auto-installed deps!")
