@@ -4752,7 +4752,7 @@ function installCmd() {
     jupyterHubInst
   elif [ "$COMPONENT" == "devworkspace" ]; then
     createDevWorkspace
-  elif [ "$COMPONENT" == "devworkspacev2" ]; then
+  elif [ "$COMPONENT" == "workspace" ]; then
     createDevWorkspaceV2
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
@@ -4884,7 +4884,7 @@ EOF
     argocdReset
   elif [ "$COMPONENT" == "devworkspace" ]; then
     deleteDevWorkspace
-  elif [ "$COMPONENT" == "devworkspacev2" ]; then
+  elif [ "$COMPONENT" == "workspace" ]; then
     deleteDevWorkspaceV2
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
