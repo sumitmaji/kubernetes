@@ -46,5 +46,3 @@ if __name__ == "__main__":
     for filename in files:
         configmap_name = filename.replace('.', '-').lower()
         create_configmap(namespace, configmap_name, [filename])
-
-    create_configmap(namespace, configmap_name, files)
