@@ -28,11 +28,11 @@ def create_configmap(namespace, configmap_name, file_list):
     }
     # Set a specific annotation for each file
     file_specific_annotations = {
-        "DemoApplication.java": {"controller.devfile.io/mount-path": "/projects/spring-web/src/main/java/com/example/demo"},
-        "application.properties": {"controller.devfile.io/mount-path": "/projects/spring-web/src/main/resources"},
-        "settings.json": {"controller.devfile.io/mount-path": "/projects/.vscode"},
-        "pom.xml": {"controller.devfile.io/mount-path": "/projects/spring-web"},
-        "extensions.json": {"controller.devfile.io/mount-path": "/projects/.vscode"}
+        "DemoApplication.java": {"controller.devfile.io/mount-path": "/tmp/projects/spring-web/src/main/java/com/example/demo"},
+        "application.properties": {"controller.devfile.io/mount-path": "/tmp/projects/spring-web/src/main/resources"},
+        "settings.json": {"controller.devfile.io/mount-path": "/tmp/projects/.vscode"},
+        "pom.xml": {"controller.devfile.io/mount-path": "/tmp/projects/spring-web"},
+        "extensions.json": {"controller.devfile.io/mount-path": "/tmp/projects/.vscode"}
     }
     # Use the annotation for the first (and only) file in file_list
     base_annotations = {

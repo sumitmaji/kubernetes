@@ -43,6 +43,8 @@ spec:
               mkdir -p "$HOME" "$HOME/.m2"
 
               echo "UID=$(id -u) GID=$(id -g) USER=$USER HOME=$HOME"
+              cp -r /tmp/projects/* /projects/ 2>/dev/null || true
+              chown -R "$(id -u):$(id -g)" "$HOME" "$VSCODE_AGENT_FOLDER" /projects
               # Wait until a project appears (starterProjects or CM mount)
               echo "Waiting for project checkout under /projects..."
               for i in {1..120}; do
