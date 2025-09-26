@@ -131,12 +131,12 @@ def main():
         return 1
 
     # Run create_config.py in the workspace directory
-    create_configmap_path = os.path.join(workspace_dir, "create_configmap.py")
+    create_config_path = os.path.join(workspace_dir, "create_config.py")
     namespace = os.environ.get("CHE_USER_NAMESPACE", "che-user")
-    if os.path.isfile(create_configmap_path):
-        subprocess.run([sys.executable, create_configmap_path, namespace], cwd=workspace_dir)
+    if os.path.isfile(create_config_path):
+        subprocess.run([sys.executable, create_config_path, namespace], cwd=workspace_dir)
     else:
-        print(f"create_configmap.py not found in {workspace_dir}")
+        print(f"create_config.py not found in {workspace_dir}")
 
     # Use devworkspace.yaml from the workspace directory
     manifest_file_path = os.path.join(workspace_dir, "devworkspace.yaml")
