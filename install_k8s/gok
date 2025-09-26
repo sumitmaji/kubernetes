@@ -1704,12 +1704,14 @@ createDevWorkspaceV2() {
   echo "2 => spring-web"
   echo "3 => python-web"
   echo "4 => springboot-backend"
+  echo "5 => tensorflow"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
     2) WORKSPACE_TYPE="springboot-web" ;;
     3) WORKSPACE_TYPE="python-web" ;;
     4) WORKSPACE_TYPE="springboot-backend" ;;
+    5) WORKSPACE_TYPE="tensorflow" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1718,6 +1720,7 @@ createDevWorkspaceV2() {
     springboot-web) WORKSPACE="spring" ;;
     python-web) WORKSPACE="python" ;;
     springboot-backend) WORKSPACE="spring" ;;
+    tensorflow) WORKSPACE="tensorflow" ;;
     *) WORKSPACE="java" ;;
   esac
 
@@ -1751,12 +1754,14 @@ deleteDevWorkspaceV2() {
   echo "2 => springboot-web"
   echo "3 => python-web"
   echo "4 => springboot-backend"
+  echo "5 => tensorflow"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
     2) WORKSPACE_TYPE="springboot-web" ;;
     3) WORKSPACE_TYPE="python-web" ;;
     4) WORKSPACE_TYPE="springboot-backend" ;;
+    5) WORKSPACE_TYPE="tensorflow" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1765,6 +1770,7 @@ deleteDevWorkspaceV2() {
     springboot-web) WORKSPACE="spring" ;;
     python-web) WORKSPACE="python" ;;
     springboot-backend) WORKSPACE="spring" ;;
+    tensorflow) WORKSPACE="tensorflow" ;;
     *) WORKSPACE="java" ;;
   esac
 
