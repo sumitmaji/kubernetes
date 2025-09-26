@@ -1703,18 +1703,21 @@ createDevWorkspaceV2() {
   echo "1 => core-java"
   echo "2 => spring-web"
   echo "3 => python-web"
+  echo "4 => springboot-backend"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
-    2) WORKSPACE_TYPE="spring-web" ;;
+    2) WORKSPACE_TYPE="springboot-web" ;;
     3) WORKSPACE_TYPE="python-web" ;;
+    4) WORKSPACE_TYPE="springboot-backend" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
   case "$WORKSPACE_TYPE" in
     core-java) WORKSPACE="java" ;;
-    spring-web) WORKSPACE="spring" ;;
+    springboot-web) WORKSPACE="spring" ;;
     python-web) WORKSPACE="python" ;;
+    springboot-backend) WORKSPACE="spring" ;;
     *) WORKSPACE="java" ;;
   esac
 
@@ -1745,20 +1748,23 @@ deleteDevWorkspaceV2() {
   
   echo "Select workspace type:"
   echo "1 => core-java"
-  echo "2 => spring-web"
+  echo "2 => springboot-web"
   echo "3 => python-web"
+  echo "4 => springboot-backend"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
-    2) WORKSPACE_TYPE="spring-web" ;;
+    2) WORKSPACE_TYPE="springboot-web" ;;
     3) WORKSPACE_TYPE="python-web" ;;
+    4) WORKSPACE_TYPE="springboot-backend" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
   case "$WORKSPACE_TYPE" in
     core-java) WORKSPACE="java" ;;
-    spring-web) WORKSPACE="spring" ;;
+    springboot-web) WORKSPACE="spring" ;;
     python-web) WORKSPACE="python" ;;
+    springboot-backend) WORKSPACE="spring" ;;
     *) WORKSPACE="java" ;;
   esac
 

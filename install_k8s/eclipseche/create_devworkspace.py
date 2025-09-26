@@ -123,8 +123,9 @@ def main():
     workspace_type = os.environ.get("WORKSPACE_TYPE", "core-java")
     workspace_map = {
         "core-java": "workspace/java/21/core",
-        "spring-web": "workspace/java/21/spring/web",
-        "python-web": "workspace/python/python-web-project"
+        "springboot-web": "workspace/java/21/spring/web",
+        "python-web": "workspace/python/python-web-project",
+        "springboot-backend": "workspace/java/21/spring/springboot-backend-project"
     }
     workspace_dir = workspace_map.get(workspace_type)
     if not workspace_dir or not os.path.isdir(workspace_dir):
