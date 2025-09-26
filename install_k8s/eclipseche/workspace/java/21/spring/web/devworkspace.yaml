@@ -50,6 +50,10 @@ spec:
           cpuLimit: 3000m
           mountSources: true
           sourceMapping: /projects
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
           env:
             - name: JAVA_HOME
               value: /opt/java/openjdk
