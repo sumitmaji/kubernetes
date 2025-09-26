@@ -30,7 +30,9 @@ def create_configmap(namespace, configmap_name, file_list):
     file_specific_annotations = {
         "DemoApplication.java": {"controller.devfile.io/mount-path": "/projects/spring-web/src/main/java/com/example/demo"},
         "application.properties": {"controller.devfile.io/mount-path": "/projects/spring-web/src/main/resources"},
-        "pom.xml": {"controller.devfile.io/mount-path": "/projects/spring-web"}
+        "settings.json": {"controller.devfile.io/mount-path": "/projects/.vscode"},
+        "pom.xml": {"controller.devfile.io/mount-path": "/projects/spring-web"},
+        "extensions.json": {"controller.devfile.io/mount-path": "/projects/.vscode"}
     }
     # Use the annotation for the first (and only) file in file_list
     base_annotations = {
@@ -55,7 +57,7 @@ if __name__ == "__main__":
 
     namespace = sys.argv[1]
     # Explicitly declare the set of file names
-    files = {"DemoApplication.java", "application.properties", "pom.xml"}
+    files = {"DemoApplication.java", "application.properties", "pom.xml", "extensions.json", "settings.json"}
     for filename in files:
         configmap_name = filename.replace('.', '-').lower()
         create_configmap(namespace, configmap_name, [filename])
