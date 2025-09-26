@@ -130,13 +130,6 @@ def main():
         print(f"Workspace directory for type '{workspace_type}' not found.")
         return 1
 
-    # Run create_config.py in the workspace directory
-    namespace = os.environ.get("CHE_USER_NAMESPACE", "che-user")
-    if os.path.isfile(os.path.join(workspace_dir, "create_config.py")):
-        subprocess.run([sys.executable, "create_config.py", namespace], cwd=workspace_dir)
-    else:
-        print(f"create_config.py not found in {workspace_dir}")
-
     # Use devworkspace.yaml from the workspace directory
     manifest_file_path = os.path.join(workspace_dir, "devworkspace.yaml")
     if not os.path.isfile(manifest_file_path):
@@ -165,6 +158,12 @@ def main():
 
     crd_api = client.CustomObjectsApi()
     ensure_namespace(namespace)
+
+    # Run create_config.py in the workspace directory after namespace creation
+    if os.path.isfile(os.path.join(workspace_dir, "create_config.py")):
+        subprocess.run([sys.executable, "create_config.py", namespace], cwd=workspace_dir)
+    else:
+        print(f"create_config.py not found in {workspace_dir}")
 
     if DELETE_MODE:
         try:
