@@ -131,10 +131,9 @@ def main():
         return 1
 
     # Run create_config.py in the workspace directory
-    create_config_path = os.path.join(workspace_dir, "create_config.py")
     namespace = os.environ.get("CHE_USER_NAMESPACE", "che-user")
-    if os.path.isfile(create_config_path):
-        subprocess.run([sys.executable, create_config_path, namespace], cwd=workspace_dir)
+    if os.path.isfile(os.path.join(workspace_dir, "create_config.py")):
+        subprocess.run([sys.executable, "create_config.py", namespace], cwd=workspace_dir)
     else:
         print(f"create_config.py not found in {workspace_dir}")
 
