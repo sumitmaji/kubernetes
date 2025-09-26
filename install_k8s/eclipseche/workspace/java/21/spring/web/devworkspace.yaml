@@ -12,6 +12,18 @@ spec:
         name: devworkspace-config
         namespace: eclipse-che
       controller.devfile.io/storage-type: per-user
+      controller.devfile.io/pod-overrides: |
+        {
+          "spec": {
+            "securityContext": {
+              "runAsUser": 10001,
+              "fsGroup": 0,
+              "runAsNonRoot": true,
+              "runAsUser": 10001
+
+            }
+          }
+        }
 
     components:
       - name: dev
