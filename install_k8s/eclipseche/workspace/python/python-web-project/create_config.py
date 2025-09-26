@@ -20,7 +20,9 @@ def create_configmap(namespace, configmap_name, file_list):
     data = {}
     for filename in file_list:
         with open(filename, 'r') as f:
-            data[filename] = f.read()
+            # Use just the basename as the key (e.g., "README.md" instead of "./README.md")
+            key = os.path.basename(filename)
+            data[key] = f.read()
 
     labels = {
         "controller.devfile.io/mount-to-devworkspace": "true",
