@@ -1695,6 +1695,49 @@ deleteDevWorkspace() {
   popd || exit
 }
 
+createDevWorkspaceV2() {
+  echo "=== Create Che DevWorkspace ==="
+  NAMESPACE=$(promptUserInput "Enter namespace (che-user): " "che-user")
+  USERNAME=$(promptUserInput "Enter username (user1): " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name (devworkspace1): " "devworkspace1")
+  WORKSPACE_TYPE=$(promptUserInput "Enter workspace type (core-java): " "core-java")
+  export CHE_USER_NAMESPACE="$NAMESPACE"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export WORKSPACE_TYPE="$WORKSPACE_TYPE"
+  export DW_DELETE="false"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  if ! python3 -c "import kubernetes" &>/dev/null; then
+    apt-get install -y python3-kubernetes
+  else
+    echo "python3-kubernetes is already installed."
+  fi
+
+  if ! python3 -c "import yaml" &>/dev/null; then
+    apt-get install -y python3-yaml
+  else
+    echo "python3-yaml is already installed."
+  fi
+  python3 "$WORKING_DIR/eclipseche/create_devworkspace.py"
+  popd || exit
+}
+
+deleteDevWorkspaceV2() {
+  echo "=== Delete Che DevWorkspace ==="
+  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
+  USERNAME=$(promptUserInput "Enter username: " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
+  WORKSPACE_TYPE=$(promptUserInput "Enter workspace type (core-java): " "core-java")
+  export CHE_USER_NAMESPACE="$NAMESPACE"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export WORKSPACE_TYPE="$WORKSPACE_TYPE"
+  export DW_DELETE="true"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  python3 "$WORKING_DIR/eclipseche/create_devworkspace.py"
+  popd || exit
+}
+
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 # Generate User & Password
 genRegistryPassword(){
@@ -4669,6 +4712,8 @@ function installCmd() {
     jupyterHubInst
   elif [ "$COMPONENT" == "devworkspace" ]; then
     createDevWorkspace
+  elif [ "$COMPONENT" == "devworkspacev2" ]; then
+    createDevWorkspaceV2
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
   elif [ "$COMPONENT" == "ttyd" ]; then
@@ -4799,6 +4844,8 @@ EOF
     argocdReset
   elif [ "$COMPONENT" == "devworkspace" ]; then
     deleteDevWorkspace
+  elif [ "$COMPONENT" == "devworkspacev2" ]; then
+    deleteDevWorkspaceV2
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then

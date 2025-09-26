@@ -66,14 +66,14 @@ spec:
       - id: java-info
         exec:
           component: dev
-          workingDir: /projects/core
+          workingDir: /projects/core-java
           commandLine: java -version && mvn -v
 
       # Optional manual trigger if you ever want to re-run prefetch
       - id: download-deps
         exec:
           component: dev
-          workingDir: /projects/core
+          workingDir: /projects/core-java
           commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline
           group:
             kind: build
@@ -81,7 +81,7 @@ spec:
       - id: compile
         exec:
           component: dev
-          workingDir: /projects/core
+          workingDir: /projects/core-java
           commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests compile
           group:
             kind: build
@@ -90,7 +90,7 @@ spec:
       - id: test
         exec:
           component: dev
-          workingDir: /projects/core
+          workingDir: /projects/core-java
           commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository test
           group:
             kind: test
@@ -99,7 +99,7 @@ spec:
       - id: package
         exec:
           component: dev
-          workingDir: /projects/core
+          workingDir: /projects/core-java
           commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests package
           group:
             kind: build

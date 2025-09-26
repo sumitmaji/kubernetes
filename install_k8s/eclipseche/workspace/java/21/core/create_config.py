@@ -6,6 +6,17 @@ def create_configmap(namespace, configmap_name, file_list):
     config.load_kube_config()
     v1 = client.CoreV1Api()
 
+    # Check if ConfigMap exists
+    try:
+        v1.read_namespaced_config_map(configmap_name, namespace)
+        print(f"ConfigMap '{configmap_name}' already exists in namespace '{namespace}'. Skipping creation.")
+        return
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            print(f"Error checking ConfigMap '{configmap_name}': {e}")
+            return
+        # If 404, proceed to create
+
     data = {}
     for filename in file_list:
         with open(filename, 'r') as f:
@@ -23,7 +34,7 @@ def create_configmap(namespace, configmap_name, file_list):
     base_annotations = {
         "controller.devfile.io/mount-as": "subpath"
     }
-    file_name = file_list[0]
+    file_name = list(file_list)[0]
     annotations = base_annotations.copy()
     if file_name in file_specific_annotations:
         annotations.update(file_specific_annotations[file_name])
