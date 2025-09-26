@@ -62,5 +62,17 @@ if __name__ == "__main__":
     
     for filepath in files:
         filename = os.path.basename(filepath)
-        configmap_name = filename.replace('.', '-').lower()
+        # Sanitize ConfigMap name: replace invalid chars and ensure it starts/ends with alphanumeric
+        configmap_name = filename.replace('.', '-').replace('_', '-').lower()
+        # Remove leading/trailing non-alphanumeric characters
+        configmap_name = configmap_name.strip('-.')
+        # Ensure it starts with alphanumeric if it doesn't
+        if configmap_name and not configmap_name[0].isalnum():
+            configmap_name = 'file-' + configmap_name
+        # Ensure it ends with alphanumeric if it doesn't
+        if configmap_name and not configmap_name[-1].isalnum():
+            configmap_name = configmap_name + '-file'
+        # If empty or still invalid, use a default name
+        if not configmap_name or not configmap_name[0].isalnum():
+            configmap_name = 'config-' + str(hash(filepath))[:8]
         create_configmap(namespace, configmap_name, [filepath])
