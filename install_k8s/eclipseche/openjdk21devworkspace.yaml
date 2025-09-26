@@ -26,9 +26,29 @@ spec:
           image: maven:3.9.9-eclipse-temurin-21
           command: ["bash", "-lc"]
           args:
-            - |
-              # keep container alive for Che
-              tail -f /dev/null
+          - |
+            set -e
+            # Wait until a project appears (Che clones starterProjects on start)
+            echo "Waiting for project checkout under /projects..."
+            for i in {1..120}; do
+              if find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit | grep -q .; then
+                break
+              fi
+              sleep 2
+            done
+
+            # Warm Maven cache only once
+            if [ ! -f /home/user/.m2/.offline_done ]; then
+              POM_DIR="$(dirname "$(find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit)")"
+              if [ -n "$POM_DIR" ]; then
+                echo "Running dependency:go-offline in $POM_DIR ..."
+                (cd "$POM_DIR" && mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline) || true
+              fi
+              touch /home/user/.m2/.offline_done
+            fi
+
+            # Keep container alive for IDE usage
+            tail -f /dev/null
           memoryLimit: 4Gi
           cpuLimit: 3000m
           mountSources: true
@@ -94,9 +114,9 @@ spec:
             isDefault: true
 
     # Auto-run dep warmup on first start so the workspace is ready to build/run
-    events:
-      preStart:
-        - deps-go-offline
+    # events:
+    #   preStart:
+    #     - deps-go-offline
 
     starterProjects:
       - name: springbootproject
