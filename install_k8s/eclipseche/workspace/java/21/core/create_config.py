@@ -44,7 +44,7 @@ if __name__ == "__main__":
     # Explicitly declare the set of file names
     files = {"Client.java"}
     for filename in files:
-        configmap_name = filename.replace('.', '_')
+        configmap_name = filename.replace('.', '-')
         create_configmap(namespace, configmap_name, [filename])
 
     create_configmap(namespace, configmap_name, files)
