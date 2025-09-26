@@ -1697,11 +1697,28 @@ deleteDevWorkspace() {
 
 createDevWorkspaceV2() {
   echo "=== Create Che DevWorkspace ==="
-  NAMESPACE=$(promptUserInput "Enter namespace (che-user): " "che-user")
   USERNAME=$(promptUserInput "Enter username (user1): " "user1")
-  WORKSPACE=$(promptUserInput "Enter workspace name (devworkspace1): " "devworkspace1")
-  WORKSPACE_TYPE=$(promptUserInput "Enter workspace type (core-java): " "core-java")
-  export CHE_USER_NAMESPACE="$NAMESPACE"
+  
+  echo "Select workspace type:"
+  echo "1 => core-java"
+  echo "2 => spring-web"
+  echo "3 => python-web"
+  WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
+  case "$WORKSPACE_TYPE_INDEX" in
+    1) WORKSPACE_TYPE="core-java" ;;
+    2) WORKSPACE_TYPE="spring-web" ;;
+    3) WORKSPACE_TYPE="python-web" ;;
+    *) WORKSPACE_TYPE="core-java" ;;
+  esac
+
+  case "$WORKSPACE_TYPE" in
+    core-java) WORKSPACE="java" ;;
+    spring-web) WORKSPACE="spring" ;;
+    python-web) WORKSPACE="python" ;;
+    *) WORKSPACE="java" ;;
+  esac
+
+  export CHE_USER_NAMESPACE="$USERNAME"
   export CHE_USER_NAME="$USERNAME"
   export CHE_WORKSPACE_NAME="$WORKSPACE"
   export WORKSPACE_TYPE="$WORKSPACE_TYPE"
@@ -1724,11 +1741,28 @@ createDevWorkspaceV2() {
 
 deleteDevWorkspaceV2() {
   echo "=== Delete Che DevWorkspace ==="
-  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
-  USERNAME=$(promptUserInput "Enter username: " "user1")
-  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
-  WORKSPACE_TYPE=$(promptUserInput "Enter workspace type (core-java): " "core-java")
-  export CHE_USER_NAMESPACE="$NAMESPACE"
+  USERNAME=$(promptUserInput "Enter username (user1): " "user1")
+  
+  echo "Select workspace type:"
+  echo "1 => core-java"
+  echo "2 => spring-web"
+  echo "3 => python-web"
+  WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
+  case "$WORKSPACE_TYPE_INDEX" in
+    1) WORKSPACE_TYPE="core-java" ;;
+    2) WORKSPACE_TYPE="spring-web" ;;
+    3) WORKSPACE_TYPE="python-web" ;;
+    *) WORKSPACE_TYPE="core-java" ;;
+  esac
+
+  case "$WORKSPACE_TYPE" in
+    core-java) WORKSPACE="java" ;;
+    spring-web) WORKSPACE="spring" ;;
+    python-web) WORKSPACE="python" ;;
+    *) WORKSPACE="java" ;;
+  esac
+
+  export CHE_USER_NAMESPACE="$USERNAME"
   export CHE_USER_NAME="$USERNAME"
   export CHE_WORKSPACE_NAME="$WORKSPACE"
   export WORKSPACE_TYPE="$WORKSPACE_TYPE"
