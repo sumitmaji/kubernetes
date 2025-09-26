@@ -43,7 +43,7 @@ spec:
               mkdir -p "$HOME" "$HOME/.m2"
 
               echo "UID=$(id -u) GID=$(id -g) USER=$USER HOME=$HOME"
-              cp -r /tmp/projects/* /projects/ 2>/dev/null || true
+              cp -r /tmp/projects/. /projects/ 2>/dev/null || true
               
               # Wait until a project appears (starterProjects or CM mount)
               echo "Waiting for project checkout under /projects..."

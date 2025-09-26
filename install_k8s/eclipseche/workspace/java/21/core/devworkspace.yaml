@@ -16,11 +16,22 @@ spec:
     components:
       - name: dev
         container:
-          image: maven:3.9.9-eclipse-temurin-21
-          command: ["bash","-lc"]
+          # image: maven:3.9.9-eclipse-temurin-21
+          image: quay.io/devfile/universal-developer-image:latest
+          # command: ["bash","-lc"]
           args:
+            - bash
+            - -lc
             - |
               set -e
+              # VS Code needs a writable HOME + agent folder
+              export HOME=/home/user
+              export USER=user
+              export VSCODE_AGENT_FOLDER="$HOME/.vscode-server"
+              mkdir -p "$HOME" "$HOME/.m2"
+
+              echo "UID=$(id -u) GID=$(id -g) USER=$USER HOME=$HOME"
+              cp -r /tmp/projects/. /projects/ 2>/dev/null || true
               # Wait until a project appears (starterProjects or CM mount)
               echo "Waiting for project checkout under /projects..."
               for i in {1..120}; do

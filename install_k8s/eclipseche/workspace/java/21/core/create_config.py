@@ -28,7 +28,7 @@ def create_configmap(namespace, configmap_name, file_list):
     }
     # Set a specific annotation for each file
     file_specific_annotations = {
-        "Client.java": {"controller.devfile.io/mount-path": "/projects/core-java/src/com/sum"}
+        "Client.java": {"controller.devfile.io/mount-path": "/tmp/projects/core-java/src/com/sum"}
     }
     # Use the annotation for the first (and only) file in file_list
     base_annotations = {
