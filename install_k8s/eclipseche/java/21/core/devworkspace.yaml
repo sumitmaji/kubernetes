@@ -1,0 +1,105 @@
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: my-java-workspace
+  namespace: skmaji1-che
+spec:
+  routingClass: che
+  started: true
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: eclipse-che
+      controller.devfile.io/storage-type: per-user
+
+    components:
+      - name: dev
+        container:
+          image: maven:3.9.9-eclipse-temurin-21
+          command: ["bash","-lc"]
+          args:
+            - |
+              set -e
+              # Wait until a project appears (starterProjects or CM mount)
+              echo "Waiting for project checkout under /projects..."
+              for i in {1..120}; do
+                if find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit | grep -q .; then
+                  break
+                fi
+                sleep 2
+              done
+
+              # Warm Maven cache only once per workspace (persisted in ~/.m2)
+              if [ ! -f /home/user/.m2/.offline_done ]; then
+                POM_DIR="$(dirname "$(find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit)")"
+                if [ -n "$POM_DIR" ]; then
+                  echo "Running dependency:go-offline in $POM_DIR ..."
+                  (cd "$POM_DIR" && mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline) || true
+                else
+                  echo "No pom.xml found to prefetch dependencies."
+                fi
+                touch /home/user/.m2/.offline_done
+              else
+                echo "Dependencies already prefetched (stamp found)."
+              fi
+
+              # Keep container alive for IDE usage
+              tail -f /dev/null
+          memoryLimit: 4Gi
+          cpuLimit: 3000m
+          mountSources: true
+          sourceMapping: /projects
+          env:
+            - name: JAVA_HOME
+              value: /opt/java/openjdk
+            - name: MAVEN_OPTS
+              value: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0"
+          volumeMounts:
+            - name: m2
+              path: /home/user/.m2
+      - name: m2
+        volume:
+          size: 3Gi
+
+    commands:
+      - id: java-info
+        exec:
+          component: dev
+          workingDir: /projects/core
+          commandLine: java -version && mvn -v
+
+      # Optional manual trigger if you ever want to re-run prefetch
+      - id: download-deps
+        exec:
+          component: dev
+          workingDir: /projects/core
+          commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline
+          group:
+            kind: build
+
+      - id: compile
+        exec:
+          component: dev
+          workingDir: /projects/core
+          commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests compile
+          group:
+            kind: build
+            isDefault: true
+
+      - id: test
+        exec:
+          component: dev
+          workingDir: /projects/core
+          commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository test
+          group:
+            kind: test
+            isDefault: true
+
+      - id: package
+        exec:
+          component: dev
+          workingDir: /projects/core
+          commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests package
+          group:
+            kind: build
