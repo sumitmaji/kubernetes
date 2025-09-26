@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     namespace = sys.argv[1]
     # Explicitly declare the set of file names
-    files = {"config1.yaml", "config2.yaml", "settings.json"}
+    files = {"Client.java"}
     for filename in files:
         configmap_name = filename.replace('.', '_')
         create_configmap(namespace, configmap_name, [filename])
