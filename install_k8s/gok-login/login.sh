@@ -14,7 +14,6 @@ fi
 echo "API URL: $API_URL"
 echo "Username: $USERNAME"
 echo "Password: [hidden]"
-echo "Request payload: {\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}"
 
 if [ "$VERBOSE" = "1" ]; then
   echo "Curl verbose mode enabled."
@@ -59,6 +58,7 @@ contexts:
 - context:
     cluster: k8s
     user: user
+    namespace: $USERNAME
   name: k8s
 current-context: k8s
 EOF
