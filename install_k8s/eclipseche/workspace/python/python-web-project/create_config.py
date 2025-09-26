@@ -32,7 +32,7 @@ def create_configmap(namespace, configmap_name, file_list):
     # Set a specific annotation for each file based on its relative path
     file_path = list(file_list)[0]
     relative_path = os.path.relpath(file_path, '.')
-    mount_path = f"/tmp/projects/{os.path.dirname(relative_path)}" if os.path.dirname(relative_path) != '.' else "/tmp/projects"
+    mount_path = f"/tmp/projects/python-web-project/{os.path.dirname(relative_path)}" if os.path.dirname(relative_path) != '.' else "/tmp/projects"
     
     base_annotations = {
         "controller.devfile.io/mount-as": "subpath",
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     files = []
     for root, dirs, filenames in os.walk('.'):
         for filename in filenames:
-            if filename != 'create_config.py':  # Skip the script itself
+            if filename not in ['create_config.py', 'devworkspace.yaml']:  # Skip the script itself and devworkspace.yaml
                 files.append(os.path.join(root, filename))
     
     for filepath in files:
