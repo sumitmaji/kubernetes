@@ -1705,6 +1705,8 @@ createDevWorkspaceV2() {
   echo "3 => python-web"
   echo "4 => springboot-backend"
   echo "5 => tensorflow"
+  echo "6 => microservice-study"
+  
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
@@ -1712,6 +1714,7 @@ createDevWorkspaceV2() {
     3) WORKSPACE_TYPE="python-web" ;;
     4) WORKSPACE_TYPE="springboot-backend" ;;
     5) WORKSPACE_TYPE="tensorflow" ;;
+    6) WORKSPACE_TYPE="microservice-study" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1721,6 +1724,7 @@ createDevWorkspaceV2() {
     python-web) WORKSPACE="python" ;;
     springboot-backend) WORKSPACE="spring" ;;
     tensorflow) WORKSPACE="tensorflow" ;;
+    microservice-study) WORKSPACE="microservice-study" ;;
     *) WORKSPACE="java" ;;
   esac
 
@@ -1755,6 +1759,7 @@ deleteDevWorkspaceV2() {
   echo "3 => python-web"
   echo "4 => springboot-backend"
   echo "5 => tensorflow"
+  echo "6 => microservice-study"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
@@ -1762,6 +1767,7 @@ deleteDevWorkspaceV2() {
     3) WORKSPACE_TYPE="python-web" ;;
     4) WORKSPACE_TYPE="springboot-backend" ;;
     5) WORKSPACE_TYPE="tensorflow" ;;
+    6) WORKSPACE_TYPE="microservice-study" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1771,6 +1777,7 @@ deleteDevWorkspaceV2() {
     python-web) WORKSPACE="python" ;;
     springboot-backend) WORKSPACE="spring" ;;
     tensorflow) WORKSPACE="tensorflow" ;;
+    microservice-study) WORKSPACE="microservice-study" ;;
     *) WORKSPACE="java" ;;
   esac
 

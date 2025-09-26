@@ -1,0 +1,68 @@
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: my-java-workspace
+  namespace: skmaji1-che
+  annotations: {}
+spec:
+  routingClass: che
+  started: true
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: eclipse-che
+      controller.devfile.io/storage-type: per-user
+      controller.devfile.io/use-starter-project: springbootproject
+    components:
+    - name: spring-boot
+      container:
+        image: quay.io/devfile/universal-developer-image:latest
+        command:
+          - tail
+          - '-f'
+          - /dev/null
+        memoryLimit: 4Gi
+        cpuLimit: 3000m
+        mountSources: true
+        sourceMapping: /projects
+        endpoints:
+          - name: https-springbt
+            targetPort: 8080
+            protocol: https
+            exposure: public
+          - name: debug
+            targetPort: 5858
+            protocol: http
+            exposure: none
+        volumeMounts:
+          - name: m2
+            path: /home/user/.m2
+        env:
+          - name: DEBUG_PORT
+            value: '5858'
+    - name: m2
+      volume:
+        size: 3Gi
+    commands:
+    - id: build
+      exec:
+        component: spring-boot
+        workingDir: \${PROJECT_SOURCE}
+        commandLine: mvn clean -Dmaven.repo.local=/home/user/.m2/repository package -Dmaven.test.skip=true
+        group:
+          kind: build
+          isDefault: true
+    - id: run
+      exec:
+        component: spring-boot
+        workingDir: \${PROJECT_SOURCE}
+        commandLine: mvn -Dmaven.repo.local=/home/user/.m2/repository spring-boot:run
+        group:
+          kind: run
+          isDefault: true
+    starterProjects:
+    - name: springbootproject
+      git:
+        remotes:
+          origin: https://github.com/sumitmaji/microservice-study.git
