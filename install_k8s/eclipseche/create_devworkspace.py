@@ -127,7 +127,8 @@ def main():
         "python-web": "workspace/python/python-web-project",
         "springboot-backend": "workspace/java/21/spring/springboot-backend-project",
         "tensorflow": "workspace/python/tensorflow",
-        "microservice-study": "workspace/java/microservice-study"
+        "microservice-study": "workspace/java/microservice-study",
+        "javaparser": "workspace/java/21/javaparser"
     }
     workspace_dir = workspace_map.get(workspace_type)
     if not workspace_dir or not os.path.isdir(workspace_dir):
