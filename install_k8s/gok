@@ -2786,6 +2786,10 @@ vaultReset() {
   csiDriverUnInstall
 
   kubectl delete clusterrolebinding vault-auth-delegator
+  systemctl stop vault-unseal.service
+  systemctl disable vault-unseal.service
+  rm -f /etc/systemd/system/vault-unseal.service
+  systemctl daemon-reload
 
   # Provide feedback to the user
   echo "Vault has been reset successfully!"
