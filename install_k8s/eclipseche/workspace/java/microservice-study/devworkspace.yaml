@@ -1,0 +1,104 @@
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: my-java-workspace
+  namespace: skmaji1-che
+  annotations: {}
+spec:
+  routingClass: che
+  started: true
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: eclipse-che
+      controller.devfile.io/storage-type: per-user
+      controller.devfile.io/use-starter-project: springbootproject
+    components:
+    - name: spring-boot
+      container:
+        image: quay.io/devfile/universal-developer-image:latest
+        args:
+          - bash
+          - -lc
+          - |
+            set -e
+            # ===== Basic env for VS Code + caches =====
+            export HOME=/home/user
+            export USER=user
+            export VSCODE_AGENT_FOLDER="$HOME/.vscode-server"
+            : "${PIP_CACHE_DIR:=$HOME/.cache/pip}"
+            : "${NPM_CONFIG_CACHE:=$HOME/.cache/npm}"
+            mkdir -p "$HOME" "$PIP_CACHE_DIR" "$NPM_CONFIG_CACHE"
+
+            echo "UID=$(id -u) GID=$(id -g) USER=$USER HOME=$HOME"
+
+            # Wait until a project appears (starterProjects or CM mount)
+            echo "Waiting for project checkout under /projects..."
+            for i in {1..120}; do
+              if find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit | grep -q .; then
+                break
+              fi
+              sleep 2
+            done
+
+            # Warm Maven cache only once per workspace (persisted in ~/.m2)
+            if [ ! -f /home/user/.m2/.offline_done ]; then
+              POM_DIR="$(dirname "$(find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit)")"
+              if [ -n "$POM_DIR" ]; then
+                echo "Running dependency:go-offline in $POM_DIR ..."
+                (cd "$POM_DIR" && mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline) || true
+              else
+                echo "No pom.xml found to prefetch dependencies."
+              fi
+              touch /home/user/.m2/.offline_done
+            else
+              echo "Dependencies already prefetched (stamp found)."
+            fi
+
+            # Keep container alive for IDE usage
+            tail -f /dev/null
+        memoryLimit: 4Gi
+        cpuLimit: 3000m
+        mountSources: true
+        sourceMapping: /projects
+        endpoints:
+          - name: https-springbt
+            targetPort: 8080
+            protocol: https
+            exposure: public
+          - name: debug
+            targetPort: 5858
+            protocol: http
+            exposure: none
+        volumeMounts:
+          - name: m2
+            path: /home/user/.m2
+        env:
+          - name: DEBUG_PORT
+            value: '5858'
+    - name: m2
+      volume:
+        size: 3Gi
+    commands:
+    - id: build
+      exec:
+        component: spring-boot
+        workingDir: \${PROJECT_SOURCE}
+        commandLine: mvn clean -Dmaven.repo.local=/home/user/.m2/repository package -Dmaven.test.skip=true
+        group:
+          kind: build
+          isDefault: true
+    - id: run
+      exec:
+        component: spring-boot
+        workingDir: \${PROJECT_SOURCE}
+        commandLine: mvn -Dmaven.repo.local=/home/user/.m2/repository spring-boot:run
+        group:
+          kind: run
+          isDefault: true
+    starterProjects:
+    - name: springbootproject
+      git:
+        remotes:
+          origin: https://github.com/sumitmaji/kubeauthentication.git

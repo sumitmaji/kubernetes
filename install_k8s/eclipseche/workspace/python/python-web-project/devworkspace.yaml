@@ -1,0 +1,199 @@
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: my-python-workspace
+  namespace: skmaji1-che
+spec:
+  routingClass: che
+  started: true
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: eclipse-che
+      controller.devfile.io/storage-type: per-user
+
+    components:
+      - name: dev
+        container:
+          image: quay.io/devfile/universal-developer-image:latest
+          args:
+            - bash
+            - -lc
+            - |
+              set -e
+              # ===== Basic env for VS Code + caches =====
+              export HOME=/home/user
+              export USER=user
+              export VSCODE_AGENT_FOLDER="$HOME/.vscode-server"
+              : "${PIP_CACHE_DIR:=$HOME/.cache/pip}"
+              : "${NPM_CONFIG_CACHE:=$HOME/.cache/npm}"
+              mkdir -p "$HOME" "$PIP_CACHE_DIR" "$NPM_CONFIG_CACHE"
+
+              echo "UID=$(id -u) GID=$(id -g) USER=$USER HOME=$HOME"
+              # Optional: copy baked-in starter into /projects
+              cp -r /tmp/projects/. /projects/ 2>/dev/null || true
+
+              # ===== Wait for sources to appear (clone/CM mounts) =====
+              echo "Waiting for project contents under /projects..."
+              for i in {1..120}; do
+                if find /projects -mindepth 1 -maxdepth 3 \( -name requirements.txt -o -name package.json \) -print -quit | grep -q .; then
+                  break
+                fi
+                sleep 2
+              done
+
+              # ===== Python setup (requirements.txt) =====
+              PY_DIR="$(dirname "$(find /projects -mindepth 1 -maxdepth 3 -name requirements.txt -print -quit 2>/dev/null)")"
+              if [ -n "$PY_DIR" ]; then
+                echo "Python project detected at: $PY_DIR"
+                if [ ! -d "$PY_DIR/.venv" ]; then
+                  python3 -m venv "$PY_DIR/.venv" || true
+                fi
+                if [ -f "$PY_DIR/.venv/bin/activate" ]; then
+                  . "$PY_DIR/.venv/bin/activate"
+                  python -m pip install --upgrade pip || true
+                  echo "Installing Python deps from $PY_DIR/requirements.txt..."
+                  PIP_CACHE_DIR="$PIP_CACHE_DIR" pip install -r "$PY_DIR/requirements.txt" || true
+                else
+                  echo "WARNING: Failed to create/activate venv at $PY_DIR/.venv"
+                fi
+              else
+                echo "No requirements.txt found (skipping Python deps)."
+              fi
+
+              # ===== npm setup (package.json) =====
+              NODE_DIR="$(dirname "$(find /projects -mindepth 1 -maxdepth 3 -name package.json -not -path '*/node_modules/*' -print -quit 2>/dev/null)")"
+              if [ -n "$NODE_DIR" ]; then
+                echo "Node project detected at: $NODE_DIR"
+                cd "$NODE_DIR"
+                # Prefer clean install if lockfile exists
+                if [ -f package-lock.json ]; then
+                  echo "Running npm ci ..."
+                  npm ci --cache "$NPM_CONFIG_CACHE" || true
+                else
+                  echo "Running npm install ..."
+                  npm install --cache "$NPM_CONFIG_CACHE" || true
+                fi
+                cd -
+              else
+                echo "No package.json found (skipping npm deps)."
+              fi
+
+              if ! grep -q "### CHE_AUTO_VENV" "$HOME/.bashrc"; then
+              cat >> "$HOME/.bashrc" <<'BASHRC'
+              # ### CHE_AUTO_VENV
+              if [ -f "/projects/python-web-project/backend/.venv/bin/activate" ]; then
+                . "/projects/python-web-project/backend/.venv/bin/activate"
+              fi
+              # ### END CHE_AUTO_VENV
+              BASHRC
+              fi
+
+              # ===== Keep container alive for IDE usage =====
+              tail -f /dev/null
+          memoryLimit: 4Gi
+          cpuLimit: 3000m
+          mountSources: true
+          sourceMapping: /projects
+          env:
+            - name: PIP_CACHE_DIR
+              value: /home/user/.cache/pip
+            - name: NPM_CONFIG_CACHE
+              value: /home/user/.cache/npm
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: pip-cache
+              path: /home/user/.cache/pip
+            - name: npm-cache
+              path: /home/user/.cache/npm
+
+      - name: pip-cache
+        volume:
+          size: 2Gi
+      - name: npm-cache
+        volume:
+          size: 2Gi
+
+    commands:
+      - id: py-info
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            echo "== Python & pip ==" && python --version && pip --version
+
+      - id: create-venv
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            python3 -m venv .venv && . .venv/bin/activate && python -m pip install --upgrade pip
+
+      - id: reinstall-reqs
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            . .venv/bin/activate && pip install -r requirements.txt
+
+      - id: npm-reinstall
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - id: test-pytest
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            . .venv/bin/activate && pytest -q
+          group:
+            kind: test
+            isDefault: true
+
+      - id: run-app
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            . .venv/bin/activate && python app.py
+          group:
+            kind: run
+            isDefault: true
+
+      - id: format-black
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            . .venv/bin/activate && black .
+
+      - id: lint-ruff
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project
+          commandLine: |
+            . .venv/bin/activate && ruff check .
+      - id: run-backend
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project/backend
+          commandLine: . .venv/bin/activate && python app.py
+        group:
+          kind: run
+          isDefault: false
+
+      - id: run-frontend
+        exec:
+          component: dev
+          workingDir: /projects/python-web-project/frontend
+          commandLine: npm start
+        group:
+          kind: run
+          isDefault: false

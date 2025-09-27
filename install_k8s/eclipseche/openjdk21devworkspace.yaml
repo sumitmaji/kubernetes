@@ -1,0 +1,125 @@
+apiVersion: workspace.devfile.io/v1alpha2
+kind: DevWorkspace
+metadata:
+  name: my-java-workspace
+  namespace: skmaji1-che
+  annotations:
+    che.eclipse.org/devfile-source: |
+      url:
+        location: https://raw.githubusercontent.com/sumitmaji/workspace/refs/heads/main/devfile.yaml
+      factory:
+        params: url=https://raw.githubusercontent.com/sumitmaji/workspace/refs/heads/main/devfile.yaml
+spec:
+  routingClass: che
+  started: true
+  template:
+    attributes:
+      controller.devfile.io/devworkspace-config:
+        name: devworkspace-config
+        namespace: eclipse-che
+      controller.devfile.io/storage-type: per-user
+      controller.devfile.io/use-starter-project: springbootproject
+    components:
+      - name: spring-boot
+        container:
+          # OpenJDK 21 + Maven
+          image: maven:3.9.9-eclipse-temurin-21
+          command: ["bash", "-lc"]
+          args:
+          - |
+            set -e
+            # Wait until a project appears (Che clones starterProjects on start)
+            echo "Waiting for project checkout under /projects..."
+            for i in {1..120}; do
+              if find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit | grep -q .; then
+                break
+              fi
+              sleep 2
+            done
+
+            # Warm Maven cache only once
+            if [ ! -f /home/user/.m2/.offline_done ]; then
+              POM_DIR="$(dirname "$(find /projects -mindepth 1 -maxdepth 3 -name pom.xml -print -quit)")"
+              if [ -n "$POM_DIR" ]; then
+                echo "Running dependency:go-offline in $POM_DIR ..."
+                (cd "$POM_DIR" && mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline) || true
+              fi
+              touch /home/user/.m2/.offline_done
+            fi
+
+            # Keep container alive for IDE usage
+            tail -f /dev/null
+          memoryLimit: 4Gi
+          cpuLimit: 3000m
+          mountSources: true
+          sourceMapping: /projects
+          env:
+            - name: JAVA_HOME
+              value: /opt/java/openjdk
+            - name: MAVEN_OPTS
+              value: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0"
+            - name: DEBUG_PORT
+              value: "5858"
+          endpoints:
+            - name: https-springbt
+              targetPort: 8080
+              protocol: https
+              exposure: public
+            - name: debug
+              targetPort: 5858
+              protocol: http
+              exposure: none
+          volumeMounts:
+            - name: m2
+              path: /home/user/.m2
+      - name: m2
+        volume:
+          size: 3Gi
+
+    commands:
+      # Quick sanity check (optional to run manually)
+      - id: java-version
+        exec:
+          component: spring-boot
+          workingDir: \${PROJECT_SOURCE}/springboot-web-project
+          commandLine: java -version && mvn -v
+
+      # Pre-warm local repo from your project's pom.xml
+      - id: deps-go-offline
+        exec:
+          component: spring-boot
+          workingDir: \${PROJECT_SOURCE}/springboot-web-project
+          commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests dependency:go-offline
+          group:
+            kind: build
+
+      # Full build using your pom.xml
+      - id: build
+        exec:
+          component: spring-boot
+          workingDir: \${PROJECT_SOURCE}/springboot-web-project
+          commandLine: mvn -B -U -Dmaven.repo.local=/home/user/.m2/repository -DskipTests clean package
+          group:
+            kind: build
+            isDefault: true
+
+      # Run Spring Boot (adjust if your module name differs)
+      - id: run
+        exec:
+          component: spring-boot
+          workingDir: \${PROJECT_SOURCE}/springboot-web-project
+          commandLine: mvn -Dmaven.repo.local=/home/user/.m2/repository spring-boot:run
+          group:
+            kind: run
+            isDefault: true
+
+    # Auto-run dep warmup on first start so the workspace is ready to build/run
+    # events:
+    #   preStart:
+    #     - deps-go-offline
+
+    starterProjects:
+      - name: springbootproject
+        git:
+          remotes:
+            origin: https://github.com/sumitmaji/workspace.git

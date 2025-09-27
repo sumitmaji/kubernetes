@@ -1654,10 +1654,10 @@ resetDockerRegistry(){
 # createDevWorkspace and deleteDevWorkspace methods to prompt for namespace, username, workspace name, and manifest file, then call apply_devworkspace.py for create/delete actions.
 createDevWorkspace() {
   echo "=== Create Che DevWorkspace ==="
-  NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
-  USERNAME=$(promptUserInput "Enter username: " "user1")
-  WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
-  MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path: " "devworkspace.yaml")
+  NAMESPACE=$(promptUserInput "Enter namespace (che-user): " "che-user")
+  USERNAME=$(promptUserInput "Enter username (user1): " "user1")
+  WORKSPACE=$(promptUserInput "Enter workspace name (devworkspace1): " "devworkspace1")
+  MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path (devworkspace.yaml): " "devworkspace.yaml")
   export CHE_USER_NAMESPACE="$NAMESPACE"
   export CHE_USER_NAME="$USERNAME"
   export CHE_WORKSPACE_NAME="$WORKSPACE"
@@ -1692,6 +1692,120 @@ deleteDevWorkspace() {
   export DW_DELETE="true"
   pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
   python3 "$WORKING_DIR/eclipseche/apply_devworkspace.py"
+  popd || exit
+}
+
+createDevWorkspaceV2() {
+  echo "=== Create Che DevWorkspace ==="
+  USERNAME=$(promptUserInput "Enter username (user1): " "user1")
+  
+  echo "Select workspace type:"
+  echo "1 => core-java"
+  echo "2 => spring-web"
+  echo "3 => python-web"
+  echo "4 => springboot-backend"
+  echo "5 => tensorflow"
+  echo "6 => microservice-study"
+  echo "7 => javaparser"
+  echo "8 => nlp"
+  echo "9 => kubeauthentication"
+
+  WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
+  case "$WORKSPACE_TYPE_INDEX" in
+    1) WORKSPACE_TYPE="core-java" ;;
+    2) WORKSPACE_TYPE="springboot-web" ;;
+    3) WORKSPACE_TYPE="python-web" ;;
+    4) WORKSPACE_TYPE="springboot-backend" ;;
+    5) WORKSPACE_TYPE="tensorflow" ;;
+    6) WORKSPACE_TYPE="microservice-study" ;;
+    7) WORKSPACE_TYPE="javaparser" ;;
+    8) WORKSPACE_TYPE="nlp" ;;
+    9) WORKSPACE_TYPE="kubeauthentication";;
+    *) WORKSPACE_TYPE="core-java" ;;
+  esac
+
+  case "$WORKSPACE_TYPE" in
+    core-java) WORKSPACE="java" ;;
+    springboot-web) WORKSPACE="spring" ;;
+    python-web) WORKSPACE="python" ;;
+    springboot-backend) WORKSPACE="spring" ;;
+    tensorflow) WORKSPACE="tensorflow" ;;
+    microservice-study) WORKSPACE="microservice-study" ;;
+    javaparser) WORKSPACE="javaparser" ;;
+    nlp) WORKSPACE="nlp" ;;
+    kubeauthentication) WORKSPACE="kubeauthentication" ;;
+    *) WORKSPACE="java" ;;
+  esac
+
+  export CHE_USER_NAMESPACE="$USERNAME"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export WORKSPACE_TYPE="$WORKSPACE_TYPE"
+  export DW_DELETE="false"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  if ! python3 -c "import kubernetes" &>/dev/null; then
+    apt-get install -y python3-kubernetes
+  else
+    echo "python3-kubernetes is already installed."
+  fi
+
+  if ! python3 -c "import yaml" &>/dev/null; then
+    apt-get install -y python3-yaml
+  else
+    echo "python3-yaml is already installed."
+  fi
+  python3 "$WORKING_DIR/eclipseche/create_devworkspace.py"
+  popd || exit
+}
+
+deleteDevWorkspaceV2() {
+  echo "=== Delete Che DevWorkspace ==="
+  USERNAME=$(promptUserInput "Enter username (user1): " "user1")
+  
+  echo "Select workspace type:"
+  echo "1 => core-java"
+  echo "2 => springboot-web"
+  echo "3 => python-web"
+  echo "4 => springboot-backend"
+  echo "5 => tensorflow"
+  echo "6 => microservice-study"
+  echo "7 => javaparser"
+  echo "8 => nlp"
+  echo "9 => kubeauthentication"
+  WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
+  case "$WORKSPACE_TYPE_INDEX" in
+    1) WORKSPACE_TYPE="core-java" ;;
+    2) WORKSPACE_TYPE="springboot-web" ;;
+    3) WORKSPACE_TYPE="python-web" ;;
+    4) WORKSPACE_TYPE="springboot-backend" ;;
+    5) WORKSPACE_TYPE="tensorflow" ;;
+    6) WORKSPACE_TYPE="microservice-study" ;;
+    7) WORKSPACE_TYPE="javaparser" ;;
+    8) WORKSPACE_TYPE="nlp" ;;
+    9) WORKSPACE_TYPE="kubeauthentication" ;;
+    *) WORKSPACE_TYPE="core-java" ;;
+  esac
+
+  case "$WORKSPACE_TYPE" in
+    core-java) WORKSPACE="java" ;;
+    springboot-web) WORKSPACE="spring" ;;
+    python-web) WORKSPACE="python" ;;
+    springboot-backend) WORKSPACE="spring" ;;
+    tensorflow) WORKSPACE="tensorflow" ;;
+    nlp) WORKSPACE="nlp" ;;
+    microservice-study) WORKSPACE="microservice-study" ;;
+    javaparser) WORKSPACE="javaparser" ;;
+    kubeauthentication) WORKSPACE="kubeauthentication" ;;
+    *) WORKSPACE="java" ;;
+  esac
+
+  export CHE_USER_NAMESPACE="$USERNAME"
+  export CHE_USER_NAME="$USERNAME"
+  export CHE_WORKSPACE_NAME="$WORKSPACE"
+  export WORKSPACE_TYPE="$WORKSPACE_TYPE"
+  export DW_DELETE="true"
+  pushd "$MOUNT_PATH/kubernetes/install_k8s/eclipseche" || exit
+  python3 "$WORKING_DIR/eclipseche/create_devworkspace.py"
   popd || exit
 }
 
@@ -4669,6 +4783,8 @@ function installCmd() {
     jupyterHubInst
   elif [ "$COMPONENT" == "devworkspace" ]; then
     createDevWorkspace
+  elif [ "$COMPONENT" == "workspace" ]; then
+    createDevWorkspaceV2
   elif [ "$COMPONENT" == "che" ]; then
     eclipseCheInst
   elif [ "$COMPONENT" == "ttyd" ]; then
@@ -4799,6 +4915,8 @@ EOF
     argocdReset
   elif [ "$COMPONENT" == "devworkspace" ]; then
     deleteDevWorkspace
+  elif [ "$COMPONENT" == "workspace" ]; then
+    deleteDevWorkspaceV2
   elif [ "$COMPONENT" == "registry" ]; then
     resetDockerRegistry
   elif [ "$COMPONENT" == "fluentd" ]; then

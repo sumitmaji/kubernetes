@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "vscjava.vscode-java-pack",
+        "vmware.vscode-boot-dev-pack",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dsznajder.es7-react-js-snippets",
+        "formulahendry.auto-close-tag",
+        "formulahendry.auto-rename-tag",
+        "esbenp.prettier-vscode"
+    ]
+}
