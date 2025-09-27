@@ -11,6 +11,7 @@ matplotlib>=3.8.0
 jupyter>=1.0.0
 
 # Optional: spaCy for traditional NLP
-spacy>=3.7.0
+spacy==3.7.5
+blis==0.7.11
 # To install a small English model later (runtime):
 # python -m spacy download en_core_web_sm
