@@ -8,7 +8,7 @@ set -e
 NAMESPACE="vault"
 JOB_NAME="vault-unseal-startup"
 VAULT_MANIFEST="/root/kubernetes/install_k8s/vault/vault-unseal-job.yaml"
-KUBECTL_BIN="/usr/local/bin/kubectl"
+KUBECTL_BIN="/usr/bin/kubectl"
 
 # Logging function
 log() {
@@ -37,6 +37,19 @@ $KUBECTL_BIN delete job $JOB_NAME -n $NAMESPACE --ignore-not-found=true
 
 # Wait a moment for cleanup
 sleep 2
+
+# Wait for vault-0 pod to be in Running state
+log "Waiting for vault-0 pod to be in Running state..."
+while true; do
+    POD_STATUS=$($KUBECTL_BIN get pod vault-0 -n $NAMESPACE -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+    if [ "$POD_STATUS" == "Running" ]; then
+        log "vault-0 pod is Running"
+        break
+    else
+        log "vault-0 pod status: $POD_STATUS. Waiting..."
+        sleep 5
+    fi
+done
 
 # Apply the vault unseal job
 log "Starting vault unseal job..."
