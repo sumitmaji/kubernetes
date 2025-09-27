@@ -130,6 +130,7 @@ def main():
         "microservice-study": "workspace/java/microservice-study",
         "javaparser": "workspace/java/21/javaparser",
         "nlp": "workspace/python/nlp",
+        "kubeauthentication" : "workspace/java/kubeauthentication"
     }
     workspace_dir = workspace_map.get(workspace_type)
     if not workspace_dir or not os.path.isdir(workspace_dir):

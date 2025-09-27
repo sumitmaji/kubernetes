@@ -1708,6 +1708,7 @@ createDevWorkspaceV2() {
   echo "6 => microservice-study"
   echo "7 => javaparser"
   echo "8 => nlp"
+  echo "9 => kubeauthentication"
 
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
@@ -1719,6 +1720,7 @@ createDevWorkspaceV2() {
     6) WORKSPACE_TYPE="microservice-study" ;;
     7) WORKSPACE_TYPE="javaparser" ;;
     8) WORKSPACE_TYPE="nlp" ;;
+    9) WORKSPACE_TYPE="kubeauthentication";;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1731,6 +1733,7 @@ createDevWorkspaceV2() {
     microservice-study) WORKSPACE="microservice-study" ;;
     javaparser) WORKSPACE="javaparser" ;;
     nlp) WORKSPACE="nlp" ;;
+    kubeauthentication) WORKSPACE="kubeauthentication" ;;
     *) WORKSPACE="java" ;;
   esac
 
@@ -1768,6 +1771,7 @@ deleteDevWorkspaceV2() {
   echo "6 => microservice-study"
   echo "7 => javaparser"
   echo "8 => nlp"
+  echo "9 => kubeauthentication"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
@@ -1778,6 +1782,7 @@ deleteDevWorkspaceV2() {
     6) WORKSPACE_TYPE="microservice-study" ;;
     7) WORKSPACE_TYPE="javaparser" ;;
     8) WORKSPACE_TYPE="nlp" ;;
+    9) WORKSPACE_TYPE="kubeauthentication" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1790,6 +1795,7 @@ deleteDevWorkspaceV2() {
     nlp) WORKSPACE="nlp" ;;
     microservice-study) WORKSPACE="microservice-study" ;;
     javaparser) WORKSPACE="javaparser" ;;
+    kubeauthentication) WORKSPACE="kubeauthentication" ;;
     *) WORKSPACE="java" ;;
   esac
 

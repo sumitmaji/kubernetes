@@ -101,4 +101,4 @@ spec:
     - name: springbootproject
       git:
         remotes:
-          origin: https://github.com/sumitmaji/kubeauthentication.git
+          origin: https://github.com/sumitmaji/microservice-study.git
