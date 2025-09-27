@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-unseal-startup
+  namespace: vault
+spec:
+  template:
+      metadata:
+        labels:
+          app: vault-unseal-job
+      spec:
+        hostNetwork: true
+        tolerations:
+          - operator: Exists
+        nodeSelector:
+          kubernetes.io/os: linux
+        containers:
+          - name: vault-unseal
+        image: registry.gokcloud.com/vault-with-tools:latest
+        command:
+          - /bin/sh
+          - -c
+          - |
+            echo "Vault unseal job starting..."
+            export VAULT_ADDR=http://vault.vault.svc.cloud.uat:8200
+            
+            # Try to get keys from Kubernetes secret first
+            if kubectl get secret vault-init-keys -n vault >/dev/null 2>&1; then
+              echo "Using keys from Kubernetes secret..."
+              for key in $(kubectl get secret vault-init-keys -n vault -o jsonpath='{.data.vault-init\.json}' | base64 -d | jq -r '.unseal_keys_b64[]'); do
+                vault operator unseal $key
+              done
+            elif [ -f /vault-keys/vault-init.json ]; then
+              echo "Using keys from mounted volume..."
+              for key in $(jq -r '.unseal_keys_b64[]' /vault-keys/vault-init.json); do
+                vault operator unseal $key
+              done
+            else
+              echo "No vault keys found in secret or mounted volume. Cannot unseal."
+              exit 1
+            fi
+            echo "Vault is unsealed. Job completed successfully."
+        volumeMounts:
+          - name: vault-keys
+            mountPath: /vault-keys
+        env:
+          - name: VAULT_ADDR
+            value: "http://vault.vault.svc.cloud.uat:8200"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      restartPolicy: OnFailure
+      volumes:
+        - name: vault-keys
+          hostPath:
+            path: /root/vault-keys
+            type: DirectoryOrCreate

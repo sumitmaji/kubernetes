@@ -2631,6 +2631,7 @@ vaultInstall() {
   ./ci.sh
   popd
   kubectl patch serviceaccount vault -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n vault
+  mkdir -p $MOUNT_PATH/vault-keys
   kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml
   
   # Wait for the Job to complete
@@ -2648,7 +2649,13 @@ vaultInstall() {
     echoSuccess "Vault unseal did not complete within the timeout."
     exit 1  # Return failure
   fi
-  
+
+  # Install Vault unseal service
+  pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+  chmod +x *.sh
+  ./install-vault-unseal-service.sh
+  popd
+
   # Wait for Vault pods to be ready
   echo "Waiting for Vault services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace vault
