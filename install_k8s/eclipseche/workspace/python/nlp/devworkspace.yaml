@@ -65,8 +65,8 @@ spec:
               if ! grep -q "### CHE_AUTO_VENV" "$HOME/.bashrc"; then
               cat >> "$HOME/.bashrc" <<'BASHRC'
               # ### CHE_AUTO_VENV
-              if [ -f "/projects/tensorflow/.venv/bin/activate" ]; then
-                . "/projects/tensorflow/.venv/bin/activate"
+              if [ -f "/projects/nlp/.venv/bin/activate" ]; then
+                . "/projects/nlp/.venv/bin/activate"
               fi
               # ### END CHE_AUTO_VENV
               BASHRC
@@ -104,35 +104,29 @@ spec:
       - id: py-info
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             echo "== Python & pip ==" && python --version && pip --version
 
       - id: create-venv
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             python3 -m venv .venv && . .venv/bin/activate && python -m pip install --upgrade pip
 
       - id: reinstall-reqs
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             . .venv/bin/activate && pip install -r requirements.txt
 
-      - id: npm-reinstall
-        exec:
-          component: dev
-          workingDir: /projects/tensorflow
-          commandLine: |
-            if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - id: test-pytest
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             . .venv/bin/activate && pytest -q
           group:
@@ -142,7 +136,7 @@ spec:
       - id: run-app
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             . .venv/bin/activate && python app.py
           group:
@@ -152,20 +146,20 @@ spec:
       - id: format-black
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             . .venv/bin/activate && black .
 
       - id: lint-ruff
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: |
             . .venv/bin/activate && ruff check .
       - id: run-backend
         exec:
           component: dev
-          workingDir: /projects/tensorflow
+          workingDir: /projects/nlp
           commandLine: . .venv/bin/activate && python app.py
         group:
           kind: run
