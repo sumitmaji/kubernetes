@@ -1707,6 +1707,7 @@ createDevWorkspaceV2() {
   echo "5 => tensorflow"
   echo "6 => microservice-study"
   echo "7 => javaparser"
+  echo "8 => nlp"
 
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
@@ -1717,6 +1718,7 @@ createDevWorkspaceV2() {
     5) WORKSPACE_TYPE="tensorflow" ;;
     6) WORKSPACE_TYPE="microservice-study" ;;
     7) WORKSPACE_TYPE="javaparser" ;;
+    8) WORKSPACE_TYPE="nlp" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1728,6 +1730,7 @@ createDevWorkspaceV2() {
     tensorflow) WORKSPACE="tensorflow" ;;
     microservice-study) WORKSPACE="microservice-study" ;;
     javaparser) WORKSPACE="javaparser" ;;
+    nlp) WORKSPACE="nlp" ;;
     *) WORKSPACE="java" ;;
   esac
 
@@ -1764,6 +1767,7 @@ deleteDevWorkspaceV2() {
   echo "5 => tensorflow"
   echo "6 => microservice-study"
   echo "7 => javaparser"
+  echo "8 => nlp"
   WORKSPACE_TYPE_INDEX=$(promptUserInput "Enter workspace type index (1): " "1")
   case "$WORKSPACE_TYPE_INDEX" in
     1) WORKSPACE_TYPE="core-java" ;;
@@ -1773,6 +1777,7 @@ deleteDevWorkspaceV2() {
     5) WORKSPACE_TYPE="tensorflow" ;;
     6) WORKSPACE_TYPE="microservice-study" ;;
     7) WORKSPACE_TYPE="javaparser" ;;
+    8) WORKSPACE_TYPE="nlp" ;;
     *) WORKSPACE_TYPE="core-java" ;;
   esac
 
@@ -1782,6 +1787,7 @@ deleteDevWorkspaceV2() {
     python-web) WORKSPACE="python" ;;
     springboot-backend) WORKSPACE="spring" ;;
     tensorflow) WORKSPACE="tensorflow" ;;
+    nlp) WORKSPACE="nlp" ;;
     microservice-study) WORKSPACE="microservice-study" ;;
     javaparser) WORKSPACE="javaparser" ;;
     *) WORKSPACE="java" ;;
