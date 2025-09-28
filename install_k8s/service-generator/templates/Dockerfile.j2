@@ -1,0 +1,105 @@
+# Multi-stage build for {{ service_name }}
+# Frontend build stage
+{% if has_frontend -%}
+FROM {{ frontend_runtime }} AS frontend-builder
+WORKDIR /frontend
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+RUN {{ frontend_package_manager }} install
+
+# Copy frontend source and build
+COPY frontend/ ./
+RUN {{ frontend_build_command }}
+
+{% endif -%}
+# Backend build stage (if needed)
+{% if has_backend and backend_language == 'python' -%}
+FROM {{ backend_runtime }} AS backend-builder
+WORKDIR /backend
+
+# Install Python dependencies
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+{% endif -%}
+# Production stage
+{% if has_backend -%}
+FROM {{ backend_runtime_slim }}
+{% else -%}
+FROM nginx:alpine
+{% endif %}
+
+WORKDIR /app
+
+{% if has_backend -%}
+# Install runtime dependencies
+{% if backend_language == 'python' -%}
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend code
+COPY backend/ ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+{% elif backend_language == 'nodejs' -%}
+# Copy backend package files
+COPY backend/package*.json ./
+RUN npm ci --only=production
+
+# Copy backend source
+COPY backend/ ./
+{% endif -%}
+
+# Copy frontend build output
+{% if has_frontend -%}
+COPY --from=frontend-builder /frontend/{% if frontend_language == 'reactjs' %}build{% elif frontend_language == 'vue' %}dist{% endif %} ./static/
+{% endif -%}
+
+# Expose port
+EXPOSE {{ backend_port }}
+
+# Set environment variables
+ENV FLASK_APP={{ backend_main_file }}
+ENV FLASK_ENV=production
+{% if enable_oauth %}
+ENV OAUTH_ISSUER="{{ oauth_issuer }}"
+ENV OAUTH_CLIENT_ID="{{ oauth_client_id }}"
+{% endif %}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:{{ backend_port }}/health || exit 1
+
+# Run the application
+{% if backend_language == 'python' -%}
+CMD ["gunicorn", "--bind", "0.0.0.0:{{ backend_port }}", "--workers", "4", "--timeout", "30", "{{ backend_main_file.replace('.py', '') }}:app"]
+{% elif backend_language == 'nodejs' -%}
+CMD ["node", "{{ backend_main_file }}"]
+{% endif -%}
+
+{% else -%}
+# Static file serving only
+COPY --from=frontend-builder /frontend/{% if frontend_language == 'reactjs' %}build{% elif frontend_language == 'vue' %}dist{% endif %} /usr/share/nginx/html/
+COPY nginx.conf /etc/nginx/nginx.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+{% endif -%}
+
+# Labels for metadata
+LABEL maintainer="GokCloud Team"
+LABEL service.name="{{ service_name }}"
+LABEL service.version="{{ version }}"
+LABEL service.description="{{ description }}"
+{% if has_backend %}
+LABEL service.backend="{{ backend_language }}"
+LABEL service.backend.framework="{{ backend_framework }}"
+{% endif %}
+{% if has_frontend %}
+LABEL service.frontend="{{ frontend_language }}"
+LABEL service.frontend.framework="{{ frontend_framework }}"
+{% endif %}

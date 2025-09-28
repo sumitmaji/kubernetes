@@ -1,0 +1,128 @@
+import React from 'react';
+
+function Header({ 
+  healthStatus, 
+  {% if enable_oauth -%}
+  user, 
+  authenticated, 
+  onLogin, 
+  onLogout
+  {% endif -%}
+}) {
+  return (
+    <header>
+      <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div className="container">
+          <a className="navbar-brand" href="/">
+            <i className="fas fa-cube"></i> {{ service_name_camel }}
+          </a>
+          
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav me-auto">
+              <li className="nav-item">
+                <a className="nav-link" href="/">
+                  <i className="fas fa-home"></i> Home
+                </a>
+              </li>
+              
+              {% if enable_oauth -%}
+              {authenticated && (
+                <li className="nav-item">
+                  <a className="nav-link" href="/dashboard">
+                    <i className="fas fa-tachometer-alt"></i> Dashboard
+                  </a>
+                </li>
+              )}
+              {% endif -%}
+              
+              <li className="nav-item">
+                <a className="nav-link" href="/api/docs/" target="_blank" rel="noopener noreferrer">
+                  <i className="fas fa-book"></i> API Docs
+                </a>
+              </li>
+            </ul>
+            
+            <ul className="navbar-nav">
+              {/* Service Status Indicator */}
+              <li className="nav-item">
+                <span className="navbar-text">
+                  {healthStatus ? (
+                    <span className="badge bg-success">
+                      <i className="fas fa-heart"></i> Online
+                    </span>
+                  ) : (
+                    <span className="badge bg-warning">
+                      <i className="fas fa-exclamation-triangle"></i> Status Unknown
+                    </span>
+                  )}
+                </span>
+              </li>
+              
+              {% if enable_oauth -%}
+              {/* Authentication Status */}
+              {authenticated ? (
+                <li className="nav-item dropdown">
+                  <a
+                    className="nav-link dropdown-toggle"
+                    href="#"
+                    id="navbarDropdown"
+                    role="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
+                    <i className="fas fa-user"></i> {user.name || user.preferred_username}
+                  </a>
+                  <ul className="dropdown-menu" aria-labelledby="navbarDropdown">
+                    <li>
+                      <span className="dropdown-item-text">
+                        <small className="text-muted">{user.email}</small>
+                      </span>
+                    </li>
+                    <li><hr className="dropdown-divider" /></li>
+                    <li>
+                      <button className="dropdown-item" onClick={onLogout}>
+                        <i className="fas fa-sign-out-alt"></i> Logout
+                      </button>
+                    </li>
+                  </ul>
+                </li>
+              ) : (
+                <li className="nav-item">
+                  <button 
+                    className="btn btn-outline-light btn-sm"
+                    onClick={() => {
+                      const authUrl = `{{ oauth_issuer }}/protocol/openid-connect/auth?` +
+                        `client_id={{ oauth_client_id }}&` +
+                        `response_type=code&` +
+                        `scope=openid profile email&` +
+                        `redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}`;
+                      
+                      window.location.href = authUrl;
+                    }}
+                  >
+                    <i className="fas fa-sign-in-alt"></i> Login
+                  </button>
+                </li>
+              )}
+              {% endif -%}
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+  );
+}
+
+export default Header;

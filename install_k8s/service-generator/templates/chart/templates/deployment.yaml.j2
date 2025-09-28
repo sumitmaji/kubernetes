@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "{{ service_name_kebab }}.fullname" . }}
+  labels:
+    {{- include "{{ service_name_kebab }}.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "{{ service_name_kebab }}.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "{{ service_name_kebab }}.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "{{ service_name_kebab }}.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          
+          # Environment variables
+          env:
+            {{- range .Values.app.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+            {{- range .Values.app.secrets }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "{{ service_name_kebab }}.fullname" $ }}-secrets
+                  key: {{ .name }}
+            {{- end }}
+          
+          # Health checks
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.app.healthCheck.path }}
+              port: {{ .Values.app.healthCheck.port }}
+            initialDelaySeconds: {{ .Values.app.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.healthCheck.failureThreshold }}
+          
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.app.readinessCheck.path }}
+              port: {{ .Values.app.readinessCheck.port }}
+            initialDelaySeconds: {{ .Values.app.readinessCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.app.readinessCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.app.readinessCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.app.readinessCheck.failureThreshold }}
+          
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "{{ service_name_kebab }}.fullname" . }}-pvc
+      {{- end }}
+      
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

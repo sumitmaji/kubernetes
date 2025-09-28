@@ -1,0 +1,92 @@
+service:
+  name: my-awesome-service
+  description: A sample full-stack service generated from template
+  version: 0.1.0
+  port: 8080
+  
+  backend:
+    language: python
+    port: 8080
+  
+  frontend:
+    language: reactjs
+  
+  infrastructure:
+    registry: registry.gokcloud.com
+    namespace: my-awesome-service
+    ingress_host: my-awesome-service.gokcloud.com
+    enable_https: true
+    enable_oauth: true
+    oauth_issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
+    oauth_client_id: gok-developers-client
+
+---
+# Additional example configurations:
+
+# Backend-only service
+service:
+  name: api-service
+  description: REST API service
+  backend:
+    language: python
+    port: 5000
+
+---
+# Frontend-only service  
+service:
+  name: web-app
+  description: Static React application
+  frontend:
+    language: reactjs
+  infrastructure:
+    enable_oauth: false
+
+---
+# Node.js backend service
+service:
+  name: node-service
+  description: Node.js Express API
+  backend:
+    language: nodejs
+    port: 3000
+  infrastructure:
+    enable_oauth: false
+
+---
+# Agent-Controller distributed system
+service:
+  name: command-executor
+  description: Distributed command execution system
+  pattern: agent-controller
+  version: 0.1.0
+  
+  controller:
+    backend:
+      language: python
+      port: 8080
+    frontend:
+      language: reactjs
+    
+  agent:
+    language: python
+    privileged: true
+    
+  infrastructure:
+    registry: registry.gokcloud.com
+    namespace: command-executor
+    ingress_host: command-executor.gokcloud.com
+    enable_https: true
+    enable_oauth: true
+    oauth_issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
+    oauth_client_id: gok-developers-client
+    
+  messaging:
+    rabbitmq:
+      enabled: true
+      host: rabbitmq.messaging.svc.cluster.local
+      user: rabbitmq
+      password: rabbitmq
+      
+  vault:
+    enabled: true
+    path: /vault/secrets/

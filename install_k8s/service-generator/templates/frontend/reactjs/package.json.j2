@@ -1,0 +1,40 @@
+{
+  "name": "{{ service_name_kebab }}-frontend",
+  "version": "{{ version }}",
+  "description": "{{ description }} - Frontend",
+  "private": true,
+  "homepage": "/",
+  "dependencies": {
+    {% for key, value in frontend_dependencies.items() -%}
+    "{{ key }}": "{{ value }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "scripts": {
+    {% for key, value in frontend_scripts.items() -%}
+    "{{ key }}": "{{ value }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0"
+  },
+  "proxy": "http://localhost:{{ backend_port }}"
+}

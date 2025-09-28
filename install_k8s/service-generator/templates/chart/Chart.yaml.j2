@@ -1,0 +1,24 @@
+apiVersion: v2
+name: {{ service_name_kebab }}
+description: {{ description }}
+type: application
+version: {{ version }}
+appVersion: "{{ version }}"
+home: https://{{ ingress_host }}
+sources:
+  - https://github.com/gokcloud/services/{{ service_name_kebab }}
+maintainers:
+  - name: GokCloud Team
+    email: team@gokcloud.com
+keywords:
+  - {{ service_name_kebab }}
+  {% if has_backend -%}
+  - {{ backend_language }}
+  - {{ backend_framework|lower }}
+  {% endif -%}
+  {% if has_frontend -%}
+  - {{ frontend_language }}
+  - {{ frontend_framework|lower }}
+  {% endif -%}
+  - microservice
+  - kubernetes
