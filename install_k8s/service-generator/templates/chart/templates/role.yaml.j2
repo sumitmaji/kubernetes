@@ -1,0 +1,34 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "{{ service_name_kebab }}.fullname" . }}-manager
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "{{ service_name_kebab }}.labels" . | nindent 4 }}
+rules:
+  {{- range .Values.rbac.rules }}
+  - apiGroups: {{ .apiGroups | toJson }}
+    resources: {{ .resources | toJson }}
+    verbs: {{ .verbs | toJson }}
+    {{- if .resourceNames }}
+    resourceNames: {{ .resourceNames | toJson }}
+    {{- end }}
+    {{- if .nonResourceURLs }}
+    nonResourceURLs: {{ .nonResourceURLs | toJson }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.rbac.additionalRules }}
+  {{- range .Values.rbac.additionalRules }}
+  - apiGroups: {{ .apiGroups | toJson }}
+    resources: {{ .resources | toJson }}
+    verbs: {{ .verbs | toJson }}
+    {{- if .resourceNames }}
+    resourceNames: {{ .resourceNames | toJson }}
+    {{- end }}
+    {{- if .nonResourceURLs }}
+    nonResourceURLs: {{ .nonResourceURLs | toJson }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

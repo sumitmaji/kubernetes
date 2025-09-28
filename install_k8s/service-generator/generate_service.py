@@ -229,7 +229,8 @@ class ServiceGenerator:
             'enable_https': infra.get('enable_https', True),
             'enable_oauth': infra.get('enable_oauth', True),
             'oauth_issuer': infra.get('oauth_issuer', 'https://keycloak.gokcloud.com/realms/GokDevelopers'),
-            'oauth_client_id': infra.get('oauth_client_id', 'gok-developers-client')
+            'oauth_client_id': infra.get('oauth_client_id', 'gok-developers-client'),
+            'enable_rbac': infra.get('enable_rbac', context.get('is_agent_controller', False))
         })
         # Ensure controller frontend defaults exist when agent-controller pattern is used
         if context.get('is_agent_controller'):
@@ -284,11 +285,11 @@ class ServiceGenerator:
                 shutil.copy2(src_path, dst_path)
                 print(f"Copied static file: {dst_path}")
 
-    def copy_chart_templates(self, service_dir):
-        """Copy Helm chart templates directory raw without Jinja rendering to avoid conflicts.
+    def copy_chart_templates(self, service_dir, context):
+        """Copy Helm chart templates directory and render Jinja placeholders.
 
         This copies the entire templates/chart directory into the generated service/chart
-        preserving any Helm template syntax ({{ ... }}) so Helm rendering works later.
+        and renders only the Jinja2 service name placeholders, preserving Helm syntax.
         """
         src_chart_dir = self.template_dir / 'chart'
         dst_chart_dir = service_dir / 'chart'
@@ -307,8 +308,25 @@ class ServiceGenerator:
 
             for f in files:
                 src_file = Path(root) / f
-                dst_file = target_root / f
-                shutil.copy2(src_file, dst_file)
+                dst_file = target_root / f.replace('.j2', '')  # Remove .j2 extension
+                
+                if f.endswith('.j2'):
+                    # Render only service name placeholders for chart templates
+                    with open(src_file, 'r') as file:
+                        content = file.read()
+                    
+                    # Replace service name placeholders
+                    content = content.replace('{{ service_name_kebab }}', context['service_name_kebab'])
+                    
+                    # Remove Jinja2 raw blocks but preserve content
+                    import re
+                    # Remove {% raw %} and {% endraw %} tags
+                    content = re.sub(r'{% raw %}|{% endraw %}', '', content)
+                    
+                    with open(dst_file, 'w') as file:
+                        file.write(content)
+                else:
+                    shutil.copy2(src_file, dst_file)
                 print(f"Copied chart file: {dst_file}")
     
     def copy_agent_controller_static_files(self, service_dir, context):
@@ -414,8 +432,8 @@ class ServiceGenerator:
         print(f"Generating service: {service_name}")
         print(f"Output directory: {service_dir}")
 
-        # Copy chart templates raw to avoid Jinja/Helm conflicts
-        self.copy_chart_templates(service_dir)
+        # Copy chart templates and render service name placeholders
+        self.copy_chart_templates(service_dir, context)
         
         # Define template mappings
         template_files = [

@@ -10,7 +10,8 @@ The Service Generator is a comprehensive templating system that codifies proven 
 - **Patterns**: Standalone services, Agent-Controller distributed systems
 - **Container**: Multi-stage Docker builds with optimization
 - **Orchestration**: Complete Helm charts for Kubernetes deployment
-- **Security**: OAuth2/OIDC integration, JWT validation, RBAC
+- **Security**: OAuth2/OIDC integration, JWT validation, Kubernetes RBAC (Role-Based Access Control)
+- **RBAC Features**: ServiceAccount, Role/ClusterRole, RoleBinding/ClusterRoleBinding with configurable permissions
 
 ## Application Architecture Patterns
 
@@ -38,6 +39,7 @@ service:
     language: reactjs
   infrastructure:
     enable_oauth: true
+    enable_rbac: true    # Kubernetes RBAC for secure operations
 
 # Node.js + Vue
 service:
@@ -83,6 +85,8 @@ service-name/
 ```
 
 **Deployment**: Single Kubernetes deployment serving both API and static files with optimized multi-stage Docker build.
+
+**RBAC Configuration**: Basic permissions (get/list/watch) on pods, services, configmaps, and secrets for monitoring and configuration access.
 
 ### 2. API-Only Service Pattern
 
@@ -379,8 +383,11 @@ python3 generate_service.py --config agent-system.yaml
 1. **Resource Requirements**: Full-stack services need more resources than API-only
 2. **Scaling Strategy**: Consider horizontal pod autoscaling for high-traffic services
 3. **Security**: Always enable OAuth2 for production deployments
-4. **Monitoring**: Implement health checks and metrics collection
-5. **CI/CD**: Use provided build scripts for consistent deployment pipelines
+4. **RBAC**: Enable Kubernetes RBAC with `enable_rbac: true` for secure service operations
+   - **Standalone services**: Basic read permissions for monitoring and configuration
+   - **Agent-controller**: Enhanced permissions for distributed resource management
+5. **Monitoring**: Implement health checks and metrics collection
+6. **CI/CD**: Use provided build scripts for consistent deployment pipelines
 
 # Node.js Express API
 service:
@@ -1000,5 +1007,79 @@ def liveness_probe():
 - Simpler learning curve preferred
 - Rapid development cycles
 - Smaller bundle sizes needed
+
+## Kubernetes RBAC (Role-Based Access Control) Support
+
+### Overview
+
+The Service Generator includes comprehensive Kubernetes RBAC support based on the proven cloud-shell/gok service implementation. RBAC provides fine-grained security controls for services operating in Kubernetes clusters.
+
+### RBAC Components Generated
+
+**ServiceAccount**: Each service gets a dedicated ServiceAccount with proper metadata and labels for identification and management.
+
+**Role**: Namespace-scoped permissions with two permission levels:
+- **Basic RBAC**: Read-only permissions (get, list, watch) on pods, services, configmaps, secrets
+- **Enhanced RBAC**: Full CRUD permissions for agent-controller patterns requiring resource management
+
+**RoleBinding**: Connects the ServiceAccount to the Role, enabling the service to perform authorized operations.
+
+**Optional Cluster Resources**: ClusterRole and ClusterRoleBinding for services requiring cluster-wide permissions.
+
+### Permission Levels
+
+#### Basic RBAC (Standalone Services)
+```yaml
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]  
+    verbs: ["get", "list", "watch"]
+```
+
+#### Enhanced RBAC (Agent-Controller Pattern)
+```yaml
+rules:
+  # Basic permissions (inherited)
+  - apiGroups: [""]
+    resources: ["pods", "services", "serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]  
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+```
+
+### Configuration
+
+RBAC is enabled via the `infrastructure.enable_rbac` setting:
+
+```yaml
+infrastructure:
+  enable_rbac: true  # Default: true for agent-controller, false for standalone
+```
+
+The generated `values.yaml` includes comprehensive RBAC configuration:
+
+```yaml
+rbac:
+  create: true                    # Enable RBAC resources
+  createClusterRole: false        # Cluster-wide permissions
+  rules: [...]                   # Default rules based on pattern
+  additionalRules: []            # Custom rules per deployment
+  clusterRules: []               # Cluster-wide rules
+  additionalSubjects: []         # Extra users/groups
+```
+
+### Security Best Practices
+
+- **Principle of Least Privilege**: Services receive minimal required permissions
+- **Namespace Isolation**: Default to namespace-scoped permissions
+- **Conditional Creation**: RBAC resources only created when enabled
+- **Extensible**: Support for additional rules and subjects per deployment
 
 This documentation provides a comprehensive guide to all patterns supported by the Service Generator, helping teams select the right architectural approach for their specific requirements.

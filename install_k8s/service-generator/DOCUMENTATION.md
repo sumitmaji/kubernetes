@@ -2,7 +2,21 @@
 
 ## Overview
 
-I have successfully created and **thoroughly tested** a comprehensive templating system based on the console/app pattern and extended with the gok-agent distributed architecture. This system allows you to quickly generate new services with configurable backend and frontend technologies, including distributed agent-controller systems for remote task execution.
+I have successfu## Key Features
+
+### Security & Production Ready
+- **OAuth2/OIDC Integration**: Complete authentication flow with Keycloak
+- **JWT Validation**: Secure API endpoints with proper token verification
+- **HTTPS/TLS**: SSL certificate automation with cert-manager
+- **RBAC (Role-Based Access Control)**: Kubernetes-native security model:
+  - Automatic ServiceAccount creation with proper metadata
+  - Configurable Role permissions (basic: get/list/watch, enhanced: full CRUD)
+  - Agent-controller pattern gets enhanced permissions for distributed operations
+  - Optional cluster-wide permissions for advanced use cases
+  - Principle of least privilege with minimal default permissions
+- **Health Checks**: Kubernetes-native liveness and readiness probes
+- **Security Contexts**: Container security best practices
+- **Environment Configuration**: Secure secrets and config managementeated and **thoroughly tested** a comprehensive templating system based on the console/app pattern and extended with the gok-agent distributed architecture. This system allows you to quickly generate new services with configurable backend and frontend technologies, including distributed agent-controller systems for remote task execution.
 
 **✅ All patterns tested and validated with Docker builds**
 
@@ -45,6 +59,12 @@ I have successfully created and **thoroughly tested** a comprehensive templating
   - Health probes and monitoring
   - SSL/TLS with cert-manager
   - OAuth2 proxy integration
+  - **RBAC Templates**: Role-Based Access Control for secure service operations:
+    - ServiceAccount with proper metadata and labels
+    - Role with configurable permissions (basic and enhanced)
+    - RoleBinding connecting ServiceAccount to Role
+    - ClusterRole and ClusterRoleBinding for cluster-wide permissions (optional)
+    - Conditional RBAC resource creation via Helm templates
 
 ### 3. Configuration Examples & Testing
 - `sample_service_config.yaml` - Comprehensive configuration patterns for all supported combinations
@@ -89,7 +109,20 @@ my-service/
 - **Security Headers**: CORS, authentication middleware, security contexts
 - **Agent Security**: JWT-based agent authentication for distributed systems
 
-### 🚀 Deployment Ready (Kubernetes Native)
+### �️ Kubernetes RBAC (Role-Based Access Control) ✅
+- **ServiceAccount**: Automatic creation with proper metadata and labels
+- **Role Templates**: Configurable namespace-scoped permissions:
+  - **Basic RBAC**: get, list, watch on pods, services, configmaps, secrets
+  - **Enhanced RBAC**: Full CRUD operations for agent-controller patterns
+- **RoleBinding**: Connects ServiceAccount to Role with proper subjects
+- **ClusterRole/ClusterRoleBinding**: Optional cluster-wide permissions
+- **Permission Levels**:
+  - **Standalone services**: Read-only permissions for basic operations
+  - **Agent-controller**: Enhanced permissions for distributed task management
+- **Security Best Practices**: Principle of least privilege, namespace isolation
+- **Configuration**: `infrastructure.enable_rbac: true` (default for agent-controller)
+
+### �🚀 Deployment Ready (Kubernetes Native)
 - **Health Checks**: Liveness and readiness probes for all services
 - **Monitoring**: Prometheus metrics endpoints with custom metrics
 - **Scaling**: HorizontalPodAutoscaler support with CPU/memory targets

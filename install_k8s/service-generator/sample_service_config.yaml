@@ -26,6 +26,7 @@ service:
     ingress_host: python-react-app.gokcloud.com
     enable_https: true
     enable_oauth: true
+    enable_rbac: true
     oauth_issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
     oauth_client_id: gok-developers-client
 
@@ -44,6 +45,7 @@ service:
   infrastructure:
     registry: registry.gokcloud.com
     enable_https: true
+    enable_rbac: true
 
 ---
 # Python + Vue.js
@@ -58,6 +60,7 @@ service:
     language: vue
   infrastructure:
     enable_oauth: true
+    enable_rbac: true
 
 ---
 # Node.js + Angular
@@ -70,6 +73,28 @@ service:
     port: 3000
   frontend:
     language: angular
+
+---
+# ============================================
+# RBAC-ENABLED SERVICES
+# ============================================
+
+# Service with custom RBAC permissions
+service:
+  name: rbac-enabled-service
+  description: Service with enhanced RBAC permissions
+  version: 1.0.0
+  pattern: standalone
+  backend:
+    language: python
+    port: 8080
+  infrastructure:
+    registry: registry.gokcloud.com
+    namespace: rbac-enabled-service
+    enable_rbac: true
+    # RBAC permissions configured in values.yaml:
+    # - Basic: get/list/watch on pods, services, configmaps, secrets
+    # - Can be extended with additionalRules for custom permissions
 
 ---
 # ============================================
@@ -87,6 +112,7 @@ service:
     port: 8080
   infrastructure:
     enable_oauth: true
+    enable_rbac: true
 
 ---
 # Node.js API
@@ -164,6 +190,7 @@ service:
     ingress_host: distributed-system.gokcloud.com
     enable_https: true
     enable_oauth: true
+    enable_rbac: true  # Enable RBAC for Kubernetes resource management
     oauth_issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
     oauth_client_id: gok-developers-client
     
@@ -183,6 +210,71 @@ service:
     enabled: true
     path: /vault/secrets/
     
+---
+---
+# ============================================
+# SERVICE WITH CUSTOM RBAC CONFIGURATION
+# ============================================
+
+# Example service with specific RBAC permissions
+service:
+  name: cluster-manager
+  description: Service that manages cluster resources
+  version: 1.0.0
+  backend:
+    language: python
+    port: 8080
+  infrastructure:
+    enable_rbac: true
+    rbac:
+      # Custom RBAC rules beyond the defaults
+      create_cluster_role: true  # Enable cluster-wide permissions
+      additional_rules:
+        - apiGroups: ["batch"]
+          resources: ["jobs", "cronjobs"]
+          verbs: ["get", "list", "watch", "create", "delete"]
+        - apiGroups: ["extensions", "networking.k8s.io"]
+          resources: ["networkpolicies"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      cluster_rules:
+        - apiGroups: [""]
+          resources: ["nodes"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: ["storage.k8s.io"]
+          resources: ["storageclasses"]
+          verbs: ["get", "list", "watch"]
+
+---
+# ============================================
+# AGENT-CONTROLLER WITH ENHANCED RBAC
+# ============================================
+
+# Distributed system with enhanced RBAC permissions
+service:
+  name: task-management-system
+  description: Agent-Controller system with enhanced RBAC for resource management
+  version: 1.0.0
+  pattern: agent-controller
+  controller:
+    language: python
+    port: 8080
+  agent:
+    language: python  
+    port: 8081
+  infrastructure:
+    registry: registry.gokcloud.com
+    namespace: task-management-system
+    ingress_host: task-management-system.gokcloud.com
+    enable_https: true
+    enable_oauth: true
+    enable_rbac: true  # Enhanced RBAC for agent-controller pattern
+    # Generated RBAC includes:
+    # - Basic permissions: get/list/watch on pods, services, configmaps, secrets
+    # - Enhanced permissions: full CRUD on pods, services, deployments, ingresses
+    # - ServiceAccount: task-management-system-sa
+    # - Role: task-management-system-manager
+    # - RoleBinding: task-management-system-manager-binding
+
 ---
 # ============================================
 # USAGE EXAMPLES & GENERATION COMMANDS

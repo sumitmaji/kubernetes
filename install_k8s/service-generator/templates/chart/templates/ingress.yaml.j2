@@ -1,10 +1,10 @@
-{{- if .Values.ingress.enabled -}}
+{% raw %}{{- if .Values.ingress.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "{{ service_name_kebab }}.fullname" . }}
+  name: {{ include {% endraw %}"{{ service_name_kebab }}{% raw %}.fullname" . }}
   labels:
-    {{- include "{{ service_name_kebab }}.labels" . | nindent 4 }}
+    {{- include {% endraw %}"{{ service_name_kebab }}{% raw %}.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -33,9 +33,9 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "{{ service_name_kebab }}.fullname" $ }}
+                name: {{ include {% endraw %}"{{ service_name_kebab }}{% raw %}.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
     {{- end }}
-{{- end }}
+{{- end }}{% endraw %}

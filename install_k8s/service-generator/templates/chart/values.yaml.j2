@@ -17,11 +17,71 @@ fullnameOverride: ""
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
   # Annotations to add to the service account
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
+  # Image pull secrets to attach to the service account
+  imagePullSecrets: []
+
+# RBAC configuration
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: {% if service_pattern == 'agent-controller' or enable_rbac %}true{% else %}false{% endif %}
+  
+  # Create cluster-wide roles (use with caution)
+  createClusterRole: false
+  
+  # Default RBAC rules for the service
+  rules:
+    # Basic pod management permissions
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list", "watch"]
+    # Service management permissions  
+    - apiGroups: [""]
+      resources: ["services"]
+      verbs: ["get", "list", "watch"]
+    # ConfigMap and Secret access (for configuration)
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets"]
+      verbs: ["get", "list", "watch"]
+    {% if service_pattern == 'agent-controller' -%}
+    # Enhanced permissions for agent-controller pattern
+    - apiGroups: [""]
+      resources: ["pods", "services", "serviceaccounts"]
+      verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses"]
+      verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    {% endif -%}
+  
+  # Additional custom RBAC rules (can be added per deployment)
+  additionalRules: []
+  # Example:
+  # - apiGroups: ["batch"]
+  #   resources: ["jobs", "cronjobs"]
+  #   verbs: ["get", "list", "create", "delete"]
+  
+  # Cluster-wide RBAC rules (only if createClusterRole: true)
+  clusterRules: []
+  # Example:
+  # - apiGroups: [""]
+  #   resources: ["nodes"]
+  #   verbs: ["get", "list", "watch"]
+  
+  # Additional subjects for RoleBinding (beyond the service account)
+  additionalSubjects: []
+  # Example:
+  # - kind: User
+  #   name: system:admin
+  #   apiGroup: rbac.authorization.k8s.io
 
 podAnnotations: {}
 
@@ -53,7 +113,7 @@ ingress:
     nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.gokcloud.com/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.gokcloud.com/oauth2/start?rd=$scheme://$best_http_host$request_uri"
     nginx.ingress.kubernetes.io/auth-response-headers: "x-auth-request-user,x-auth-request-email,x-auth-request-preferred-username"
-    {% endif -%}
+    {% endif %}
   hosts:
     - host: {{ ingress_host }}
       paths:

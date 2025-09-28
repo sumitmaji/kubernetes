@@ -1,0 +1,27 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "{{ service_name_kebab }}.fullname" . }}-manager-binding
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "{{ service_name_kebab }}.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "{{ service_name_kebab }}.fullname" . }}-sa
+    namespace: {{ .Values.namespace | default .Release.Namespace }}
+  {{- range .Values.rbac.additionalSubjects }}
+  - kind: {{ .kind }}
+    name: {{ .name }}
+    {{- if .namespace }}
+    namespace: {{ .namespace }}
+    {{- end }}
+    {{- if .apiGroup }}
+    apiGroup: {{ .apiGroup }}
+    {{- end }}
+  {{- end }}
+roleRef:
+  kind: Role
+  name: {{ include "{{ service_name_kebab }}.fullname" . }}-manager
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
