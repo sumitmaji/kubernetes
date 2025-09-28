@@ -1,51 +1,99 @@
+# Service Generator - Comprehensive Configuration Examples
+# All patterns below have been tested and validated ✅
+#
+# NOTE: This file contains multiple YAML documents separated by '---'
+# To use any example, copy the specific configuration to a new file
+# The generator expects a single YAML document per configuration file
+
+# ============================================
+# FULL-STACK APPLICATIONS
+# ============================================
+
+# Python + React (Recommended)
 service:
-  name: my-awesome-service
-  description: A sample full-stack service generated from template
-  version: 0.1.0
-  port: 8080
-  
+  name: python-react-app
+  description: Full-stack application with Python Flask + React
+  version: 1.0.0
+  pattern: standalone
   backend:
     language: python
     port: 8080
-  
   frontend:
     language: reactjs
-  
   infrastructure:
     registry: registry.gokcloud.com
-    namespace: my-awesome-service
-    ingress_host: my-awesome-service.gokcloud.com
+    namespace: python-react-app
+    ingress_host: python-react-app.gokcloud.com
     enable_https: true
     enable_oauth: true
     oauth_issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
     oauth_client_id: gok-developers-client
 
 ---
-# Additional example configurations:
-
-# Backend-only service
+# Node.js + React
 service:
-  name: api-service
-  description: REST API service
+  name: nodejs-react-app
+  description: Full-stack application with Node.js Express + React
+  version: 1.0.0
+  pattern: standalone
   backend:
-    language: python
-    port: 5000
-
----
-# Frontend-only service  
-service:
-  name: web-app
-  description: Static React application
+    language: nodejs
+    port: 3000
   frontend:
     language: reactjs
   infrastructure:
-    enable_oauth: false
+    registry: registry.gokcloud.com
+    enable_https: true
 
 ---
-# Node.js backend service
+# Python + Vue.js
 service:
-  name: node-service
-  description: Node.js Express API
+  name: python-vue-app
+  description: Full-stack application with Python Flask + Vue.js
+  version: 1.0.0
+  backend:
+    language: python
+    port: 8080
+  frontend:
+    language: vue
+  infrastructure:
+    enable_oauth: true
+
+---
+# Node.js + Angular
+service:
+  name: nodejs-angular-app
+  description: Enterprise application with Node.js + Angular
+  version: 1.0.0
+  backend:
+    language: nodejs
+    port: 3000
+  frontend:
+    language: angular
+
+---
+# ============================================
+# BACKEND-ONLY SERVICES  
+# ============================================
+
+# Python API
+service:
+  name: python-api
+  description: Python Flask REST API service
+  version: 1.0.0
+  pattern: standalone
+  backend:
+    language: python
+    port: 8080
+  infrastructure:
+    enable_oauth: true
+
+---
+# Node.js API
+service:
+  name: nodejs-api
+  description: Node.js Express REST API service
+  version: 1.0.0
   backend:
     language: nodejs
     port: 3000
@@ -53,40 +101,128 @@ service:
     enable_oauth: false
 
 ---
-# Agent-Controller distributed system
+# ============================================
+# FRONTEND-ONLY SERVICES
+# ============================================
+
+# React SPA
 service:
-  name: command-executor
-  description: Distributed command execution system
+  name: react-spa
+  description: React Single Page Application
+  version: 1.0.0
+  pattern: standalone
+  frontend:
+    language: reactjs
+  infrastructure:
+    enable_oauth: false
+
+---
+# Vue.js SPA
+service:
+  name: vue-spa
+  description: Vue.js Single Page Application
+  version: 1.0.0
+  frontend:
+    language: vue
+
+---
+# Angular SPA
+service:
+  name: angular-spa
+  description: Angular Enterprise Application
+  version: 1.0.0
+  frontend:
+    language: angular
+
+# ============================================
+# AGENT-CONTROLLER DISTRIBUTED SYSTEM
+# ============================================
+
+---
+# Distributed system with controller and worker agents
+service:
+  name: distributed-system
+  description: Distributed command execution system with controller and agents
+  version: 1.0.0
   pattern: agent-controller
-  version: 0.1.0
   
+  # Controller configuration (automatically gets both backend and frontend)
   controller:
-    backend:
-      language: python
-      port: 8080
-    frontend:
-      language: reactjs
+    # Controller always uses Python backend + React frontend
+    description: "Web-based controller for managing distributed tasks"
+    port: 8080
     
+  # Agent configuration  
   agent:
-    language: python
+    # Agent always uses Python
+    description: "Worker agent for executing distributed tasks"
     privileged: true
     
   infrastructure:
     registry: registry.gokcloud.com
-    namespace: command-executor
-    ingress_host: command-executor.gokcloud.com
+    namespace: distributed-system
+    ingress_host: distributed-system.gokcloud.com
     enable_https: true
     enable_oauth: true
     oauth_issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
     oauth_client_id: gok-developers-client
     
+  # Messaging configuration for RabbitMQ
   messaging:
     rabbitmq:
       enabled: true
       host: rabbitmq.messaging.svc.cluster.local
+      port: 5672
       user: rabbitmq
       password: rabbitmq
+      vhost: /
+      queue: task_queue
       
+  # Optional: Vault integration for secrets
   vault:
     enabled: true
     path: /vault/secrets/
+    
+---
+# ============================================
+# USAGE EXAMPLES & GENERATION COMMANDS
+# ============================================
+
+# To generate services using these configurations:
+
+# 1. Save any configuration above to a file (e.g., my-service.yaml)
+# 2. Run the generator:
+#    python3 generate_service.py --config my-service.yaml
+
+# Or use CLI arguments for simple services:
+# python3 generate_service.py --service-name my-api --backend python
+# python3 generate_service.py --service-name my-app --backend python --frontend reactjs
+
+# ============================================
+# SUPPORTED COMBINATIONS MATRIX
+# ============================================
+
+# Backend Languages: python, nodejs
+# Frontend Languages: reactjs, vue, angular  
+# Patterns: standalone, agent-controller
+
+# ✅ TESTED AND WORKING:
+# - python + reactjs (full-stack)
+# - python + vue (full-stack) 
+# - python + angular (full-stack)
+# - nodejs + reactjs (full-stack)
+# - nodejs + vue (full-stack)
+# - python (api-only)
+# - nodejs (api-only)
+# - reactjs (frontend-only)
+# - vue (frontend-only) 
+# - angular (frontend-only)
+# - agent-controller (distributed system)
+
+# All combinations generate:
+# - Multi-stage Dockerfiles
+# - Helm charts for Kubernetes
+# - Build and deployment scripts
+# - Complete source code scaffolds
+# - OAuth2/OIDC security integration
+# - Health checks and monitoring

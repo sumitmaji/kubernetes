@@ -1,0 +1,23 @@
+{
+  "name": "{{ service_name_kebab }}",
+  "version": "{{ version }}",
+  "description": "{{ description }}",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    {% for dep, version in backend_dependencies.items() %}
+    "{{ dep }}": "{{ version }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

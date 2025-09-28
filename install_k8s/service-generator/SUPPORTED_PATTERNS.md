@@ -2,7 +2,15 @@
 
 ## Overview
 
-The Service Generator is a templating system that codifies proven microservice patterns into reusable templates. It supports multiple application architectures, technology stacks, and deployment patterns based on modern containerization and Kubernetes orchestration.
+The Service Generator is a comprehensive templating system that codifies proven microservice patterns into reusable templates. It supports multiple application architectures, technology stacks, and deployment patterns based on modern containerization and Kubernetes orchestration.
+
+**Supported Technologies:**
+- **Backend Languages**: Python (Flask), Node.js (Express)
+- **Frontend Frameworks**: React.js, Vue.js, Angular
+- **Patterns**: Standalone services, Agent-Controller distributed systems
+- **Container**: Multi-stage Docker builds with optimization
+- **Orchestration**: Complete Helm charts for Kubernetes deployment
+- **Security**: OAuth2/OIDC integration, JWT validation, RBAC
 
 ## Application Architecture Patterns
 
@@ -15,10 +23,11 @@ The Service Generator is a templating system that codifies proven microservice p
 - Admin dashboards and management interfaces  
 - Customer-facing applications requiring real-time features
 - Applications where frontend and backend are developed by the same team
+- Rapid prototyping and MVP development
 
 **Technology Combinations**:
 ```yaml
-# Python + React
+# Python + React (Recommended)
 service:
   name: web-dashboard
   description: Admin dashboard with Python API
@@ -39,22 +48,41 @@ service:
     port: 3000
   frontend:
     language: vue
+
+# Python + Angular
+service:
+  name: enterprise-app
+  description: Enterprise application with Angular frontend
+  backend:
+    language: python
+    port: 8080
+  frontend:
+    language: angular
 ```
 
 **Generated Structure**:
 ```
 service-name/
 ├── Dockerfile              # Multi-stage build (frontend + backend)
-├── backend/                # API application
-│   ├── run.py             # Python entry point
-│   └── app/               # Flask application
+├── build.sh               # Container build script
+├── tag_push.sh            # Registry push script
+├── README.md              # Service documentation
+├── docker-compose.yml     # Local development
+├── backend/               # API application
+│   ├── run.py             # Python/Node.js entry point
+│   ├── requirements.txt   # Python deps OR package.json (Node.js)
+│   └── app/               # Application structure
 ├── frontend/              # SPA application  
-│   ├── package.json       # React/Vue dependencies
-│   └── src/               # Frontend source code
-└── chart/                 # Single Helm chart for both
+│   ├── package.json       # React/Vue/Angular dependencies
+│   ├── public/           # Static assets
+│   └── src/              # Frontend source code
+└── chart/                # Helm chart for Kubernetes
+    ├── Chart.yaml
+    ├── values.yaml
+    └── templates/        # K8s manifests
 ```
 
-**Deployment**: Single Kubernetes deployment serving both API and static files.
+**Deployment**: Single Kubernetes deployment serving both API and static files with optimized multi-stage Docker build.
 
 ### 2. API-Only Service Pattern
 
@@ -66,18 +94,293 @@ service-name/
 - Integration APIs and webhooks
 - Services consumed by multiple frontend applications
 - Internal APIs for service-to-service communication
+- Microservice architecture building blocks
 
 **Technology Options**:
 ```yaml
-# Python Flask API
+# Python Flask API (Recommended)
 service:
   name: user-service
-  description: User management API
+  description: User management API with Flask
   backend:
     language: python
     port: 8080
   infrastructure:
     enable_oauth: true
+
+# Node.js Express API
+service:
+  name: notification-service
+  description: Notification service with Express
+  backend:
+    language: nodejs
+    port: 3000
+  infrastructure:
+    enable_oauth: false
+```
+
+**Generated Structure**:
+```
+service-name/
+├── Dockerfile              # Optimized backend-only build
+├── build.sh               # Build script
+├── backend/
+│   ├── run.py             # Python entry OR server.js (Node.js)
+│   ├── requirements.txt   # Dependencies
+│   └── app/               # API routes and business logic
+└── chart/                 # Kubernetes deployment chart
+```
+
+### 3. Frontend-Only Service Pattern
+
+**Description**: Static web application without backend components, served by web server.
+
+**Use Cases**:
+- Single Page Applications (SPAs)
+- Static websites and documentation
+- Client-side applications consuming external APIs
+- JAMstack applications
+- Landing pages and marketing sites
+
+**Technology Options**:
+```yaml
+# React SPA
+service:
+  name: customer-portal
+  description: Customer self-service portal
+  frontend:
+    language: reactjs
+  infrastructure:
+    enable_oauth: false
+
+# Vue.js Application
+service:
+  name: admin-dashboard
+  description: Vue.js admin dashboard
+  frontend:
+    language: vue
+
+# Angular Enterprise App
+service:
+  name: enterprise-ui
+  description: Angular enterprise application
+  frontend:
+    language: angular
+```
+
+**Generated Structure**:
+```
+service-name/
+├── Dockerfile              # Multi-stage: build + serve
+├── frontend/
+│   ├── package.json       # Dependencies and build scripts
+│   ├── public/            # Static assets
+│   └── src/               # Application source
+│       ├── App.jsx|vue|ts # Main application component
+│       ├── components/    # Reusable components
+│       └── index.css      # Styling
+└── chart/                 # Kubernetes static serving
+```
+
+### 4. Agent-Controller Distributed Pattern
+
+**Description**: Distributed system with web-based controller managing multiple worker agents for remote task execution.
+
+**Use Cases**:
+- Distributed computing and task orchestration
+- Remote system management and automation
+- CI/CD pipeline execution across multiple environments
+- Container orchestration and deployment
+- Monitoring and maintenance task distribution
+- DevOps automation platforms
+
+**Architecture**:
+- **Controller**: Python Flask backend + React frontend for task management UI
+- **Agent**: Python worker process with RabbitMQ messaging for task execution
+- **Communication**: JWT-secured REST API + WebSocket for real-time updates
+- **Messaging**: RabbitMQ for reliable task distribution
+
+**Configuration**:
+```yaml
+service:
+  name: distributed-system
+  description: Distributed task execution system
+  pattern: agent-controller
+  
+  controller:
+    # Automatically gets Python backend + React frontend
+    description: "Web-based task management interface"
+    port: 8080
+    
+  agent:
+    # Always Python-based worker
+    description: "Task execution worker"
+    privileged: true  # For system-level operations
+    
+  infrastructure:
+    enable_oauth: true
+    oauth_issuer: https://keycloak.example.com/realms/MyRealm
+    
+  messaging:
+    rabbitmq:
+      enabled: true
+      host: rabbitmq.messaging.svc.cluster.local
+      queue: task_queue
+```
+
+**Generated Structure**:
+```
+service-name/
+├── build.sh               # Builds both components
+├── controller/            # Web management interface
+│   ├── Dockerfile         # Controller container
+│   ├── controller.py      # Flask backend with SocketIO
+│   ├── requirements.txt   # Python dependencies
+│   └── frontend/          # React management UI
+│       ├── package.json
+│       └── src/
+│           ├── App.jsx           # Main controller interface
+│           └── components/
+│               └── TaskMonitor.jsx  # Real-time task monitoring
+├── agent/                 # Worker processes
+│   ├── Dockerfile         # Agent container  
+│   ├── agent.py          # RabbitMQ consumer + executor
+│   └── requirements.txt   # Agent dependencies
+└── chart/                 # Helm chart for both components
+    ├── values.yaml       # Controller + Agent deployments
+    └── templates/        # Separate K8s resources
+```
+
+**Features Included**:
+- **Real-time Communication**: WebSocket-based live task status updates
+- **Security**: JWT token validation for agent authentication
+- **Task Management**: Queue-based task distribution and monitoring
+- **Scalability**: Independent scaling of controller vs agents
+- **Observability**: Built-in health checks and monitoring endpoints
+
+## Technology Support Matrix
+
+### Backend Languages
+
+| Language | Framework | Features | Use Cases |
+|----------|-----------|----------|-----------|
+| **Python** | Flask | • OAuth2/JWT validation<br>• Health check endpoints<br>• CORS support<br>• Socket.IO integration<br>• API documentation | • Rapid development<br>• Data science APIs<br>• ML model serving<br>• Enterprise applications |
+| **Node.js** | Express | • Socket.IO integration<br>• CORS middleware<br>• Health endpoints<br>• JSON/form parsing<br>• Error handling | • Real-time applications<br>• API gateways<br>• Chat/messaging<br>• High-performance APIs |
+
+### Frontend Frameworks
+
+| Framework | Build Tool | Features | Use Cases |
+|-----------|------------|----------|-----------|
+| **React.js** | Create React App | • Modern React 18<br>• Component library ready<br>• Router integration<br>• API client setup<br>• CSS styling | • Interactive UIs<br>• Admin dashboards<br>• Customer portals<br>• Real-time apps |
+| **Vue.js** | Vite | • Vue 3 Composition API<br>• Router setup<br>• Build optimization<br>• Component structure<br>• CSS integration | • Progressive web apps<br>• Enterprise dashboards<br>• Content management<br>• E-commerce frontends |
+| **Angular** | Angular CLI | • TypeScript support<br>• Enterprise architecture<br>• Component scaffolding<br>• Build configuration<br>• Testing setup | • Enterprise applications<br>• Complex workflows<br>• Large-scale projects<br>• Corporate dashboards |
+
+## Pattern Combinations Matrix
+
+### ✅ Fully Tested and Supported Combinations
+
+| Backend | Frontend | Pattern | Status | Docker Build | Use Case |
+|---------|----------|---------|---------|--------------|----------|
+| Python | React | Full-stack | ✅ | ✅ | Recommended for most web apps |
+| Python | Vue | Full-stack | ✅ | ✅ | Modern progressive web apps |
+| Python | Angular | Full-stack | ✅ | ✅ | Enterprise applications |
+| Node.js | React | Full-stack | ✅ | ✅ | Real-time web applications |
+| Node.js | Vue | Full-stack | ✅ | ✅ | High-performance frontends |
+| Node.js | Angular | Full-stack | ✅ | ✅ | Enterprise Node.js apps |
+| Python | - | API-only | ✅ | ✅ | Microservices, ML APIs |
+| Node.js | - | API-only | ✅ | ✅ | Real-time APIs, webhooks |
+| - | React | Frontend-only | ✅ | ✅ | SPAs, static sites |
+| - | Vue | Frontend-only | ✅ | ✅ | JAMstack applications |
+| - | Angular | Frontend-only | ✅ | ✅ | Enterprise frontends |
+| Python | React | Agent-Controller | ✅ | ✅ | Distributed systems |
+
+## Infrastructure Features
+
+### Container Support
+- **Multi-stage Docker builds**: Optimized for production with separate build/runtime stages
+- **Health checks**: HTTP endpoint monitoring with proper timeouts
+- **Security**: Non-root user execution, minimal attack surface
+- **Environment**: Configurable via environment variables
+- **Logging**: Structured logging with proper output handling
+
+### Kubernetes Integration
+- **Helm Charts**: Production-ready Kubernetes deployments
+- **Service Discovery**: Proper service and ingress configuration
+- **Config Management**: ConfigMaps and Secrets integration
+- **Health Probes**: Liveness and readiness probes configured
+- **Scaling**: HorizontalPodAutoscaler ready configuration
+- **Security**: RBAC and SecurityContext configurations
+
+### Security Features
+- **OAuth2/OIDC**: JWT token validation and user authentication
+- **HTTPS/TLS**: Automatic certificate management with cert-manager
+- **RBAC**: Role-based access control for Kubernetes resources
+- **Secrets Management**: Integration with Vault and Kubernetes secrets
+- **Network Policies**: Pod-to-pod communication security
+- **Security Contexts**: Non-privileged containers by default
+
+### Monitoring & Observability
+- **Health Endpoints**: Standardized health check APIs
+- **Metrics**: Prometheus-compatible metrics endpoints
+- **Logging**: Structured JSON logging for better parsing
+- **Tracing**: Distributed tracing ready architecture
+- **Alerting**: Integration with monitoring stack alerts
+
+## Usage Examples
+
+### Generate Full-Stack Application
+```bash
+python3 generate_service.py --service-name my-app --backend python --frontend reactjs
+```
+
+### Generate API Service
+```bash
+python3 generate_service.py --service-name my-api --backend nodejs
+```
+
+### Generate from Configuration
+```bash
+python3 generate_service.py --config my-service.yaml
+```
+
+### Generate Agent-Controller System
+```yaml
+# agent-system.yaml
+service:
+  name: task-executor
+  pattern: agent-controller
+  controller:
+    port: 8080
+  agent:
+    privileged: true
+```
+```bash
+python3 generate_service.py --config agent-system.yaml
+```
+
+## Best Practices
+
+### Choosing the Right Pattern
+
+1. **Full-Stack**: When frontend and backend are tightly coupled, developed by the same team, or need real-time features
+2. **API-Only**: For microservices architecture, when multiple clients consume the API, or for pure business logic services  
+3. **Frontend-Only**: For JAMstack applications, static sites, or when consuming external APIs
+4. **Agent-Controller**: For distributed computing, remote task execution, or system automation
+
+### Technology Selection
+
+1. **Python + React**: Best for data-heavy applications, ML/AI integration, rapid prototyping
+2. **Node.js + React**: Ideal for real-time features, high-concurrency APIs, JavaScript-first teams
+3. **Python + Vue**: Great for content-heavy sites, progressive enhancement, smaller teams
+4. **Node.js + Angular**: Perfect for large enterprise applications, complex workflows, TypeScript preference
+
+### Deployment Considerations
+
+1. **Resource Requirements**: Full-stack services need more resources than API-only
+2. **Scaling Strategy**: Consider horizontal pod autoscaling for high-traffic services
+3. **Security**: Always enable OAuth2 for production deployments
+4. **Monitoring**: Implement health checks and metrics collection
+5. **CI/CD**: Use provided build scripts for consistent deployment pipelines
 
 # Node.js Express API
 service:

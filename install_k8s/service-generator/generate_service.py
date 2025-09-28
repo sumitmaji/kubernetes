@@ -231,6 +231,17 @@ class ServiceGenerator:
             'oauth_issuer': infra.get('oauth_issuer', 'https://keycloak.gokcloud.com/realms/GokDevelopers'),
             'oauth_client_id': infra.get('oauth_client_id', 'gok-developers-client')
         })
+        # Ensure controller frontend defaults exist when agent-controller pattern is used
+        if context.get('is_agent_controller'):
+            # Provide sane defaults for controller frontend rendering (React)
+            if 'frontend_dependencies' not in context:
+                context['frontend_dependencies'] = self.frontend_configs['reactjs']['dependencies']
+            if 'frontend_scripts' not in context:
+                context['frontend_scripts'] = self.frontend_configs['reactjs']['scripts']
+            if 'frontend_runtime' not in context:
+                context['frontend_runtime'] = self.frontend_configs['reactjs']['runtime']
+            if 'frontend_build_command' not in context:
+                context['frontend_build_command'] = self.frontend_configs['reactjs']['build_command']
         
         return context
     
@@ -272,6 +283,48 @@ class ServiceGenerator:
                 dst_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src_path, dst_path)
                 print(f"Copied static file: {dst_path}")
+
+    def copy_chart_templates(self, service_dir):
+        """Copy Helm chart templates directory raw without Jinja rendering to avoid conflicts.
+
+        This copies the entire templates/chart directory into the generated service/chart
+        preserving any Helm template syntax ({{ ... }}) so Helm rendering works later.
+        """
+        src_chart_dir = self.template_dir / 'chart'
+        dst_chart_dir = service_dir / 'chart'
+
+        if not src_chart_dir.exists():
+            return
+
+        # Use shutil.copytree but allow existing dst by copying files recursively
+        for root, dirs, files in os.walk(src_chart_dir):
+            rel_root = Path(root).relative_to(src_chart_dir)
+            target_root = dst_chart_dir / rel_root
+            target_root.mkdir(parents=True, exist_ok=True)
+
+            for d in dirs:
+                (target_root / d).mkdir(parents=True, exist_ok=True)
+
+            for f in files:
+                src_file = Path(root) / f
+                dst_file = target_root / f
+                shutil.copy2(src_file, dst_file)
+                print(f"Copied chart file: {dst_file}")
+    
+    def copy_agent_controller_static_files(self, service_dir, context):
+        """Copy static files specific to agent-controller pattern"""
+        if not context['is_agent_controller']:
+            return
+            
+        # Copy TaskMonitor component as static file
+        if context['has_controller']:
+            src_taskmonitor = self.template_dir / 'frontend' / 'reactjs-controller' / 'src' / 'components' / 'TaskMonitor.jsx'
+            dst_taskmonitor = service_dir / 'controller' / 'frontend' / 'src' / 'components' / 'TaskMonitor.jsx'
+            
+            if src_taskmonitor.exists():
+                dst_taskmonitor.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_taskmonitor, dst_taskmonitor)
+                print(f"Copied static file: {dst_taskmonitor}")
     
     def make_scripts_executable(self, service_dir):
         """Make shell scripts executable"""
@@ -287,6 +340,66 @@ class ServiceGenerator:
                 script_path.chmod(0o755)
                 print(f"Made executable: {script_path}")
     
+    def generate_agent_controller_dockerfiles(self, service_dir, context):
+        """Generate separate Dockerfiles for agent and controller components"""
+        dockerfile_template_path = 'Dockerfile.j2'  # Relative path for Jinja
+        
+        # Generate controller Dockerfile
+        if context['has_controller']:
+            controller_context = context.copy()
+            controller_context.update({
+                'component_type': 'controller',
+                'has_frontend': True,  # Controller has React frontend
+                'has_backend': True,
+                'backend_language': 'python',
+                'backend_runtime': context.get('backend_runtime', 'python:3.11'),
+                'backend_runtime_slim': context.get('backend_runtime_slim', 'python:3.11-slim'),
+                'frontend_runtime': context.get('frontend_runtime', 'node:20'),
+                'frontend_language': 'reactjs',
+                'frontend_package_manager': 'npm',
+                'frontend_build_command': 'npm run build',
+                'frontend_dependencies': {
+                    "react": "^18.0.0",
+                    "react-dom": "^18.0.0",
+                    "react-scripts": "5.0.1",
+                    "react-router-dom": "^6.8.0",
+                    "axios": "^1.3.0",
+                    "socket.io-client": "^4.7.2"
+                },
+                'frontend_scripts': {
+                    "start": "react-scripts start",
+                    "build": "react-scripts build",
+                    "test": "react-scripts test",
+                    "eject": "react-scripts eject"
+                }
+            })
+            
+            controller_dockerfile = service_dir / 'controller' / 'Dockerfile'
+            self.generate_file_from_template(
+                dockerfile_template_path, 
+                controller_dockerfile, 
+                controller_context
+            )
+        
+        # Generate agent Dockerfile  
+        if context['has_agent']:
+            agent_context = context.copy()
+            agent_context.update({
+                'component_type': 'agent',
+                'has_frontend': False,  # Agent has no frontend
+                'has_backend': True,
+                'backend_language': 'python',
+                'backend_runtime': context.get('backend_runtime', 'python:3.11'),
+                'backend_runtime_slim': context.get('backend_runtime_slim', 'python:3.11-slim')
+            })
+            
+            agent_dockerfile = service_dir / 'agent' / 'Dockerfile'
+            self.generate_file_from_template(
+                dockerfile_template_path,
+                agent_dockerfile, 
+                agent_context
+            )
+    
     def generate_service(self, config):
         """Generate complete service from configuration"""
         self.validate_config(config)
@@ -300,6 +413,9 @@ class ServiceGenerator:
         
         print(f"Generating service: {service_name}")
         print(f"Output directory: {service_dir}")
+
+        # Copy chart templates raw to avoid Jinja/Helm conflicts
+        self.copy_chart_templates(service_dir)
         
         # Define template mappings
         template_files = [
@@ -310,13 +426,14 @@ class ServiceGenerator:
             ('README.md.j2', 'README.md'),
             ('docker-compose.yml.j2', 'docker-compose.yml'),
             
-            # Helm chart
+            # Helm chart  
             ('chart/Chart.yaml.j2', 'chart/Chart.yaml'),
             ('chart/values.yaml.j2', 'chart/values.yaml'),
-            ('chart/templates/deployment.yaml.j2', 'chart/templates/deployment.yaml'),
-            ('chart/templates/service.yaml.j2', 'chart/templates/service.yaml'),
-            ('chart/templates/ingress.yaml.j2', 'chart/templates/ingress.yaml'),
-            ('chart/templates/_helpers.tpl.j2', 'chart/templates/_helpers.tpl'),
+            # Note: Helm template files disabled due to nested Jinja syntax issues - needs separate fix
+            # ('chart/templates/deployment.yaml.j2', 'chart/templates/deployment.yaml'),
+            # ('chart/templates/service.yaml.j2', 'chart/templates/service.yaml'),
+            # ('chart/templates/ingress.yaml.j2', 'chart/templates/ingress.yaml'),
+            # ('chart/templates/_helpers.tpl.j2', 'chart/templates/_helpers.tpl'),
         ]
         
         # Add backend-specific templates
@@ -342,25 +459,26 @@ class ServiceGenerator:
         
         # Add agent-controller pattern templates
         if context['is_agent_controller']:
-            # Replace root Dockerfile with controller-specific one
+            # Remove root Dockerfile as we'll generate separate ones for agent and controller
             template_files.remove(('Dockerfile.j2', 'Dockerfile'))
-            template_files.append(('controller/Dockerfile.j2', 'controller/Dockerfile'))
             
             # Controller templates
             if context['has_controller']:
                 # Default to python for controller backend
                 template_files.extend([
-                    ('controller/python/requirements.txt.j2', 'controller/requirements.txt'),
-                    ('controller/python/controller.py.j2', 'controller/controller.py'),
+                    ('backend/python/controller/requirements.txt.j2', 'controller/requirements.txt'),
+                    ('backend/python/controller/controller.py.j2', 'controller/controller.py'),
                 ])
                 
                 # Controller frontend (default to reactjs)
                 template_files.extend([
-                    ('controller/frontend/reactjs/src/App.jsx.j2', 'controller/frontend/src/App.jsx'),
-                    ('controller/frontend/reactjs/src/components/TaskMonitor.jsx.j2', 'controller/frontend/src/components/TaskMonitor.jsx'),
+                    ('frontend/reactjs-controller/src/App.jsx.j2', 'controller/frontend/src/App.jsx'),
+                    # TaskMonitor is now a static file without templating
+                    # ('frontend/reactjs-controller/src/components/TaskMonitor.jsx.j2', 'controller/frontend/src/components/TaskMonitor.jsx'),
                     ('frontend/reactjs/package.json.j2', 'controller/frontend/package.json'),
                     ('frontend/reactjs/public/index.html.j2', 'controller/frontend/public/index.html'),
                     ('frontend/reactjs/src/index.jsx.j2', 'controller/frontend/src/index.jsx'),
+                    ('frontend/reactjs/src/index.css.j2', 'controller/frontend/src/index.css'),
                     ('frontend/reactjs/src/components/Header.jsx.j2', 'controller/frontend/src/components/Header.jsx'),
                 ])
             
@@ -368,9 +486,8 @@ class ServiceGenerator:
             if context['has_agent']:
                 # Default to python for agent
                 template_files.extend([
-                    ('agent/python/requirements.txt.j2', 'agent/requirements.txt'),
-                    ('agent/python/agent.py.j2', 'agent/agent.py'),
-                    ('agent/Dockerfile.j2', 'agent/Dockerfile'),
+                    ('backend/python/agent/requirements.txt.j2', 'agent/requirements.txt'),
+                    ('backend/python/agent/agent.py.j2', 'agent/agent.py'),
                 ])
         
         # Add frontend-specific templates for standalone services
@@ -382,6 +499,7 @@ class ServiceGenerator:
                     ('frontend/reactjs/package.json.j2', 'frontend/package.json'),
                     ('frontend/reactjs/public/index.html.j2', 'frontend/public/index.html'),
                     ('frontend/reactjs/src/index.jsx.j2', 'frontend/src/index.jsx'),
+                    ('frontend/reactjs/src/index.css.j2', 'frontend/src/index.css'),
                     ('frontend/reactjs/src/App.jsx.j2', 'frontend/src/App.jsx'),
                     ('frontend/reactjs/src/components/Header.jsx.j2', 'frontend/src/components/Header.jsx'),
                 ])
@@ -392,6 +510,12 @@ class ServiceGenerator:
                     ('frontend/vue/index.html.j2', 'frontend/index.html'),
                     ('frontend/vue/src/main.js.j2', 'frontend/src/main.js'),
                     ('frontend/vue/src/App.vue.j2', 'frontend/src/App.vue'),
+                ])
+            elif frontend_lang == 'angular':
+                template_files.extend([
+                    ('frontend/angular/package.json.j2', 'frontend/package.json'),
+                    ('frontend/angular/angular.json.j2', 'frontend/angular.json'),
+                    ('frontend/angular/tsconfig.json.j2', 'frontend/tsconfig.json'),
                 ])
         
         # Generate all template files
@@ -405,8 +529,15 @@ class ServiceGenerator:
             else:
                 print(f"Warning: Template not found: {self.template_dir / template_path}")
         
+        # Generate separate Dockerfiles for agent-controller pattern
+        if context['is_agent_controller']:
+            self.generate_agent_controller_dockerfiles(service_dir, context)
+        
         # Copy static files
         self.copy_static_files(service_dir, context)
+        
+        # Copy agent-controller specific static files
+        self.copy_agent_controller_static_files(service_dir, context)
         
         # Make scripts executable
         self.make_scripts_executable(service_dir)
