@@ -5120,9 +5120,27 @@ function statusCmd() {
     "jenkins:jenkins:jenkins:CI/CD Pipeline"
     "jupyter:jupyterhub:jupyterhub:JupyterHub Development"
     "argocd:argocd-server:argocd:GitOps Deployment"
+    "spinnaker:spin-deck:spinnaker:Multi-cloud Deployment Platform"
   )
   
   for service_info in "${devops_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "💻 Developer Tools & IDEs:"
+  local dev_tools=(
+    "che:che:eclipse-che:Eclipse Che IDE"
+    "devworkspace:devworkspace:devworkspace:Developer Workspace (Legacy)"
+    "workspace:workspace-v2:workspace:Enhanced Developer Workspace"
+    "ttyd:ttyd:ttyd:Terminal over HTTP"
+    "cloudshell:cloudshell:cloudshell:Cloud-based Terminal"
+    "console:console:console:Web-based Console"
+  )
+  
+  for service_info in "${dev_tools[@]}"; do
     IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
     printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
     ((index++))
@@ -5133,11 +5151,47 @@ function statusCmd() {
   local mesh_services=(
     "istio:istiod:istio-system:Service Mesh"
     "dashboard:kubernetes-dashboard:kubernetes-dashboard:K8s Dashboard"
+    "chart:chartmuseum:chartmuseum:Helm Chart Repository"
   )
   
   for service_info in "${mesh_services[@]}"; do
     IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
     printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "🏗️ Platform & Infrastructure:"
+  local platform_services=(
+    "kubernetes:kube-apiserver:kube-system:Kubernetes Control Plane"
+    "docker:::Docker Container Runtime"
+    "gok-agent:gok-agent:gok-agent:GOK Distributed System Agent"
+    "gok-controller:gok-controller:gok-controller:GOK Controller"
+    "base-services:::Complete Base Services Stack"
+  )
+  
+  for service_info in "${platform_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    if [[ "$service_name" == "docker" ]]; then
+      # Special check for Docker
+      if systemctl is-active --quiet docker; then
+        status="✅"
+      else
+        status="❌"
+      fi
+    elif [[ "$service_name" == "base-services" ]]; then
+      # Special check for base-services (combination check)
+      if [[ "$(check_base_status)" == "✅" ]] && [[ "$(check_ingress_status)" == "✅" ]] && [[ "$(check_certmanager_status)" == "✅" ]]; then
+        status="✅"
+      elif [[ "$(check_base_status)" == "❌" ]] && [[ "$(check_ingress_status)" == "❌" ]] && [[ "$(check_certmanager_status)" == "❌" ]]; then
+        status="❌"
+      else
+        status="⚠️"
+      fi
+    else
+      status="$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")"
+    fi
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$status" "$description"
     ((index++))
   done
   
