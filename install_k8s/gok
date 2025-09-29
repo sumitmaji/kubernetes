@@ -5116,6 +5116,10 @@ EOF
   fi
 }
 
+baseServicesInstallLogs(){
+  journalctl -u base-services-post-reboot-1.service --no-pager -f
+}
+
 postRebootBaseServices(){
   echo "Installing post-reboot base services..."
   
