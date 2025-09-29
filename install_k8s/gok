@@ -4943,8 +4943,214 @@ function logsCmd() {
   kubectl logs "$pod"
 }
 
+# Service status check functions
+check_service_status() {
+  local service_name="$1"
+  local namespace="$2"
+  local helm_release="$3"
+  local check_type="${4:-helm}"  # helm, kubectl, or both
+  
+  case "$check_type" in
+    "helm")
+      if helm list -n "$namespace" 2>/dev/null | grep -q "^$helm_release"; then
+        local status=$(helm list -n "$namespace" 2>/dev/null | grep "^$helm_release" | awk '{print $8}')
+        if [[ "$status" == "deployed" ]]; then
+          echo "✅"
+        else
+          echo "⚠️"
+        fi
+      else
+        echo "❌"
+      fi
+      ;;
+    "kubectl")
+      if kubectl get deployment "$service_name" -n "$namespace" &>/dev/null; then
+        local ready=$(kubectl get deployment "$service_name" -n "$namespace" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+        local desired=$(kubectl get deployment "$service_name" -n "$namespace" -o jsonpath='{.spec.replicas}' 2>/dev/null)
+        if [[ "$ready" == "$desired" ]] && [[ "$ready" -gt 0 ]]; then
+          echo "✅"
+        else
+          echo "⚠️"
+        fi
+      else
+        echo "❌"
+      fi
+      ;;
+    "both")
+      local helm_status=$(check_service_status "$service_name" "$namespace" "$helm_release" "helm")
+      local kubectl_status=$(check_service_status "$service_name" "$namespace" "$helm_release" "kubectl")
+      if [[ "$helm_status" == "✅" ]] && [[ "$kubectl_status" == "✅" ]]; then
+        echo "✅"
+      elif [[ "$helm_status" == "❌" ]] && [[ "$kubectl_status" == "❌" ]]; then
+        echo "❌"
+      else
+        echo "⚠️"
+      fi
+      ;;
+  esac
+}
+
+check_ingress_status() {
+  check_service_status "ingress-nginx-controller" "ingress-nginx" "ingress-nginx" "both"
+}
+
+check_certmanager_status() {
+  check_service_status "cert-manager" "cert-manager" "cert-manager" "both"
+}
+
+check_registry_status() {
+  # Check for docker registry deployment
+  if kubectl get deployment docker-registry -n docker-registry &>/dev/null; then
+    check_service_status "docker-registry" "docker-registry" "" "kubectl"
+  else
+    echo "❌"
+  fi
+}
+
+check_base_status() {
+  # Base is typically a custom image/deployment, check for common base components
+  if kubectl get deployment base-services -n default &>/dev/null || \
+     kubectl get pods -l app=base &>/dev/null | grep -q Running; then
+    echo "✅"
+  else
+    echo "❌"
+  fi
+}
+
+check_kyverno_status() {
+  check_service_status "kyverno-admission-controller" "kyverno" "kyverno" "both"
+}
+
+check_ldap_status() {
+  check_service_status "ldap" "ldap" "" "kubectl"
+}
+
+check_keycloak_status() {
+  check_service_status "keycloak" "keycloak" "keycloak" "both"
+}
+
+check_oauth2_status() {
+  check_service_status "oauth2-proxy" "oauth2-proxy" "oauth2-proxy" "both"
+}
+
+check_rabbitmq_status() {
+  check_service_status "rabbitmq" "rabbitmq" "rabbitmq" "both"
+}
+
+check_vault_status() {
+  check_service_status "vault" "vault" "vault" "both"
+}
+
+check_goklogin_status() {
+  check_service_status "gok-login" "gok-login" "gok-login" "both"
+}
+
 function statusCmd() {
-  helm status "$release"
+  if [[ -n "$release" ]]; then
+    # If a specific release is provided, show helm status for that release
+    helm status "$release"
+    return
+  fi
+
+  echo "🚀 GOK Platform Status Overview"
+  echo "=============================="
+  echo ""
+  
+  # Core Infrastructure Services (Priority Order)
+  echo "📋 Core Infrastructure Services:"
+  echo ""
+  
+  local index=1
+  
+  # Priority services in specified order
+  printf "  %2d. %-15s %s  %s\n" $index "ingress" "$(check_ingress_status)" "NGINX Ingress Controller"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "cert-manager" "$(check_certmanager_status)" "TLS Certificate Management"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "registry" "$(check_registry_status)" "Docker Registry"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "base" "$(check_base_status)" "Base System Components"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "kyverno" "$(check_kyverno_status)" "Policy Engine"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "ldap" "$(check_ldap_status)" "LDAP Directory Service"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "keycloak" "$(check_keycloak_status)" "Identity & Access Management"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "oauth2" "$(check_oauth2_status)" "OAuth2 Proxy"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "rabbitmq" "$(check_rabbitmq_status)" "Message Broker"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "vault" "$(check_vault_status)" "Secrets Management"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "gok-login" "$(check_goklogin_status)" "GOK Authentication Service"
+  ((index++))
+  
+  echo ""
+  echo "📊 Additional Services:"
+  echo ""
+  
+  # Monitoring & Observability Services
+  echo "🔍 Monitoring & Observability:"
+  local monitoring_services=(
+    "monitoring:prometheus-operator:monitoring:Prometheus/Grafana Monitoring"
+    "opensearch:opensearch:opensearch:OpenSearch Logging"
+    "fluentd:fluentd:fluentd:Log Collection"
+  )
+  
+  for service_info in "${monitoring_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "🚀 Development & CI/CD:"
+  local devops_services=(
+    "jenkins:jenkins:jenkins:CI/CD Pipeline"
+    "jupyter:jupyterhub:jupyterhub:JupyterHub Development"
+    "argocd:argocd-server:argocd:GitOps Deployment"
+  )
+  
+  for service_info in "${devops_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "🌐 Service Mesh & Management:"
+  local mesh_services=(
+    "istio:istiod:istio-system:Service Mesh"
+    "dashboard:kubernetes-dashboard:kubernetes-dashboard:K8s Dashboard"
+  )
+  
+  for service_info in "${mesh_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "📍 Status Legend:"
+  echo "   ✅ Installed and Running"
+  echo "   ⚠️  Installed but Issues Detected"
+  echo "   ❌ Not Installed"
+  echo ""
+  echo "💡 Usage:"
+  echo "   gok status                    # Show all services status"
+  echo "   gok status <helm-release>     # Show specific Helm release status"
+  echo ""
 }
 
 function taintNodeCmd() {
