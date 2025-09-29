@@ -5008,8 +5008,8 @@ check_certmanager_status() {
 
 check_registry_status() {
   # Check for docker registry deployment
-  if kubectl get deployment docker-registry -n docker-registry &>/dev/null; then
-    check_service_status "docker-registry" "docker-registry" "" "kubectl"
+  if kubectl get deployment registry-docker-registry -n registry &>/dev/null; then
+    check_service_status "registry-docker-registry" "registry" "" "kubectl"
   else
     echo "❌"
   fi
