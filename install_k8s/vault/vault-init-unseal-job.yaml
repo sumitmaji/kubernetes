@@ -22,22 +22,38 @@ spec:
                 echo "Vault is already initialized."
               else
                 echo "Initializing Vault..."
-                vault operator init -format=json > /tmp/vault-init.json
+                vault operator init -format=json > /vault-keys/vault-init.json
 
                 echo "Saving unseal keys and root token to Kubernetes Secret..."
                 kubectl create secret generic vault-init-keys \
                   --namespace vault \
-                  --from-file=/tmp/vault-init.json
+                  --from-file=/vault-keys/vault-init.json
+              fi
+
+              # Check if init file exists in mounted volume
+              if [ -f /vault-keys/vault-init.json ]; then
+                INIT_FILE=/vault-keys/vault-init.json
+              else
+                echo "Vault init file not found in /vault-keys/"
+                exit 1
               fi
 
               # Unseal Vault
               echo "Unsealing Vault..."
-              for key in $(/usr/bin/jq -r '.unseal_keys_b64[]' /tmp/vault-init.json); do
+              for key in $(/usr/bin/jq -r '.unseal_keys_b64[]' $INIT_FILE); do
                 vault operator unseal $key
               done
 
               echo "Vault is initialized and unsealed."
+          volumeMounts:
+            - name: vault-keys
+              mountPath: /vault-keys
           env:
             - name: VAULT_ADDR
               value: "http://vault.vault.svc.cloud.uat:8200"
+      volumes:
+        - name: vault-keys
+          hostPath:
+            path: /root/vault-keys
+            type: DirectoryOrCreate
       restartPolicy: OnFailure

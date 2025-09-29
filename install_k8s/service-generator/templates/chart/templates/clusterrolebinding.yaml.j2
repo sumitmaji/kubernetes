@@ -1,0 +1,26 @@
+{{- if and .Values.rbac.create .Values.rbac.createClusterRole }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "{{ service_name_kebab }}.fullname" . }}-cluster-manager-binding
+  labels:
+    {{- include "{{ service_name_kebab }}.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "{{ service_name_kebab }}.fullname" . }}-sa
+    namespace: {{ .Values.namespace | default .Release.Namespace }}
+  {{- range .Values.rbac.additionalSubjects }}
+  - kind: {{ .kind }}
+    name: {{ .name }}
+    {{- if .namespace }}
+    namespace: {{ .namespace }}
+    {{- end }}
+    {{- if .apiGroup }}
+    apiGroup: {{ .apiGroup }}
+    {{- end }}
+  {{- end }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "{{ service_name_kebab }}.fullname" . }}-cluster-manager
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

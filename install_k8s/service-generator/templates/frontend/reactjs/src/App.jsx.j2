@@ -1,0 +1,261 @@
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import axios from 'axios';
+import Header from './components/Header';
+
+// Configure axios defaults
+axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || '/api/v1';
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+
+function App() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [healthStatus, setHealthStatus] = useState(null);
+  {% if enable_oauth -%}
+  const [user, setUser] = useState(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  {% endif -%}
+
+  // Initialize the application
+  useEffect(() => {
+    initializeApp();
+  }, []);
+
+  const initializeApp = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Check health status
+      await checkHealthStatus();
+
+      {% if enable_oauth -%}
+      // Check authentication status
+      await checkAuthStatus();
+      {% endif -%}
+
+    } catch (err) {
+      console.error('App initialization error:', err);
+      setError(err.message || 'Failed to initialize application');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkHealthStatus = async () => {
+    try {
+      const response = await axios.get('/health');
+      setHealthStatus(response.data);
+    } catch (err) {
+      console.error('Health check failed:', err);
+      throw new Error('Service health check failed');
+    }
+  };
+
+  {% if enable_oauth -%}
+  const checkAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setAuthenticated(false);
+        return;
+      }
+
+      // Set authorization header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      // Validate token with a protected endpoint
+      const response = await axios.get('/protected');
+      setUser(response.data.user);
+      setAuthenticated(true);
+
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      // Clear invalid token
+      localStorage.removeItem('access_token');
+      delete axios.defaults.headers.common['Authorization'];
+      setAuthenticated(false);
+      setUser(null);
+    }
+  };
+
+  const handleLogin = (token, userInfo) => {
+    localStorage.setItem('access_token', token);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setUser(userInfo);
+    setAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    delete axios.defaults.headers.common['Authorization'];
+    setUser(null);
+    setAuthenticated(false);
+  };
+  {% endif -%}
+
+  if (loading) {
+    return (
+      <div className="loading-spinner">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <span className="ms-2">Loading {{ service_name_camel }}...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mt-4">
+        <div className="error-message">
+          <h4><i className="fas fa-exclamation-triangle"></i> Error</h4>
+          <p>{error}</p>
+          <button 
+            className="btn btn-primary" 
+            onClick={initializeApp}
+          >
+            <i className="fas fa-redo"></i> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <div className="App">
+        <Header 
+          healthStatus={healthStatus}
+          {% if enable_oauth -%}
+          user={user}
+          authenticated={authenticated}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          {% endif -%}
+        />
+        
+        <main className="container mt-4">
+          <Routes>
+            <Route path="/" element={<HomePage healthStatus={healthStatus} />} />
+            {% if enable_oauth -%}
+            <Route 
+              path="/dashboard" 
+              element={
+                authenticated ? 
+                <DashboardPage user={user} /> : 
+                <LoginRequired onLogin={handleLogin} />
+              } 
+            />
+            {% endif -%}
+          </Routes>
+        </main>
+      </div>
+    </Router>
+  );
+}
+
+// Home page component
+function HomePage({ healthStatus }) {
+  return (
+    <div>
+      <div className="jumbotron bg-light p-4 mb-4 rounded">
+        <h1 className="display-4">{{ service_name_camel }}</h1>
+        <p className="lead">{{ description }}</p>
+        <hr className="my-4" />
+        
+        {healthStatus && (
+          <div className="success-message">
+            <h5><i className="fas fa-heart text-success"></i> Service Status</h5>
+            <p>
+              <strong>Service:</strong> {healthStatus.service}<br />
+              <strong>Version:</strong> {healthStatus.version}<br />
+              <strong>Status:</strong> 
+              <span className="badge bg-success ms-1">{healthStatus.status}</span>
+            </p>
+          </div>
+        )}
+      </div>
+      
+      <div className="row">
+        <div className="col-md-6">
+          <div className="card">
+            <div className="card-body">
+              <h5 className="card-title">
+                <i className="fas fa-info-circle"></i> About
+              </h5>
+              <p className="card-text">
+                This is the {{ service_name_camel }} web application built with React and Flask.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="col-md-6">
+          <div className="card">
+            <div className="card-body">
+              <h5 className="card-title">
+                <i className="fas fa-cogs"></i> API Documentation
+              </h5>
+              <p className="card-text">
+                Explore the API endpoints and documentation.
+              </p>
+              <a href="/api/docs/" className="btn btn-primary" target="_blank" rel="noopener noreferrer">
+                <i className="fas fa-book"></i> View API Docs
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+{% if enable_oauth -%}
+// Dashboard page (protected)
+function DashboardPage({ user }) {
+  return (
+    <div>
+      <h2><i className="fas fa-tachometer-alt"></i> Dashboard</h2>
+      <div className="success-message">
+        <h5>Welcome, {user.name || user.preferred_username}!</h5>
+        <p>You are successfully authenticated.</p>
+        
+        <details>
+          <summary>User Information</summary>
+          <pre>{JSON.stringify(user, null, 2)}</pre>
+        </details>
+      </div>
+    </div>
+  );
+}
+
+// Login required component
+function LoginRequired({ onLogin }) {
+  const handleLoginRedirect = () => {
+    // Redirect to OAuth login
+    const authUrl = `{{ oauth_issuer }}/protocol/openid-connect/auth?` +
+      `client_id={{ oauth_client_id }}&` +
+      `response_type=code&` +
+      `scope=openid profile email&` +
+      `redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}`;
+    
+    window.location.href = authUrl;
+  };
+
+  return (
+    <div className="text-center">
+      <h2><i className="fas fa-lock"></i> Authentication Required</h2>
+      <p>You need to log in to access this page.</p>
+      <button 
+        className="btn btn-primary btn-lg" 
+        onClick={handleLoginRedirect}
+      >
+        <i className="fas fa-sign-in-alt"></i> Log In
+      </button>
+    </div>
+  );
+}
+{% endif -%}
+
+export default App;

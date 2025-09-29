@@ -1,0 +1,20 @@
+{
+  "name": "{{ service_name_kebab }}-frontend",
+  "version": "{{ version }}",
+  "description": "{{ description }} - Frontend",
+  "private": true,
+  "scripts": {
+    {% for script, command in frontend_scripts.items() %}
+    "{{ script }}": "{{ command }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "dependencies": {
+    {% for dep, version in frontend_dependencies.items() %}
+    "{{ dep }}": "{{ version }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.0.0",
+    "vite": "^4.1.0"
+  }
+}

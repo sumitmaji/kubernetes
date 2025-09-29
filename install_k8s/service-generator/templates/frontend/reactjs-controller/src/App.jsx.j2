@@ -1,0 +1,528 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import axios from 'axios';
+import io from 'socket.io-client';
+import Header from './components/Header';
+import TaskSubmission from './components/TaskSubmission';
+import TaskMonitor from './components/TaskMonitor';
+import AgentStatus from './components/AgentStatus';
+
+// Configure axios defaults
+axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || '/api/v1';
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+
+function App() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [healthStatus, setHealthStatus] = useState(null);
+  const [socket, setSocket] = useState(null);
+  const [connected, setConnected] = useState(false);
+  
+  // Task management
+  const [activeTasks, setActiveTasks] = useState({});
+  const [taskResults, setTaskResults] = useState({});
+  const [taskCount, setTaskCount] = useState(0);
+  
+  {% if enable_oauth -%}
+  const [user, setUser] = useState(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  {% endif -%}
+  
+  const socketRef = useRef(null);
+
+  // Initialize the application
+  useEffect(() => {
+    initializeApp();
+    
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  const initializeApp = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Check health status
+      await checkHealthStatus();
+
+      {% if enable_oauth -%}
+      // Check authentication status
+      await checkAuthStatus();
+      {% endif -%}
+
+      // Initialize WebSocket connection
+      initializeSocket();
+
+    } catch (err) {
+      console.error('App initialization error:', err);
+      setError(err.message || 'Failed to initialize application');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkHealthStatus = async () => {
+    try {
+      const response = await axios.get('/health');
+      setHealthStatus(response.data);
+    } catch (err) {
+      console.error('Health check failed:', err);
+      throw new Error('Controller health check failed');
+    }
+  };
+
+  {% if enable_oauth -%}
+  const checkAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setAuthenticated(false);
+        return;
+      }
+
+      // Set authorization header
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      // Validate token (could add a specific endpoint for this)
+      setAuthenticated(true);
+
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      localStorage.removeItem('access_token');
+      delete axios.defaults.headers.common['Authorization'];
+      setAuthenticated(false);
+      setUser(null);
+    }
+  };
+
+  const handleLogin = (token, userInfo) => {
+    localStorage.setItem('access_token', token);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setUser(userInfo);
+    setAuthenticated(true);
+    
+    // Reconnect socket with authentication
+    initializeSocket();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    delete axios.defaults.headers.common['Authorization'];
+    setUser(null);
+    setAuthenticated(false);
+    
+    // Disconnect socket
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+  };
+  {% endif -%}
+
+  const initializeSocket = () => {
+    try {
+      // Disconnect existing socket
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+
+      // Create new socket connection
+      const socketUrl = process.env.REACT_APP_SOCKET_URL || window.location.origin;
+      const newSocket = io(socketUrl, {
+        transports: ['websocket', 'polling'],
+        upgrade: true,
+        rememberUpgrade: true
+      });
+
+      // Connection events
+      newSocket.on('connect', () => {
+        console.log('Socket connected:', newSocket.id);
+        setConnected(true);
+        setSocket(newSocket);
+      });
+
+      newSocket.on('disconnect', (reason) => {
+        console.log('Socket disconnected:', reason);
+        setConnected(false);
+        setSocket(null);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        setConnected(false);
+      });
+
+      // Task-related events
+      newSocket.on('active_tasks', (data) => {
+        console.log('Active tasks received:', data);
+        setActiveTasks(data.tasks || {});
+        setTaskCount(data.count || 0);
+      });
+
+      newSocket.on('task_result', (result) => {
+        console.log('Task result received:', result);
+        
+        const taskId = result.task_id;
+        
+        // Update task results
+        setTaskResults(prev => ({
+          ...prev,
+          [taskId]: [...(prev[taskId] || []), result]
+        }));
+        
+        // Update active tasks if status changed
+        if (result.status === 'completed' || result.status === 'error') {
+          setActiveTasks(prev => {
+            const updated = { ...prev };
+            if (updated[taskId]) {
+              updated[taskId] = { ...updated[taskId], status: result.status };
+            }
+            return updated;
+          });
+        }
+      });
+
+      newSocket.on('task_submitted', (data) => {
+        console.log('Task submitted:', data);
+        
+        // Add to active tasks
+        setActiveTasks(prev => ({
+          ...prev,
+          [data.task_id]: {
+            command: data.command,
+            status: data.status,
+            timestamp: new Date().toISOString()
+          }
+        }));
+        
+        setTaskCount(prev => prev + 1);
+      });
+
+      newSocket.on('error', (error) => {
+        console.error('Socket error:', error);
+        setError(error.message || 'WebSocket communication error');
+      });
+
+      socketRef.current = newSocket;
+
+    } catch (err) {
+      console.error('Failed to initialize socket:', err);
+      setError('Failed to establish real-time connection');
+    }
+  };
+
+  const submitCommand = async (command) => {
+    try {
+      {% if enable_oauth -%}
+      if (!authenticated) {
+        throw new Error('Authentication required');
+      }
+      
+      const token = localStorage.getItem('access_token');
+      
+      // Submit via WebSocket for real-time updates
+      if (socket && connected) {
+        socket.emit('submit_command', {
+          command: command,
+          token: token
+        });
+      } else {
+        // Fallback to HTTP API
+        const response = await axios.post('/tasks', { command });
+        console.log('Command submitted via API:', response.data);
+      }
+      {% else -%}
+      // Submit via WebSocket
+      if (socket && connected) {
+        socket.emit('submit_command', {
+          command: command
+        });
+      } else {
+        // Fallback to HTTP API
+        const response = await axios.post('/tasks', { command });
+        console.log('Command submitted via API:', response.data);
+      }
+      {% endif -%}
+      
+    } catch (err) {
+      console.error('Command submission failed:', err);
+      throw err;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-spinner">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <span className="ms-2">Loading {{ service_name_camel }} Controller...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mt-4">
+        <div className="error-message">
+          <h4><i className="fas fa-exclamation-triangle"></i> Error</h4>
+          <p>{error}</p>
+          <button 
+            className="btn btn-primary" 
+            onClick={initializeApp}
+          >
+            <i className="fas fa-redo"></i> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <div className="App">
+        <Header 
+          healthStatus={healthStatus}
+          connected={connected}
+          taskCount={taskCount}
+          {% if enable_oauth -%}
+          user={user}
+          authenticated={authenticated}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          {% endif -%}
+        />
+        
+        <main className="container-fluid mt-4">
+          <Routes>
+            <Route path="/" element={
+              <HomePage 
+                healthStatus={healthStatus} 
+                connected={connected}
+                taskCount={taskCount}
+              />
+            } />
+            
+            {% if enable_oauth -%}
+            <Route path="/console" element={
+              authenticated ? (
+                <ConsolePage 
+                  onSubmitCommand={submitCommand}
+                  activeTasks={activeTasks}
+                  taskResults={taskResults}
+                  connected={connected}
+                />
+              ) : (
+                <LoginRequired onLogin={handleLogin} />
+              )
+            } />
+            {% else -%}
+            <Route path="/console" element={
+              <ConsolePage 
+                onSubmitCommand={submitCommand}
+                activeTasks={activeTasks}
+                taskResults={taskResults}
+                connected={connected}
+              />
+            } />
+            {% endif -%}
+          </Routes>
+        </main>
+      </div>
+    </Router>
+  );
+}
+
+// Home page component
+function HomePage({ healthStatus, connected, taskCount }) {
+  return (
+    <div>
+      <div className="jumbotron bg-light p-4 mb-4 rounded">
+        <h1 className="display-4">{{ service_name_camel }} Controller</h1>
+        <p className="lead">{{ description }}</p>
+        <hr className="my-4" />
+        
+        <div className="row">
+          <div className="col-md-4">
+            <div className="card">
+              <div className="card-body text-center">
+                <h5 className="card-title">
+                  <i className="fas fa-server"></i> Controller Status
+                </h5>
+                {healthStatus && (
+                  <span className={`badge ${healthStatus.status === 'healthy' ? 'bg-success' : 'bg-danger'}`}>
+                    {healthStatus.status}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="col-md-4">
+            <div className="card">
+              <div className="card-body text-center">
+                <h5 className="card-title">
+                  <i className="fas fa-link"></i> WebSocket
+                </h5>
+                <span className={`badge ${connected ? 'bg-success' : 'bg-warning'}`}>
+                  {connected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="col-md-4">
+            <div className="card">
+              <div className="card-body text-center">
+                <h5 className="card-title">
+                  <i className="fas fa-tasks"></i> Active Tasks
+                </h5>
+                <span className="badge bg-info">{taskCount}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="row">
+        <div className="col-md-12">
+          <div className="card">
+            <div className="card-body">
+              <h5 className="card-title">
+                <i className="fas fa-info-circle"></i> About Agent-Controller System
+              </h5>
+              <p className="card-text">
+                This is a distributed command execution system where:
+              </p>
+              <ul>
+                <li><strong>Controller</strong>: Web interface for submitting commands and viewing results</li>
+                <li><strong>Agents</strong>: Worker processes that execute commands on remote nodes</li>
+                <li><strong>Real-time Communication</strong>: WebSocket for live command output streaming</li>
+                {% if enable_oauth -%}
+                <li><strong>Authentication</strong>: OAuth2/OIDC integration with role-based access control</li>
+                {% endif -%}
+              </ul>
+              
+              <a href="/console" className="btn btn-primary">
+                <i className="fas fa-terminal"></i> Open Console
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Console page for task submission and monitoring
+function ConsolePage({ onSubmitCommand, activeTasks, taskResults, connected }) {
+  const [command, setCommand] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!command.trim()) {
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      await onSubmitCommand(command.trim());
+      setCommand(''); // Clear input after successful submission
+    } catch (err) {
+      alert(`Command submission failed: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="row">
+      <div className="col-md-12 mb-4">
+        <div className="card">
+          <div className="card-header">
+            <h5><i className="fas fa-terminal"></i> Command Console</h5>
+          </div>
+          <div className="card-body">
+            <form onSubmit={handleSubmit}>
+              <div className="input-group">
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter command to execute on agents..."
+                  value={command}
+                  onChange={(e) => setCommand(e.target.value)}
+                  disabled={!connected || submitting}
+                />
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  disabled={!connected || submitting || !command.trim()}
+                >
+                  {submitting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-play"></i> Execute
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+            
+            {!connected && (
+              <div className="alert alert-warning mt-3">
+                <i className="fas fa-exclamation-triangle"></i> WebSocket disconnected. Commands will be queued.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <div className="col-md-12">
+        <TaskMonitor 
+          activeTasks={activeTasks}
+          taskResults={taskResults}
+        />
+      </div>
+    </div>
+  );
+}
+
+{% if enable_oauth -%}
+// Login required component
+function LoginRequired({ onLogin }) {
+  const handleLoginRedirect = () => {
+    const authUrl = `{{ oauth_issuer }}/protocol/openid-connect/auth?` +
+      `client_id={{ oauth_client_id }}&` +
+      `response_type=code&` +
+      `scope=openid profile email&` +
+      `redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}`;
+    
+    window.location.href = authUrl;
+  };
+
+  return (
+    <div className="text-center">
+      <h2><i className="fas fa-lock"></i> Authentication Required</h2>
+      <p>You need to log in to access the command console.</p>
+      <button 
+        className="btn btn-primary btn-lg" 
+        onClick={handleLoginRedirect}
+      >
+        <i className="fas fa-sign-in-alt"></i> Log In
+      </button>
+    </div>
+  );
+}
+{% endif -%}
+
+export default App;

@@ -1,0 +1,155 @@
+<template>
+  <div id="app">
+    <header class="app-header">
+      <h1>{{ serviceName }}</h1>
+      <nav>
+        <ul>
+          <li><a href="#home">Home</a></li>
+          <li><a href="#about">About</a></li>
+        </ul>
+      </nav>
+    </header>
+    
+    <main class="main-content">
+      <section class="hero">
+        <h2>Welcome to {{ serviceName }}</h2>
+        <p>{{ description }}</p>
+        <button @click="fetchData" class="btn-primary">Get Started</button>
+      </section>
+      
+      <section v-if="apiResponse" class="api-response">
+        <h3>API Response:</h3>
+        <pre>{{ "{{ JSON.stringify(apiResponse, null, 2) }}" }}</pre>
+      </section>
+    </main>
+    
+    <footer class="app-footer">
+      <p>&copy; 2024 {{ serviceName }} - Version {{ version }}</p>
+    </footer>
+  </div>
+</template>
+
+<script>
+import axios from 'axios'
+
+export default {
+  name: 'App',
+  data() {
+    return {
+      serviceName: '{{ service_name_camel }}',
+      description: '{{ description }}',
+      version: '{{ version }}',
+      apiResponse: null
+    }
+  },
+  methods: {
+    async fetchData() {
+      try {
+        const response = await axios.get('/api')
+        this.apiResponse = response.data
+      } catch (error) {
+        console.error('Error fetching data:', error)
+        this.apiResponse = { error: 'Failed to fetch data' }
+      }
+    }
+  }
+}
+</script>
+
+<style>
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  color: #2c3e50;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background-color: #42b883;
+  color: white;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.app-header h1 {
+  margin: 0;
+  display: inline-block;
+}
+
+.app-header nav {
+  float: right;
+}
+
+.app-header nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 1rem;
+}
+
+.app-header nav a {
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.btn-primary {
+  background-color: #42b883;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 1rem;
+}
+
+.btn-primary:hover {
+  background-color: #369870;
+}
+
+.api-response {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border-left: 4px solid #42b883;
+}
+
+.api-response pre {
+  background-color: #2d3748;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.app-footer {
+  background-color: #f8f9fa;
+  text-align: center;
+  padding: 1rem;
+  border-top: 1px solid #dee2e6;
+}
+
+/* Clear floats */
+.app-header::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+</style>

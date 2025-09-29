@@ -1,0 +1,18 @@
+[Unit]
+Description=Vault Unseal Job Startup
+After=kubelet.service docker.service
+Wants=kubelet.service
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/kubernetes/install_k8s/vault/vault-unseal-startup.sh
+RemainAfterExit=yes
+User=root
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

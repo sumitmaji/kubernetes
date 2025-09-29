@@ -1,6 +1,17 @@
-# **Documentation: Installing Eclipse Che on Kubernetes**
+# Eclipse Che DevWorkspace Documentation Hub
 
-This guide provides step-by-step instructions to install **Eclipse Che**, a cloud-based integrated development environment (IDE), on a Kubernetes cluster. It also includes how to use the gok script to automate the installation and uninstallation of Eclipse Che.
+## 📚 Complete Documentation Set
+
+This directory contains comprehensive documentation for Eclipse Che DevWorkspace management, including the enhanced V2 functions and traditional installation guides.
+
+### DevWorkspace V2 Documentation (⭐ **Recommended**)
+- **[DevWorkspaceV2_Documentation.md](./DevWorkspaceV2_Documentation.md)** - Complete technical documentation for V2 functions
+- **[DevWorkspaceV2_QuickReference.md](./DevWorkspaceV2_QuickReference.md)** - Quick reference and troubleshooting guide  
+- **[DevWorkspaceV2_Examples.md](./DevWorkspaceV2_Examples.md)** - Real-world examples and use cases
+
+### Eclipse Che Installation Guide
+
+This section provides step-by-step instructions to install **Eclipse Che**, a cloud-based integrated development environment (IDE), on a Kubernetes cluster. It also includes how to use the gok script to automate the installation and uninstallation of Eclipse Che.
 
 ---
 
@@ -217,16 +228,70 @@ EOF
 
 This documentation now includes the use of the gok script for automating the installation and uninstallation of Eclipse Che, along with manual installation steps for reference.
 
-# Note
+---
 
-The current removal of eclipse che does not stop all the pods, so after executing `gok reset che` follow below steps
+## 🚀 DevWorkspace V2 Functions (Enhanced Workspace Management)
 
-1. Open a new tab and login to box.
-2. change the namespace to `eclipse-che`
-3. stop the running containers
-  ```console
-    kubectl delete deployment --all
-  ``
+After Eclipse Che is installed, use the enhanced V2 functions for streamlined workspace creation and management:
+
+### Quick Start with V2 Functions
+
+#### Create a Development Workspace
+```bash
+# Interactive workspace creation
+createDevWorkspaceV2
+
+# Follow prompts:
+# 1. Enter username: myuser
+# 2. Select workspace type: 2 (springboot-web)
+```
+
+#### Available Workspace Types
+| Index | Type | Description | Best For |
+|-------|------|-------------|----------|
+| 1 | core-java | Basic Java development | Learning, simple projects |
+| 2 | springboot-web | Spring Boot web apps | Web development, REST APIs |
+| 3 | python-web | Python web development | Flask/Django apps |
+| 4 | springboot-backend | Spring Boot services | Microservices |
+| 5 | tensorflow | Machine learning | AI/ML development |
+| 6 | microservice-study | Microservices architecture | Distributed systems |
+| 7 | javaparser | Java code analysis | AST manipulation |
+| 8 | nlp | Natural Language Processing | Text analysis |
+| 9 | kubeauthentication | Kubernetes auth | Security projects |
+
+#### Delete a Workspace
+```bash
+# Interactive workspace deletion with full cleanup
+deleteDevWorkspaceV2
+```
+
+### Key V2 Features
+- ✅ **Type-Based Selection**: Choose from 9 predefined workspace types
+- ✅ **Automatic Configuration**: No manual manifest file management
+- ✅ **Smart Mapping**: Workspace types mapped to optimized configurations  
+- ✅ **ConfigMap Generation**: Automatic creation of ConfigMaps for workspace files
+- ✅ **Complete Cleanup**: Full resource cleanup including PVC and namespace deletion
+- ✅ **Enhanced UX**: Simplified prompts and intelligent defaults
+
+### Complete V2 Documentation
+For comprehensive information about the V2 functions, see:
+- **[DevWorkspaceV2_Documentation.md](./DevWorkspaceV2_Documentation.md)** - Complete technical reference
+- **[DevWorkspaceV2_QuickReference.md](./DevWorkspaceV2_QuickReference.md)** - Quick commands and troubleshooting
+- **[DevWorkspaceV2_Examples.md](./DevWorkspaceV2_Examples.md)** - Real-world usage examples
+
+---
+
+## 📝 Legacy Notes
+
+### Eclipse Che Cleanup Issue
+The current removal of Eclipse Che does not stop all pods completely. After executing `gok reset che`, follow these steps:
+
+1. Open a new terminal tab and login to the cluster
+2. Change the namespace to `eclipse-che`
+3. Stop the running containers:
+   ```bash
+   kubectl delete deployment --all -n eclipse-che
+   ```
 
 If you delete the workspace from eclipse-che, the `persistance volument` will not be freed from the previous claim, to make it available follow below steps
 

@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  {% if has_backend and has_frontend -%}
+  {{ service_name_kebab }}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "{{ port }}:{{ backend_port }}"
+    environment:
+      - FLASK_ENV=development
+      - PORT={{ backend_port }}
+      {% if enable_oauth -%}
+      - OAUTH_ISSUER={{ oauth_issuer }}
+      - OAUTH_CLIENT_ID={{ oauth_client_id }}
+      {% endif -%}
+    volumes:
+      - ./backend:/app
+      {% if has_frontend -%}
+      - ./frontend:/frontend
+      {% endif -%}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ backend_port }}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  {% elif has_backend -%}
+  {{ service_name_kebab }}-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "{{ backend_port }}:{{ backend_port }}"
+    environment:
+      - FLASK_ENV=development
+      - PORT={{ backend_port }}
+      {% if enable_oauth -%}
+      - OAUTH_ISSUER={{ oauth_issuer }}
+      - OAUTH_CLIENT_ID={{ oauth_client_id }}
+      {% endif -%}
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ backend_port }}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  {% endif -%}
+  {% if has_frontend -%}
+  {{ service_name_kebab }}-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost:{{ backend_port }}/api/v1
+      {% if enable_oauth -%}
+      - REACT_APP_OAUTH_ISSUER={{ oauth_issuer }}
+      - REACT_APP_OAUTH_CLIENT_ID={{ oauth_client_id }}
+      {% endif -%}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    {% if has_backend -%}
+    depends_on:
+      - {{ service_name_kebab }}-backend
+    {% endif -%}
+
+  {% endif -%}
+  # Optional: Add database for development
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: {{ service_name_snake }}
+  #     POSTGRES_USER: {{ service_name_snake }}
+  #     POSTGRES_PASSWORD: dev_password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+  # Optional: Add Redis for caching
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

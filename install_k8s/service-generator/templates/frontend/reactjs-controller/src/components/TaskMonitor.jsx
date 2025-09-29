@@ -1,0 +1,224 @@
+import React, { useState, useEffect, useRef } from 'react';
+
+function TaskMonitor({ activeTasks, taskResults }) {
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [expandedTasks, setExpandedTasks] = useState(new Set());
+  const outputEndRef = useRef(null);
+
+  // Auto-scroll to bottom when new results arrive
+  useEffect(() => {
+    if (outputEndRef.current) {
+      outputEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [taskResults, selectedTask]);
+
+  const toggleTaskExpansion = (taskId) => {
+    const newExpanded = new Set(expandedTasks);
+    if (newExpanded.has(taskId)) {
+      newExpanded.delete(taskId);
+    } else {
+      newExpanded.add(taskId);
+    }
+    setExpandedTasks(newExpanded);
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-success';
+      case 'error':
+        return 'bg-danger';
+      case 'started':
+        return 'bg-info';
+      case 'queued':
+        return 'bg-warning';
+      default:
+        return 'bg-secondary';
+    }
+  };
+
+  const formatTimestamp = (timestamp) => {
+    return new Date(timestamp).toLocaleString();
+  };
+
+  const renderTaskOutput = (taskId) => {
+    const results = taskResults[taskId] || [];
+    
+    if (results.length === 0) {
+      return (
+        <div className="text-muted p-3">
+          <i className="fas fa-clock"></i> Waiting for output...
+        </div>
+      );
+    }
+
+    return (
+      <div className="task-output">
+        {results.map((result, index) => (
+          <div key={index} className="output-entry">
+            <div className="output-header">
+              <small className="text-muted">
+                {formatTimestamp(result.timestamp)} - 
+                <span className={`badge ms-1 ${getStatusBadgeClass(result.status)}`}>
+                  {result.status}
+                </span>
+                {result.agent_id && (
+                  <span className="badge bg-secondary ms-1">{result.agent_id}</span>
+                )}
+              </small>
+            </div>
+            
+            <div className="output-content">
+              {result.status === 'output' && result.data?.line && (
+                <pre className="mb-0 text-success">{result.data.line}</pre>
+              )}
+              
+              {result.status === 'started' && (
+                <div className="text-info">
+                  <i className="fas fa-play"></i> {result.data?.message}
+                </div>
+              )}
+              
+              {result.status === 'completed' && (
+                <div className="text-success">
+                  <i className="fas fa-check"></i> Command completed 
+                  (exit code: {result.data?.return_code})
+                  {result.data?.output && (
+                    <details className="mt-2">
+                      <summary>Full Output</summary>
+                      <pre className="mt-2 p-2 bg-light">{result.data.output}</pre>
+                    </details>
+                  )}
+                </div>
+              )}
+              
+              {result.status === 'error' && (
+                <div className="text-danger">
+                  <i className="fas fa-exclamation-circle"></i> Error: {result.data?.error}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <div ref={outputEndRef} />
+      </div>
+    );
+  };
+
+  const taskList = Object.entries(activeTasks).sort(
+    ([, a], [, b]) => new Date(b.timestamp) - new Date(a.timestamp)
+  );
+
+  return (
+    <div className="task-monitor">
+      <div className="card">
+        <div className="card-header">
+          <h5>
+            <i className="fas fa-tasks"></i> Task Monitor 
+            <span className="badge bg-primary ms-2">{taskList.length}</span>
+          </h5>
+        </div>
+        
+        {taskList.length === 0 ? (
+          <div className="card-body text-center text-muted">
+            <i className="fas fa-inbox fa-3x mb-3"></i>
+            <p>No active tasks. Submit a command to get started.</p>
+          </div>
+        ) : (
+          <div className="task-list">
+            {taskList.map(([taskId, task]) => (
+              <div key={taskId} className="task-item">
+                <div 
+                  className="task-header"
+                  onClick={() => toggleTaskExpansion(taskId)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="d-flex justify-content-between align-items-center p-3 border-bottom">
+                    <div className="task-info">
+                      <div className="task-command">
+                        <code>{task.command}</code>
+                      </div>
+                      <small className="text-muted">
+                        Started: {formatTimestamp(task.timestamp)} - 
+                        ID: {taskId.substring(0, 8)}...
+                      </small>
+                    </div>
+                    
+                    <div className="task-status">
+                      <span className={`badge ${getStatusBadgeClass(task.status)}`}>
+                        {task.status}
+                      </span>
+                      <i className={`fas fa-chevron-${expandedTasks.has(taskId) ? 'up' : 'down'} ms-2`}></i>
+                    </div>
+                  </div>
+                </div>
+                
+                {expandedTasks.has(taskId) && (
+                  <div className="task-details">
+                    <div className="output-container" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                      {renderTaskOutput(taskId)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      <style jsx>{`
+        .task-monitor {
+          font-family: 'Roboto Mono', monospace;
+        }
+        
+        .task-item {
+          border-bottom: 1px solid #dee2e6;
+        }
+        
+        .task-item:last-child {
+          border-bottom: none;
+        }
+        
+        .task-header:hover {
+          background-color: #f8f9fa;
+        }
+        
+        .task-command {
+          font-family: 'Courier New', monospace;
+          font-weight: bold;
+        }
+        
+        .output-entry {
+          padding: 0.5rem;
+          border-left: 3px solid #dee2e6;
+          margin-bottom: 0.5rem;
+        }
+        
+        .output-entry:last-child {
+          margin-bottom: 0;
+        }
+        
+        .output-header {
+          margin-bottom: 0.25rem;
+        }
+        
+        .output-content pre {
+          font-size: 0.9rem;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+        
+        .task-details {
+          background-color: #f8f9fa;
+          border-top: 1px solid #dee2e6;
+        }
+        
+        .output-container {
+          padding: 1rem;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default TaskMonitor;

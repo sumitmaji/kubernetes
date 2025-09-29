@@ -1,0 +1,222 @@
+# Default values for {{ service_name_kebab }}
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: {{ registry }}/{{ namespace }}/{{ service_name_kebab }}
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "{{ version }}"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+  # Image pull secrets to attach to the service account
+  imagePullSecrets: []
+
+# RBAC configuration
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: {% if service_pattern == 'agent-controller' or enable_rbac %}true{% else %}false{% endif %}
+  
+  # Create cluster-wide roles (use with caution)
+  createClusterRole: false
+  
+  # Default RBAC rules for the service
+  rules:
+    # Basic pod management permissions
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list", "watch"]
+    # Service management permissions  
+    - apiGroups: [""]
+      resources: ["services"]
+      verbs: ["get", "list", "watch"]
+    # ConfigMap and Secret access (for configuration)
+    - apiGroups: [""]
+      resources: ["configmaps", "secrets"]
+      verbs: ["get", "list", "watch"]
+    {% if service_pattern == 'agent-controller' -%}
+    # Enhanced permissions for agent-controller pattern
+    - apiGroups: [""]
+      resources: ["pods", "services", "serviceaccounts"]
+      verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments"]
+      verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    - apiGroups: ["networking.k8s.io"]
+      resources: ["ingresses"]
+      verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+    {% endif -%}
+  
+  # Additional custom RBAC rules (can be added per deployment)
+  additionalRules: []
+  # Example:
+  # - apiGroups: ["batch"]
+  #   resources: ["jobs", "cronjobs"]
+  #   verbs: ["get", "list", "create", "delete"]
+  
+  # Cluster-wide RBAC rules (only if createClusterRole: true)
+  clusterRules: []
+  # Example:
+  # - apiGroups: [""]
+  #   resources: ["nodes"]
+  #   verbs: ["get", "list", "watch"]
+  
+  # Additional subjects for RoleBinding (beyond the service account)
+  additionalSubjects: []
+  # Example:
+  # - kind: User
+  #   name: system:admin
+  #   apiGroup: rbac.authorization.k8s.io
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: {{ port }}
+  targetPort: {{ backend_port if has_backend else 80 }}
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    {% if enable_https -%}
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    {% endif -%}
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    {% if enable_oauth -%}
+    nginx.ingress.kubernetes.io/auth-url: "https://oauth2-proxy.gokcloud.com/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://oauth2-proxy.gokcloud.com/oauth2/start?rd=$scheme://$best_http_host$request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: "x-auth-request-user,x-auth-request-email,x-auth-request-preferred-username"
+    {% endif %}
+  hosts:
+    - host: {{ ingress_host }}
+      paths:
+        - path: /
+          pathType: Prefix
+  {% if enable_https -%}
+  tls:
+    - secretName: {{ service_name_kebab }}-tls
+      hosts:
+        - {{ ingress_host }}
+  {% endif -%}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Application specific configuration
+app:
+  name: {{ service_name }}
+  version: {{ version }}
+  description: {{ description }}
+  
+  # Environment variables
+  env:
+    - name: FLASK_ENV
+      value: "production"
+    - name: PORT
+      value: "{{ backend_port }}"
+    {% if enable_oauth -%}
+    - name: OAUTH_ISSUER
+      value: "{{ oauth_issuer }}"
+    - name: OAUTH_CLIENT_ID
+      value: "{{ oauth_client_id }}"
+    {% endif -%}
+  
+  # Secrets (if any)
+  secrets: []
+    # - name: SECRET_KEY
+    #   value: "your-secret-key"
+  
+  # Health check configuration
+  healthCheck:
+    path: /health
+    port: {{ backend_port if has_backend else 80 }}
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  # Readiness probe configuration
+  readinessCheck:
+    path: /health/ready
+    port: {{ backend_port if has_backend else 80 }}
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Monitoring and observability
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    path: /metrics
+    port: {{ backend_port if has_backend else 80 }}
+
+# Persistence (if needed)
+persistence:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+
+# Database configuration (if needed)
+database:
+  enabled: false
+  type: postgresql
+  host: ""
+  port: 5432
+  database: {{ service_name_snake }}
+  username: {{ service_name_snake }}
+  password: ""
+
+# Redis configuration (if needed)
+redis:
+  enabled: false
+  host: ""
+  port: 6379
+  database: 0

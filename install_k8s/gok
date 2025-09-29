@@ -2631,6 +2631,7 @@ vaultInstall() {
   ./ci.sh
   popd
   kubectl patch serviceaccount vault -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n vault
+  mkdir -p $MOUNT_PATH/vault-keys
   kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml
   
   # Wait for the Job to complete
@@ -2648,7 +2649,13 @@ vaultInstall() {
     echoSuccess "Vault unseal did not complete within the timeout."
     exit 1  # Return failure
   fi
-  
+
+  # Install Vault unseal service
+  pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+  chmod +x *.sh
+  ./install-vault-unseal-service.sh
+  popd
+
   # Wait for Vault pods to be ready
   echo "Waiting for Vault services to be up!!!!"
   kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace vault
@@ -2779,6 +2786,10 @@ vaultReset() {
   csiDriverUnInstall
 
   kubectl delete clusterrolebinding vault-auth-delegator
+  systemctl stop vault-unseal.service
+  systemctl disable vault-unseal.service
+  rm -f /etc/systemd/system/vault-unseal.service
+  systemctl daemon-reload
 
   # Provide feedback to the user
   echo "Vault has been reset successfully!"
@@ -2869,6 +2880,8 @@ keycloakInst(){
         --set auth.adminPassword="$KEYCLOAK_ADMIN_PASSWORD" \
         --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml
 }
+
+
 
 addPolicyToSyncSecrets(){
   cat <<EOF | kubectl apply -f -  
@@ -4501,25 +4514,427 @@ function bashCmd() {
 }
 
 function helpCmd() {
-    echo "Available commands:"
-    echo "1. gok install <component>: Install a component. Supported components are docker, cert-manager, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, kubernetes-worker, and kubernetes."
-    echo "2. gok start <component>: Start a component. Supported components are kubernetes, proxy, and kubelet."
-    echo "3. gok reset <component>: Reset a component. Supported components are kubernetes, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, and cert-manager."
-    echo "4. gok deploy <component>: Deploy a component. Currently, only app1 is supported."
-    echo "5. gok patch <resource> <name> <namespace> <options> <subdomain>: Patch resources. Currently, only ingress resource is supported. The options can be letsencrypt, ldap, or localtls."
-    echo "6. gok create <resource> <name> <additional>: Create resources. Currently, secret and certificate resources are supported. For secret, only apphost is supported. For certificate, it creates a certificate request for a namespace."
-    echo "7. gok bash: Open a terminal in a pod."
-    echo "8. gok desc: Describe a pod."
-    echo "9. gok logs: Show the logs of a pod."
-    echo "10. gok status: Show the status of a helm release."
-    echo "11. gok taint-node: Taint a node."
-    echo "12. gok help: Show this help document."
+    echo "GOK - Kubernetes Operations Toolkit"
+    echo "=================================="
+    echo ""
+    echo "GOK is a comprehensive toolkit for managing Kubernetes clusters and deploying"
+    echo "cloud-native applications with integrated security, monitoring, and DevOps tools."
+    echo ""
+    echo "USAGE:"
+    echo "  gok <command> [options]"
+    echo ""
+    echo "CORE COMMANDS:"
+    echo ""
+    echo "Lifecycle Management:"
+    echo "  install <component>     Install and configure components"
+    echo "  reset <component>       Reset and uninstall components"
+    echo "  start <component>       Start system services"
+    echo "  deploy <component>      Deploy applications"
+    echo ""
+    echo "Resource Management:"
+    echo "  create <resource>       Create Kubernetes resources and configurations"
+    echo "  generate <type>         Generate microservice templates"
+    echo "  patch <resource>        Patch and modify existing resources"
+    echo ""
+    echo "Cluster Operations:"
+    echo "  bash                    Open interactive terminal in pods"
+    echo "  desc [methods]          Describe pod details or GOK methods"
+    echo "  logs                    View pod logs and diagnostics"
+    echo "  status                  Check Helm release status"
+    echo "  taint-node             Configure node taints and scheduling"
+    echo "  completion             Setup bash tab completion for GOK commands"
+    echo ""
+    echo "QUICK EXAMPLES:"
+    echo ""
+    echo "  # Complete cluster setup"
+    echo "  gok install kubernetes"
+    echo "  gok install cert-manager"
+    echo "  gok install monitoring"
+    echo ""
+    echo "  # Generate microservices"
+    echo "  gok generate python-api user-service"
+    echo "  gok generate python-reactjs webapp"
+    echo ""
+    echo "  # Create resources"
+    echo "  gok create certificate production"
+    echo "  gok create kubeconfig developer"
+    echo ""
+    echo "  # Troubleshooting"
+    echo "  gok logs"
+    echo "  gok desc"
+    echo "  gok status my-release"
+    echo ""
+    echo "DETAILED HELP:"
+    echo ""
+    echo "  For detailed information about any command, use:"
+    echo ""
+    echo "  gok install help        # View all installable components (35+)"
+    echo "  gok reset help          # View all resettable components (32+)"
+    echo "  gok create help         # View resource creation options"
+    echo "  gok generate help       # View service template options"
+    echo ""
+    echo "PLATFORM FEATURES:"
+    echo ""
+    echo "  ✅ Complete Kubernetes cluster management"
+    echo "  ✅ Automated TLS certificate management"
+    echo "  ✅ Integrated monitoring (Prometheus/Grafana)"
+    echo "  ✅ Identity management (Keycloak/OAuth2)"
+    echo "  ✅ Service mesh ready (Istio)"
+    echo "  ✅ GitOps deployment (ArgoCD)"
+    echo "  ✅ Development environments (JupyterHub/Che)"
+    echo "  ✅ Microservice code generation"
+    echo "  ✅ Production-ready security hardening"
+    echo "  ✅ High availability configurations"
+    echo ""
+    echo "SUPPORTED PLATFORMS:"
+    echo ""
+    echo "  Operating Systems:   Ubuntu 18.04+, Debian 9+"
+    echo "  Cloud Providers:     AWS, GCP, Azure, On-premises"
+    echo "  Container Runtime:   Docker, containerd"
+    echo "  Kubernetes:          1.20+"
+    echo ""
+    echo "GETTING STARTED:"
+    echo ""
+    echo "  1. Install base cluster:     gok install kubernetes"
+    echo "  2. Install certificate mgmt: gok install cert-manager"
+    echo "  3. Install monitoring:       gok install monitoring"
+    echo "  4. Install identity mgmt:    gok install keycloak"
+    echo "  5. Generate services:        gok generate python-api my-service"
+    echo ""
+    echo "For more information, visit: https://github.com/sumitmaji/kubernetes"
 }
 
 function descCmd() {
-  pod=$(getpod)
-  echo "Describing pod $pod"
-  kubectl describe po "$pod"
+  TARGET=$1
+  
+  if [ "$TARGET" == "methods" ] || [ "$TARGET" == "functions" ] || [ "$TARGET" == "all" ]; then
+    describeAllMethods
+  elif [ "$TARGET" == "help" ] || [ "$TARGET" == "--help" ]; then
+    echo "gok desc - Describe pods or GOK methods"
+    echo ""
+    echo "Usage:"
+    echo "  gok desc              # Describe a selected pod (interactive)"
+    echo "  gok desc methods      # Describe all GOK methods and functions"
+    echo "  gok desc functions    # Same as methods"
+    echo "  gok desc all          # Same as methods"
+    echo ""
+    echo "Examples:"
+    echo "  gok desc              # Interactive pod description"
+    echo "  gok desc methods      # Technical method documentation"
+    return 0
+  else
+    # Traditional pod description functionality
+    pod=$(getpod)
+    echo "Describing pod $pod"
+    kubectl describe po "$pod"
+  fi
+}
+
+function describeAllMethods() {
+  echo "GOK - Method Reference Documentation"
+  echo "===================================="
+  echo ""
+  echo "This document describes all methods, functions, and their parameters"
+  echo "available in the GOK Kubernetes Operations Toolkit."
+  echo ""
+  echo "COMMAND INTERFACE METHODS:"
+  echo "========================="
+  echo ""
+  
+  echo "helpCmd()"
+  echo "├─ Purpose: Display main help and documentation"
+  echo "├─ Parameters: None"
+  echo "├─ Usage: gok help | gok --help | gok -h"
+  echo "└─ Returns: Comprehensive toolkit overview and usage guide"
+  echo ""
+  
+  echo "installCmd(\$COMPONENT)"
+  echo "├─ Purpose: Install and configure Kubernetes components"
+  echo "├─ Parameters:"
+  echo "│  └─ \$COMPONENT: Component name to install"
+  echo "├─ Supported Components: 35+ including:"
+  echo "│  ├─ Core: docker, kubernetes, kubernetes-worker, cert-manager, ingress, dashboard"
+  echo "│  ├─ Monitoring: monitoring, fluentd, opensearch"
+  echo "│  ├─ Security: keycloak, oauth2, vault, ldap"
+  echo "│  ├─ Development: jupyter, devworkspace, workspace, che, ttyd, cloudshell, console"
+  echo "│  ├─ CI/CD: argocd, jenkins, spinnaker, registry"
+  echo "│  ├─ Networking: istio, rabbitmq"
+  echo "│  ├─ Policy: kyverno"
+  echo "│  ├─ GOK Platform: gok-agent, gok-controller, controller, gok-login, chart"
+  echo "│  └─ Solutions: base, base-services"
+  echo "├─ Usage: gok install <component>"
+  echo "└─ Returns: Installation status and configuration"
+  echo ""
+  
+  echo "resetCmd(\$COMPONENT)"
+  echo "├─ Purpose: Reset and uninstall Kubernetes components"
+  echo "├─ Parameters:"
+  echo "│  └─ \$COMPONENT: Component name to reset/uninstall"
+  echo "├─ Supported Components: 32+ (same as install minus docker)"
+  echo "├─ Usage: gok reset <component>"
+  echo "├─ Warning: Destructive operation - permanent data loss"
+  echo "└─ Returns: Reset status and cleanup confirmation"
+  echo ""
+  
+  echo "createCmd(\$RESOURCE, \$NAME, \$ADDITIONAL)"
+  echo "├─ Purpose: Create Kubernetes resources and configurations"
+  echo "├─ Parameters:"
+  echo "│  ├─ \$RESOURCE: Resource type (secret, certificate, kubeconfig)"
+  echo "│  ├─ \$NAME: Resource name or identifier"
+  echo "│  └─ \$ADDITIONAL: Optional additional parameters"
+  echo "├─ Resource Types:"
+  echo "│  ├─ secret: Creates Kubernetes secrets (apphost supported)"
+  echo "│  ├─ certificate: Creates TLS certificates for namespaces"
+  echo "│  └─ kubeconfig: Creates kubeconfig files for users"
+  echo "├─ Usage: gok create <resource> <name> [additional]"
+  echo "└─ Returns: Resource creation status and details"
+  echo ""
+  
+  echo "generateCmd(\$SERVICE_TYPE, \$SERVICE_NAME, \$SERVICE_DESC, \$SERVICE_NS, \$SERVICE_HOST)"
+  echo "├─ Purpose: Generate microservice templates from predefined patterns"
+  echo "├─ Parameters:"
+  echo "│  ├─ \$SERVICE_TYPE: Template type (python-api, python-reactjs)"
+  echo "│  ├─ \$SERVICE_NAME: Name of the service to generate"
+  echo "│  ├─ \$SERVICE_DESC: Optional service description"
+  echo "│  ├─ \$SERVICE_NS: Optional Kubernetes namespace"
+  echo "│  └─ \$SERVICE_HOST: Optional ingress hostname"
+  echo "├─ Service Types:"
+  echo "│  ├─ python-api: Python Flask REST API (backend-only)"
+  echo "│  └─ python-reactjs: Python Flask + React.js (full-stack)"
+  echo "├─ Generated Features: OAuth2, RBAC, TLS, health checks, API docs"
+  echo "├─ Usage: gok generate <type> <name> [description] [namespace] [hostname]"
+  echo "└─ Returns: Complete microservice with deployment configuration"
+  echo ""
+  
+  echo "startCmd(\$COMPONENT)"
+  echo "├─ Purpose: Start system services and components"
+  echo "├─ Parameters:"
+  echo "│  └─ \$COMPONENT: Service name (kubernetes, proxy, kubelet)"
+  echo "├─ Usage: gok start <component>"
+  echo "└─ Returns: Service startup status"
+  echo ""
+  
+  echo "deployCmd(\$COMPONENT)"
+  echo "├─ Purpose: Deploy applications and services"
+  echo "├─ Parameters:"
+  echo "│  └─ \$COMPONENT: Application name (currently supports: app1)"
+  echo "├─ Usage: gok deploy <component>"
+  echo "└─ Returns: Deployment status and application details"
+  echo ""
+  
+  echo "patchCmd(\$RESOURCE, \$NAME, \$NAMESPACE, \$OPTIONS, \$SUBDOMAIN)"
+  echo "├─ Purpose: Patch and modify existing Kubernetes resources"
+  echo "├─ Parameters:"
+  echo "│  ├─ \$RESOURCE: Resource type (currently supports: ingress)"
+  echo "│  ├─ \$NAME: Resource name"
+  echo "│  ├─ \$NAMESPACE: Kubernetes namespace"
+  echo "│  ├─ \$OPTIONS: Patch options (letsencrypt, ldap, localtls)"
+  echo "│  └─ \$SUBDOMAIN: Optional subdomain configuration"
+  echo "├─ Usage: gok patch <resource> <name> <namespace> <options> [subdomain]"
+  echo "└─ Returns: Patch operation status"
+  echo ""
+  
+  echo "descCmd([\$TARGET])"
+  echo "├─ Purpose: Describe pods or GOK methods"
+  echo "├─ Parameters:"
+  echo "│  └─ \$TARGET: Optional target (methods, functions, all, or empty for pod)"
+  echo "├─ Usage: gok desc [methods|functions|all]"
+  echo "└─ Returns: Pod description or method documentation"
+  echo ""
+  
+  echo "logsCmd()"
+  echo "├─ Purpose: View pod logs and diagnostics"
+  echo "├─ Parameters: None (interactive pod selection)"
+  echo "├─ Usage: gok logs"
+  echo "└─ Returns: Pod log output"
+  echo ""
+  
+  echo "bashCmd()"
+  echo "├─ Purpose: Open interactive terminal in pods"
+  echo "├─ Parameters: None (interactive pod selection)"
+  echo "├─ Usage: gok bash"
+  echo "└─ Returns: Interactive shell session"
+  echo ""
+  
+  echo "statusCmd()"
+  echo "├─ Purpose: Check Helm release status"
+  echo "├─ Parameters: Uses global \$release variable"
+  echo "├─ Usage: gok status"
+  echo "└─ Returns: Helm release status information"
+  echo ""
+  
+  echo "taintNodeCmd()"
+  echo "├─ Purpose: Configure node taints and scheduling"
+  echo "├─ Parameters: None (interactive configuration)"
+  echo "├─ Usage: gok taint-node"
+  echo "└─ Returns: Node taint configuration status"
+  echo ""
+  
+  echo ""
+  echo "INTERNAL UTILITY FUNCTIONS:"
+  echo "==========================="
+  echo ""
+  
+  echo "updateSys()"
+  echo "├─ Purpose: Update system packages and dependencies"
+  echo "├─ Called by: installCmd()"
+  echo "└─ Returns: System update status"
+  echo ""
+  
+  echo "installDeps()"
+  echo "├─ Purpose: Install required system dependencies"
+  echo "├─ Called by: installCmd()"
+  echo "└─ Returns: Dependency installation status"
+  echo ""
+  
+  echo "getpod()"
+  echo "├─ Purpose: Interactive pod selection utility"
+  echo "├─ Called by: descCmd(), logsCmd(), bashCmd()"
+  echo "└─ Returns: Selected pod name"
+  echo ""
+  
+  echo "taintNode()"
+  echo "├─ Purpose: Apply node taints for scheduling control"
+  echo "├─ Called by: taintNodeCmd(), installCmd()"
+  echo "└─ Returns: Node taint application status"
+  echo ""
+  
+  echo ""
+  echo "COMPONENT-SPECIFIC INSTALLATION FUNCTIONS:"
+  echo "=========================================="
+  echo ""
+  
+  echo "dockrInst() - Docker installation and configuration"
+  echo "k8sInst(\$TYPE) - Kubernetes cluster setup (\$TYPE: kubernetes|kubernetes-worker)"
+  echo "haInst() - High availability proxy installation"
+  echo "helmInst() - Helm package manager installation"
+  echo "calicoInst() - Calico network plugin installation"
+  echo "certmanagerInst() - Certificate manager installation"
+  echo "setupCertiIssuers() - Certificate issuers configuration"
+  echo "ingressInst() - NGINX ingress controller installation"
+  echo "installPrometheusGrafanaWithCertMgr() - Monitoring stack installation"
+  echo "installKeycloakWithCertMgr() - Identity management installation"
+  echo "installRegistryWithCertMgr() - Container registry installation"
+  echo "installDashboardwithCertManager() - Kubernetes dashboard installation"
+  echo "jupyterHubInst() - JupyterHub installation"
+  echo "argocdInst() - ArgoCD GitOps installation"
+  echo "jenkinsInst() - Jenkins CI/CD installation"
+  echo "spinnakerInst() - Spinnaker deployment platform installation"
+  echo "fluentdInst() - Fluentd logging installation"
+  echo "opensearchInst() - OpenSearch analytics installation"
+  echo "opensearchDashInst() - OpenSearch dashboard installation"
+  echo "vaultInstall() - HashiCorp Vault installation"
+  echo "oauth2ProxyInst() - OAuth2 proxy installation"
+  echo "istioInst() - Istio service mesh installation"
+  echo "kyvernoInst() - Kyverno policy engine installation"
+  echo "rabbitmqInst() - RabbitMQ message broker installation"
+  echo "eclipseCheInst() - Eclipse Che IDE installation"
+  echo "ttydInst() - Terminal over HTTP installation"
+  echo "cloudshellInst() - Cloud shell installation"
+  echo "consoleInst() - Web console installation"
+  echo "createDevWorkspace() - Legacy developer workspace creation"
+  echo "createDevWorkspaceV2() - Enhanced developer workspace creation"
+  echo "gokAgentInstall() - GOK agent component installation"
+  echo "gokControllerInstall() - GOK controller component installation"
+  echo "gokLoginInst() - GOK authentication service installation"
+  echo "chartInst() - Helm chart repository setup"
+  echo "baseInst() - Base system components installation"
+  echo "installBaseServices() - Complete base services stack installation"
+  echo "installLdap() - LDAP directory service installation"
+  echo ""
+  
+  echo ""
+  echo "COMPONENT-SPECIFIC RESET FUNCTIONS:"
+  echo "===================================="
+  echo ""
+  
+  echo "prometheusGrafanaResetv2() - Monitoring stack reset"
+  echo "dashboardReset() - Kubernetes dashboard reset"
+  echo "keycloakReset() - Keycloak identity management reset"
+  echo "vaultReset() - Vault secrets management reset"
+  echo "ingressUnInst() - Ingress controller uninstallation"
+  echo "resetChart() - Helm chart repository reset"
+  echo "ldapReset() - LDAP service reset"
+  echo "gokAgentReset() - GOK agent reset"
+  echo "gokControllerReset() - GOK controller reset"
+  echo "argocdReset() - ArgoCD reset"
+  echo "deleteDevWorkspace() - Legacy workspace deletion"
+  echo "deleteDevWorkspaceV2() - Enhanced workspace deletion"
+  echo "resetDockerRegistry() - Container registry reset"
+  echo "fluentdReset() - Fluentd logging reset"
+  echo "jupyterHubReset() - JupyterHub reset"
+  echo "rabbitmqReset() - RabbitMQ reset"
+  echo "resetEclipseChe() - Eclipse Che reset"
+  echo "ttydReset() - Terminal service reset"
+  echo "cloudshellReset() - Cloud shell reset"
+  echo "consoleReset() - Web console reset"
+  echo "opensearchReset() - OpenSearch reset"
+  echo "opensearchDashReset() - OpenSearch dashboard reset"
+  echo "jenkinsReset() - Jenkins reset"
+  echo "spinnakerReset() - Spinnaker reset"
+  echo "oauth2ProxyReset() - OAuth2 proxy reset"
+  echo "certManagerReset() - Certificate manager reset"
+  echo "istioReset() - Istio service mesh reset"
+  echo "kyvernoReset() - Kyverno policy engine reset"
+  echo "resetBaseServices() - Complete base services reset"
+  echo ""
+  
+  echo ""
+  echo "CONFIGURATION AND UTILITY FUNCTIONS:"
+  echo "====================================="
+  echo ""
+  
+  echo "getOAuth0Config() - Auth0 OAuth configuration"
+  echo "getKeycloakConfig() - Keycloak OAuth configuration"
+  echo "waitForServiceAvailable(\$NAMESPACE) - Service availability checker"
+  echo "dnsUtils() - DNS utilities installation"
+  echo "customDns() - Custom DNS configuration"
+  echo "kcurl() - Kubernetes curl utility installation"
+  echo "oauthAdmin() - OAuth admin configuration"
+  echo "disableSwap() - System swap disabling"
+  echo "startHa() - High availability service startup"
+  echo "startKubelet() - Kubelet service startup"
+  echo "createApp1() - Sample application deployment"
+  echo "createLocalStorageClassAndPV() - Local storage configuration"
+  echo "createExampleJenkinsPipeline() - Jenkins pipeline examples"
+  echo "createJenkinsPipeline() - Jenkins pipeline creation"
+  echo "createCertificate() - Certificate creation utilities"
+  echo "createClientCertificate() - Client certificate creation"
+  echo "createKubeConfig(\$NAME) - Kubeconfig file creation"
+  echo "certificateRequestForNs(\$NAME, \$ADDITIONAL) - Namespace certificate requests"
+  echo "hostSecret() - Application host secret creation"
+  echo "createVaultSecretStore() - Vault secret store configuration"
+  echo "create_sub_scope() - OAuth scope creation"
+  echo "createUserGroup() - LDAP user and group creation"
+  echo "emptyLocalFsStorage() - Local filesystem storage cleanup"
+  echo "collectUserInputs() - Interactive user input collection"
+  echo "promptUserInput() - User input prompting utility"
+  echo "promptSecret() - Secure password input utility"
+  echo ""
+  
+  echo "GLOBAL VARIABLES:"
+  echo "================="
+  echo ""
+  echo "WORKING_DIR - Base working directory (\$MOUNT_PATH/kubernetes/install_k8s)"
+  echo "release - Helm release name for status operations"
+  echo "CMD - Current command being executed (\$1)"
+  echo "MOUNT_PATH - Base mount path for GOK installation"
+  echo "GOK_ROOT_DOMAIN - Root domain for GOK services"
+  echo ""
+  
+  echo "CONFIGURATION FILES:"
+  echo "===================="
+  echo ""
+  echo "config - Main GOK configuration file"
+  echo "root_config - Root-level system configuration"
+  echo "sample_service_config.yaml - Service generation template configuration"
+  echo "/etc/bash.bashrc - System bash configuration (modified by GOK)"
+  echo "/etc/rc.local - System startup script (created by GOK)"
+  echo ""
+  
+  echo "For detailed usage of any command, use: gok <command> help"
+  echo "For interactive pod operations, GOK provides automatic pod selection."
+  echo "Most installation functions support both standalone and integrated deployment modes."
 }
 
 function logsCmd() {
@@ -4528,8 +4943,317 @@ function logsCmd() {
   kubectl logs "$pod"
 }
 
+# Service status check functions
+check_service_status() {
+  local service_name="$1"
+  local namespace="$2"
+  local helm_release="$3"
+  local check_type="${4:-helm}"  # helm, kubectl, or both
+  
+  # Quick connectivity check - if cluster is not accessible, return ❌ for kubectl-based checks
+  if [[ "$check_type" == "kubectl" ]] || [[ "$check_type" == "both" ]]; then
+    if ! check_cluster_connectivity; then
+      echo "❌"
+      return
+    fi
+  fi
+  
+  case "$check_type" in
+    "helm")
+      if helm list -n "$namespace" 2>/dev/null | grep -q "^$helm_release"; then
+        local status=$(helm list -n "$namespace" 2>/dev/null | grep "^$helm_release" | awk '{print $8}')
+        if [[ "$status" == "deployed" ]]; then
+          echo "✅"
+        else
+          echo "⚠️"
+        fi
+      else
+        echo "❌"
+      fi
+      ;;
+    "kubectl")
+      if kubectl get deployment "$service_name" -n "$namespace" &>/dev/null; then
+        local ready=$(kubectl get deployment "$service_name" -n "$namespace" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+        local desired=$(kubectl get deployment "$service_name" -n "$namespace" -o jsonpath='{.spec.replicas}' 2>/dev/null)
+        if [[ "$ready" == "$desired" ]] && [[ "$ready" -gt 0 ]]; then
+          echo "✅"
+        else
+          echo "⚠️"
+        fi
+      else
+        echo "❌"
+      fi
+      ;;
+    "both")
+      local helm_status=$(check_service_status "$service_name" "$namespace" "$helm_release" "helm")
+      local kubectl_status=$(check_service_status "$service_name" "$namespace" "$helm_release" "kubectl")
+      if [[ "$helm_status" == "✅" ]] && [[ "$kubectl_status" == "✅" ]]; then
+        echo "✅"
+      elif [[ "$helm_status" == "❌" ]] && [[ "$kubectl_status" == "❌" ]]; then
+        echo "❌"
+      else
+        echo "⚠️"
+      fi
+      ;;
+  esac
+}
+
+check_ingress_status() {
+  check_service_status "ingress-nginx-controller" "ingress-nginx" "ingress-nginx" "both"
+}
+
+check_certmanager_status() {
+  check_service_status "cert-manager" "cert-manager" "cert-manager" "both"
+}
+
+check_registry_status() {
+  # Check for docker registry deployment
+  if kubectl get deployment registry-docker-registry -n registry &>/dev/null; then
+    check_service_status "registry-docker-registry" "registry" "" "kubectl"
+  else
+    echo "❌"
+  fi
+}
+
+check_kubernetes_status() {
+  # Use kubectl cluster-info to check Kubernetes cluster status
+  if kubectl cluster-info &>/dev/null; then
+    # Check if core components are running
+    local cluster_info_output=$(kubectl cluster-info 2>/dev/null)
+    local api_server=$(echo "$cluster_info_output" | grep -i "kubernetes control plane\|kubernetes master" | wc -l)
+    
+    if [[ "$api_server" -ge 1 ]]; then
+      # Additional checks for cluster health
+      local ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep " Ready " | wc -l)
+      local not_ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep " NotReady " | wc -l)
+      
+      if [[ "$ready_nodes" -gt 0 ]] && [[ "$not_ready_nodes" -eq 0 ]]; then
+        # All nodes are ready
+        echo "✅"
+      elif [[ "$ready_nodes" -gt 0 ]] && [[ "$not_ready_nodes" -gt 0 ]]; then
+        # Some nodes ready, some not ready
+        echo "⚠️"
+      elif [[ "$ready_nodes" -eq 0 ]]; then
+        # No ready nodes
+        echo "❌"
+      else
+        echo "✅"
+      fi
+    else
+      echo "❌"
+    fi
+  else
+    # kubectl cluster-info failed - cluster not accessible
+    echo "❌"
+  fi
+}
+
+check_cluster_connectivity() {
+  # Quick check if kubectl can connect to cluster
+  kubectl cluster-info &>/dev/null
+}
+
+check_base_status() {
+  # Base is typically a custom image/deployment, check for common base components
+  if kubectl get deployment base-services -n default &>/dev/null || \
+     kubectl get pods -l app=base &>/dev/null | grep -q Running; then
+    echo "✅"
+  else
+    echo "❌"
+  fi
+}
+
+check_kyverno_status() {
+  check_service_status "kyverno-admission-controller" "kyverno" "kyverno" "both"
+}
+
+check_ldap_status() {
+  check_service_status "ldap" "ldap" "" "kubectl"
+}
+
+check_keycloak_status() {
+  check_service_status "keycloak" "keycloak" "keycloak" "both"
+}
+
+check_oauth2_status() {
+  check_service_status "oauth2-proxy" "oauth2-proxy" "oauth2-proxy" "both"
+}
+
+check_rabbitmq_status() {
+  check_service_status "rabbitmq" "rabbitmq" "rabbitmq" "both"
+}
+
+check_vault_status() {
+  check_service_status "vault" "vault" "vault" "both"
+}
+
+check_goklogin_status() {
+  check_service_status "gok-login" "gok-login" "gok-login" "both"
+}
+
 function statusCmd() {
-  helm status "$release"
+  if [[ -n "$release" ]]; then
+    # If a specific release is provided, show helm status for that release
+    helm status "$release"
+    return
+  fi
+
+  echo "🚀 GOK Platform Status Overview"
+  echo "=============================="
+  echo ""
+  
+  # Core Infrastructure Services (Priority Order)
+  echo "📋 Core Infrastructure Services:"
+  echo ""
+  
+  local index=1
+  
+  # Priority services in specified order
+  printf "  %2d. %-15s %s  %s\n" $index "ingress" "$(check_ingress_status)" "NGINX Ingress Controller"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "cert-manager" "$(check_certmanager_status)" "TLS Certificate Management"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "registry" "$(check_registry_status)" "Docker Registry"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "base" "$(check_base_status)" "Base System Components"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "kyverno" "$(check_kyverno_status)" "Policy Engine"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "ldap" "$(check_ldap_status)" "LDAP Directory Service"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "keycloak" "$(check_keycloak_status)" "Identity & Access Management"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "oauth2" "$(check_oauth2_status)" "OAuth2 Proxy"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "rabbitmq" "$(check_rabbitmq_status)" "Message Broker"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "vault" "$(check_vault_status)" "Secrets Management"
+  ((index++))
+  
+  printf "  %2d. %-15s %s  %s\n" $index "gok-login" "$(check_goklogin_status)" "GOK Authentication Service"
+  ((index++))
+  
+  echo ""
+  echo "📊 Additional Services:"
+  echo ""
+  
+  # Monitoring & Observability Services
+  echo "🔍 Monitoring & Observability:"
+  local monitoring_services=(
+    "monitoring:prometheus-operator:monitoring:Prometheus/Grafana Monitoring"
+    "opensearch:opensearch:opensearch:OpenSearch Logging"
+    "fluentd:fluentd:fluentd:Log Collection"
+  )
+  
+  for service_info in "${monitoring_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "🚀 Development & CI/CD:"
+  local devops_services=(
+    "jenkins:jenkins:jenkins:CI/CD Pipeline"
+    "jupyter:jupyterhub:jupyterhub:JupyterHub Development"
+    "argocd:argocd-server:argocd:GitOps Deployment"
+    "spinnaker:spin-deck:spinnaker:Multi-cloud Deployment Platform"
+  )
+  
+  for service_info in "${devops_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "💻 Developer Tools & IDEs:"
+  local dev_tools=(
+    "che:che:eclipse-che:Eclipse Che IDE"
+    "devworkspace:devworkspace:devworkspace:Developer Workspace (Legacy)"
+    "workspace:workspace-v2:workspace:Enhanced Developer Workspace"
+    "ttyd:ttyd:ttyd:Terminal over HTTP"
+    "cloudshell:cloudshell:cloudshell:Cloud-based Terminal"
+    "console:console:console:Web-based Console"
+  )
+  
+  for service_info in "${dev_tools[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "🌐 Service Mesh & Management:"
+  local mesh_services=(
+    "istio:istiod:istio-system:Service Mesh"
+    "dashboard:kubernetes-dashboard:kubernetes-dashboard:K8s Dashboard"
+    "chart:chartmuseum:chartmuseum:Helm Chart Repository"
+  )
+  
+  for service_info in "${mesh_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "🏗️ Platform & Infrastructure:"
+  local platform_services=(
+    "kubernetes:kube-apiserver:kube-system:Kubernetes Control Plane"
+    "docker:::Docker Container Runtime"
+    "gok-agent:gok-agent:gok-agent:GOK Distributed System Agent"
+    "gok-controller:gok-controller:gok-controller:GOK Controller"
+    "base-services:::Complete Base Services Stack"
+  )
+  
+  for service_info in "${platform_services[@]}"; do
+    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
+    if [[ "$service_name" == "kubernetes" ]]; then
+      # Use kubectl cluster-info for Kubernetes cluster status
+      status="$(check_kubernetes_status)"
+    elif [[ "$service_name" == "docker" ]]; then
+      # Special check for Docker
+      if systemctl is-active --quiet docker; then
+        status="✅"
+      else
+        status="❌"
+      fi
+    elif [[ "$service_name" == "base-services" ]]; then
+      # Special check for base-services (combination check)
+      if [[ "$(check_base_status)" == "✅" ]] && [[ "$(check_ingress_status)" == "✅" ]] && [[ "$(check_certmanager_status)" == "✅" ]]; then
+        status="✅"
+      elif [[ "$(check_base_status)" == "❌" ]] && [[ "$(check_ingress_status)" == "❌" ]] && [[ "$(check_certmanager_status)" == "❌" ]]; then
+        status="❌"
+      else
+        status="⚠️"
+      fi
+    else
+      status="$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")"
+    fi
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$status" "$description"
+    ((index++))
+  done
+  
+  echo ""
+  echo "📍 Status Legend:"
+  echo "   ✅ Installed and Running"
+  echo "   ⚠️  Installed but Issues Detected"
+  echo "   ❌ Not Installed"
+  echo ""
+  echo "💡 Usage:"
+  echo "   gok status                    # Show all services status"
+  echo "   gok status <helm-release>     # Show specific Helm release status"
+  echo ""
 }
 
 function taintNodeCmd() {
@@ -4701,6 +5425,10 @@ EOF
   fi
 }
 
+baseServicesInstallLogs(){
+  journalctl -u base-services-post-reboot-1.service --no-pager -f
+}
+
 postRebootBaseServices(){
   echo "Installing post-reboot base services..."
   
@@ -4765,9 +5493,91 @@ function resetBaseServices(){
 
 
 function installCmd() {
+  COMPONENT=$1
+  
+  if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
+    echo "gok install - Install and configure Kubernetes components and services"
+    echo ""
+    echo "Usage: gok install <component>"
+    echo ""
+    echo "Core Infrastructure:"
+    echo "  docker            Docker container runtime"
+    echo "  kubernetes        Complete Kubernetes cluster with HA"
+    echo "  kubernetes-worker Kubernetes worker node"
+    echo "  cert-manager      Certificate management and TLS automation"
+    echo "  ingress           NGINX ingress controller"
+    echo "  dashboard         Kubernetes web dashboard"
+    echo ""
+    echo "Monitoring & Logging:"
+    echo "  monitoring        Prometheus and Grafana stack"
+    echo "  fluentd           Log collection and forwarding"
+    echo "  opensearch        Search and analytics engine with dashboard"
+    echo ""
+    echo "Security & Identity:"
+    echo "  keycloak          Identity and access management"
+    echo "  oauth2            OAuth2 proxy for authentication"
+    echo "  vault             Secrets management"
+    echo "  ldap              LDAP directory service"
+    echo ""
+    echo "Development Tools:"
+    echo "  jupyter           JupyterHub for data science"
+    echo "  devworkspace      Developer workspace (legacy)"
+    echo "  workspace         Enhanced developer workspace"
+    echo "  che               Eclipse Che IDE"
+    echo "  ttyd              Terminal over HTTP"
+    echo "  cloudshell        Cloud-based terminal"
+    echo "  console           Web-based console"
+    echo ""
+    echo "CI/CD & DevOps:"
+    echo "  argocd            GitOps continuous delivery"
+    echo "  jenkins           CI/CD automation server"
+    echo "  spinnaker         Multi-cloud deployment platform"
+    echo "  registry          Container image registry"
+    echo ""
+    echo "Service Mesh & Networking:"
+    echo "  istio             Service mesh for microservices"
+    echo "  rabbitmq          Message broker"
+    echo ""
+    echo "Governance & Policy:"
+    echo "  kyverno           Kubernetes policy engine"
+    echo ""
+    echo "GOK Platform:"
+    echo "  gok-agent         GOK distributed system agent"
+    echo "  gok-controller    GOK distributed system controller"
+    echo "  controller        Install both gok-agent and gok-controller"
+    echo "  gok-login         GOK authentication service"
+    echo "  chart             Helm chart repository"
+    echo ""
+    echo "Complete Solutions:"
+    echo "  base              Base system components"
+    echo "  base-services     Complete base services stack"
+    echo ""
+    echo "Examples:"
+    echo "  gok install kubernetes        # Install complete K8s cluster"
+    echo "  gok install cert-manager      # Install certificate management"
+    echo "  gok install monitoring        # Install Prometheus & Grafana"
+    echo "  gok install base-services     # Install complete base stack"
+    echo ""
+    echo "Installation Features:"
+    echo "  ✅ Automated dependency resolution"
+    echo "  ✅ High availability configuration"
+    echo "  ✅ TLS/SSL certificate automation"
+    echo "  ✅ RBAC and security hardening"
+    echo "  ✅ Production-ready configurations"
+    echo "  ✅ Integrated monitoring and logging"
+    echo "  ✅ Service mesh ready"
+    echo ""
+    echo "Prerequisites:"
+    echo "  - Ubuntu/Debian-based system"
+    echo "  - Root or sudo access"
+    echo "  - Internet connectivity"
+    echo "  - Minimum 4GB RAM, 2 CPU cores"
+    return 0
+  fi
+  
   updateSys
   installDeps
-  COMPONENT=$1
+  
   if [ "$COMPONENT" == "docker" ]; then
     dockrInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
@@ -4862,6 +5672,22 @@ EOF
     systemctl enable rc-local
     source /etc/bash.bashrc
     figlet "Please wait for 1 minute"
+  else
+    echo "Error: Unsupported component: $COMPONENT"
+    echo ""
+    echo "Supported components:"
+    echo "Core: docker, kubernetes, kubernetes-worker, cert-manager, ingress, dashboard"
+    echo "Monitoring: monitoring, fluentd, opensearch"
+    echo "Security: keycloak, oauth2, vault, ldap"
+    echo "Development: jupyter, devworkspace, workspace, che, ttyd, cloudshell, console"
+    echo "CI/CD: argocd, jenkins, spinnaker, registry"
+    echo "Networking: istio, rabbitmq"
+    echo "Policy: kyverno"
+    echo "GOK: gok-agent, gok-controller, controller, gok-login, chart"
+    echo "Solutions: base, base-services"
+    echo ""
+    echo "Run 'gok install help' for detailed information"
+    return 1
   fi
 }
 
@@ -4880,6 +5706,85 @@ function startCmd() {
 
 function resetCmd() {
   COMPONENT=$1
+  
+  if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
+    echo "gok reset - Reset and uninstall Kubernetes components and services"
+    echo ""
+    echo "Usage: gok reset <component>"
+    echo ""
+    echo "Core Infrastructure:"
+    echo "  kubernetes        Complete Kubernetes cluster reset"
+    echo "  kubernetes-worker Kubernetes worker node reset"
+    echo "  cert-manager      Certificate management system"
+    echo "  ingress           NGINX ingress controller"
+    echo ""
+    echo "Monitoring & Logging:"
+    echo "  monitoring        Prometheus and Grafana stack"
+    echo "  fluentd           Log collection and forwarding"
+    echo "  opensearch        Search and analytics engine with dashboard"
+    echo ""
+    echo "Security & Identity:"
+    echo "  keycloak          Identity and access management"
+    echo "  oauth2            OAuth2 proxy for authentication"
+    echo "  vault             Secrets management"
+    echo "  ldap              LDAP directory service"
+    echo ""
+    echo "Development Tools:"
+    echo "  jupyter           JupyterHub for data science"
+    echo "  devworkspace      Developer workspace (legacy)"
+    echo "  workspace         Enhanced developer workspace"
+    echo "  che               Eclipse Che IDE"
+    echo "  ttyd              Terminal over HTTP"
+    echo "  cloudshell        Cloud-based terminal"
+    echo "  console           Web-based console"
+    echo "  dashboard         Kubernetes web dashboard"
+    echo ""
+    echo "CI/CD & DevOps:"
+    echo "  argocd            GitOps continuous delivery"
+    echo "  jenkins           CI/CD automation server"
+    echo "  spinnaker         Multi-cloud deployment platform"
+    echo "  registry          Container image registry"
+    echo ""
+    echo "Service Mesh & Networking:"
+    echo "  istio             Service mesh for microservices"
+    echo "  rabbitmq          Message broker"
+    echo ""
+    echo "Governance & Policy:"
+    echo "  kyverno           Kubernetes policy engine"
+    echo ""
+    echo "GOK Platform:"
+    echo "  gok-agent         GOK distributed system agent"
+    echo "  gok-controller    GOK distributed system controller"
+    echo "  controller        Reset both gok-agent and gok-controller"
+    echo "  gok-login         GOK authentication service"
+    echo "  chart             Helm chart repository"
+    echo ""
+    echo "Complete Solutions:"
+    echo "  base-services     Complete base services stack"
+    echo ""
+    echo "Examples:"
+    echo "  gok reset monitoring          # Remove Prometheus & Grafana"
+    echo "  gok reset keycloak            # Remove identity management"
+    echo "  gok reset kubernetes          # Reset entire cluster"
+    echo "  gok reset base-services       # Remove complete base stack"
+    echo ""
+    echo "Reset Operations:"
+    echo "  ✅ Clean uninstallation of Helm releases"
+    echo "  ✅ Removal of Kubernetes namespaces and resources"
+    echo "  ✅ Cleanup of persistent volumes and storage"
+    echo "  ✅ Reset of system configurations"
+    echo "  ✅ Removal of certificates and secrets"
+    echo "  ✅ Network policy and ingress cleanup"
+    echo "  ✅ Service mesh configuration reset"
+    echo ""
+    echo "⚠️  Warning:"
+    echo "  - Reset operations are destructive and irreversible"
+    echo "  - All data and configurations will be permanently lost"
+    echo "  - Ensure you have backups before proceeding"
+    echo "  - Some operations require cluster admin privileges"
+    return 0
+  fi
+  
   if [ "$COMPONENT" == "kubernetes" ]; then
     kubeadm reset <<EOF
 y
@@ -4954,6 +5859,22 @@ EOF
     kubeadm reset <<EOF
 y
 EOF
+  else
+    echo "Error: Unsupported component: $COMPONENT"
+    echo ""
+    echo "Supported components:"
+    echo "Core: kubernetes, kubernetes-worker, cert-manager, ingress, dashboard"
+    echo "Monitoring: monitoring, fluentd, opensearch"
+    echo "Security: keycloak, oauth2, vault, ldap"
+    echo "Development: jupyter, devworkspace, workspace, che, ttyd, cloudshell, console"
+    echo "CI/CD: argocd, jenkins, spinnaker, registry"
+    echo "Networking: istio, rabbitmq"
+    echo "Policy: kyverno"
+    echo "GOK: gok-agent, gok-controller, controller, gok-login, chart"
+    echo "Solutions: base-services"
+    echo ""
+    echo "Run 'gok reset help' for detailed information"
+    return 1
   fi
 }
 
@@ -4985,24 +5906,481 @@ function createCmd() {
   RESOURCE=$1
   NAME=$2
   ADDITIONAL=$3
+  
+  if [ -z "$RESOURCE" ] || [ "$RESOURCE" == "help" ] || [ "$RESOURCE" == "--help" ]; then
+    echo "gok create - Create Kubernetes resources and configurations"
+    echo ""
+    echo "Usage: gok create <resource> <name> [additional]"
+    echo ""
+    echo "Resource Types:"
+    echo "  secret            Create Kubernetes secrets"
+    echo "  certificate       Create TLS certificates for namespaces"
+    echo "  kubeconfig        Create kubeconfig files for users"
+    echo ""
+    echo "Parameters:"
+    echo "  <resource>        Resource type (required)"
+    echo "  <name>            Resource name (required)"
+    echo "  [additional]      Additional parameters (depends on resource type)"
+    echo ""
+    echo "Secret Resources:"
+    echo "  apphost           Create application host secret"
+    echo ""
+    echo "Certificate Resources:"
+    echo "  <namespace>       Create certificate request for specified namespace"
+    echo "  [domain]          Custom domain name (optional)"
+    echo ""
+    echo "Kubeconfig Resources:"
+    echo "  <username>        Create kubeconfig for specified user"
+    echo ""
+    echo "Examples:"
+    echo "  gok create secret apphost"
+    echo "  gok create certificate production"
+    echo "  gok create certificate staging custom.domain.com"
+    echo "  gok create kubeconfig developer-user"
+    echo ""
+    echo "Generated Resources:"
+    echo "  ✅ Kubernetes secrets with proper encoding"
+    echo "  ✅ TLS certificates with proper CA signing"
+    echo "  ✅ Kubeconfig with cluster access configuration"
+    echo "  ✅ Namespace-scoped certificate requests"
+    echo "  ✅ Proper RBAC and security configurations"
+    return 0
+  fi
+  
+  if [ -z "$NAME" ]; then
+    echo "Error: Resource name is required"
+    echo "Usage: gok create <resource> <name> [additional]"
+    echo "Run 'gok create help' for detailed usage information"
+    return 1
+  fi
+  
   if [ "$RESOURCE" == "secret" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
+    else
+      echo "Error: Unsupported secret type: $NAME"
+      echo "Supported secret types: apphost"
+      echo "Run 'gok create help' for detailed usage information"
+      return 1
     fi
   elif [ "$RESOURCE" == "certificate" ]; then
     certificateRequestForNs "$NAME" "$ADDITIONAL"
   elif [ "$RESOURCE" == "kubeconfig" ]; then
     createKubeConfig "$NAME"
+  else
+    echo "Error: Unsupported resource type: $RESOURCE"
+    echo "Supported resource types: secret, certificate, kubeconfig"
+    echo "Run 'gok create help' for detailed usage information"
+    return 1
   fi
 }
 
+function generateCmd() {
+  SERVICE_TYPE=$1
+  SERVICE_NAME=$2
+  SERVICE_DESC=$3
+  SERVICE_NS=$4
+  SERVICE_HOST=$5
+  
+  if [ -z "$SERVICE_TYPE" ] || [ "$SERVICE_TYPE" == "help" ] || [ "$SERVICE_TYPE" == "--help" ]; then
+    echo "gok generate - Generate microservices from templates"
+    echo ""
+    echo "Usage: gok generate <type> <name> [description] [namespace] [hostname]"
+    echo ""
+    echo "Service Types:"
+    echo "  python-api        Generate Python Flask REST API (backend-only)"
+    echo "  python-reactjs    Generate Python Flask + React.js (full-stack)"
+    echo ""
+    echo "Parameters:"
+    echo "  <type>            Service type (required)"
+    echo "  <name>            Service name (required)"
+    echo "  [description]     Service description (optional)"
+    echo "  [namespace]       Kubernetes namespace (optional, default: service name)"
+    echo "  [hostname]        Ingress hostname (optional, default: <name>.gokcloud.com)"
+    echo ""
+    echo "Examples:"
+    echo "  gok generate python-api user-service"
+    echo "  gok generate python-api payment-api 'Payment processing API'"
+    echo "  gok generate python-reactjs webapp 'Customer portal' production portal.company.com"
+    echo ""
+    echo "Generated Features:"
+    echo "  ✅ Production-ready Docker containers"
+    echo "  ✅ Kubernetes Helm charts with RBAC"
+    echo "  ✅ OAuth2/OIDC authentication"
+    echo "  ✅ HTTPS/TLS encryption"
+    echo "  ✅ Health check endpoints"
+    echo "  ✅ API documentation (Swagger UI)"
+    echo "  ✅ Local development setup"
+    return 0
+  fi
+  
+  if [ -z "$SERVICE_NAME" ]; then
+    echo "Error: Service name is required"
+    echo "Usage: gok generate <type> <name> [description] [namespace] [hostname]"
+    echo "Run 'gok generate help' for detailed usage information"
+    return 1
+  fi
+  
+  # Navigate to service generator directory
+  SERVICE_GENERATOR_DIR="$WORKING_DIR/service-generator"
+  
+  # Fallback to current directory structure if WORKING_DIR not set
+  if [ ! -d "$SERVICE_GENERATOR_DIR" ]; then
+    # Try relative path from gok script location
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SERVICE_GENERATOR_DIR="$SCRIPT_DIR/service-generator"
+    
+    # If still not found, try current working directory
+    if [ ! -d "$SERVICE_GENERATOR_DIR" ]; then
+      SERVICE_GENERATOR_DIR="$(pwd)/service-generator"
+    fi
+    
+    # Final check - see if we're already in service-generator directory
+    if [ ! -d "$SERVICE_GENERATOR_DIR" ] && [ -f "generate_service.py" ]; then
+      SERVICE_GENERATOR_DIR="$(pwd)"
+    fi
+  fi
+  
+  if [ ! -d "$SERVICE_GENERATOR_DIR" ] && [ ! -f "$SERVICE_GENERATOR_DIR/generate_service.py" ]; then
+    echo "Error: Service generator not found"
+    echo "Tried locations:"
+    echo "  - $WORKING_DIR/service-generator"
+    echo "  - $SCRIPT_DIR/service-generator" 
+    echo "  - $(pwd)/service-generator"
+    echo "  - $(pwd)"
+    return 1
+  fi
+  
+  cd "$SERVICE_GENERATOR_DIR"
+  
+  # Build command arguments
+  GENERATE_ARGS=""
+  
+  # Add description if provided
+  if [ ! -z "$SERVICE_DESC" ]; then
+    GENERATE_ARGS="$GENERATE_ARGS --description \"$SERVICE_DESC\""
+  fi
+  
+  # Add namespace if provided
+  if [ ! -z "$SERVICE_NS" ]; then
+    GENERATE_ARGS="$GENERATE_ARGS --namespace $SERVICE_NS"
+  fi
+  
+  # Add ingress hostname if provided
+  if [ ! -z "$SERVICE_HOST" ]; then
+    GENERATE_ARGS="$GENERATE_ARGS --ingress-host $SERVICE_HOST"
+  fi
+  
+  echo "🚀 Generating $SERVICE_TYPE service: $SERVICE_NAME"
+  echo "📁 Working directory: $SERVICE_GENERATOR_DIR"
+  
+  if [ "$SERVICE_TYPE" == "python-api" ]; then
+    echo "🐍 Creating Python Flask API service..."
+    eval "python3 generate_service.py --python-api $SERVICE_NAME $GENERATE_ARGS"
+    
+  elif [ "$SERVICE_TYPE" == "python-reactjs" ]; then
+    echo "🐍⚛️  Creating Python Flask + React.js full-stack service..."
+    eval "python3 generate_service.py --python-reactjs $SERVICE_NAME $GENERATE_ARGS"
+    
+  else
+    echo "Error: Unsupported service type: $SERVICE_TYPE"
+    echo "Supported types: python-api, python-reactjs"
+    return 1
+  fi
+  
+  if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ Service generation completed successfully!"
+    echo "📁 Location: $SERVICE_GENERATOR_DIR/generated_services/$SERVICE_NAME"
+    echo ""
+    echo "🚀 Next steps:"
+    echo "1. cd $SERVICE_GENERATOR_DIR/generated_services/$SERVICE_NAME"
+    echo "2. Review and customize the generated files"
+    echo "3. Build container: ./build.sh"
+    echo "4. Push to registry: ./tag_push.sh"
+    echo "5. Deploy to Kubernetes: helm install $SERVICE_NAME ./chart"
+    
+    if [ ! -z "$SERVICE_HOST" ]; then
+      echo "6. Access your service at: https://$SERVICE_HOST"
+    else
+      echo "6. Access your service at: https://$SERVICE_NAME.gokcloud.com"
+    fi
+  else
+    echo "❌ Service generation failed!"
+    return 1
+  fi
+}
+
+# Bash completion function for GOK
+_gok_completion() {
+  local cur prev opts base
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+  
+  # Main commands
+  local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
+  
+  # Install components
+  local install_components="docker kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  
+  # Reset components  
+  local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
+  
+  # Start components
+  local start_components="kubernetes proxy kubelet"
+  
+  # Deploy components
+  local deploy_components="app1"
+  
+  # Create resources
+  local create_resources="secret certificate kubeconfig"
+  local create_secret_types="apphost"
+  
+  # Generate service types
+  local generate_types="python-api python-reactjs"
+  
+  # Patch resources
+  local patch_resources="ingress"
+  local patch_options="letsencrypt ldap localtls"
+  
+  case ${COMP_CWORD} in
+    1)
+      # First argument - complete main commands
+      COMPREPLY=($(compgen -W "${commands}" -- ${cur}))
+      return 0
+      ;;
+    2)
+      # Second argument - complete based on first command
+      case ${prev} in
+        install)
+          COMPREPLY=($(compgen -W "${install_components}" -- ${cur}))
+          return 0
+          ;;
+        reset)
+          COMPREPLY=($(compgen -W "${reset_components}" -- ${cur}))
+          return 0
+          ;;
+        start)
+          COMPREPLY=($(compgen -W "${start_components}" -- ${cur}))
+          return 0
+          ;;
+        deploy)
+          COMPREPLY=($(compgen -W "${deploy_components}" -- ${cur}))
+          return 0
+          ;;
+        create)
+          COMPREPLY=($(compgen -W "${create_resources}" -- ${cur}))
+          return 0
+          ;;
+        generate)
+          COMPREPLY=($(compgen -W "${generate_types}" -- ${cur}))
+          return 0
+          ;;
+        patch)
+          COMPREPLY=($(compgen -W "${patch_resources}" -- ${cur}))
+          return 0
+          ;;
+        desc)
+          COMPREPLY=($(compgen -W "methods" -- ${cur}))
+          return 0
+          ;;
+        completion)
+          COMPREPLY=($(compgen -W "enable setup" -- ${cur}))
+          return 0
+          ;;
+      esac
+      ;;
+    3)
+      # Third argument - complete based on first two commands
+      local prev2="${COMP_WORDS[COMP_CWORD-2]}"
+      case ${prev2} in
+        create)
+          case ${prev} in
+            secret)
+              COMPREPLY=($(compgen -W "${create_secret_types}" -- ${cur}))
+              return 0
+              ;;
+            certificate|kubeconfig)
+              # For certificate and kubeconfig, suggest common names
+              COMPREPLY=($(compgen -W "production staging development test" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+        generate)
+          case ${prev} in
+            python-api|python-reactjs)
+              # Suggest common service names
+              COMPREPLY=($(compgen -W "user-service auth-service api-gateway webapp frontend backend microservice" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+      ;;
+    4)
+      # Fourth argument - complete based on context
+      local prev3="${COMP_WORDS[COMP_CWORD-3]}"
+      local prev2="${COMP_WORDS[COMP_CWORD-2]}"
+      case ${prev3} in
+        patch)
+          case ${prev2} in
+            ingress)
+              # Complete ingress names - could be dynamic from kubectl
+              COMPREPLY=($(compgen -W "default production staging" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+      ;;
+    5)
+      # Fifth argument - namespaces for patch command
+      local prev4="${COMP_WORDS[COMP_CWORD-4]}"
+      local prev3="${COMP_WORDS[COMP_CWORD-3]}"
+      case ${prev4} in
+        patch)
+          case ${prev3} in
+            ingress)
+              # Complete namespaces - could be dynamic from kubectl  
+              COMPREPLY=($(compgen -W "default kube-system ingress-nginx monitoring" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+      ;;
+    6)
+      # Sixth argument - patch options
+      local prev5="${COMP_WORDS[COMP_CWORD-5]}"
+      case ${prev5} in
+        patch)
+          COMPREPLY=($(compgen -W "${patch_options}" -- ${cur}))
+          return 0
+          ;;
+      esac
+      ;;
+  esac
+  
+  return 0
+}
+
+# Function to enable completion
+enable_gok_completion() {
+  complete -F _gok_completion gok
+  echo "✅ GOK tab completion enabled!"
+  echo "💡 You can now use tab completion with gok commands:"
+  echo "   gok install <TAB>     # Shows all installable components"
+  echo "   gok reset <TAB>       # Shows all resettable components"  
+  echo "   gok create <TAB>      # Shows resource types"
+  echo "   gok generate <TAB>    # Shows service types"
+}
+
+# Function to setup completion permanently
+setup_gok_completion() {
+  local completion_dir="/etc/bash_completion.d"
+  local completion_file="$completion_dir/gok"
+  local user_bashrc="$HOME/.bashrc"
+  
+  echo "Setting up GOK tab completion..."
+  
+  # Extract just the completion function to a separate file
+  cat > /tmp/gok_completion << 'COMPLETION_EOF'
+# GOK Bash Completion
+_gok_completion() {
+  local cur prev opts base
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+  
+  local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
+  local install_components="docker kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
+  local start_components="kubernetes proxy kubelet"
+  local deploy_components="app1"
+  local create_resources="secret certificate kubeconfig"
+  local create_secret_types="apphost"
+  local generate_types="python-api python-reactjs"
+  local patch_resources="ingress"
+  local patch_options="letsencrypt ldap localtls"
+  
+  case ${COMP_CWORD} in
+    1) COMPREPLY=($(compgen -W "${commands}" -- ${cur})) ;;
+    2) case ${prev} in
+         install) COMPREPLY=($(compgen -W "${install_components}" -- ${cur})) ;;
+         reset) COMPREPLY=($(compgen -W "${reset_components}" -- ${cur})) ;;
+         start) COMPREPLY=($(compgen -W "${start_components}" -- ${cur})) ;;
+         deploy) COMPREPLY=($(compgen -W "${deploy_components}" -- ${cur})) ;;
+         create) COMPREPLY=($(compgen -W "${create_resources}" -- ${cur})) ;;
+         generate) COMPREPLY=($(compgen -W "${generate_types}" -- ${cur})) ;;
+         patch) COMPREPLY=($(compgen -W "${patch_resources}" -- ${cur})) ;;
+         desc) COMPREPLY=($(compgen -W "methods" -- ${cur})) ;;
+         completion) COMPREPLY=($(compgen -W "enable setup" -- ${cur})) ;;
+       esac ;;
+    3) local prev2="${COMP_WORDS[COMP_CWORD-2]}"
+       case ${prev2} in
+         create) case ${prev} in
+                   secret) COMPREPLY=($(compgen -W "${create_secret_types}" -- ${cur})) ;;
+                   certificate|kubeconfig) COMPREPLY=($(compgen -W "production staging development test" -- ${cur})) ;;
+                 esac ;;
+         generate) case ${prev} in
+                     python-api|python-reactjs) COMPREPLY=($(compgen -W "user-service auth-service api-gateway webapp frontend backend microservice" -- ${cur})) ;;
+                   esac ;;
+       esac ;;
+  esac
+  return 0
+}
+
+complete -F _gok_completion gok
+COMPLETION_EOF
+
+  # Try to install system-wide first (requires sudo)
+  if [[ -w "$completion_dir" ]] || sudo -n true 2>/dev/null; then
+    if sudo cp /tmp/gok_completion "$completion_file" 2>/dev/null; then
+      echo "✅ System-wide completion installed at $completion_file"
+    else
+      echo "⚠️  Could not install system-wide completion"
+    fi
+  fi
+  
+  # Install user-specific completion
+  if ! grep -q "source.*gok_completion\|_gok_completion" "$user_bashrc" 2>/dev/null; then
+    echo "" >> "$user_bashrc"
+    echo "# GOK tab completion" >> "$user_bashrc"
+    echo "source /tmp/gok_completion 2>/dev/null || true" >> "$user_bashrc"
+    echo "✅ User completion added to $user_bashrc"
+  else
+    echo "ℹ️  Completion already configured in $user_bashrc"
+  fi
+  
+  # Enable for current session
+  source /tmp/gok_completion
+  echo "✅ Tab completion enabled for current session!"
+  echo ""
+  echo "💡 Usage examples:"
+  echo "   gok install <TAB><TAB>     # Shows all installable components"
+  echo "   gok install ku<TAB>        # Completes to 'kubernetes'"
+  echo "   gok create cert<TAB>       # Completes to 'certificate'"
+  echo "   gok generate py<TAB>       # Shows python-api, python-reactjs"
+  echo ""
+  echo "🔄 Restart your terminal or run 'source ~/.bashrc' to enable permanently"
+  
+  rm -f /tmp/gok_completion
+}
+
+# Auto-enable completion if this script is being sourced
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  complete -F _gok_completion gok 2>/dev/null || true
+fi
+
 # Call the appropriate function based on the command
-if [ "$CMD" == "bash" ]; then
-  bashCmd
-elif [ "$CMD" == "help" ]; then
+if [ -z "$CMD" ] || [ "$CMD" == "help" ] || [ "$CMD" == "--help" ] || [ "$CMD" == "-h" ]; then
   helpCmd
+elif [ "$CMD" == "bash" ]; then
+  bashCmd
 elif [ "$CMD" == "desc" ]; then
-  descCmd
+  descCmd "$2"
 elif [ "$CMD" == "logs" ]; then
   logsCmd
 elif [ "$CMD" == "status" ]; then
@@ -5021,4 +6399,26 @@ elif [ "$CMD" == "patch" ]; then
   patchCmd "$2" "$3" "$4" "$5" "$6"
 elif [ "$CMD" == "create" ]; then
   createCmd "$2" "$3" "$4"
+elif [ "$CMD" == "generate" ]; then
+  generateCmd "$2" "$3" "$4" "$5" "$6"
+elif [ "$CMD" == "completion" ]; then
+  case "$2" in
+    enable)
+      enable_gok_completion
+      ;;
+    setup)
+      setup_gok_completion
+      ;;
+    *)
+      echo "gok completion - Bash completion management"
+      echo ""
+      echo "Usage:"
+      echo "  gok completion enable    # Enable completion for current session"
+      echo "  gok completion setup     # Setup completion permanently"
+      echo ""
+      echo "Examples:"
+      echo "  gok completion enable    # Quick enable for testing"
+      echo "  gok completion setup     # Permanent installation"
+      ;;
+  esac
 fi
