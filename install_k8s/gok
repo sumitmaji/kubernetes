@@ -4520,7 +4520,7 @@ function helpCmd() {
     echo "3. gok reset <component>: Reset a component. Supported components are kubernetes, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, and cert-manager."
     echo "4. gok deploy <component>: Deploy a component. Currently, only app1 is supported."
     echo "5. gok patch <resource> <name> <namespace> <options> <subdomain>: Patch resources. Currently, only ingress resource is supported. The options can be letsencrypt, ldap, or localtls."
-    echo "6. gok create <resource> <name> <additional>: Create resources. Currently, secret and certificate resources are supported. For secret, only apphost is supported. For certificate, it creates a certificate request for a namespace."
+    echo "6. gok create <resource> <name> [additional]: Create resources. Supported: secret, certificate, kubeconfig. Use 'gok create help' for details."
     echo "7. gok generate <type> <name> [options]: Generate services. Supported types: python-api, python-reactjs."
     echo "8. gok bash: Open a terminal in a pod."
     echo "9. gok desc: Describe a pod."
@@ -4999,14 +4999,72 @@ function createCmd() {
   RESOURCE=$1
   NAME=$2
   ADDITIONAL=$3
+  
+  if [ -z "$RESOURCE" ] || [ "$RESOURCE" == "help" ] || [ "$RESOURCE" == "--help" ]; then
+    echo "gok create - Create Kubernetes resources and configurations"
+    echo ""
+    echo "Usage: gok create <resource> <name> [additional]"
+    echo ""
+    echo "Resource Types:"
+    echo "  secret            Create Kubernetes secrets"
+    echo "  certificate       Create TLS certificates for namespaces"
+    echo "  kubeconfig        Create kubeconfig files for users"
+    echo ""
+    echo "Parameters:"
+    echo "  <resource>        Resource type (required)"
+    echo "  <name>            Resource name (required)"
+    echo "  [additional]      Additional parameters (depends on resource type)"
+    echo ""
+    echo "Secret Resources:"
+    echo "  apphost           Create application host secret"
+    echo ""
+    echo "Certificate Resources:"
+    echo "  <namespace>       Create certificate request for specified namespace"
+    echo "  [domain]          Custom domain name (optional)"
+    echo ""
+    echo "Kubeconfig Resources:"
+    echo "  <username>        Create kubeconfig for specified user"
+    echo ""
+    echo "Examples:"
+    echo "  gok create secret apphost"
+    echo "  gok create certificate production"
+    echo "  gok create certificate staging custom.domain.com"
+    echo "  gok create kubeconfig developer-user"
+    echo ""
+    echo "Generated Resources:"
+    echo "  ✅ Kubernetes secrets with proper encoding"
+    echo "  ✅ TLS certificates with proper CA signing"
+    echo "  ✅ Kubeconfig with cluster access configuration"
+    echo "  ✅ Namespace-scoped certificate requests"
+    echo "  ✅ Proper RBAC and security configurations"
+    return 0
+  fi
+  
+  if [ -z "$NAME" ]; then
+    echo "Error: Resource name is required"
+    echo "Usage: gok create <resource> <name> [additional]"
+    echo "Run 'gok create help' for detailed usage information"
+    return 1
+  fi
+  
   if [ "$RESOURCE" == "secret" ]; then
     if [ "$NAME" == "apphost" ]; then
       hostSecret
+    else
+      echo "Error: Unsupported secret type: $NAME"
+      echo "Supported secret types: apphost"
+      echo "Run 'gok create help' for detailed usage information"
+      return 1
     fi
   elif [ "$RESOURCE" == "certificate" ]; then
     certificateRequestForNs "$NAME" "$ADDITIONAL"
   elif [ "$RESOURCE" == "kubeconfig" ]; then
     createKubeConfig "$NAME"
+  else
+    echo "Error: Unsupported resource type: $RESOURCE"
+    echo "Supported resource types: secret, certificate, kubeconfig"
+    echo "Run 'gok create help' for detailed usage information"
+    return 1
   fi
 }
 
