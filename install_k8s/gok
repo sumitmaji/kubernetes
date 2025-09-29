@@ -4515,7 +4515,7 @@ function bashCmd() {
 
 function helpCmd() {
     echo "Available commands:"
-    echo "1. gok install <component>: Install a component. Supported components are docker, cert-manager, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, kubernetes-worker, and kubernetes."
+    echo "1. gok install <component>: Install components and services. Use 'gok install help' for full component list."
     echo "2. gok start <component>: Start a component. Supported components are kubernetes, proxy, and kubelet."
     echo "3. gok reset <component>: Reset a component. Supported components are kubernetes, monitoring, dashboard, keycloak, ingress, registry, fluentd, opensearch, spinnaker, oauth2, and cert-manager."
     echo "4. gok deploy <component>: Deploy a component. Currently, only app1 is supported."
@@ -4779,9 +4779,91 @@ function resetBaseServices(){
 
 
 function installCmd() {
+  COMPONENT=$1
+  
+  if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
+    echo "gok install - Install and configure Kubernetes components and services"
+    echo ""
+    echo "Usage: gok install <component>"
+    echo ""
+    echo "Core Infrastructure:"
+    echo "  docker            Docker container runtime"
+    echo "  kubernetes        Complete Kubernetes cluster with HA"
+    echo "  kubernetes-worker Kubernetes worker node"
+    echo "  cert-manager      Certificate management and TLS automation"
+    echo "  ingress           NGINX ingress controller"
+    echo "  dashboard         Kubernetes web dashboard"
+    echo ""
+    echo "Monitoring & Logging:"
+    echo "  monitoring        Prometheus and Grafana stack"
+    echo "  fluentd           Log collection and forwarding"
+    echo "  opensearch        Search and analytics engine with dashboard"
+    echo ""
+    echo "Security & Identity:"
+    echo "  keycloak          Identity and access management"
+    echo "  oauth2            OAuth2 proxy for authentication"
+    echo "  vault             Secrets management"
+    echo "  ldap              LDAP directory service"
+    echo ""
+    echo "Development Tools:"
+    echo "  jupyter           JupyterHub for data science"
+    echo "  devworkspace      Developer workspace (legacy)"
+    echo "  workspace         Enhanced developer workspace"
+    echo "  che               Eclipse Che IDE"
+    echo "  ttyd              Terminal over HTTP"
+    echo "  cloudshell        Cloud-based terminal"
+    echo "  console           Web-based console"
+    echo ""
+    echo "CI/CD & DevOps:"
+    echo "  argocd            GitOps continuous delivery"
+    echo "  jenkins           CI/CD automation server"
+    echo "  spinnaker         Multi-cloud deployment platform"
+    echo "  registry          Container image registry"
+    echo ""
+    echo "Service Mesh & Networking:"
+    echo "  istio             Service mesh for microservices"
+    echo "  rabbitmq          Message broker"
+    echo ""
+    echo "Governance & Policy:"
+    echo "  kyverno           Kubernetes policy engine"
+    echo ""
+    echo "GOK Platform:"
+    echo "  gok-agent         GOK distributed system agent"
+    echo "  gok-controller    GOK distributed system controller"
+    echo "  controller        Install both gok-agent and gok-controller"
+    echo "  gok-login         GOK authentication service"
+    echo "  chart             Helm chart repository"
+    echo ""
+    echo "Complete Solutions:"
+    echo "  base              Base system components"
+    echo "  base-services     Complete base services stack"
+    echo ""
+    echo "Examples:"
+    echo "  gok install kubernetes        # Install complete K8s cluster"
+    echo "  gok install cert-manager      # Install certificate management"
+    echo "  gok install monitoring        # Install Prometheus & Grafana"
+    echo "  gok install base-services     # Install complete base stack"
+    echo ""
+    echo "Installation Features:"
+    echo "  ✅ Automated dependency resolution"
+    echo "  ✅ High availability configuration"
+    echo "  ✅ TLS/SSL certificate automation"
+    echo "  ✅ RBAC and security hardening"
+    echo "  ✅ Production-ready configurations"
+    echo "  ✅ Integrated monitoring and logging"
+    echo "  ✅ Service mesh ready"
+    echo ""
+    echo "Prerequisites:"
+    echo "  - Ubuntu/Debian-based system"
+    echo "  - Root or sudo access"
+    echo "  - Internet connectivity"
+    echo "  - Minimum 4GB RAM, 2 CPU cores"
+    return 0
+  fi
+  
   updateSys
   installDeps
-  COMPONENT=$1
+  
   if [ "$COMPONENT" == "docker" ]; then
     dockrInst
   elif [ "$COMPONENT" == "cert-manager" ]; then
@@ -4876,6 +4958,22 @@ EOF
     systemctl enable rc-local
     source /etc/bash.bashrc
     figlet "Please wait for 1 minute"
+  else
+    echo "Error: Unsupported component: $COMPONENT"
+    echo ""
+    echo "Supported components:"
+    echo "Core: docker, kubernetes, kubernetes-worker, cert-manager, ingress, dashboard"
+    echo "Monitoring: monitoring, fluentd, opensearch"
+    echo "Security: keycloak, oauth2, vault, ldap"
+    echo "Development: jupyter, devworkspace, workspace, che, ttyd, cloudshell, console"
+    echo "CI/CD: argocd, jenkins, spinnaker, registry"
+    echo "Networking: istio, rabbitmq"
+    echo "Policy: kyverno"
+    echo "GOK: gok-agent, gok-controller, controller, gok-login, chart"
+    echo "Solutions: base, base-services"
+    echo ""
+    echo "Run 'gok install help' for detailed information"
+    return 1
   fi
 }
 
