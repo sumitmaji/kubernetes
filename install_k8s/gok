@@ -4950,6 +4950,14 @@ check_service_status() {
   local helm_release="$3"
   local check_type="${4:-helm}"  # helm, kubectl, or both
   
+  # Quick connectivity check - if cluster is not accessible, return ❌ for kubectl-based checks
+  if [[ "$check_type" == "kubectl" ]] || [[ "$check_type" == "both" ]]; then
+    if ! check_cluster_connectivity; then
+      echo "❌"
+      return
+    fi
+  fi
+  
   case "$check_type" in
     "helm")
       if helm list -n "$namespace" 2>/dev/null | grep -q "^$helm_release"; then
@@ -5005,6 +5013,44 @@ check_registry_status() {
   else
     echo "❌"
   fi
+}
+
+check_kubernetes_status() {
+  # Use kubectl cluster-info to check Kubernetes cluster status
+  if kubectl cluster-info &>/dev/null; then
+    # Check if core components are running
+    local cluster_info_output=$(kubectl cluster-info 2>/dev/null)
+    local api_server=$(echo "$cluster_info_output" | grep -i "kubernetes control plane\|kubernetes master" | wc -l)
+    
+    if [[ "$api_server" -ge 1 ]]; then
+      # Additional checks for cluster health
+      local ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep " Ready " | wc -l)
+      local not_ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep " NotReady " | wc -l)
+      
+      if [[ "$ready_nodes" -gt 0 ]] && [[ "$not_ready_nodes" -eq 0 ]]; then
+        # All nodes are ready
+        echo "✅"
+      elif [[ "$ready_nodes" -gt 0 ]] && [[ "$not_ready_nodes" -gt 0 ]]; then
+        # Some nodes ready, some not ready
+        echo "⚠️"
+      elif [[ "$ready_nodes" -eq 0 ]]; then
+        # No ready nodes
+        echo "❌"
+      else
+        echo "✅"
+      fi
+    else
+      echo "❌"
+    fi
+  else
+    # kubectl cluster-info failed - cluster not accessible
+    echo "❌"
+  fi
+}
+
+check_cluster_connectivity() {
+  # Quick check if kubectl can connect to cluster
+  kubectl cluster-info &>/dev/null
 }
 
 check_base_status() {
@@ -5172,7 +5218,10 @@ function statusCmd() {
   
   for service_info in "${platform_services[@]}"; do
     IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
-    if [[ "$service_name" == "docker" ]]; then
+    if [[ "$service_name" == "kubernetes" ]]; then
+      # Use kubectl cluster-info for Kubernetes cluster status
+      status="$(check_kubernetes_status)"
+    elif [[ "$service_name" == "docker" ]]; then
       # Special check for Docker
       if systemctl is-active --quiet docker; then
         status="✅"
