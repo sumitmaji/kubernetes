@@ -5076,7 +5076,7 @@ check_keycloak_status() {
 }
 
 check_oauth2_status() {
-  check_service_status "oauth2-proxy" "oauth2-proxy" "oauth2-proxy" "both"
+  check_service_status "oauth2proxy-oauth2-proxy" "oauth2" "oauth2proxy" "both"
 }
 
 check_rabbitmq_status() {
