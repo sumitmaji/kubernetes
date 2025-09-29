@@ -4542,6 +4542,7 @@ function helpCmd() {
     echo "  logs                    View pod logs and diagnostics"
     echo "  status                  Check Helm release status"
     echo "  taint-node             Configure node taints and scheduling"
+    echo "  completion             Setup bash tab completion for GOK commands"
     echo ""
     echo "QUICK EXAMPLES:"
     echo ""
@@ -5797,6 +5798,269 @@ function generateCmd() {
   fi
 }
 
+# Bash completion function for GOK
+_gok_completion() {
+  local cur prev opts base
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+  
+  # Main commands
+  local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
+  
+  # Install components
+  local install_components="docker kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  
+  # Reset components  
+  local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
+  
+  # Start components
+  local start_components="kubernetes proxy kubelet"
+  
+  # Deploy components
+  local deploy_components="app1"
+  
+  # Create resources
+  local create_resources="secret certificate kubeconfig"
+  local create_secret_types="apphost"
+  
+  # Generate service types
+  local generate_types="python-api python-reactjs"
+  
+  # Patch resources
+  local patch_resources="ingress"
+  local patch_options="letsencrypt ldap localtls"
+  
+  case ${COMP_CWORD} in
+    1)
+      # First argument - complete main commands
+      COMPREPLY=($(compgen -W "${commands}" -- ${cur}))
+      return 0
+      ;;
+    2)
+      # Second argument - complete based on first command
+      case ${prev} in
+        install)
+          COMPREPLY=($(compgen -W "${install_components}" -- ${cur}))
+          return 0
+          ;;
+        reset)
+          COMPREPLY=($(compgen -W "${reset_components}" -- ${cur}))
+          return 0
+          ;;
+        start)
+          COMPREPLY=($(compgen -W "${start_components}" -- ${cur}))
+          return 0
+          ;;
+        deploy)
+          COMPREPLY=($(compgen -W "${deploy_components}" -- ${cur}))
+          return 0
+          ;;
+        create)
+          COMPREPLY=($(compgen -W "${create_resources}" -- ${cur}))
+          return 0
+          ;;
+        generate)
+          COMPREPLY=($(compgen -W "${generate_types}" -- ${cur}))
+          return 0
+          ;;
+        patch)
+          COMPREPLY=($(compgen -W "${patch_resources}" -- ${cur}))
+          return 0
+          ;;
+        desc)
+          COMPREPLY=($(compgen -W "methods" -- ${cur}))
+          return 0
+          ;;
+        completion)
+          COMPREPLY=($(compgen -W "enable setup" -- ${cur}))
+          return 0
+          ;;
+      esac
+      ;;
+    3)
+      # Third argument - complete based on first two commands
+      local prev2="${COMP_WORDS[COMP_CWORD-2]}"
+      case ${prev2} in
+        create)
+          case ${prev} in
+            secret)
+              COMPREPLY=($(compgen -W "${create_secret_types}" -- ${cur}))
+              return 0
+              ;;
+            certificate|kubeconfig)
+              # For certificate and kubeconfig, suggest common names
+              COMPREPLY=($(compgen -W "production staging development test" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+        generate)
+          case ${prev} in
+            python-api|python-reactjs)
+              # Suggest common service names
+              COMPREPLY=($(compgen -W "user-service auth-service api-gateway webapp frontend backend microservice" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+      ;;
+    4)
+      # Fourth argument - complete based on context
+      local prev3="${COMP_WORDS[COMP_CWORD-3]}"
+      local prev2="${COMP_WORDS[COMP_CWORD-2]}"
+      case ${prev3} in
+        patch)
+          case ${prev2} in
+            ingress)
+              # Complete ingress names - could be dynamic from kubectl
+              COMPREPLY=($(compgen -W "default production staging" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+      ;;
+    5)
+      # Fifth argument - namespaces for patch command
+      local prev4="${COMP_WORDS[COMP_CWORD-4]}"
+      local prev3="${COMP_WORDS[COMP_CWORD-3]}"
+      case ${prev4} in
+        patch)
+          case ${prev3} in
+            ingress)
+              # Complete namespaces - could be dynamic from kubectl  
+              COMPREPLY=($(compgen -W "default kube-system ingress-nginx monitoring" -- ${cur}))
+              return 0
+              ;;
+          esac
+          ;;
+      esac
+      ;;
+    6)
+      # Sixth argument - patch options
+      local prev5="${COMP_WORDS[COMP_CWORD-5]}"
+      case ${prev5} in
+        patch)
+          COMPREPLY=($(compgen -W "${patch_options}" -- ${cur}))
+          return 0
+          ;;
+      esac
+      ;;
+  esac
+  
+  return 0
+}
+
+# Function to enable completion
+enable_gok_completion() {
+  complete -F _gok_completion gok
+  echo "✅ GOK tab completion enabled!"
+  echo "💡 You can now use tab completion with gok commands:"
+  echo "   gok install <TAB>     # Shows all installable components"
+  echo "   gok reset <TAB>       # Shows all resettable components"  
+  echo "   gok create <TAB>      # Shows resource types"
+  echo "   gok generate <TAB>    # Shows service types"
+}
+
+# Function to setup completion permanently
+setup_gok_completion() {
+  local completion_dir="/etc/bash_completion.d"
+  local completion_file="$completion_dir/gok"
+  local user_bashrc="$HOME/.bashrc"
+  
+  echo "Setting up GOK tab completion..."
+  
+  # Extract just the completion function to a separate file
+  cat > /tmp/gok_completion << 'COMPLETION_EOF'
+# GOK Bash Completion
+_gok_completion() {
+  local cur prev opts base
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+  
+  local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
+  local install_components="docker kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
+  local start_components="kubernetes proxy kubelet"
+  local deploy_components="app1"
+  local create_resources="secret certificate kubeconfig"
+  local create_secret_types="apphost"
+  local generate_types="python-api python-reactjs"
+  local patch_resources="ingress"
+  local patch_options="letsencrypt ldap localtls"
+  
+  case ${COMP_CWORD} in
+    1) COMPREPLY=($(compgen -W "${commands}" -- ${cur})) ;;
+    2) case ${prev} in
+         install) COMPREPLY=($(compgen -W "${install_components}" -- ${cur})) ;;
+         reset) COMPREPLY=($(compgen -W "${reset_components}" -- ${cur})) ;;
+         start) COMPREPLY=($(compgen -W "${start_components}" -- ${cur})) ;;
+         deploy) COMPREPLY=($(compgen -W "${deploy_components}" -- ${cur})) ;;
+         create) COMPREPLY=($(compgen -W "${create_resources}" -- ${cur})) ;;
+         generate) COMPREPLY=($(compgen -W "${generate_types}" -- ${cur})) ;;
+         patch) COMPREPLY=($(compgen -W "${patch_resources}" -- ${cur})) ;;
+         desc) COMPREPLY=($(compgen -W "methods" -- ${cur})) ;;
+         completion) COMPREPLY=($(compgen -W "enable setup" -- ${cur})) ;;
+       esac ;;
+    3) local prev2="${COMP_WORDS[COMP_CWORD-2]}"
+       case ${prev2} in
+         create) case ${prev} in
+                   secret) COMPREPLY=($(compgen -W "${create_secret_types}" -- ${cur})) ;;
+                   certificate|kubeconfig) COMPREPLY=($(compgen -W "production staging development test" -- ${cur})) ;;
+                 esac ;;
+         generate) case ${prev} in
+                     python-api|python-reactjs) COMPREPLY=($(compgen -W "user-service auth-service api-gateway webapp frontend backend microservice" -- ${cur})) ;;
+                   esac ;;
+       esac ;;
+  esac
+  return 0
+}
+
+complete -F _gok_completion gok
+COMPLETION_EOF
+
+  # Try to install system-wide first (requires sudo)
+  if [[ -w "$completion_dir" ]] || sudo -n true 2>/dev/null; then
+    if sudo cp /tmp/gok_completion "$completion_file" 2>/dev/null; then
+      echo "✅ System-wide completion installed at $completion_file"
+    else
+      echo "⚠️  Could not install system-wide completion"
+    fi
+  fi
+  
+  # Install user-specific completion
+  if ! grep -q "source.*gok_completion\|_gok_completion" "$user_bashrc" 2>/dev/null; then
+    echo "" >> "$user_bashrc"
+    echo "# GOK tab completion" >> "$user_bashrc"
+    echo "source /tmp/gok_completion 2>/dev/null || true" >> "$user_bashrc"
+    echo "✅ User completion added to $user_bashrc"
+  else
+    echo "ℹ️  Completion already configured in $user_bashrc"
+  fi
+  
+  # Enable for current session
+  source /tmp/gok_completion
+  echo "✅ Tab completion enabled for current session!"
+  echo ""
+  echo "💡 Usage examples:"
+  echo "   gok install <TAB><TAB>     # Shows all installable components"
+  echo "   gok install ku<TAB>        # Completes to 'kubernetes'"
+  echo "   gok create cert<TAB>       # Completes to 'certificate'"
+  echo "   gok generate py<TAB>       # Shows python-api, python-reactjs"
+  echo ""
+  echo "🔄 Restart your terminal or run 'source ~/.bashrc' to enable permanently"
+  
+  rm -f /tmp/gok_completion
+}
+
+# Auto-enable completion if this script is being sourced
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  complete -F _gok_completion gok 2>/dev/null || true
+fi
+
 # Call the appropriate function based on the command
 if [ -z "$CMD" ] || [ "$CMD" == "help" ] || [ "$CMD" == "--help" ] || [ "$CMD" == "-h" ]; then
   helpCmd
@@ -5824,4 +6088,24 @@ elif [ "$CMD" == "create" ]; then
   createCmd "$2" "$3" "$4"
 elif [ "$CMD" == "generate" ]; then
   generateCmd "$2" "$3" "$4" "$5" "$6"
+elif [ "$CMD" == "completion" ]; then
+  case "$2" in
+    enable)
+      enable_gok_completion
+      ;;
+    setup)
+      setup_gok_completion
+      ;;
+    *)
+      echo "gok completion - Bash completion management"
+      echo ""
+      echo "Usage:"
+      echo "  gok completion enable    # Enable completion for current session"
+      echo "  gok completion setup     # Setup completion permanently"
+      echo ""
+      echo "Examples:"
+      echo "  gok completion enable    # Quick enable for testing"
+      echo "  gok completion setup     # Permanent installation"
+      ;;
+  esac
 fi
