@@ -2881,6 +2881,8 @@ keycloakInst(){
         --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml
 }
 
+
+
 addPolicyToSyncSecrets(){
   cat <<EOF | kubectl apply -f -  
 apiVersion: kyverno.io/v1
@@ -4519,12 +4521,13 @@ function helpCmd() {
     echo "4. gok deploy <component>: Deploy a component. Currently, only app1 is supported."
     echo "5. gok patch <resource> <name> <namespace> <options> <subdomain>: Patch resources. Currently, only ingress resource is supported. The options can be letsencrypt, ldap, or localtls."
     echo "6. gok create <resource> <name> <additional>: Create resources. Currently, secret and certificate resources are supported. For secret, only apphost is supported. For certificate, it creates a certificate request for a namespace."
-    echo "7. gok bash: Open a terminal in a pod."
-    echo "8. gok desc: Describe a pod."
-    echo "9. gok logs: Show the logs of a pod."
-    echo "10. gok status: Show the status of a helm release."
-    echo "11. gok taint-node: Taint a node."
-    echo "12. gok help: Show this help document."
+    echo "7. gok generate <type> <name> [options]: Generate services. Supported types: python-api, python-reactjs."
+    echo "8. gok bash: Open a terminal in a pod."
+    echo "9. gok desc: Describe a pod."
+    echo "10. gok logs: Show the logs of a pod."
+    echo "11. gok status: Show the status of a helm release."
+    echo "12. gok taint-node: Taint a node."
+    echo "13. gok help: Show this help document."
 }
 
 function descCmd() {
@@ -5007,6 +5010,142 @@ function createCmd() {
   fi
 }
 
+function generateCmd() {
+  SERVICE_TYPE=$1
+  SERVICE_NAME=$2
+  SERVICE_DESC=$3
+  SERVICE_NS=$4
+  SERVICE_HOST=$5
+  
+  if [ -z "$SERVICE_TYPE" ] || [ "$SERVICE_TYPE" == "help" ] || [ "$SERVICE_TYPE" == "--help" ]; then
+    echo "gok generate - Generate microservices from templates"
+    echo ""
+    echo "Usage: gok generate <type> <name> [description] [namespace] [hostname]"
+    echo ""
+    echo "Service Types:"
+    echo "  python-api        Generate Python Flask REST API (backend-only)"
+    echo "  python-reactjs    Generate Python Flask + React.js (full-stack)"
+    echo ""
+    echo "Parameters:"
+    echo "  <type>            Service type (required)"
+    echo "  <name>            Service name (required)"
+    echo "  [description]     Service description (optional)"
+    echo "  [namespace]       Kubernetes namespace (optional, default: service name)"
+    echo "  [hostname]        Ingress hostname (optional, default: <name>.gokcloud.com)"
+    echo ""
+    echo "Examples:"
+    echo "  gok generate python-api user-service"
+    echo "  gok generate python-api payment-api 'Payment processing API'"
+    echo "  gok generate python-reactjs webapp 'Customer portal' production portal.company.com"
+    echo ""
+    echo "Generated Features:"
+    echo "  ✅ Production-ready Docker containers"
+    echo "  ✅ Kubernetes Helm charts with RBAC"
+    echo "  ✅ OAuth2/OIDC authentication"
+    echo "  ✅ HTTPS/TLS encryption"
+    echo "  ✅ Health check endpoints"
+    echo "  ✅ API documentation (Swagger UI)"
+    echo "  ✅ Local development setup"
+    return 0
+  fi
+  
+  if [ -z "$SERVICE_NAME" ]; then
+    echo "Error: Service name is required"
+    echo "Usage: gok generate <type> <name> [description] [namespace] [hostname]"
+    echo "Run 'gok generate help' for detailed usage information"
+    return 1
+  fi
+  
+  # Navigate to service generator directory
+  SERVICE_GENERATOR_DIR="$WORKING_DIR/service-generator"
+  
+  # Fallback to current directory structure if WORKING_DIR not set
+  if [ ! -d "$SERVICE_GENERATOR_DIR" ]; then
+    # Try relative path from gok script location
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SERVICE_GENERATOR_DIR="$SCRIPT_DIR/service-generator"
+    
+    # If still not found, try current working directory
+    if [ ! -d "$SERVICE_GENERATOR_DIR" ]; then
+      SERVICE_GENERATOR_DIR="$(pwd)/service-generator"
+    fi
+    
+    # Final check - see if we're already in service-generator directory
+    if [ ! -d "$SERVICE_GENERATOR_DIR" ] && [ -f "generate_service.py" ]; then
+      SERVICE_GENERATOR_DIR="$(pwd)"
+    fi
+  fi
+  
+  if [ ! -d "$SERVICE_GENERATOR_DIR" ] && [ ! -f "$SERVICE_GENERATOR_DIR/generate_service.py" ]; then
+    echo "Error: Service generator not found"
+    echo "Tried locations:"
+    echo "  - $WORKING_DIR/service-generator"
+    echo "  - $SCRIPT_DIR/service-generator" 
+    echo "  - $(pwd)/service-generator"
+    echo "  - $(pwd)"
+    return 1
+  fi
+  
+  cd "$SERVICE_GENERATOR_DIR"
+  
+  # Build command arguments
+  GENERATE_ARGS=""
+  
+  # Add description if provided
+  if [ ! -z "$SERVICE_DESC" ]; then
+    GENERATE_ARGS="$GENERATE_ARGS --description \"$SERVICE_DESC\""
+  fi
+  
+  # Add namespace if provided
+  if [ ! -z "$SERVICE_NS" ]; then
+    GENERATE_ARGS="$GENERATE_ARGS --namespace $SERVICE_NS"
+  fi
+  
+  # Add ingress hostname if provided
+  if [ ! -z "$SERVICE_HOST" ]; then
+    GENERATE_ARGS="$GENERATE_ARGS --ingress-host $SERVICE_HOST"
+  fi
+  
+  echo "🚀 Generating $SERVICE_TYPE service: $SERVICE_NAME"
+  echo "📁 Working directory: $SERVICE_GENERATOR_DIR"
+  
+  if [ "$SERVICE_TYPE" == "python-api" ]; then
+    echo "🐍 Creating Python Flask API service..."
+    eval "python3 generate_service.py --python-api $SERVICE_NAME $GENERATE_ARGS"
+    
+  elif [ "$SERVICE_TYPE" == "python-reactjs" ]; then
+    echo "🐍⚛️  Creating Python Flask + React.js full-stack service..."
+    eval "python3 generate_service.py --python-reactjs $SERVICE_NAME $GENERATE_ARGS"
+    
+  else
+    echo "Error: Unsupported service type: $SERVICE_TYPE"
+    echo "Supported types: python-api, python-reactjs"
+    return 1
+  fi
+  
+  if [ $? -eq 0 ]; then
+    echo ""
+    echo "✅ Service generation completed successfully!"
+    echo "📁 Location: $SERVICE_GENERATOR_DIR/generated_services/$SERVICE_NAME"
+    echo ""
+    echo "🚀 Next steps:"
+    echo "1. cd $SERVICE_GENERATOR_DIR/generated_services/$SERVICE_NAME"
+    echo "2. Review and customize the generated files"
+    echo "3. Build container: ./build.sh"
+    echo "4. Push to registry: ./tag_push.sh"
+    echo "5. Deploy to Kubernetes: helm install $SERVICE_NAME ./chart"
+    
+    if [ ! -z "$SERVICE_HOST" ]; then
+      echo "6. Access your service at: https://$SERVICE_HOST"
+    else
+      echo "6. Access your service at: https://$SERVICE_NAME.gokcloud.com"
+    fi
+  else
+    echo "❌ Service generation failed!"
+    return 1
+  fi
+}
+
 # Call the appropriate function based on the command
 if [ "$CMD" == "bash" ]; then
   bashCmd
@@ -5032,4 +5171,6 @@ elif [ "$CMD" == "patch" ]; then
   patchCmd "$2" "$3" "$4" "$5" "$6"
 elif [ "$CMD" == "create" ]; then
   createCmd "$2" "$3" "$4"
+elif [ "$CMD" == "generate" ]; then
+  generateCmd "$2" "$3" "$4" "$5" "$6"
 fi

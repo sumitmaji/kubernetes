@@ -184,9 +184,34 @@ python3 generate_service.py --create-sample
 
 ### Usage Examples
 
-#### 1. Generate Full-Stack Application (CLI)
+#### 1. Generate Python + React.js Template (Recommended)
 ```bash
-# Python + React (Recommended)
+# Quick Python Flask + React.js generation with defaults
+python3 generate_service.py --python-reactjs my-web-app
+
+# With custom description
+python3 generate_service.py --python-reactjs my-web-app \
+  --description "Customer portal with advanced features"
+
+# With custom configuration
+python3 generate_service.py --python-reactjs my-web-app \
+  --description "Custom application" \
+  --namespace production-apps \
+  --registry my-registry.com \
+  --disable-oauth \
+  --ingress-host my-app.example.com
+```
+
+**Template Features:**
+- ✅ **Backend**: Python Flask with Flask-RestX, JWT auth, WebSocket support
+- ✅ **Frontend**: React.js with modern hooks, routing, authentication
+- ✅ **Security**: OAuth2/OIDC integration (configurable)
+- ✅ **Infrastructure**: HTTPS/TLS, Kubernetes RBAC, health checks
+- ✅ **Production-Ready**: Multi-stage Docker, Helm charts, monitoring
+
+#### 2. Generate Full-Stack Application (CLI - Manual)
+```bash
+# Python + React (Traditional method)
 python3 generate_service.py \
   --service-name my-web-app \
   --backend python \
@@ -249,6 +274,133 @@ service:
 EOF
 
 python3 generate_service.py --config distributed.yaml
+```
+
+## Template Generation Methods
+
+### Quick Template Methods
+
+For rapid service creation, use these pre-configured template methods that provide production-ready services with best practices:
+
+#### 1. Python API Template (`--python-api`)
+**Generate Python Flask REST API-only service**
+
+```bash
+# Basic API service
+python3 generate_service.py --python-api user-service
+
+# With custom configuration
+python3 generate_service.py --python-api payment-api \
+  --description "Payment processing API" \
+  --namespace payments \
+  --registry my-registry.com \
+  --disable-oauth \
+  --ingress-host api.example.com
+```
+
+**Features:**
+- ✅ **Backend Only**: Python Flask REST API with Flask-RestX
+- ✅ **API Documentation**: Swagger UI available at `/api/docs/`
+- ✅ **Authentication**: OAuth2/OIDC integration (configurable)
+- ✅ **Health Checks**: `/health`, `/health/ready`, `/health/live` endpoints
+- ✅ **Security**: JWT validation, CORS, security headers
+- ✅ **Kubernetes**: RBAC, ingress, health probes
+- ✅ **Production**: Multi-stage Docker, monitoring endpoints
+
+**Generated Structure:**
+```
+payment-api/
+├── backend/                    # Python Flask API
+│   ├── app/
+│   │   ├── routes/            # API endpoints
+│   │   ├── auth/              # OAuth2 middleware
+│   │   └── config.py          # Configuration
+│   ├── requirements.txt       # Python dependencies
+│   └── run.py                 # Application entry point
+├── chart/                     # Helm chart
+├── Dockerfile                 # Multi-stage build
+├── build.sh                   # Container build script
+└── README.md                  # Service documentation
+```
+
+#### 2. Python + React.js Template (`--python-reactjs`)
+**Generate Python Flask + React.js full-stack application**
+
+```bash
+# Basic full-stack application
+python3 generate_service.py --python-reactjs customer-portal
+
+# With custom configuration
+python3 generate_service.py --python-reactjs ecommerce-app \
+  --description "E-commerce customer portal" \
+  --namespace production \
+  --registry registry.company.com \
+  --ingress-host shop.example.com
+```
+
+**Features:**
+- ✅ **Full-Stack**: Python Flask backend + React.js frontend
+- ✅ **Modern Frontend**: React hooks, routing, state management
+- ✅ **API Integration**: Axios configuration, authentication handling
+- ✅ **WebSocket**: Real-time communication between frontend/backend
+- ✅ **Authentication**: OAuth2 flow with token management
+- ✅ **Development**: Hot reload, Docker Compose for local dev
+- ✅ **Production**: Optimized builds, CDN-ready assets, monitoring
+
+**Generated Structure:**
+```
+customer-portal/
+├── backend/                   # Python Flask API
+│   ├── app/
+│   │   ├── routes/           # API endpoints
+│   │   ├── auth/             # OAuth2 middleware  
+│   │   └── config.py         # Configuration
+│   ├── requirements.txt      # Python dependencies
+│   └── run.py                # Backend entry point
+├── frontend/                 # React.js application
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   ├── App.jsx           # Main application
+│   │   └── index.jsx         # Frontend entry point
+│   ├── public/               # Static assets
+│   └── package.json          # Node.js dependencies
+├── chart/                    # Helm chart with ingress
+├── Dockerfile                # Multi-stage build (backend+frontend)
+├── docker-compose.yml        # Local development
+├── build.sh                  # Container build script
+└── README.md                 # Service documentation
+```
+
+#### 3. Template Method Options
+
+All template methods support these optional parameters:
+
+**Service Configuration:**
+- `--description "Service description"` - Custom service description
+- `--namespace my-namespace` - Kubernetes namespace (default: service name)
+- `--registry my-registry.com` - Container registry (default: registry.gokcloud.com)
+- `--ingress-host my-app.com` - Custom ingress hostname
+
+**Security Options:**
+- `--disable-oauth` - Disable OAuth2 authentication 
+- `--disable-https` - Disable HTTPS/TLS encryption
+- `--disable-rbac` - Disable Kubernetes RBAC
+
+**Examples:**
+```bash
+# Minimal API without authentication
+python3 generate_service.py --python-api simple-api --disable-oauth --disable-https
+
+# Full-stack app with custom domain
+python3 generate_service.py --python-reactjs webapp \
+  --description "Customer portal" \
+  --ingress-host portal.company.com \
+  --namespace production
+
+# Development-friendly setup
+python3 generate_service.py --python-reactjs dev-app \
+  --disable-rbac \
+  --registry localhost:5000
 ```
 
 ### Development Workflow

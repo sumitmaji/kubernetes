@@ -6,8 +6,13 @@ This script generates a new service based on the console/app pattern
 with configurable backend and frontend languages.
 
 Usage:
+    # Configuration-based generation
     python generate_service.py --config service_config.yaml
     python generate_service.py --service-name my-service --backend python --frontend reactjs
+    
+    # Quick template methods
+    python generate_service.py --python-api my-api-service
+    python generate_service.py --python-reactjs my-fullstack-app
 """
 
 import os
@@ -418,6 +423,129 @@ class ServiceGenerator:
                 agent_context
             )
     
+    def generate_python_api_template(self, service_name, **kwargs):
+        """Generate a Python Flask API-only service template
+        
+        Args:
+            service_name (str): Name of the service
+            **kwargs: Additional configuration options:
+                - description (str): Service description
+                - version (str): Service version (default: "1.0.0")
+                - backend_port (int): Backend port (default: 8080)
+                - enable_oauth (bool): Enable OAuth2 authentication (default: True)
+                - enable_https (bool): Enable HTTPS/TLS (default: True)
+                - enable_rbac (bool): Enable Kubernetes RBAC (default: True)
+                - registry (str): Container registry (default: "registry.gokcloud.com")
+                - namespace (str): Kubernetes namespace (default: service_name)
+                - ingress_host (str): Ingress hostname (default: "{service_name}.gokcloud.com")
+        
+        Returns:
+            Path: Path to generated service directory
+        """
+        # Create configuration for Python API-only service
+        config = {
+            'service': {
+                'name': service_name,
+                'description': kwargs.get('description', f'Python Flask REST API service: {service_name}'),
+                'version': kwargs.get('version', '1.0.0'),
+                'pattern': 'standalone',
+                'backend': {
+                    'language': 'python',
+                    'port': kwargs.get('backend_port', 8080)
+                },
+                # No frontend for API-only services
+                'infrastructure': {
+                    'registry': kwargs.get('registry', 'registry.gokcloud.com'),
+                    'namespace': kwargs.get('namespace', service_name.lower().replace('_', '-')),
+                    'ingress_host': kwargs.get('ingress_host', f"{service_name.lower().replace('_', '-')}.gokcloud.com"),
+                    'enable_https': kwargs.get('enable_https', True),
+                    'enable_oauth': kwargs.get('enable_oauth', True),
+                    'enable_rbac': kwargs.get('enable_rbac', True),
+                    'oauth_issuer': kwargs.get('oauth_issuer', 'https://keycloak.gokcloud.com/realms/GokDevelopers'),
+                    'oauth_client_id': kwargs.get('oauth_client_id', 'gok-developers-client')
+                }
+            }
+        }
+        
+        print(f"🚀 Generating Python Flask REST API template for: {service_name}")
+        print(f"📋 Configuration:")
+        print(f"   - Backend: Python Flask REST API (port {config['service']['backend']['port']})")
+        print(f"   - Frontend: ❌ None (API-only service)")
+        print(f"   - OAuth2: {'✅ Enabled' if config['service']['infrastructure']['enable_oauth'] else '❌ Disabled'}")
+        print(f"   - HTTPS/TLS: {'✅ Enabled' if config['service']['infrastructure']['enable_https'] else '❌ Disabled'}")
+        print(f"   - Kubernetes RBAC: {'✅ Enabled' if config['service']['infrastructure']['enable_rbac'] else '❌ Disabled'}")
+        print(f"   - Registry: {config['service']['infrastructure']['registry']}")
+        print(f"   - Namespace: {config['service']['infrastructure']['namespace']}")
+        print(f"   - Ingress: {config['service']['infrastructure']['ingress_host']}")
+        print(f"   - API Docs: Available at /api/docs/")
+        
+        # Generate the service using the standard method
+        return self.generate_service(config)
+    
+    def generate_python_reactjs_template(self, service_name, **kwargs):
+        """
+        Generate Python Flask + React.js full-stack template
+        
+        Args:
+            service_name (str): Name of the service
+            **kwargs: Optional parameters:
+                - description: Service description
+                - enable_oauth: Enable OAuth2 authentication (default: True)
+                - enable_https: Enable HTTPS/TLS (default: True)
+                - enable_rbac: Enable Kubernetes RBAC (default: True)
+                - registry: Container registry (default: registry.gokcloud.com)
+                - namespace: Kubernetes namespace (default: service_name)
+                - ingress_host: Ingress hostname (default: {service_name}.gokcloud.com)
+                - backend_port: Backend API port (default: 5000)
+                - frontend_port: Frontend port (default: 3000)
+                - oauth_client_id: OAuth2 client ID (default: gok-developers-client)
+        
+        Returns:
+            str: Path to the generated service directory
+        """
+        
+        # Create configuration object
+        config = {
+            'service': {
+                'name': service_name,
+                'type': 'full-stack',
+                'description': kwargs.get('description', f'{service_name} - Python Flask + React.js full-stack application'),
+                'backend': {
+                    'language': 'python',
+                    'port': kwargs.get('backend_port', 5000)
+                },
+                'frontend': {
+                    'language': 'reactjs',
+                    'port': kwargs.get('frontend_port', 3000)
+                },
+                'infrastructure': {
+                    'enable_oauth': kwargs.get('enable_oauth', True),
+                    'enable_https': kwargs.get('enable_https', True),
+                    'enable_rbac': kwargs.get('enable_rbac', True),
+                    'registry': kwargs.get('registry', 'registry.gokcloud.com'),
+                    'namespace': kwargs.get('namespace', service_name),
+                    'ingress_host': kwargs.get('ingress_host', f'{service_name}.gokcloud.com'),
+                    'oauth_client_id': kwargs.get('oauth_client_id', 'gok-developers-client')
+                }
+            }
+        }
+        
+        print(f"🚀 Generating Python Flask + React.js full-stack template for: {service_name}")
+        print(f"📋 Configuration:")
+        print(f"   - Backend: Python Flask REST API (port {config['service']['backend']['port']})")
+        print(f"   - Frontend: React.js Application (port {config['service']['frontend']['port']})")
+        print(f"   - OAuth2: {'✅ Enabled' if config['service']['infrastructure']['enable_oauth'] else '❌ Disabled'}")
+        print(f"   - HTTPS/TLS: {'✅ Enabled' if config['service']['infrastructure']['enable_https'] else '❌ Disabled'}")
+        print(f"   - Kubernetes RBAC: {'✅ Enabled' if config['service']['infrastructure']['enable_rbac'] else '❌ Disabled'}")
+        print(f"   - Registry: {config['service']['infrastructure']['registry']}")
+        print(f"   - Namespace: {config['service']['infrastructure']['namespace']}")
+        print(f"   - Ingress: {config['service']['infrastructure']['ingress_host']}")
+        print(f"   - API Docs: Available at /api/docs/")
+        print(f"   - Full-Stack: Backend + Frontend integrated")
+        
+        # Generate the service using the standard method
+        return self.generate_service(config)
+    
     def generate_service(self, config):
         """Generate complete service from configuration"""
         self.validate_config(config)
@@ -607,6 +735,19 @@ def main():
     parser.add_argument('--template-dir', default='templates', help='Template directory')
     parser.add_argument('--create-sample', action='store_true', help='Create a sample config file')
     
+    # Template generation methods
+    parser.add_argument('--python-api', metavar='SERVICE_NAME',
+                        help='Generate Python Flask API-only template with the given service name')
+    parser.add_argument('--python-reactjs', metavar='SERVICE_NAME',
+                        help='Generate Python Flask + React.js full-stack template with the given service name')
+    parser.add_argument('--description', help='Service description (for template methods)')
+    parser.add_argument('--disable-oauth', action='store_true', help='Disable OAuth2 authentication')
+    parser.add_argument('--disable-https', action='store_true', help='Disable HTTPS/TLS')
+    parser.add_argument('--disable-rbac', action='store_true', help='Disable Kubernetes RBAC')
+    parser.add_argument('--registry', default='registry.gokcloud.com', help='Container registry')
+    parser.add_argument('--namespace', help='Kubernetes namespace (default: service name)')
+    parser.add_argument('--ingress-host', help='Ingress hostname (default: {service}.gokcloud.com)')
+    
     args = parser.parse_args()
     
     if args.create_sample:
@@ -614,6 +755,87 @@ def main():
         return
     
     generator = ServiceGenerator(template_dir=args.template_dir, output_dir=args.output_dir)
+    
+    # Handle template generation methods
+    if args.python_api:
+        try:
+            # Prepare kwargs for template generation
+            kwargs = {}
+            if args.description:
+                kwargs['description'] = args.description
+            kwargs['enable_oauth'] = not args.disable_oauth
+            kwargs['enable_https'] = not args.disable_https
+            kwargs['enable_rbac'] = not args.disable_rbac
+            if args.registry:
+                kwargs['registry'] = args.registry
+            if args.namespace:
+                kwargs['namespace'] = args.namespace
+            if args.ingress_host:
+                kwargs['ingress_host'] = args.ingress_host
+            
+            service_dir = generator.generate_python_api_template(args.python_api, **kwargs)
+            
+            print(f"\\n✅ Python Flask API service generated successfully!")
+            print(f"📁 Location: {service_dir}")
+            print(f"\\n🚀 Next steps:")
+            print(f"1. cd {service_dir}")
+            print(f"2. Review and customize the generated files")
+            print(f"3. Build: ./build.sh")
+            print(f"4. Push: ./tag_push.sh")
+            print(f"5. Deploy: helm install {args.python_api} ./chart")
+            ingress_host = kwargs.get('ingress_host', f'{args.python_api}.gokcloud.com')
+            print(f"6. Test API: curl https://{ingress_host}/health")
+            print(f"7. View API docs: https://{ingress_host}/api/docs/")
+            return
+            
+        except Exception as e:
+            print(f"❌ Error generating Python API template: {str(e)}")
+            sys.exit(1)
+    
+    # Handle Python + React.js template generation
+    if args.python_reactjs:
+        try:
+            # Prepare kwargs for template generation
+            kwargs = {}
+            if args.description:
+                kwargs['description'] = args.description
+            kwargs['enable_oauth'] = not args.disable_oauth
+            kwargs['enable_https'] = not args.disable_https
+            kwargs['enable_rbac'] = not args.disable_rbac
+            if args.registry:
+                kwargs['registry'] = args.registry
+            if args.namespace:
+                kwargs['namespace'] = args.namespace
+            if args.ingress_host:
+                kwargs['ingress_host'] = args.ingress_host
+            
+            service_dir = generator.generate_python_reactjs_template(args.python_reactjs, **kwargs)
+            
+            print(f"\\n✅ Python Flask + React.js full-stack service generated successfully!")
+            print(f"📁 Location: {service_dir}")
+            print(f"\\n🚀 Next steps:")
+            print(f"1. cd {service_dir}")
+            print(f"2. Review and customize the generated files")
+            print(f"3. Backend development:")
+            print(f"   - API code: backend/app.py")
+            print(f"   - Test: cd backend && python app.py")
+            print(f"4. Frontend development:")
+            print(f"   - React code: frontend/src/App.js")
+            print(f"   - Test: cd frontend && npm start")
+            print(f"5. Production deployment:")
+            print(f"   - Build: ./build.sh")
+            print(f"   - Push: ./tag_push.sh")
+            print(f"   - Deploy: helm install {args.python_reactjs} ./chart")
+            ingress_host = kwargs.get('ingress_host', f'{args.python_reactjs}.gokcloud.com')
+            print(f"6. Access application:")
+            print(f"   - Frontend: https://{ingress_host}/")
+            print(f"   - API health: https://{ingress_host}/health")
+            print(f"   - API docs: https://{ingress_host}/api/docs/")
+            return
+            
+        except Exception as e:
+            print(f"❌ Error generating Python + React.js template: {str(e)}")
+            sys.exit(1)
     
     # Load configuration
     if args.config:
@@ -631,7 +853,9 @@ def main():
             config['service']['frontend'] = {'language': args.frontend}
     else:
         parser.print_help()
-        print("\\nError: Either --config file or --service-name and --backend are required")
+        print("\\nError: Either --config file, --service-name + --backend, or a template method is required")
+        print("\\nAvailable template methods:")
+        print("  --python-api SERVICE_NAME        Generate Python Flask API-only service")
         sys.exit(1)
     
     try:
