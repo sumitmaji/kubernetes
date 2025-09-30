@@ -38,6 +38,12 @@ cleanup() {
     fi
     # Kill any remaining kubectl port-forward processes
     pkill -f "kubectl port-forward.*rabbitmq" 2>/dev/null || true
+    
+    # Deactivate virtual environment if we created one
+    if [[ -n $VENV_CREATED ]] && [[ "$VIRTUAL_ENV" != "" ]]; then
+        deactivate 2>/dev/null || true
+        print_status "Deactivated virtual environment"
+    fi
 }
 
 # Set trap to cleanup on script exit
@@ -58,8 +64,58 @@ print_success "Python 3 is available"
 print_status "Step 2: Installing/checking pika dependency..."
 if ! python3 -c "import pika" &> /dev/null; then
     print_status "Installing pika..."
-    pip3 install pika
-    print_success "pika installed successfully"
+    
+    # Try different installation methods for externally-managed environments
+    if command -v apt &> /dev/null; then
+        # Try apt installation first (Ubuntu/Debian)
+        print_status "Trying apt installation for python3-pika..."
+        if sudo apt update &> /dev/null && sudo apt install -y python3-pika &> /dev/null; then
+            print_success "pika installed via apt"
+        else
+            # Try pip with --break-system-packages flag
+            print_status "apt failed, trying pip3 with --break-system-packages..."
+            if pip3 install --break-system-packages pika &> /dev/null; then
+                print_success "pika installed via pip3 (break-system-packages)"
+            else
+                # Try creating a virtual environment
+                print_status "pip failed, creating virtual environment for pika..."
+                if python3 -m venv rabbitmq_test_venv &> /dev/null; then
+                    source rabbitmq_test_venv/bin/activate
+                    VENV_CREATED=1
+                    if pip install pika &> /dev/null; then
+                        print_success "pika installed in virtual environment"
+                        print_warning "Using virtual environment: rabbitmq_test_venv"
+                        print_warning "Remember to activate it: source rabbitmq_test_venv/bin/activate"
+                    else
+                        print_error "Failed to install pika in virtual environment"
+                        exit 1
+                    fi
+                else
+                    print_error "Failed to create virtual environment"
+                    print_error "Please install pika manually:"
+                    print_error "  sudo apt install python3-pika"
+                    print_error "  OR pip3 install --break-system-packages pika"
+                    exit 1
+                fi
+            fi
+        fi
+    else
+        # Try pip with --break-system-packages flag directly
+        print_status "Trying pip3 with --break-system-packages..."
+        if pip3 install --break-system-packages pika &> /dev/null; then
+            print_success "pika installed via pip3 (break-system-packages)"
+        else
+            print_error "Failed to install pika. Please install manually:"
+            print_error "  pip3 install --break-system-packages pika"
+            exit 1
+        fi
+    fi
+    
+    # Verify installation
+    if ! python3 -c "import pika" &> /dev/null; then
+        print_error "pika installation verification failed"
+        exit 1
+    fi
 else
     print_success "pika is already installed"
 fi
