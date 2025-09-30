@@ -16,6 +16,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from jose import jwt as jose_jwt
 import sys
+# Import our Vault credential manager
+from vault_credentials import get_rabbitmq_credentials, VaultCredentialManager
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -30,45 +32,48 @@ OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID")
 REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "user")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq")
 
-def get_rabbitmq_credentials():
+# Get RabbitMQ credentials using Vault with Kubernetes fallback
+def get_rabbitmq_connection_params():
     """
-    Try to get RabbitMQ credentials from Kubernetes secret
+    Get RabbitMQ connection parameters with Vault integration
+    Returns connection parameters for pika
     """
     try:
-        # Get username
-        result = subprocess.run([
-            'kubectl', 'get', 'secret', 'rabbitmq-default-user', 
-            '-n', 'rabbitmq', '-o', 'jsonpath={.data.username}'
-        ], capture_output=True, text=True)
+        # Try to get credentials from Vault first, fallback to Kubernetes
+        credentials_obj = get_rabbitmq_credentials(prefer_vault=True)
         
-        if result.returncode != 0:
-            logging.warning("Could not retrieve RabbitMQ username from Kubernetes secret")
-            return None, None
-            
-        username = base64.b64decode(result.stdout).decode()
-        
-        # Get password
-        result = subprocess.run([
-            'kubectl', 'get', 'secret', 'rabbitmq-default-user', 
-            '-n', 'rabbitmq', '-o', 'jsonpath={.data.password}'
-        ], capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            logging.warning("Could not retrieve RabbitMQ password from Kubernetes secret")
-            return username, None
-            
-        password = base64.b64decode(result.stdout).decode()
-        logging.info("Successfully retrieved RabbitMQ credentials from Kubernetes")
-        return username, password
-        
+        if credentials_obj:
+            logger.info(f"Using RabbitMQ credentials for user: {credentials_obj.username}")
+            return {
+                'host': credentials_obj.host,
+                'port': credentials_obj.port,
+                'virtual_host': credentials_obj.virtual_host,
+                'credentials': pika.PlainCredentials(
+                    credentials_obj.username, 
+                    credentials_obj.password
+                )
+            }
+        else:
+            # Final fallback to environment variables
+            logger.warning("Could not retrieve credentials from Vault or Kubernetes, using environment variables")
+            return {
+                'host': RABBITMQ_HOST,
+                'port': 5672,
+                'virtual_host': '/',
+                'credentials': pika.PlainCredentials(
+                    os.environ.get("RABBITMQ_USER", "guest"),
+                    os.environ.get("RABBITMQ_PASSWORD", "guest")
+                )
+            }
     except Exception as e:
-        logging.error(f"Failed to retrieve RabbitMQ credentials from Kubernetes: {e}")
-        return None, None
-
-# Get RabbitMQ credentials from Kubernetes or use environment variables as fallback
-RABBITMQ_USER_K8S, RABBITMQ_PASSWORD_K8S = get_rabbitmq_credentials()
-RABBITMQ_USER = RABBITMQ_USER_K8S or os.environ.get("RABBITMQ_USER", "guest")
-RABBITMQ_PASSWORD = RABBITMQ_PASSWORD_K8S or os.environ.get("RABBITMQ_PASSWORD", "guest")
+        logger.error(f"Error getting RabbitMQ credentials: {e}")
+        # Ultimate fallback
+        return {
+            'host': RABBITMQ_HOST,
+            'port': 5672,
+            'virtual_host': '/',
+            'credentials': pika.PlainCredentials("guest", "guest")
+        }
 
 # --- Vault secret reload logic ---
 class SecretReloadHandler(FileSystemEventHandler):
@@ -203,9 +208,9 @@ def send_command_batch():
     return jsonify({"msg": "Command batch accepted", "batch_id": batch_id, "issued_by": user_info["sub"], "groups": groups}), 200
 
 def publish_batch(commands, user_info):
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    conn_params = get_rabbitmq_connection_params()
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+        pika.ConnectionParameters(**conn_params)
     )
     channel = connection.channel()
     batch_id = user_info["sub"] + "-" + str(abs(hash(json.dumps(commands))))
@@ -227,9 +232,9 @@ def on_join(data):
         emit("joined", {"batch_id": batch_id})
 
 def rabbitmq_result_worker():
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    conn_params = get_rabbitmq_connection_params()
     connection = pika.BlockingConnection(
-        pika.ConnectionParameters(RABBITMQ_HOST, credentials=credentials)
+        pika.ConnectionParameters(**conn_params)
     )
     channel = connection.channel()
     channel.queue_declare(queue="results", durable=True)

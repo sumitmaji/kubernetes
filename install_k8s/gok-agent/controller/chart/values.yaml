@@ -6,9 +6,12 @@ rabbitmqHost: rabbitmq.rabbitmq
 
 env:
   RABBITMQ_HOST: "rabbitmq.rabbitmq"
-  # RabbitMQ credentials (optional - will be retrieved from Kubernetes secret if not provided)
-  # RABBITMQ_USER: "custom-user"
-  # RABBITMQ_PASSWORD: "custom-password"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: "/"
+  
+  # Vault Configuration for RabbitMQ credentials
+  VAULT_ADDR: "http://vault.vault:8200"
+  VAULT_PATH: "secret/rabbitmq"
 
 service:
   type: ClusterIP
@@ -32,10 +35,42 @@ ingress:
       secretName: web-controller-tls
 
 vault:
+  # Enable Vault integration for RabbitMQ credentials
   enabled: true
-  agentInjector: true
-  role: "web-controller"
-  secretPath: "secret/web-controller"
+  
+  # Vault server configuration  
+  address: "http://vault.vault:8200"
+  
+  # Path to RabbitMQ credentials in Vault
+  credentialPath: "secret/rabbitmq"
+  
+  # Authentication method for Vault
+  auth:
+    # Use Kubernetes service account for authentication
+    method: "kubernetes"
+    # Alternative: use token-based authentication
+    # method: "token"
+    # token: "vault-token-here"
+    
+    # Kubernetes auth configuration
+    kubernetes:
+      role: "gok-controller-role"
+      serviceAccount: "web-controller-sa"
+  
+  # Fallback configuration if Vault is unavailable
+  fallback:
+    # Try Kubernetes secret as fallback
+    useKubernetesSecret: true
+    secretName: "rabbitmq-default-user"
+    secretNamespace: "rabbitmq"
+    
+    # Final fallback to environment variables
+    useEnvironmentVariables: true
+  
+  # Legacy Vault agent injector configuration (deprecated)
+  # agentInjector: true
+  # role: "web-controller"  
+  # secretPath: "secret/web-controller"
 
 oidc:
   issuer: https://keycloak.gokcloud.com/realms/GokDevelopers
