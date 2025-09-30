@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gok-agent
+  namespace: default
+  labels:
+    app: gok-agent
+    component: authentication
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gok-agent-vault-auth
+  labels:
+    app: gok-agent
+    component: authentication
+rules:
+# Allow creating service account tokens (if needed for token refresh)
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
+  verbs: ["create"]
+# Allow reading service account information
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gok-agent-vault-auth
+  labels:
+    app: gok-agent
+    component: authentication
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gok-agent-vault-auth
+subjects:
+- kind: ServiceAccount
+  name: gok-agent
+  namespace: default

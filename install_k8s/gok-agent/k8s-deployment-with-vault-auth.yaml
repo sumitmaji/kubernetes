@@ -1,0 +1,238 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gok-agent
+  namespace: default
+  labels:
+    app: gok-agent
+    component: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gok-agent
+      component: agent
+  template:
+    metadata:
+      labels:
+        app: gok-agent
+        component: agent
+    spec:
+      serviceAccountName: gok-agent
+      containers:
+      - name: gok-agent
+        image: your-registry/gok-agent:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        # Vault Configuration for K8s Service Account Auth
+        - name: VAULT_ADDR
+          value: "http://vault.vault:8200"  # Adjust for your Vault URL
+        - name: VAULT_K8S_ROLE
+          value: "gok-agent"
+        - name: VAULT_K8S_AUTH_PATH
+          value: "kubernetes"
+        - name: VAULT_PATH
+          value: "secret/data/rabbitmq"
+        
+        # RabbitMQ Connection Configuration
+        - name: RABBITMQ_HOST
+          value: "rabbitmq.rabbitmq"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_VHOST
+          value: "/"
+        
+        # Application Configuration
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: MESSAGE_QUEUE
+          value: "task_queue"
+        
+        # Health check and resource configuration
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        ports:
+        - containerPort: 8080
+          name: http
+        
+        # Mount service account token (automatically mounted)
+        volumeMounts:
+        - name: service-account-token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+      
+      volumes:
+      - name: service-account-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+          - downwardAPI:
+              items:
+              - path: namespace
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gok-controller
+  namespace: default
+  labels:
+    app: gok-controller
+    component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gok-controller
+      component: controller
+  template:
+    metadata:
+      labels:
+        app: gok-controller
+        component: controller
+    spec:
+      serviceAccountName: gok-agent
+      containers:
+      - name: gok-controller
+        image: your-registry/gok-controller:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        # Vault Configuration for K8s Service Account Auth
+        - name: VAULT_ADDR
+          value: "http://vault.vault:8200"  # Adjust for your Vault URL
+        - name: VAULT_K8S_ROLE
+          value: "gok-agent"
+        - name: VAULT_K8S_AUTH_PATH
+          value: "kubernetes"
+        - name: VAULT_PATH
+          value: "secret/data/rabbitmq"
+        
+        # RabbitMQ Connection Configuration
+        - name: RABBITMQ_HOST
+          value: "rabbitmq.rabbitmq"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_VHOST
+          value: "/"
+        
+        # Application Configuration
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: MESSAGE_QUEUE
+          value: "task_queue"
+        
+        # Health check and resource configuration
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        
+        ports:
+        - containerPort: 8080
+          name: http
+        
+        # Mount service account token (automatically mounted)
+        volumeMounts:
+        - name: service-account-token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+      
+      volumes:
+      - name: service-account-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+          - downwardAPI:
+              items:
+              - path: namespace
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gok-agent-service
+  namespace: default
+  labels:
+    app: gok-agent
+spec:
+  selector:
+    app: gok-agent
+    component: agent
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gok-controller-service
+  namespace: default
+  labels:
+    app: gok-controller
+spec:
+  selector:
+    app: gok-controller
+    component: controller
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  type: ClusterIP

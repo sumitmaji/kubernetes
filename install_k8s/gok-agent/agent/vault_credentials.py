@@ -7,6 +7,8 @@ import os
 import json
 import subprocess
 import logging
+import requests
+import time
 from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
 
@@ -24,26 +26,101 @@ class RabbitMQCredentials:
     virtual_host: str = "/"
     
 class VaultCredentialManager:
-    """Manager class for Vault credential operations"""
+    """Manager class for Vault credential operations with Kubernetes Service Account support"""
     
     def __init__(self, 
                  vault_addr: str = None, 
                  vault_token: str = None,
-                 vault_path: str = "secret/rabbitmq"):
+                 vault_path: str = "secret/rabbitmq",
+                 vault_role: str = None,
+                 k8s_auth_path: str = "auth/kubernetes",
+                 service_account_token_path: str = "/var/run/secrets/kubernetes.io/serviceaccount/token"):
         """
         Initialize Vault credential manager
         
         Args:
             vault_addr: Vault server address
-            vault_token: Vault authentication token  
+            vault_token: Vault authentication token (optional if using K8s auth)
             vault_path: Path to RabbitMQ credentials in Vault
+            vault_role: Kubernetes auth role for service account
+            k8s_auth_path: Vault Kubernetes auth path
+            service_account_token_path: Path to Kubernetes service account token
         """
-        self.vault_addr = vault_addr or os.getenv('VAULT_ADDR', 'http://localhost:8200')
+        self.vault_addr = vault_addr or os.getenv('VAULT_ADDR', 'http://vault.vault:8200')
         self.vault_token = vault_token or os.getenv('VAULT_TOKEN')
         self.vault_path = vault_path or os.getenv('VAULT_PATH', 'secret/rabbitmq')
+        self.vault_role = vault_role or os.getenv('VAULT_K8S_ROLE', 'gok-agent-role')
+        self.k8s_auth_path = k8s_auth_path
+        self.service_account_token_path = service_account_token_path
+        
+        # Try to authenticate with Kubernetes service account if no token provided
+        if not self.vault_token:
+            logger.info("No VAULT_TOKEN provided, attempting Kubernetes service account authentication")
+            self.vault_token = self._authenticate_with_k8s_service_account()
         
         if not self.vault_token:
-            logger.warning("VAULT_TOKEN not provided. Some operations may fail.")
+            logger.warning("No Vault token available. Some operations may fail.")
+    
+    def _authenticate_with_k8s_service_account(self) -> Optional[str]:
+        """
+        Authenticate with Vault using Kubernetes service account token
+        
+        Returns:
+            Vault token if successful, None otherwise
+        """
+        try:
+            # Check if service account token exists
+            if not os.path.exists(self.service_account_token_path):
+                logger.warning(f"Service account token not found at {self.service_account_token_path}")
+                return None
+            
+            # Read the service account token
+            with open(self.service_account_token_path, 'r') as f:
+                jwt_token = f.read().strip()
+            
+            if not jwt_token:
+                logger.warning("Service account token is empty")
+                return None
+            
+            logger.info(f"Authenticating with Vault using Kubernetes service account (role: {self.vault_role})")
+            
+            # Authenticate with Vault using the service account token
+            auth_url = f"{self.vault_addr}/v1/{self.k8s_auth_path}/login"
+            
+            auth_data = {
+                "role": self.vault_role,
+                "jwt": jwt_token
+            }
+            
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.post(auth_url, json=auth_data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                auth_response = response.json()
+                vault_token = auth_response.get('auth', {}).get('client_token')
+                
+                if vault_token:
+                    logger.info("Successfully authenticated with Vault using Kubernetes service account")
+                    return vault_token
+                else:
+                    logger.error("No client_token in Vault authentication response")
+                    return None
+            else:
+                logger.error(f"Vault authentication failed: {response.status_code} - {response.text}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error during Vault authentication: {e}")
+            return None
+        except FileNotFoundError:
+            logger.warning("Service account token file not found - not running in Kubernetes?")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error during Vault authentication: {e}")
+            return None
     
     def _run_vault_command(self, command: list) -> Tuple[bool, str]:
         """
@@ -98,6 +175,59 @@ class VaultCredentialManager:
             logger.error(f"Vault is not accessible: {output}")
             return False
     
+    def _refresh_token_if_needed(self) -> bool:
+        """
+        Refresh Vault token if it's expired or about to expire
+        
+        Returns:
+            True if token is valid or successfully refreshed, False otherwise
+        """
+        if not self.vault_token:
+            # Try to get a new token using service account
+            self.vault_token = self._authenticate_with_k8s_service_account()
+            return self.vault_token is not None
+        
+        # Check if current token is valid
+        try:
+            headers = {"X-Vault-Token": self.vault_token}
+            response = requests.get(f"{self.vault_addr}/v1/auth/token/lookup-self", 
+                                  headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                token_info = response.json()
+                ttl = token_info.get('data', {}).get('ttl', 0)
+                
+                # If token expires in less than 5 minutes, refresh it
+                if ttl < 300:
+                    logger.info("Token expires soon, refreshing...")
+                    new_token = self._authenticate_with_k8s_service_account()
+                    if new_token:
+                        self.vault_token = new_token
+                        return True
+                    else:
+                        logger.warning("Failed to refresh token")
+                        return False
+                
+                return True  # Token is still valid
+            else:
+                # Token is invalid, try to get a new one
+                logger.warning("Current token is invalid, attempting to refresh")
+                new_token = self._authenticate_with_k8s_service_account()
+                if new_token:
+                    self.vault_token = new_token
+                    return True
+                else:
+                    return False
+                    
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error checking token validity: {e}")
+            # Try to refresh anyway
+            new_token = self._authenticate_with_k8s_service_account()
+            if new_token:
+                self.vault_token = new_token
+                return True
+            return False
+    
     def get_rabbitmq_credentials(self) -> Optional[RabbitMQCredentials]:
         """
         Retrieve RabbitMQ credentials from Vault
@@ -105,43 +235,45 @@ class VaultCredentialManager:
         Returns:
             RabbitMQCredentials object or None if failed
         """
-        if not self.vault_token:
-            logger.error("Vault token not available")
+        # Ensure we have a valid token
+        if not self._refresh_token_if_needed():
+            logger.error("Cannot obtain valid Vault token")
             return None
         
         logger.info(f"Retrieving RabbitMQ credentials from Vault path: {self.vault_path}")
         
-        # Get credentials from Vault
-        success, output = self._run_vault_command([
-            'kv', 'get', '-format=json', self.vault_path
-        ])
-        
-        if not success:
-            logger.error(f"Failed to retrieve credentials: {output}")
-            return None
-        
         try:
-            secret_data = json.loads(output)
-            data = secret_data.get('data', {}).get('data', {})
+            # Use REST API to get credentials from Vault
+            headers = {"X-Vault-Token": self.vault_token}
+            url = f"{self.vault_addr}/v1/{self.vault_path}"
             
-            username = data.get('username')
-            password = data.get('password')
+            response = requests.get(url, headers=headers, timeout=30)
             
-            if not username or not password:
-                logger.error("Username or password not found in Vault secret")
+            if response.status_code == 200:
+                secret_data = response.json()
+                data = secret_data.get('data', {}).get('data', {})
+                
+                username = data.get('username')
+                password = data.get('password')
+                
+                if not username or not password:
+                    logger.error("Username or password not found in Vault secret")
+                    return None
+                
+                logger.info("Successfully retrieved RabbitMQ credentials from Vault")
+                return RabbitMQCredentials(
+                    username=username,
+                    password=password,
+                    host=os.getenv('RABBITMQ_HOST', 'rabbitmq.rabbitmq'),
+                    port=int(os.getenv('RABBITMQ_PORT', '5672')),
+                    virtual_host=os.getenv('RABBITMQ_VHOST', '/')
+                )
+            else:
+                logger.error(f"Failed to retrieve credentials from Vault: {response.status_code} - {response.text}")
                 return None
-            
-            logger.info("Successfully retrieved RabbitMQ credentials from Vault")
-            return RabbitMQCredentials(
-                username=username,
-                password=password,
-                host=os.getenv('RABBITMQ_HOST', 'rabbitmq.rabbitmq'),
-                port=int(os.getenv('RABBITMQ_PORT', '5672')),
-                virtual_host=os.getenv('RABBITMQ_VHOST', '/')
-            )
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Vault response: {e}")
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error retrieving credentials: {e}")
             return None
         except Exception as e:
             logger.error(f"Error processing Vault credentials: {e}")
