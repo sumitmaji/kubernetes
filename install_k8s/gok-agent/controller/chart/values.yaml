@@ -2,7 +2,13 @@ replicaCount: 1
 image:
   api: registry.gokcloud.com/web-controller:latest
   
-rabbitmqHost: rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat
+rabbitmqHost: rabbitmq.rabbitmq.svc.cluster.local
+
+env:
+  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.local"
+  # RabbitMQ credentials (optional - will be retrieved from Kubernetes secret if not provided)
+  # RABBITMQ_USER: "custom-user"
+  # RABBITMQ_PASSWORD: "custom-password"
 
 service:
   type: ClusterIP

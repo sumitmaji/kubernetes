@@ -4,6 +4,8 @@ import json
 import pika
 import logging
 import requests
+import base64
+import subprocess
 from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
@@ -26,9 +28,47 @@ logger.handlers = [console_handler]
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID")
 REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "user")
-RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "mq")
-RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "rabbitmq")
-RABBITMQ_PASSWORD = os.environ.get("RABBITMQ_PASSWORD", "rabbitmq")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq.svc.cluster.local")
+
+def get_rabbitmq_credentials():
+    """
+    Try to get RabbitMQ credentials from Kubernetes secret
+    """
+    try:
+        # Get username
+        result = subprocess.run([
+            'kubectl', 'get', 'secret', 'rabbitmq-default-user', 
+            '-n', 'rabbitmq', '-o', 'jsonpath={.data.username}'
+        ], capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            logging.warning("Could not retrieve RabbitMQ username from Kubernetes secret")
+            return None, None
+            
+        username = base64.b64decode(result.stdout).decode()
+        
+        # Get password
+        result = subprocess.run([
+            'kubectl', 'get', 'secret', 'rabbitmq-default-user', 
+            '-n', 'rabbitmq', '-o', 'jsonpath={.data.password}'
+        ], capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            logging.warning("Could not retrieve RabbitMQ password from Kubernetes secret")
+            return username, None
+            
+        password = base64.b64decode(result.stdout).decode()
+        logging.info("Successfully retrieved RabbitMQ credentials from Kubernetes")
+        return username, password
+        
+    except Exception as e:
+        logging.error(f"Failed to retrieve RabbitMQ credentials from Kubernetes: {e}")
+        return None, None
+
+# Get RabbitMQ credentials from Kubernetes or use environment variables as fallback
+RABBITMQ_USER_K8S, RABBITMQ_PASSWORD_K8S = get_rabbitmq_credentials()
+RABBITMQ_USER = RABBITMQ_USER_K8S or os.environ.get("RABBITMQ_USER", "guest")
+RABBITMQ_PASSWORD = RABBITMQ_PASSWORD_K8S or os.environ.get("RABBITMQ_PASSWORD", "guest")
 
 # --- Vault secret reload logic ---
 class SecretReloadHandler(FileSystemEventHandler):

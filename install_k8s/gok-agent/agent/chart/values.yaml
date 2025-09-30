@@ -13,4 +13,7 @@ env:
   OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
   OAUTH_CLIENT_ID: "gok-developers-client"
   REQUIRED_ROLE: "administrators"
-  RABBITMQ_HOST: "rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat"
+  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.local"
+  # RabbitMQ credentials (optional - will be retrieved from Kubernetes secret if not provided)
+  # RABBITMQ_USER: "custom-user"
+  # RABBITMQ_PASSWORD: "custom-password"

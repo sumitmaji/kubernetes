@@ -40,6 +40,14 @@ spec:
               value: "{{ .Values.env.REQUIRED_ROLE }}"
             - name: RABBITMQ_HOST
               value: "{{ .Values.env.RABBITMQ_HOST }}"
+            {{- if .Values.env.RABBITMQ_USER }}
+            - name: RABBITMQ_USER
+              value: "{{ .Values.env.RABBITMQ_USER }}"
+            {{- end }}
+            {{- if .Values.env.RABBITMQ_PASSWORD }}
+            - name: RABBITMQ_PASSWORD
+              value: "{{ .Values.env.RABBITMQ_PASSWORD }}"
+            {{- end }}
             - name: REQUESTS_CA_BUNDLE
               value: /usr/local/share/ca-certificates/issuer.crt
       volumes:

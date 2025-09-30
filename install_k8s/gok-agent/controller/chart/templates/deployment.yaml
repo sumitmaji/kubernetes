@@ -39,7 +39,15 @@ spec:
             - name: VAULT_SECRETS_PATH
               value: "/vault/secrets"
             - name: RABBITMQ_HOST
-              value: "{{ .Values.rabbitmqHost }}"
+              value: "{{ .Values.env.RABBITMQ_HOST }}"
+            {{- if .Values.env.RABBITMQ_USER }}
+            - name: RABBITMQ_USER
+              value: "{{ .Values.env.RABBITMQ_USER }}"
+            {{- end }}
+            {{- if .Values.env.RABBITMQ_PASSWORD }}
+            - name: RABBITMQ_PASSWORD
+              value: "{{ .Values.env.RABBITMQ_PASSWORD }}"
+            {{- end }}
             - name: OAUTH_ISSUER
               value: "{{ .Values.oidc.issuer }}"
             - name: OAUTH_CLIENT_ID

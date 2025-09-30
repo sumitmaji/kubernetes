@@ -5,6 +5,87 @@
 - `rabbitmq_test.py` - Python test program for RabbitMQ messaging
 - `README.md` - This reference file
 
+## 🔐 RabbitMQ Credentials Flow
+
+### How Credentials Are Obtained:
+The credentials are retrieved from **Kubernetes secrets** using the `get_rabbitmq_credentials()` function in `rabbitmq_test.py`:
+
+```python
+def get_rabbitmq_credentials():
+    # Get username from Kubernetes secret
+    result = subprocess.run([
+        'kubectl', 'get', 'secret', 'rabbitmq-default-user', 
+        '-n', 'rabbitmq', '-o', 'jsonpath={.data.username}'
+    ], capture_output=True, text=True)
+    
+    username = base64.b64decode(result.stdout).decode()
+    
+    # Get password from Kubernetes secret
+    result = subprocess.run([
+        'kubectl', 'get', 'secret', 'rabbitmq-default-user', 
+        '-n', 'rabbitmq', '-o', 'jsonpath={.data.password}'
+    ], capture_output=True, text=True)
+    
+    password = base64.b64decode(result.stdout).decode()
+    return username, password
+```
+
+### Where Credentials Come From:
+The **RabbitMQ Cluster Operator** automatically creates a Kubernetes secret called `rabbitmq-default-user` in the `rabbitmq` namespace when it sets up the RabbitMQ cluster. This secret contains:
+
+- **Username**: Base64-encoded default username
+- **Password**: Base64-encoded randomly generated password
+
+### How Credentials Are Passed:
+```python
+def main():
+    # Step 1: Get credentials from Kubernetes
+    username, password = get_rabbitmq_credentials()
+    
+    # Step 2: Create config with credentials or fallback
+    config = {
+        'host': 'localhost',
+        'port': 5672,
+        'username': username or 'guest',  # Use retrieved username or fallback
+        'password': password or 'guest'   # Use retrieved password or fallback
+    }
+    
+    # Step 3: Pass to RabbitMQ connection
+    tester = RabbitMQTester(**config)
+```
+
+### Where Credentials Are Used:
+In the `RabbitMQTester` class constructor:
+```python
+def __init__(self, host='localhost', port=5672, username='user', password='password'):
+    self.credentials = pika.PlainCredentials(username, password)
+    self.connection_params = pika.ConnectionParameters(
+        host=self.host,
+        port=self.port,
+        credentials=self.credentials  # Used here for RabbitMQ connection
+    )
+```
+
+### Manual Credential Verification:
+You can manually check these credentials by running:
+```bash
+# Get username
+kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.username}' | base64 --decode
+
+# Get password
+kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.password}' | base64 --decode
+
+# View the entire secret
+kubectl get secret rabbitmq-default-user -n rabbitmq -o yaml
+```
+
+### Fallback Logic:
+If the script cannot retrieve credentials from Kubernetes:
+- **Falls back to**: `username='guest'`, `password='guest'`
+- **Shows warning**: "Using default credentials (guest/guest)"
+
+When you see "✅ Retrieved credentials from Kubernetes" in successful test runs, it means the script successfully got the real RabbitMQ credentials from the Kubernetes secret created by the RabbitMQ Cluster Operator!
+
 ## Usage:
 
 ### Quick Test:
