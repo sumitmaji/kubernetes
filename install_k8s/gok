@@ -4226,22 +4226,122 @@ EOF
   docker exec -it halyard hal deploy apply
 }
 
+rabbitmqInst(){
+  echo "Installing RabbitMQ using Cluster Operator..."
+  
+  kubectl create namespace rabbitmq || true
+  createLocalStorageClassAndPV "rabbitmq-storage" "rabbitmq-pv" "/data/volumes/rabbitmq"
+  
+  # Install RabbitMQ Cluster Operator
+  kubectl apply -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"
+  
+  # Wait for operator to be ready
+  kubectl wait --for=condition=available deployment/rabbitmq-cluster-operator --timeout=300s -n rabbitmq-system
+  
+  # Create RabbitMQ cluster
+  cat <<EOF | kubectl apply -f -
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq
+  namespace: rabbitmq
+spec:
+  replicas: 3
+  image: rabbitmq:3.12-management
+  resources:
+    requests:
+      cpu: 256m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  rabbitmq:
+    additionalConfig: |
+      log.console.level = info
+      channel_max = 1700
+      default_user_tags.administrator = true
+      management.tcp.port = 15672
+  persistence:
+    storageClassName: rabbitmq-storage
+    storage: 10Gi
+  service:
+    type: ClusterIP
+  override:
+    statefulSet:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: rabbitmq
+              ports:
+              - containerPort: 5672
+                name: amqp
+              - containerPort: 15672
+                name: management
+EOF
+
+  # Create ingress for management UI
+  cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rabbitmq-management
+  namespace: rabbitmq
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: rabbitmq.$(rootDomain)
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rabbitmq
+            port:
+              number: 15672
+EOF
+
+  # Wait for RabbitMQ to be ready
+  kubectl wait --for=condition=Ready rabbitmqcluster/rabbitmq -n rabbitmq --timeout=600s
+  
+  # Get default credentials
+  echo "RabbitMQ default credentials:"
+  echo "Username: $(kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.username}' | base64 --decode)"
+  echo "Password: $(kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.password}' | base64 --decode)"
+  
+  gok patch ingress rabbitmq-management rabbitmq letsencrypt rabbitmq
+}
+
 rabbitmqReset(){
+  # Delete RabbitMQ cluster
+  kubectl delete rabbitmqcluster rabbitmq -n rabbitmq --ignore-not-found=true
+  
+  # Delete operator (optional - might affect other clusters)
+  # kubectl delete -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"
+  
+  # Clean up namespace and storage
+  kubectl delete namespace rabbitmq --ignore-not-found=true
+  emptyLocalFsStorage "RabbitMQ" "rabbitmq-pv" "rabbitmq-storage" "/data/volumes/rabbitmq"
+}
+
+
+rabbitmqResetLegacy(){
   kubectl delete all --all -n rabbitmq
   kubectl delete ns rabbitmq
   emptyLocalFsStorage "RabbitMQ" "rabbitmq-pv" "rabbitmq-storage" "/data/volumes/rabbitmq" "rabbitmq"
 }
 
-rabbitmqInst(){
+rabbitmqInstLegacy(){
   helm repo add bitnami https://charts.bitnami.com/bitnami
   helm repo update
 
   kubectl create namespace rabbitmq || true
   createLocalStorageClassAndPV "rabbitmq-storage" "rabbitmq-pv" "/data/volumes/rabbitmq"
   
-  helm upgrade --install rabbitmq oci://registry-1.docker.io/bitnami/rabbitmq \
-    --set image.repository=bitnamilegacy/rabbitmq \
-    --set image.tag=4.1.3-debian-12-r1 \
+  helm install rabbitmq bitnami/rabbitmq \
     --namespace rabbitmq \
     --create-namespace \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/rabbitmq/values.yaml
