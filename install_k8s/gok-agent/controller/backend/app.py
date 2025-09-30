@@ -28,7 +28,7 @@ logger.handlers = [console_handler]
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID")
 REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "user")
-RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq.svc.cluster.local")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq")
 
 def get_rabbitmq_credentials():
     """

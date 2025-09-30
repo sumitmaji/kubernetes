@@ -5,7 +5,7 @@
 ### 🔄 Migration from Bitnami to RabbitMQ Cluster Operator
 
 **Previous Setup:** Bitnami RabbitMQ with service `rabbitmq-0.rabbitmq-headless.rabbitmq.svc.cloud.uat`
-**New Setup:** RabbitMQ Cluster Operator with service `rabbitmq.rabbitmq.svc.cluster.local`
+**New Setup:** RabbitMQ Cluster Operator with service `rabbitmq.rabbitmq` (service.namespace pattern)
 
 ---
 
@@ -15,7 +15,7 @@
 
 #### **Changes:**
 - ✅ Added `import base64` for credential decoding
-- ✅ Updated default `RABBITMQ_HOST` to `rabbitmq.rabbitmq.svc.cluster.local`
+- ✅ Updated default `RABBITMQ_HOST` to `rabbitmq.rabbitmq.svc.cluster.uat`
 - ✅ Added `get_rabbitmq_credentials()` function to retrieve credentials from Kubernetes secret
 - ✅ Dynamic credential retrieval with fallback to environment variables
 
@@ -36,7 +36,7 @@ RABBITMQ_PASSWORD = RABBITMQ_PASSWORD_K8S or os.environ.get("RABBITMQ_PASSWORD",
 
 #### **Changes:**
 - ✅ Added `import base64` and `import subprocess` for credential retrieval
-- ✅ Updated default `RABBITMQ_HOST` to `rabbitmq.rabbitmq.svc.cluster.local`
+- ✅ Updated default `RABBITMQ_HOST` to `rabbitmq.rabbitmq.svc.cluster.uat`
 - ✅ Added identical `get_rabbitmq_credentials()` function
 - ✅ Same dynamic credential retrieval logic as agent
 
@@ -45,7 +45,7 @@ RABBITMQ_PASSWORD = RABBITMQ_PASSWORD_K8S or os.environ.get("RABBITMQ_PASSWORD",
 #### **Values.yaml (`agent/chart/values.yaml`):**
 ```yaml
 env:
-  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.local"
+  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.uat"
   # Optional credentials (will use Kubernetes secret if not provided)
   # RABBITMQ_USER: "custom-user"
   # RABBITMQ_PASSWORD: "custom-password"
@@ -59,10 +59,10 @@ env:
 
 #### **Values.yaml (`controller/chart/values.yaml`):**
 ```yaml
-rabbitmqHost: rabbitmq.rabbitmq.svc.cluster.local
+rabbitmqHost: rabbitmq.rabbitmq.svc.cluster.uat
 
 env:
-  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.local"
+  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.uat"
   # Optional credentials (will use Kubernetes secret if not provided)
 ```
 
@@ -129,7 +129,7 @@ kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.passwor
 ```yaml
 # agent/chart/values.yaml
 env:
-  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.local"
+  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.uat"
   # No username/password needed - will use Kubernetes secret
 ```
 
@@ -137,7 +137,7 @@ env:
 ```yaml
 # agent/chart/values.yaml
 env:
-  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.local"
+  RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.uat"
   RABBITMQ_USER: "custom-username"
   RABBITMQ_PASSWORD: "custom-password"
 ```

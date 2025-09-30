@@ -30,7 +30,7 @@ GROUP_COMMANDS = {
 OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://accounts.google.com")
 OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
 REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "administrators")
-RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq.svc.cluster.local")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq")
 RESULTS_QUEUE = 'results'
 
 def get_rabbitmq_credentials():
