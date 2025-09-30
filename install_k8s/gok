@@ -4320,7 +4320,7 @@ rabbitmqReset(){
   kubectl delete rabbitmqcluster rabbitmq -n rabbitmq --ignore-not-found=true
   
   # Delete operator (optional - might affect other clusters)
-  # kubectl delete -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"
+  kubectl delete -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"
   
   # Clean up namespace and storage
   kubectl delete namespace rabbitmq --ignore-not-found=true
