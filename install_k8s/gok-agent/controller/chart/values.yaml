@@ -1,6 +1,25 @@
 replicaCount: 1
+
 image:
   api: registry.gokcloud.com/web-controller:latest
+
+# Service Account configuration for Vault authentication
+serviceAccount:
+  create: true
+  name: gok-agent
+  annotations: {}
+  automountServiceAccountToken: true
+
+# RBAC configuration for Vault authentication
+rbac:
+  create: true
+  rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
   
 rabbitmqHost: rabbitmq.rabbitmq
 
@@ -42,7 +61,7 @@ vault:
   address: "http://vault.vault:8200"
   
   # Path to RabbitMQ credentials in Vault
-  credentialPath: "secret/rabbitmq"
+  credentialPath: "secret/data/rabbitmq"
   
   # Authentication method for Vault
   auth:
@@ -54,8 +73,10 @@ vault:
     
     # Kubernetes auth configuration
     kubernetes:
-      role: "gok-controller-role"
-      serviceAccount: "web-controller-sa"
+      role: "gok-agent"
+      authPath: "kubernetes"
+      serviceAccount: "gok-agent"
+      tokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
   
   # Fallback configuration if Vault is unavailable
   fallback:

@@ -7,7 +7,20 @@ image:
 
 serviceAccount:
   create: true
-  name: agent-backend-sa
+  name: gok-agent
+  annotations: {}
+  automountServiceAccountToken: true
+
+# RBAC configuration for Vault authentication
+rbac:
+  create: true
+  rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
 
 env:
   OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
@@ -30,7 +43,7 @@ vault:
   address: "http://vault.vault:8200"
   
   # Path to RabbitMQ credentials in Vault
-  credentialPath: "secret/rabbitmq"
+  credentialPath: "secret/data/rabbitmq"
   
   # Authentication method for Vault
   auth:
@@ -42,8 +55,10 @@ vault:
     
     # Kubernetes auth configuration
     kubernetes:
-      role: "gok-agent-role"
-      serviceAccount: "agent-backend-sa"
+      role: "gok-agent"
+      authPath: "kubernetes"
+      serviceAccount: "gok-agent"
+      tokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
   
   # Fallback configuration if Vault is unavailable
   fallback:

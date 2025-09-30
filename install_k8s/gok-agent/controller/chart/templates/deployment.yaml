@@ -13,18 +13,8 @@ spec:
     metadata:
       labels:
         app: web-controller
-      annotations:
-        vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "{{ .Values.vault.role }}"
-        vault.hashicorp.com/agent-inject-secret-web-controller: "{{ .Values.vault.secretPath }}"
-        vault.hashicorp.com/agent-inject-template-web-controller: |
-          {{`{{- printf "{\"api-token\": \"{{ .Data.api-token }}\"}" }}`}}
     spec:
-      volumes:
-        - name: ca-cert
-          configMap:
-            name: ca-cert
-      serviceAccountName: web-controller-sa
+      serviceAccountName: {{ .Values.serviceAccount.name | default "gok-agent" }}
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:
@@ -35,11 +25,27 @@ spec:
           - name: ca-cert
             mountPath: /usr/local/share/ca-certificates/issuer.crt
             subPath: issuer.crt
+          - name: service-account-token
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            readOnly: true
           env:
-            - name: VAULT_SECRETS_PATH
-              value: "/vault/secrets"
             - name: RABBITMQ_HOST
               value: "{{ .Values.env.RABBITMQ_HOST }}"
+            - name: RABBITMQ_PORT
+              value: "{{ .Values.env.RABBITMQ_PORT }}"
+            - name: RABBITMQ_VHOST
+              value: "{{ .Values.env.RABBITMQ_VHOST }}"
+            {{- if .Values.vault.enabled }}
+            # Vault Configuration for K8s Service Account Auth
+            - name: VAULT_ADDR
+              value: "{{ .Values.vault.address }}"
+            - name: VAULT_K8S_ROLE
+              value: "{{ .Values.vault.auth.kubernetes.role }}"
+            - name: VAULT_K8S_AUTH_PATH
+              value: "{{ .Values.vault.auth.kubernetes.authPath }}"
+            - name: VAULT_PATH
+              value: "{{ .Values.vault.credentialPath }}"
+            {{- end }}
             {{- if .Values.env.RABBITMQ_USER }}
             - name: RABBITMQ_USER
               value: "{{ .Values.env.RABBITMQ_USER }}"
@@ -56,4 +62,24 @@ spec:
               value: "{{ .Values.oidc.requiredGroup }}"
             - name: REQUESTS_CA_BUNDLE
               value: /usr/local/share/ca-certificates/issuer.crt
+      volumes:
+      - name: ca-cert
+        configMap:
+          name: ca-cert
+      - name: service-account-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+          - downwardAPI:
+              items:
+              - path: namespace
+                fieldRef:
+                  fieldPath: metadata.namespace
           
