@@ -4304,8 +4304,12 @@ spec:
               number: 15672
 EOF
 
-  # Wait for RabbitMQ to be ready
-  kubectl wait --for=condition=Ready rabbitmqcluster/rabbitmq -n rabbitmq --timeout=600s
+  # Wait for RabbitMQ to be ready - use the correct condition
+  echo "Waiting for RabbitMQ cluster to be ready..."
+  kubectl wait --for=condition=AllReplicasReady rabbitmqcluster/rabbitmq -n rabbitmq --timeout=600s
+  
+  # Alternative: Wait for the StatefulSet to be ready as well
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=rabbitmq -n rabbitmq --timeout=300s
   
   # Get default credentials
   echo "RabbitMQ default credentials:"
