@@ -5072,19 +5072,101 @@ check_ldap_status() {
 }
 
 check_keycloak_status() {
-  check_service_status "keycloak" "keycloak" "keycloak" "both"
+  # Keycloak uses StatefulSet instead of Deployment
+  if ! check_cluster_connectivity; then
+    echo "❌"
+    return
+  fi
+  
+  # Check Helm release first
+  local helm_status="❌"
+  if helm list -n keycloak 2>/dev/null | grep -q "^keycloak"; then
+    local status=$(helm list -n keycloak 2>/dev/null | grep "^keycloak" | awk '{print $8}')
+    if [[ "$status" == "deployed" ]]; then
+      helm_status="✅"
+    else
+      helm_status="⚠️"
+    fi
+  fi
+  
+  # Check StatefulSet status
+  local kubectl_status="❌"
+  if kubectl get statefulset keycloak -n keycloak &>/dev/null; then
+    local ready=$(kubectl get statefulset keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+    local desired=$(kubectl get statefulset keycloak -n keycloak -o jsonpath='{.spec.replicas}' 2>/dev/null)
+    if [[ "$ready" == "$desired" ]] && [[ "$ready" -gt 0 ]]; then
+      kubectl_status="✅"
+    else
+      kubectl_status="⚠️"
+    fi
+  fi
+  
+  # Combine statuses
+  if [[ "$helm_status" == "✅" ]] && [[ "$kubectl_status" == "✅" ]]; then
+    echo "✅"
+  elif [[ "$helm_status" == "❌" ]] && [[ "$kubectl_status" == "❌" ]]; then
+    echo "❌"
+  else
+    echo "⚠️"
+  fi
 }
 
 check_oauth2_status() {
-  check_service_status "oauth2-proxy" "oauth2-proxy" "oauth2-proxy" "both"
+  check_service_status "oauth2proxy-oauth2-proxy" "oauth2" "oauth2proxy" "both"
+}
+
+check_service_status_statefulset() {
+  local service_name="$1"
+  local namespace="$2" 
+  local helm_release="$3"
+  local resource_type="${4:-statefulset}"  # statefulset or deployment
+  
+  if ! check_cluster_connectivity; then
+    echo "❌"
+    return
+  fi
+  
+  # Check Helm release first
+  local helm_status="❌"
+  if helm list -n "$namespace" 2>/dev/null | grep -q "^$helm_release"; then
+    local status=$(helm list -n "$namespace" 2>/dev/null | grep "^$helm_release" | awk '{print $8}')
+    if [[ "$status" == "deployed" ]]; then
+      helm_status="✅"
+    else
+      helm_status="⚠️"
+    fi
+  fi
+  
+  # Check Kubernetes resource status
+  local kubectl_status="❌"
+  if kubectl get "$resource_type" "$service_name" -n "$namespace" &>/dev/null; then
+    local ready=$(kubectl get "$resource_type" "$service_name" -n "$namespace" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+    local desired=$(kubectl get "$resource_type" "$service_name" -n "$namespace" -o jsonpath='{.spec.replicas}' 2>/dev/null)
+    if [[ "$ready" == "$desired" ]] && [[ "$ready" -gt 0 ]]; then
+      kubectl_status="✅"
+    else
+      kubectl_status="⚠️"
+    fi
+  fi
+  
+  # Combine statuses
+  if [[ "$helm_status" == "✅" ]] && [[ "$kubectl_status" == "✅" ]]; then
+    echo "✅"
+  elif [[ "$helm_status" == "❌" ]] && [[ "$kubectl_status" == "❌" ]]; then
+    echo "❌"
+  else
+    echo "⚠️"
+  fi
 }
 
 check_rabbitmq_status() {
-  check_service_status "rabbitmq" "rabbitmq" "rabbitmq" "both"
+  # RabbitMQ typically uses StatefulSet for clustering
+  check_service_status_statefulset "rabbitmq" "rabbitmq" "rabbitmq" "statefulset"
 }
 
 check_vault_status() {
-  check_service_status "vault" "vault" "vault" "both"
+  # Vault uses StatefulSet in HA mode
+  check_service_status_statefulset "vault" "vault" "vault" "statefulset"
 }
 
 check_goklogin_status() {
@@ -5149,14 +5231,19 @@ function statusCmd() {
   # Monitoring & Observability Services
   echo "🔍 Monitoring & Observability:"
   local monitoring_services=(
-    "monitoring:prometheus-operator:monitoring:Prometheus/Grafana Monitoring"
-    "opensearch:opensearch:opensearch:OpenSearch Logging"
-    "fluentd:fluentd:fluentd:Log Collection"
+    "monitoring:prometheus-operator:monitoring:Prometheus/Grafana Monitoring:deployment"
+    "opensearch:opensearch-cluster-master:opensearch:OpenSearch Logging:statefulset"
+    "fluentd:fluentd:fluentd:Log Collection:deployment"
   )
   
   for service_info in "${monitoring_services[@]}"; do
-    IFS=':' read -r service_name deployment_name namespace description <<< "$service_info"
-    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")" "$description"
+    IFS=':' read -r service_name deployment_name namespace description resource_type <<< "$service_info"
+    if [[ "$resource_type" == "statefulset" ]]; then
+      status=$(check_service_status_statefulset "$deployment_name" "$namespace" "$service_name" "statefulset")
+    else
+      status=$(check_service_status "$deployment_name" "$namespace" "$service_name" "kubectl")
+    fi
+    printf "  %2d. %-15s %s  %s\n" $index "$service_name" "$status" "$description"
     ((index++))
   done
   
