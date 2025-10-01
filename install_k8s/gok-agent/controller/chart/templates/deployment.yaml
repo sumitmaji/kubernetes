@@ -14,7 +14,7 @@ spec:
       labels:
         app: web-controller
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name | default "gok-agent" }}
+      serviceAccountName: {{ .Values.serviceAccount.name | default "gok-controller" }}
       imagePullSecrets:
         - name: {{ .Values.imagePullSecret | default "regcred" }}
       containers:

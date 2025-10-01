@@ -6,7 +6,7 @@ image:
 # Service Account configuration for Vault authentication
 serviceAccount:
   create: true
-  name: gok-agent
+  name: gok-controller
   annotations: {}
   automountServiceAccountToken: true
 
@@ -28,9 +28,11 @@ env:
   RABBITMQ_PORT: "5672"
   RABBITMQ_VHOST: "/"
   
-  # Vault Configuration for RabbitMQ credentials
-  VAULT_ADDR: "http://vault.vault:8200"
-  VAULT_PATH: "secret/rabbitmq"
+  # Vault Configuration for RabbitMQ credentials (matches setup_vault_k8s_auth.sh)
+  VAULT_ADDR: "http://vault.vault.svc.cloud.uat:8200"
+  VAULT_K8S_AUTH_PATH: "kubernetes"
+  VAULT_K8S_ROLE: "gok-controller"
+  VAULT_PATH: "secret/data/rabbitmq"
 
 service:
   type: ClusterIP
@@ -57,8 +59,8 @@ vault:
   # Enable Vault integration for RabbitMQ credentials
   enabled: true
   
-  # Vault server configuration  
-  address: "http://vault.vault:8200"
+  # Vault server configuration (using service URL with cloud.uat domain)
+  address: "http://vault.vault.svc.cloud.uat:8200"
   
   # Path to RabbitMQ credentials in Vault
   credentialPath: "secret/data/rabbitmq"
@@ -71,11 +73,12 @@ vault:
     # method: "token"
     # token: "vault-token-here"
     
-    # Kubernetes auth configuration
+    # Kubernetes auth configuration (matches setup_vault_k8s_auth.sh)
     kubernetes:
-      role: "gok-agent"
+      role: "gok-controller"
       authPath: "kubernetes"
-      serviceAccount: "gok-agent"
+      serviceAccount: "gok-controller"
+      namespace: "gok-controller"
       tokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
   
   # Fallback configuration if Vault is unavailable

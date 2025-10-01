@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault-test-gok-agent
+  namespace: gok-agent
+spec:
+  serviceAccountName: gok-agent
+  containers:
+  - name: vault-client
+    image: vault:1.20.4
+    command: ['sh', '-c', 'sleep 3600']
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vault-test-gok-controller  
+  namespace: gok-controller
+spec:
+  serviceAccountName: gok-controller
+  containers:
+  - name: vault-client
+    image: vault:1.20.4
+    command: ['sh', '-c', 'sleep 3600']
+  restartPolicy: Never

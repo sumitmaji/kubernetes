@@ -8,20 +8,29 @@ set -e
 # Auto-discovered configuration (will be populated by discovery functions)
 VAULT_NAMESPACE=""
 VAULT_POD=""
-VAULT_SERVICE_IP=""
-VAULT_ROOT_TOKEN=""
+VAULT_SERVICE_NAME=""
+VAULT_TOKEN=""
 AUTO_DISCOVERED="false"
 
 # Configuration variables with auto-discovery fallbacks
 VAULT_ADDR="${VAULT_ADDR:-}"
 VAULT_TOKEN="${VAULT_TOKEN:-}"
 K8S_AUTH_PATH="${K8S_AUTH_PATH:-kubernetes}"
-VAULT_ROLE="${VAULT_ROLE:-gok-agent}"
-SERVICE_ACCOUNT_NAME="${SERVICE_ACCOUNT_NAME:-gok-agent}"
-SERVICE_ACCOUNT_NAMESPACE="${SERVICE_ACCOUNT_NAMESPACE:-default}"
+
+# Multiple service accounts configuration
+# Support for gok-agent and gok-controller namespaces
+SERVICE_ACCOUNTS=(
+    "gok-agent:gok-agent"    # service_account:namespace
+    "gok-controller:gok-controller"
+)
 POLICY_NAME="${POLICY_NAME:-rabbitmq-policy}"
 SECRET_PATH="${SECRET_PATH:-secret/data/rabbitmq}"
 TOKEN_TTL="${TOKEN_TTL:-24h}"
+
+# Legacy single service account support (for backward compatibility)
+VAULT_ROLE="${VAULT_ROLE:-gok-agent}"
+SERVICE_ACCOUNT_NAME="${SERVICE_ACCOUNT_NAME:-gok-agent}"
+SERVICE_ACCOUNT_NAMESPACE="${SERVICE_ACCOUNT_NAMESPACE:-gok-agent}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -70,20 +79,20 @@ auto_discover_vault_config() {
     fi
     log_success "Found Vault pod: $VAULT_POD"
     
-    # Discover Vault service IP
-    VAULT_SERVICE_IP=$(kubectl get service vault -n "$VAULT_NAMESPACE" -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
-    if [ -z "$VAULT_SERVICE_IP" ]; then
-        VAULT_SERVICE_IP=$(kubectl get services -n "$VAULT_NAMESPACE" 2>/dev/null | grep vault | grep -v agent | head -1 | awk '{print $3}')
+    # Discover Vault service name and construct service URL
+    VAULT_SERVICE_NAME=$(kubectl get service -n "$VAULT_NAMESPACE" -l "app.kubernetes.io/name=vault" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -z "$VAULT_SERVICE_NAME" ]; then
+        VAULT_SERVICE_NAME=$(kubectl get services -n "$VAULT_NAMESPACE" 2>/dev/null | grep vault | grep -v agent | head -1 | awk '{print $1}')
     fi
-    if [ -z "$VAULT_SERVICE_IP" ]; then
-        log_error "Could not discover Vault service IP"
+    if [ -z "$VAULT_SERVICE_NAME" ]; then
+        log_error "Could not discover Vault service name"
         return 1
     fi
-    log_success "Found Vault service IP: $VAULT_SERVICE_IP"
+    log_success "Found Vault service: $VAULT_SERVICE_NAME"
     
-    # Set Vault address if not provided
+    # Set Vault address if not provided (using service URL)
     if [ -z "$VAULT_ADDR" ]; then
-        VAULT_ADDR="http://$VAULT_SERVICE_IP:8200"
+        VAULT_ADDR="http://$VAULT_SERVICE_NAME.$VAULT_NAMESPACE.svc.cloud.uat:8200"
         log_info "Auto-configured Vault address: $VAULT_ADDR"
     fi
     
@@ -421,110 +430,174 @@ EOF
     log_success "Created Vault policy: $POLICY_NAME"
 }
 
-# Create Vault role for service account
-create_vault_role() {
-    log_info "Creating Vault role: $VAULT_ROLE"
+# Create service accounts if they don't exist
+create_service_accounts() {
+    log_info "Checking and creating service accounts if needed..."
     
-    vault_exec "vault write auth/${K8S_AUTH_PATH}/role/${VAULT_ROLE} bound_service_account_names='$SERVICE_ACCOUNT_NAME' bound_service_account_namespaces='$SERVICE_ACCOUNT_NAMESPACE' policies='$POLICY_NAME' ttl='$TOKEN_TTL'"
-    
-    log_success "Created Vault role: $VAULT_ROLE"
+    for service_account_entry in "${SERVICE_ACCOUNTS[@]}"; do
+        IFS=':' read -r sa_name sa_namespace <<< "$service_account_entry"
+        
+        # Check if namespace exists, create if needed
+        if ! kubectl get namespace "$sa_namespace" >/dev/null 2>&1; then
+            log_info "Creating namespace: $sa_namespace"
+            kubectl create namespace "$sa_namespace" || log_warning "Failed to create namespace $sa_namespace"
+        fi
+        
+        # Check if service account exists, create if needed  
+        if kubectl get serviceaccount "$sa_name" -n "$sa_namespace" >/dev/null 2>&1; then
+            log_info "Service account $sa_name already exists in namespace $sa_namespace"
+        else
+            log_info "Creating service account: $sa_name in namespace $sa_namespace"
+            kubectl create serviceaccount "$sa_name" -n "$sa_namespace" || log_warning "Failed to create service account $sa_name in namespace $sa_namespace"
+            log_success "Created service account: $sa_name in namespace $sa_namespace"
+        fi
+    done
 }
 
-# Test the authentication setup
+# Create Vault roles for multiple service accounts
+create_vault_role() {
+    log_info "Creating Vault roles for multiple service accounts..."
+    
+    # Create roles for each service account
+    for service_account_entry in "${SERVICE_ACCOUNTS[@]}"; do
+        IFS=':' read -r sa_name sa_namespace <<< "$service_account_entry"
+        role_name="$sa_name"
+        
+        log_info "Creating Vault role: $role_name for service account $sa_name in namespace $sa_namespace"
+        
+        # Check if service account exists
+        if kubectl get serviceaccount "$sa_name" -n "$sa_namespace" >/dev/null 2>&1; then
+            log_info "Service account $sa_name exists in namespace $sa_namespace"
+        else
+            log_warning "Service account $sa_name does not exist in namespace $sa_namespace - creating role anyway"
+        fi
+        
+        vault_exec "vault write auth/${K8S_AUTH_PATH}/role/${role_name} bound_service_account_names='${sa_name}' bound_service_account_namespaces='${sa_namespace}' policies='${POLICY_NAME}' ttl='${TOKEN_TTL}'"
+        
+        log_success "Created Vault role: $role_name"
+    done
+    
+    # Also create the legacy single role for backward compatibility
+    if [[ -n "$VAULT_ROLE" && -n "$SERVICE_ACCOUNT_NAME" ]]; then
+        log_info "Creating legacy Vault role: $VAULT_ROLE"
+        vault_exec "vault write auth/${K8S_AUTH_PATH}/role/${VAULT_ROLE} bound_service_account_names='$SERVICE_ACCOUNT_NAME' bound_service_account_namespaces='$SERVICE_ACCOUNT_NAMESPACE' policies='$POLICY_NAME' ttl='$TOKEN_TTL'"
+        log_success "Created legacy Vault role: $VAULT_ROLE"
+    fi
+}
+
+# Test the authentication setup for multiple service accounts
 test_authentication() {
-    log_info "Testing Kubernetes Service Account authentication"
+    log_info "Testing Kubernetes Service Account authentication for multiple service accounts"
     
     # Disable exit on error for this function to prevent silent exits
     set +e
     
-    # Get a fresh service account token for testing
-    if command -v kubectl >/dev/null 2>&1 && kubectl get serviceaccount "$SERVICE_ACCOUNT_NAME" -n "$SERVICE_ACCOUNT_NAMESPACE" >/dev/null 2>&1; then
-        local test_token=$(kubectl create token "$SERVICE_ACCOUNT_NAME" -n "$SERVICE_ACCOUNT_NAMESPACE" --duration=1h 2>/dev/null)
+    local overall_success=true
+    
+    # Test each service account
+    for service_account_entry in "${SERVICE_ACCOUNTS[@]}"; do
+        IFS=':' read -r sa_name sa_namespace <<< "$service_account_entry"
+        role_name="$sa_name"
         
-        if [[ -n "$test_token" ]]; then
-            log_info "Testing authentication with fresh service account token"
+        log_info "Testing authentication for service account: $sa_name in namespace: $sa_namespace"
+        
+        # Check if service account exists and get token
+        if command -v kubectl >/dev/null 2>&1 && kubectl get serviceaccount "$sa_name" -n "$sa_namespace" >/dev/null 2>&1; then
+            local test_token
+            test_token=$(kubectl create token "$sa_name" -n "$sa_namespace" --duration=1h 2>/dev/null)
             
-            # Test authentication
-            local auth_response
-            if [[ "$USE_POD_EXECUTION" == "true" ]]; then
-                log_info "Testing with pod execution: role=$VAULT_ROLE, namespace=$SERVICE_ACCOUNT_NAMESPACE"
-                log_info "About to execute kubectl command..."
-                log_info "Command: kubectl exec -n $VAULT_NAMESPACE $VAULT_POD -- env VAULT_TOKEN=*** vault write -format=json auth/${K8S_AUTH_PATH}/login role=$VAULT_ROLE jwt=[TOKEN]"
+            if [[ -n "$test_token" ]]; then
+                log_info "Testing authentication with fresh service account token for role: $role_name"
                 
-                auth_response=$(kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault write -format=json "auth/${K8S_AUTH_PATH}/login" role="$VAULT_ROLE" jwt="$test_token" 2>&1)
-                auth_exit_code=$?
-                
-                log_info "kubectl exec completed with exit code: $auth_exit_code"
-            else
-                auth_response=$(vault write -format=json "auth/${K8S_AUTH_PATH}/login" \
-                    role="$VAULT_ROLE" \
-                    jwt="$test_token" 2>&1)
-                auth_exit_code=$?
-            fi
-            
-            log_info "Authentication response exit code: $auth_exit_code"
-            log_info "Auth response (first 200 chars): ${auth_response:0:200}..."
-            
-            # Check if authentication actually succeeded despite CLI error
-            # The Vault CLI may return an error code even when authentication works
-            auth_succeeded=false
-            
-            if [[ $auth_exit_code -eq 0 ]]; then
-                auth_succeeded=true
-            else
-                # Test if authentication is actually working by checking for active leases
-                log_info "CLI returned error, but checking if authentication actually succeeded..."
-                
-                # Trigger authentication and then check for new leases
-                (kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault write "auth/${K8S_AUTH_PATH}/login" role="$VAULT_ROLE" jwt="$test_token" >/dev/null 2>&1 || true)
-                sleep 1
-                
-                # Check if there are active authentication leases
-                lease_check=$(kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault list "sys/leases/lookup/auth/${K8S_AUTH_PATH}/login/" 2>/dev/null | tail -1 || echo "")
-                
-                if [[ -n "$lease_check" && "$lease_check" != "Keys" && "$lease_check" != "----" ]]; then
-                    auth_succeeded=true
-                    log_info "Authentication verified successful via lease check"
-                fi
-            fi
-            
-            if [[ "$auth_succeeded" == "true" ]]; then
-                local client_token
-                local lease_duration
-                client_token=$(echo "$auth_response" | jq -r '.auth.client_token' 2>/dev/null || echo "")
-                lease_duration=$(echo "$auth_response" | jq -r '.auth.lease_duration' 2>/dev/null || echo "")
-                
-                if [[ -n "$client_token" ]]; then
-                    log_success "Authentication test successful!"
-                    log_info "  Client token: ${client_token:0:20}..."
-                    log_info "  Lease duration: ${lease_duration}s"
-                else
-                    log_success "Authentication test successful! (verified via lease creation)"
-                    log_info "  Vault confirmed authentication by creating active lease"
-                fi
-                
-                # Test secret access
-                log_info "Testing secret access"
+                # Test authentication
+                local auth_response
                 if [[ "$USE_POD_EXECUTION" == "true" ]]; then
-                    kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                    log_info "Testing with pod execution: role=$role_name, namespace=$sa_namespace"
+                    log_info "About to execute kubectl command..."
+                    log_info "Command: kubectl exec -n $VAULT_NAMESPACE $VAULT_POD -- env VAULT_TOKEN=*** vault write -format=json auth/${K8S_AUTH_PATH}/login role=$role_name jwt=[TOKEN]"
+                    
+                    auth_response=$(kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault write -format=json "auth/${K8S_AUTH_PATH}/login" role="$role_name" jwt="$test_token" 2>&1)
+                    auth_exit_code=$?
+                    
+                    log_info "kubectl exec completed with exit code: $auth_exit_code"
                 else
-                    VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                    auth_response=$(vault write -format=json "auth/${K8S_AUTH_PATH}/login" \
+                        role="$role_name" \
+                        jwt="$test_token" 2>&1)
+                    auth_exit_code=$?
                 fi
-                if [[ $? -eq 0 ]]; then
-                    log_success "Secret access test successful!"
+                
+                log_info "Authentication response exit code: $auth_exit_code"
+                log_info "Auth response (first 200 chars): ${auth_response:0:200}..."
+                
+                # Check if authentication actually succeeded despite CLI error
+                auth_succeeded=false
+                
+                if [[ $auth_exit_code -eq 0 ]]; then
+                    auth_succeeded=true
                 else
-                    log_warning "Secret access test failed (this is expected if secret doesn't exist yet)"
+                    # Test if authentication is actually working by checking for active leases
+                    log_info "CLI returned error, but checking if authentication actually succeeded..."
+                    
+                    # Trigger authentication and then check for new leases
+                    (kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault write "auth/${K8S_AUTH_PATH}/login" role="$role_name" jwt="$test_token" >/dev/null 2>&1 || true)
+                    sleep 1
+                    
+                    # Check if there are active authentication leases
+                    lease_check=$(kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault list "sys/leases/lookup/auth/${K8S_AUTH_PATH}/login/" 2>/dev/null | tail -1 || echo "")
+                    
+                    if [[ -n "$lease_check" && "$lease_check" != "Keys" && "$lease_check" != "----" ]]; then
+                        auth_succeeded=true
+                        log_info "Authentication verified successful via lease check"
+                    fi
+                fi
+                
+                if [[ "$auth_succeeded" == "true" ]]; then
+                    local client_token
+                    local lease_duration
+                    client_token=$(echo "$auth_response" | jq -r '.auth.client_token' 2>/dev/null || echo "")
+                    lease_duration=$(echo "$auth_response" | jq -r '.auth.lease_duration' 2>/dev/null || echo "")
+                    
+                    if [[ -n "$client_token" ]]; then
+                        log_success "Authentication test successful for $role_name!"
+                        log_info "  Client token: ${client_token:0:20}..."
+                        log_info "  Lease duration: ${lease_duration}s"
+                    else
+                        log_success "Authentication test successful for $role_name! (verified via lease creation)"
+                        log_info "  Vault confirmed authentication by creating active lease"
+                    fi
+                    
+                    # Test secret access
+                    log_info "Testing secret access for $role_name"
+                    if [[ "$USE_POD_EXECUTION" == "true" ]]; then
+                        kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                    else
+                        VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                    fi
+                    if [[ $? -eq 0 ]]; then
+                        log_success "Secret access test successful for $role_name!"
+                    else
+                        log_warning "Secret access test failed for $role_name (this is expected if secret doesn't exist yet)"
+                    fi
+                else
+                    log_warning "Authentication test failed for $role_name - this may be due to JWT validation complexity"
+                    overall_success=false
                 fi
             else
-                log_warning "Authentication test failed - this may be due to JWT validation complexity in this environment"
-                log_info "The main Vault setup is complete and ready for use"
-                # Don't return error - main setup is successful
+                log_warning "Could not create test token for $sa_name, skipping authentication test"
+                overall_success=false
             fi
         else
-            log_warning "Could not create test token, skipping authentication test"
+            log_warning "kubectl not available or service account $sa_name not found in namespace $sa_namespace, skipping authentication test"
+            overall_success=false
         fi
+    done
+    
+    # Summary of test results
+    if [[ "$overall_success" == "true" ]]; then
+        log_success "All service account authentication tests completed successfully!"
     else
-        log_warning "kubectl not available or service account not found, skipping authentication test"
+        log_info "Some authentication tests had issues, but main Vault setup is complete and ready for use"
     fi
     
     # Re-enable exit on error
@@ -536,22 +609,40 @@ show_summary() {
     log_info "Configuration Summary:"
     echo "  Vault Address: $VAULT_ADDR"
     echo "  Auth Path: $K8S_AUTH_PATH"
-    echo "  Vault Role: $VAULT_ROLE"
-    echo "  Service Account: $SERVICE_ACCOUNT_NAME"
-    echo "  Namespace: $SERVICE_ACCOUNT_NAMESPACE"
     echo "  Policy Name: $POLICY_NAME"
     echo "  Secret Path: $SECRET_PATH"
     echo "  Token TTL: $TOKEN_TTL"
     echo ""
-    log_success "Vault Kubernetes authentication setup completed successfully!"
+    echo "  Service Accounts & Roles:"
+    for service_account_entry in "${SERVICE_ACCOUNTS[@]}"; do
+        IFS=':' read -r sa_name sa_namespace <<< "$service_account_entry"
+        role_name="$sa_name"
+        echo "    - Service Account: $sa_name"
+        echo "      Namespace: $sa_namespace"
+        echo "      Vault Role: $role_name"
+        echo ""
+    done
+    echo ""
+    log_success "Vault Kubernetes authentication setup completed successfully for multiple service accounts!"
     echo ""
     log_info "Next steps:"
-    echo "  1. Ensure the service account exists: kubectl get sa $SERVICE_ACCOUNT_NAME -n $SERVICE_ACCOUNT_NAMESPACE"
-    echo "  2. Deploy GOK-Agent with these environment variables:"
+    echo "  1. Ensure the service accounts exist:"
+    for service_account_entry in "${SERVICE_ACCOUNTS[@]}"; do
+        IFS=':' read -r sa_name sa_namespace <<< "$service_account_entry"
+        echo "     kubectl get sa $sa_name -n $sa_namespace"
+    done
+    echo ""
+    echo "  2. Deploy applications with these environment variables:"
     echo "     VAULT_ADDR=$VAULT_ADDR"
-    echo "     VAULT_K8S_ROLE=$VAULT_ROLE"
     echo "     VAULT_K8S_AUTH_PATH=$K8S_AUTH_PATH"
     echo "     VAULT_PATH=$SECRET_PATH"
+    echo ""
+    echo "     For specific roles, use:"
+    for service_account_entry in "${SERVICE_ACCOUNTS[@]}"; do
+        IFS=':' read -r sa_name sa_namespace <<< "$service_account_entry"
+        role_name="$sa_name"
+        echo "     $sa_name: VAULT_K8S_ROLE=$role_name"
+    done
     echo "  3. Store RabbitMQ credentials in Vault:"
     echo "     vault kv put $SECRET_PATH username=<user> password=<pass>"
 }
@@ -596,6 +687,7 @@ main() {
     enable_kubernetes_auth
     configure_kubernetes_auth
     create_vault_policy
+    create_service_accounts
     create_vault_role
     
     # Test the setup
