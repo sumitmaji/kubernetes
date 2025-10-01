@@ -96,15 +96,31 @@ discover_vault_token() {
     # Try to get root token from vault-init-keys secret
     local vault_keys_secret="vault-init-keys"
     if kubectl get secret "$vault_keys_secret" -n "$VAULT_NAMESPACE" &> /dev/null; then
-        local keys_data=$(kubectl get secret "$vault_keys_secret" -n "$VAULT_NAMESPACE" -o jsonpath='{.data.vault-init}' 2>/dev/null | base64 -d 2>/dev/null)
-        if [ -n "$keys_data" ]; then
-            # Extract root token from JSON
-            VAULT_ROOT_TOKEN=$(echo "$keys_data" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('root_token', ''))" 2>/dev/null || echo "")
-            if [ -n "$VAULT_ROOT_TOKEN" ]; then
-                log_success "Root token discovered from vault-init-keys"
-                VAULT_TOKEN="$VAULT_ROOT_TOKEN"
-                return 0
-            fi
+        # Try different data keys in the secret
+        local data_keys=("vault-init.json" "vault-init" "keys" "init-keys")
+        # Get all data using jq since jsonpath has issues with dots in key names
+        local secret_json
+        secret_json=$(kubectl get secret "$vault_keys_secret" -n "$VAULT_NAMESPACE" -o json 2>/dev/null)
+        if [ -n "$secret_json" ]; then
+            # Try each possible key name
+            for key in "${data_keys[@]}"; do
+                log_info "Trying secret key: $key"
+                local keys_data
+                keys_data=$(echo "$secret_json" | jq -r ".data[\"$key\"] // empty" 2>/dev/null | base64 -d 2>/dev/null)
+                if [ -n "$keys_data" ]; then
+                    log_info "Found data in key: $key"
+                    # Extract root token from JSON
+                    local token_extract_cmd="import sys, json; data=json.load(sys.stdin); print(data.get('root_token', ''))"
+                    VAULT_ROOT_TOKEN=$(echo "$keys_data" | python3 -c "$token_extract_cmd" 2>/dev/null || echo "")
+                    if [ -n "$VAULT_ROOT_TOKEN" ]; then
+                        log_success "Root token discovered from vault-init-keys (key: $key)"
+                        VAULT_TOKEN="$VAULT_ROOT_TOKEN"
+                        return 0
+                    else
+                        log_warning "Key $key found but no root_token field"
+                    fi
+                fi
+            done
         fi
     fi
     
