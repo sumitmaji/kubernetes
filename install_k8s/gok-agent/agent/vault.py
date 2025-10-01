@@ -10,7 +10,7 @@ def get_vault_secrets():
     Maintained for backward compatibility
     """
     secrets_path = os.environ.get("VAULT_SECRETS_PATH", "/vault/secrets/")
-    secrets_file = os.path.join(secrets_path, "web-controller")
+    secrets_file = os.path.join(secrets_path, "gok-agent")
     
     try:
         with open(secrets_file, "r") as f:

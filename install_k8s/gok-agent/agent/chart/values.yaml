@@ -43,8 +43,45 @@ vault:
   # Vault server configuration (using service URL with cloud.uat domain)
   address: "http://vault.vault.svc.cloud.uat:8200"
   
-  # Path to RabbitMQ credentials in Vault
-  credentialPath: "secret/data/rabbitmq"
+  # === SWITCHABLE VAULT INTEGRATION MODES ===
+  # Choose between agent injector (static) and direct API (dynamic)
+  integration:
+    # Mode: "agent" for Vault Agent Injector, "api" for direct API calls, "hybrid" for both
+    mode: "hybrid"  # Options: "agent", "api", "hybrid"
+    
+    # Agent Injector Configuration (for static secrets)
+    agentInjector:
+      enabled: true
+      role: "gok-agent"
+      secrets:
+        # Static configuration secrets
+        config:
+          path: "secret/data/gok-agent/config"
+          template: |
+            {{`{{- with secret "secret/data/gok-agent/config" -}}`}}
+            {
+              "oauth_client_secret": "{{`{{ .Data.data.oauth_client_secret }}`}}",
+              "static_config": "{{`{{ .Data.data.static_config }}`}}"
+            }
+            {{`{{- end }}`}}
+        # RabbitMQ credentials (can be used as fallback)
+        rabbitmq:
+          path: "secret/data/rabbitmq"
+          template: |
+            {{`{{- with secret "secret/data/rabbitmq" -}}`}}
+            {
+              "username": "{{`{{ .Data.data.username }}`}}",
+              "password": "{{`{{ .Data.data.password }}`}}"
+            }
+            {{`{{- end }}`}}
+    
+    # Direct API Configuration (for dynamic credentials)
+    directApi:
+      enabled: true
+      # Path to RabbitMQ credentials in Vault
+      credentialPath: "secret/data/rabbitmq"
+      # Path to static configuration
+      configPath: "secret/data/gok-agent/config"
   
   # Authentication method for Vault
   auth:

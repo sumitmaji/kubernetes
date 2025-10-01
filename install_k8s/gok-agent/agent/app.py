@@ -7,8 +7,9 @@ import base64
 from jose import jwt
 import requests
 import sys
-# Import our Vault credential manager
+# Import our Vault credential managers
 from vault_credentials import get_rabbitmq_credentials, VaultCredentialManager
+from vault import get_vault_secrets_from_files, get_config_secrets, get_rabbitmq_secrets_from_files
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -35,39 +36,71 @@ REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "administrators")
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq")
 RESULTS_QUEUE = 'results'
 
-# Get RabbitMQ credentials using Vault with Kubernetes fallback
+# Vault integration mode configuration
+VAULT_INTEGRATION_MODE = os.environ.get("VAULT_INTEGRATION_MODE", "hybrid")  # Options: "agent", "api", "hybrid"
+
+# Get RabbitMQ credentials using hybrid Vault approach
 def get_rabbitmq_connection_params():
     """
-    Get RabbitMQ connection parameters with Vault integration
+    Get RabbitMQ connection parameters with hybrid Vault integration
+    Supports both Agent Injector (static) and Direct API (dynamic) approaches
     Returns connection parameters for pika
     """
     try:
-        # Try to get credentials from Vault first, fallback to Kubernetes
-        credentials_obj = get_rabbitmq_credentials(prefer_vault=True)
+        logger.info(f"Using Vault integration mode: {VAULT_INTEGRATION_MODE}")
         
-        if credentials_obj:
-            logger.info(f"Using RabbitMQ credentials for user: {credentials_obj.username}")
-            return {
-                'host': credentials_obj.host,
-                'port': credentials_obj.port,
-                'virtual_host': credentials_obj.virtual_host,
-                'credentials': pika.PlainCredentials(
-                    credentials_obj.username, 
-                    credentials_obj.password
-                )
-            }
-        else:
-            # Final fallback to environment variables
-            logger.warning("Could not retrieve credentials from Vault or Kubernetes, using environment variables")
-            return {
-                'host': RABBITMQ_HOST,
-                'port': 5672,
-                'virtual_host': '/',
-                'credentials': pika.PlainCredentials(
-                    os.environ.get("RABBITMQ_USER", "guest"),
-                    os.environ.get("RABBITMQ_PASSWORD", "guest")
-                )
-            }
+        credentials_obj = None
+        
+        # Try different approaches based on integration mode
+        if VAULT_INTEGRATION_MODE in ["agent", "hybrid"]:
+            # Try Agent Injector approach first (file-based)
+            logger.info("Attempting to retrieve RabbitMQ credentials from Vault Agent Injector")
+            agent_secrets = get_rabbitmq_secrets_from_files()
+            if agent_secrets and agent_secrets.get('username') and agent_secrets.get('password'):
+                logger.info("Successfully retrieved RabbitMQ credentials from Vault Agent Injector")
+                return {
+                    'host': agent_secrets.get('host', RABBITMQ_HOST),
+                    'port': int(agent_secrets.get('port', 5672)),
+                    'virtual_host': agent_secrets.get('virtual_host', '/'),
+                    'credentials': pika.PlainCredentials(
+                        agent_secrets.get('username'),
+                        agent_secrets.get('password')
+                    )
+                }
+            else:
+                logger.warning("Agent Injector credentials not available or incomplete")
+        
+        if VAULT_INTEGRATION_MODE in ["api", "hybrid"]:
+            # Try Direct API approach (dynamic)
+            logger.info("Attempting to retrieve RabbitMQ credentials from Vault Direct API")
+            credentials_obj = get_rabbitmq_credentials(prefer_vault=True)
+            
+            if credentials_obj:
+                logger.info(f"Successfully retrieved RabbitMQ credentials from Vault API for user: {credentials_obj.username}")
+                return {
+                    'host': credentials_obj.host,
+                    'port': credentials_obj.port,
+                    'virtual_host': credentials_obj.virtual_host,
+                    'credentials': pika.PlainCredentials(
+                        credentials_obj.username, 
+                        credentials_obj.password
+                    )
+                }
+            else:
+                logger.warning("Direct API credentials not available")
+        
+        # Final fallback to environment variables
+        logger.warning("Could not retrieve credentials from any Vault method, using environment variables")
+        return {
+            'host': RABBITMQ_HOST,
+            'port': 5672,
+            'virtual_host': '/',
+            'credentials': pika.PlainCredentials(
+                os.environ.get("RABBITMQ_USER", "guest"),
+                os.environ.get("RABBITMQ_PASSWORD", "guest")
+            )
+        }
+        
     except Exception as e:
         logger.error(f"Error getting RabbitMQ credentials: {e}")
         # Ultimate fallback
