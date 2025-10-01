@@ -434,6 +434,9 @@ create_vault_role() {
 test_authentication() {
     log_info "Testing Kubernetes Service Account authentication"
     
+    # Disable exit on error for this function to prevent silent exits
+    set +e
+    
     # Get a fresh service account token for testing
     if command -v kubectl >/dev/null 2>&1 && kubectl get serviceaccount "$SERVICE_ACCOUNT_NAME" -n "$SERVICE_ACCOUNT_NAMESPACE" >/dev/null 2>&1; then
         local test_token=$(kubectl create token "$SERVICE_ACCOUNT_NAME" -n "$SERVICE_ACCOUNT_NAMESPACE" --duration=1h 2>/dev/null)
@@ -445,8 +448,13 @@ test_authentication() {
             local auth_response
             if [[ "$USE_POD_EXECUTION" == "true" ]]; then
                 log_info "Testing with pod execution: role=$VAULT_ROLE, namespace=$SERVICE_ACCOUNT_NAMESPACE"
+                log_info "About to execute kubectl command..."
+                log_info "Command: kubectl exec -n $VAULT_NAMESPACE $VAULT_POD -- env VAULT_TOKEN=*** vault write -format=json auth/${K8S_AUTH_PATH}/login role=$VAULT_ROLE jwt=[TOKEN]"
+                
                 auth_response=$(kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault write -format=json "auth/${K8S_AUTH_PATH}/login" role="$VAULT_ROLE" jwt="$test_token" 2>&1)
                 auth_exit_code=$?
+                
+                log_info "kubectl exec completed with exit code: $auth_exit_code"
             else
                 auth_response=$(vault write -format=json "auth/${K8S_AUTH_PATH}/login" \
                     role="$VAULT_ROLE" \
@@ -489,6 +497,9 @@ test_authentication() {
     else
         log_warning "kubectl not available or service account not found, skipping authentication test"
     fi
+    
+    # Re-enable exit on error
+    set -e
 }
 
 # Display configuration summary
