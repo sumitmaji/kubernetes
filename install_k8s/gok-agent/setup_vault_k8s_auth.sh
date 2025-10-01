@@ -1,12 +1,19 @@
 #!/bin/bash
 
-# Vault Kubernetes Authentication Setup Script
-# This script configures Vault to authenticate Kubernetes Service Accounts
+# Vault Kubernetes Authentication Setup Script - Auto-Discovery Version
+# This script automatically discovers Vault configuration and sets up Kubernetes authentication
 
 set -e
 
-# Configuration variables
-VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
+# Auto-discovered configuration (will be populated by discovery functions)
+VAULT_NAMESPACE=""
+VAULT_POD=""
+VAULT_SERVICE_IP=""
+VAULT_ROOT_TOKEN=""
+AUTO_DISCOVERED="false"
+
+# Configuration variables with auto-discovery fallbacks
+VAULT_ADDR="${VAULT_ADDR:-}"
 VAULT_TOKEN="${VAULT_TOKEN:-}"
 K8S_AUTH_PATH="${K8S_AUTH_PATH:-kubernetes}"
 VAULT_ROLE="${VAULT_ROLE:-gok-agent}"
@@ -40,11 +47,132 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Auto-discovery functions (based on vault_rabbitmq_setup.sh implementation)
+auto_discover_vault_config() {
+    log_info "Auto-discovering Vault configuration from Kubernetes cluster..."
+    
+    # Discover Vault namespace
+    VAULT_NAMESPACE=$(kubectl get namespaces -o name 2>/dev/null | grep vault | head -1 | cut -d'/' -f2 || echo "vault")
+    if ! kubectl get namespace "$VAULT_NAMESPACE" &> /dev/null; then
+        log_error "Vault namespace '$VAULT_NAMESPACE' not found"
+        return 1
+    fi
+    log_success "Found Vault namespace: $VAULT_NAMESPACE"
+    
+    # Discover Vault pod
+    VAULT_POD=$(kubectl get pods -n "$VAULT_NAMESPACE" -l "app.kubernetes.io/name=vault" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [ -z "$VAULT_POD" ]; then
+        VAULT_POD=$(kubectl get pods -n "$VAULT_NAMESPACE" 2>/dev/null | grep vault | grep -v agent | grep Running | head -1 | awk '{print $1}')
+    fi
+    if [ -z "$VAULT_POD" ]; then
+        log_error "No running Vault pod found in namespace $VAULT_NAMESPACE"
+        return 1
+    fi
+    log_success "Found Vault pod: $VAULT_POD"
+    
+    # Discover Vault service IP
+    VAULT_SERVICE_IP=$(kubectl get service vault -n "$VAULT_NAMESPACE" -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
+    if [ -z "$VAULT_SERVICE_IP" ]; then
+        VAULT_SERVICE_IP=$(kubectl get services -n "$VAULT_NAMESPACE" 2>/dev/null | grep vault | grep -v agent | head -1 | awk '{print $3}')
+    fi
+    if [ -z "$VAULT_SERVICE_IP" ]; then
+        log_error "Could not discover Vault service IP"
+        return 1
+    fi
+    log_success "Found Vault service IP: $VAULT_SERVICE_IP"
+    
+    # Set Vault address if not provided
+    if [ -z "$VAULT_ADDR" ]; then
+        VAULT_ADDR="http://$VAULT_SERVICE_IP:8200"
+        log_info "Auto-configured Vault address: $VAULT_ADDR"
+    fi
+    
+    return 0
+}
+
+discover_vault_token() {
+    log_info "Auto-discovering Vault root token..."
+    
+    # Try to get root token from vault-init-keys secret
+    local vault_keys_secret="vault-init-keys"
+    if kubectl get secret "$vault_keys_secret" -n "$VAULT_NAMESPACE" &> /dev/null; then
+        local keys_data=$(kubectl get secret "$vault_keys_secret" -n "$VAULT_NAMESPACE" -o jsonpath='{.data.vault-init}' 2>/dev/null | base64 -d 2>/dev/null)
+        if [ -n "$keys_data" ]; then
+            # Extract root token from JSON
+            VAULT_ROOT_TOKEN=$(echo "$keys_data" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('root_token', ''))" 2>/dev/null || echo "")
+            if [ -n "$VAULT_ROOT_TOKEN" ]; then
+                log_success "Root token discovered from vault-init-keys"
+                VAULT_TOKEN="$VAULT_ROOT_TOKEN"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Try alternative secret names
+    local alt_secrets=("vault-root-token" "vault-unseal-keys" "vault-credentials")
+    for secret in "${alt_secrets[@]}"; do
+        if kubectl get secret "$secret" -n "$VAULT_NAMESPACE" &> /dev/null; then
+            local token_data=$(kubectl get secret "$secret" -n "$VAULT_NAMESPACE" -o jsonpath='{.data.root_token}' 2>/dev/null | base64 -d 2>/dev/null)
+            if [ -n "$token_data" ]; then
+                VAULT_ROOT_TOKEN="$token_data"
+                VAULT_TOKEN="$VAULT_ROOT_TOKEN"
+                log_success "Root token discovered from $secret"
+                return 0
+            fi
+        fi
+    done
+    
+    log_warning "Could not auto-discover Vault root token from cluster secrets"
+    return 1
+}
+
+run_auto_discovery() {
+    log_info "Running auto-discovery to detect Vault configuration..."
+    
+    # Check kubectl connectivity first
+    if ! command -v kubectl &> /dev/null; then
+        log_error "kubectl not found. Auto-discovery requires kubectl access."
+        return 1
+    fi
+    
+    if ! kubectl cluster-info &> /dev/null; then
+        log_error "Cannot connect to Kubernetes cluster. Check kubectl configuration."
+        return 1
+    fi
+    log_success "Connected to Kubernetes cluster"
+    
+    # Run Vault auto-discovery
+    if ! auto_discover_vault_config; then
+        log_error "Failed to auto-discover Vault configuration"
+        return 1
+    fi
+    
+    # Try to discover Vault token if not provided
+    if [ -z "$VAULT_TOKEN" ]; then
+        discover_vault_token
+    fi
+    
+    # Display discovered configuration
+    echo ""
+    log_info "=== AUTO-DISCOVERY RESULTS ==="
+    log_info "Vault Namespace: $VAULT_NAMESPACE"
+    log_info "Vault Pod: $VAULT_POD"
+    log_info "Vault Address: $VAULT_ADDR"
+    log_info "Vault Token: $([ -n "$VAULT_TOKEN" ] && echo "[DISCOVERED]" || echo "[NOT FOUND]")"
+    log_info "Service Account: $SERVICE_ACCOUNT_NAME (namespace: $SERVICE_ACCOUNT_NAMESPACE)"
+    log_info "Vault Role: $VAULT_ROLE"
+    log_info "Auth Path: $K8S_AUTH_PATH"
+    echo ""
+    
+    AUTO_DISCOVERED="true"
+    return 0
+}
+
 # Check if running in Kubernetes cluster
 check_k8s_environment() {
     if [[ -f "/var/run/secrets/kubernetes.io/serviceaccount/token" ]]; then
         log_info "Running inside Kubernetes cluster"
-        K8S_HOST="https://kubernetes.default.svc.cluster.local"
+        K8S_HOST="https://kubernetes.default.svc.cloud.uat"
         K8S_CA_CERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
         K8S_JWT_TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
         return 0
@@ -246,12 +374,24 @@ show_summary() {
 
 # Main execution
 main() {
-    log_info "Starting Vault Kubernetes Authentication Setup"
-    log_info "=========================================="
+    log_info "Starting Vault Kubernetes Authentication Setup - Auto-Discovery Version"
+    log_info "======================================================================"
     
-    # Validate required parameters
+    # Run auto-discovery if no configuration provided
+    if [[ -z "$VAULT_ADDR" || -z "$VAULT_TOKEN" ]]; then
+        log_info "Missing configuration - running auto-discovery..."
+        if ! run_auto_discovery; then
+            log_error "Auto-discovery failed and no manual configuration provided"
+            exit 1
+        fi
+    else
+        log_info "Using provided configuration (skipping auto-discovery)"
+    fi
+    
+    # Final validation of required parameters
     if [[ -z "$VAULT_TOKEN" ]]; then
-        log_error "VAULT_TOKEN environment variable is required"
+        log_error "VAULT_TOKEN not found via auto-discovery and not provided manually"
+        log_error "Please provide VAULT_TOKEN environment variable or ensure vault-init-keys secret exists"
         exit 1
     fi
     
@@ -286,23 +426,48 @@ main() {
 
 # Show usage information
 usage() {
-    echo "Vault Kubernetes Authentication Setup Script"
+    echo "=========================================="
+    echo "🔐 Vault K8s Auth Setup - Auto-Discovery"
+    echo "=========================================="
+    echo "This script automatically discovers Vault configuration and sets up"
+    echo "Kubernetes authentication with zero manual configuration required."
     echo ""
-    echo "Usage: $0"
+    echo "Usage: $0 [COMMAND]"
     echo ""
-    echo "Environment Variables:"
-    echo "  VAULT_ADDR                 Vault server address (default: http://localhost:8200)"
-    echo "  VAULT_TOKEN                Vault root or admin token (required)"
-    echo "  K8S_AUTH_PATH              Kubernetes auth path in Vault (default: kubernetes)"
+    echo "🚀 COMMANDS:"
+    echo "  (no args)         Run complete auto-discovery and setup"
+    echo "  discover          Show auto-discovered configuration only"
+    echo "  --help, -h        Show this help message"
+    echo ""
+    echo "🔍 AUTO-DISCOVERY FEATURES:"
+    echo "  ✅ Vault namespace, pod, and service IP detection"
+    echo "  ✅ Vault root token extraction from cluster secrets"
+    echo "  ✅ Kubernetes service account validation"
+    echo "  ✅ Zero-configuration setup when possible"
+    echo ""
+    echo "🌍 Environment Variables (Optional - Auto-discovered if not set):"
+    echo "  VAULT_ADDR                 Vault server address"
+    echo "  VAULT_TOKEN                Vault root or admin token"
+    echo "  K8S_AUTH_PATH              Kubernetes auth path (default: kubernetes)"
     echo "  VAULT_ROLE                 Vault role name (default: gok-agent)"
-    echo "  SERVICE_ACCOUNT_NAME       Kubernetes service account name (default: gok-agent)"
+    echo "  SERVICE_ACCOUNT_NAME       Service account name (default: gok-agent)"
     echo "  SERVICE_ACCOUNT_NAMESPACE  Kubernetes namespace (default: default)"
     echo "  POLICY_NAME                Vault policy name (default: rabbitmq-policy)"
-    echo "  SECRET_PATH                Path to RabbitMQ secret (default: secret/data/rabbitmq)"
+    echo "  SECRET_PATH                Secret path (default: secret/data/rabbitmq)"
     echo "  TOKEN_TTL                  Token TTL (default: 24h)"
     echo ""
-    echo "Example:"
-    echo "  VAULT_TOKEN=s.xyz123 VAULT_ADDR=https://vault.example.com $0"
+    echo "📋 ZERO-CONFIGURATION EXAMPLES:"
+    echo "  $0                                    # Complete auto-setup"
+    echo "  $0 discover                           # Show discovered config"
+    echo ""
+    echo "🔧 MANUAL CONFIGURATION EXAMPLES:"
+    echo "  VAULT_TOKEN=hvs.xyz123 $0             # Custom token"
+    echo "  SERVICE_ACCOUNT_NAMESPACE=prod $0     # Custom namespace"
+    echo ""
+    echo "💡 Pro Tips:"
+    echo "  • No manual configuration needed - script auto-discovers everything!"
+    echo "  • Works from outside cluster (requires kubectl access)"
+    echo "  • Automatically finds Vault pods and extracts tokens from secrets"
 }
 
 # Handle command line arguments
@@ -311,11 +476,23 @@ case "${1:-}" in
         usage
         exit 0
         ;;
+    "discover")
+        log_info "Running auto-discovery only (no setup)..."
+        if run_auto_discovery; then
+            log_success "✅ Auto-discovery completed successfully!"
+            echo ""
+            log_info "💡 Next step: Run '$0' (no arguments) to complete the setup"
+        else
+            log_error "Auto-discovery failed"
+            exit 1
+        fi
+        ;;
     "")
         main
         ;;
     *)
         log_error "Unknown argument: $1"
+        echo ""
         usage
         exit 1
         ;;

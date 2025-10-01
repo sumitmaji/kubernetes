@@ -1,13 +1,28 @@
 #!/bin/bash
 
-# Simple test script for setup_vault_k8s_auth.sh
-# This script validates the basic functionality without complex test framework
+# Simple test script for setup_vault_k8s_auth.sh - Auto-Discovery Version
+# This script validates the enhanced fecho "📋 Enhanced Script Purpose Summary:"
+echo "===================================="
+echo "The setup_vault_k8s_auth.sh script (Auto-Discovery Version) is designed to:"
+echo ""
+echo "🎯 MAIN PURPOSE:"
+echo "   • ZERO-CONFIGURATION Vault Kubernetes authentication setup"
+echo "   • Automatic discovery of Vault infrastructure from K8s cluster"
+echo "   • Configure secure credential management for GOK-Agent components"
+echo ""
+echo "🔍 AUTO-DISCOVERY FEATURES:"
+echo "   ✅ Vault namespace, pod, and service IP detection"
+echo "   ✅ Vault root token extraction from cluster secrets"
+echo "   ✅ Kubernetes service account validation"
+echo "   ✅ Zero-configuration setup when possible"
+echo ""
+echo "🔧 KEY FUNCTIONS:"ity including auto-discovery capabilities
 
-echo "🧪 Testing setup_vault_k8s_auth.sh"
-echo "=================================="
+echo "🧪 Testing setup_vault_k8s_auth.sh - Auto-Discovery Version"
+echo "=========================================================="
 
 # Change to script directory
-cd "$(dirname "${BASH_SOURCE[0]}")"
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit
 
 # Test 1: Check if script exists and is executable
 echo -n "1. Script exists and executable: "
@@ -27,18 +42,20 @@ else
     exit 1
 fi
 
-# Test 3: Help functionality
-echo -n "3. Help functionality: "
-if ./setup_vault_k8s_auth.sh --help 2>/dev/null | grep -q "Usage:"; then
+# Test 3: Help functionality (enhanced with auto-discovery)
+echo -n "3. Enhanced help functionality: "
+if ./setup_vault_k8s_auth.sh --help 2>/dev/null | grep -q "Auto-Discovery" && \
+   ./setup_vault_k8s_auth.sh --help 2>/dev/null | grep -q "ZERO-CONFIGURATION EXAMPLES"; then
     echo "✅ PASS"
 else
     echo "❌ FAIL"
     exit 1
 fi
 
-# Test 4: Parameter validation (should fail without VAULT_TOKEN)
-echo -n "4. Parameter validation: "
-if ./setup_vault_k8s_auth.sh 2>&1 | grep -q "VAULT_TOKEN.*required"; then
+# Test 4: Auto-discovery functionality
+echo -n "4. Auto-discovery functionality: "
+if ./setup_vault_k8s_auth.sh discover 2>&1 | grep -q "Auto-discovering Vault configuration" && \
+   ./setup_vault_k8s_auth.sh discover 2>&1 | grep -q "AUTO-DISCOVERY RESULTS"; then
     echo "✅ PASS"
 else
     echo "❌ FAIL"
@@ -54,21 +71,22 @@ else
     exit 1
 fi
 
-# Test 6: Prerequisite checking (should fail without vault CLI)
-echo -n "6. Prerequisite checking: "
-if VAULT_TOKEN=test-token ./setup_vault_k8s_auth.sh 2>&1 | grep -q "Vault CLI not found"; then
+# Test 6: Auto-discovery trigger (should run auto-discovery when no config provided)
+echo -n "6. Auto-discovery trigger: "
+if ./setup_vault_k8s_auth.sh 2>&1 | grep -q "Missing configuration - running auto-discovery" && \
+   ./setup_vault_k8s_auth.sh 2>&1 | grep -q "Connected to Kubernetes cluster"; then
     echo "✅ PASS"
 else
     echo "❌ FAIL"
     exit 1
 fi
 
-# Test 7: Function presence
-echo -n "7. Required functions present: "
-required_functions=("main" "usage" "check_vault_connection" "create_vault_policy" "create_vault_role")
+# Test 7: Auto-discovery functions presence
+echo -n "7. Auto-discovery functions present: "
+auto_discovery_functions=("auto_discover_vault_config" "discover_vault_token" "run_auto_discovery")
 all_functions_found=true
 
-for func in "${required_functions[@]}"; do
+for func in "${auto_discovery_functions[@]}"; do
     if ! grep -q "^${func}()" ./setup_vault_k8s_auth.sh; then
         all_functions_found=false
         break
@@ -82,10 +100,30 @@ else
     exit 1
 fi
 
-# Test 8: Environment variable defaults
-echo -n "8. Environment variable defaults: "
-if grep -q 'VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"' ./setup_vault_k8s_auth.sh && \
-   grep -q 'VAULT_ROLE="${VAULT_ROLE:-gok-agent}"' ./setup_vault_k8s_auth.sh; then
+# Test 8: Auto-discovery variable initialization
+echo -n "8. Auto-discovery variables: "
+if grep -q 'VAULT_ADDR="${VAULT_ADDR:-}"' ./setup_vault_k8s_auth.sh && \
+   grep -q 'VAULT_NAMESPACE=""' ./setup_vault_k8s_auth.sh && \
+   grep -q 'AUTO_DISCOVERED="false"' ./setup_vault_k8s_auth.sh; then
+    echo "✅ PASS"
+else
+    echo "❌ FAIL"
+    exit 1
+fi
+
+# Test 9: Discover command functionality
+echo -n "9. Discover command: "
+if ./setup_vault_k8s_auth.sh discover 2>&1 | grep -q "Running auto-discovery only" && \
+   ./setup_vault_k8s_auth.sh discover 2>&1 | grep -q "Next step: Run"; then
+    echo "✅ PASS"
+else
+    echo "❌ FAIL"
+    exit 1
+fi
+
+# Test 10: Domain configuration update
+echo -n "10. Domain configuration (cloud.uat): "
+if grep -q 'K8S_HOST="https://kubernetes.default.svc.cloud.uat"' ./setup_vault_k8s_auth.sh; then
     echo "✅ PASS"
 else
     echo "❌ FAIL"
@@ -93,7 +131,7 @@ else
 fi
 
 echo ""
-echo "🎉 ALL TESTS PASSED!"
+echo "🎉 ALL TESTS PASSED! (Auto-Discovery Enhanced)"
 echo ""
 echo "📋 Script Purpose Summary:"
 echo "========================="
