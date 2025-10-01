@@ -4,7 +4,7 @@
 # This script validates the functionality of the Vault K8s authentication setup script
 
 # Temporarily disabled set -e for debugging
-set -e
+# set -e
 
 # Colors for output
 RED='\033[0;31m'
