@@ -205,9 +205,22 @@ get_k8s_config_from_kubectl() {
     # Get the cluster info
     K8S_HOST=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.server}')
     
-    # Get the CA certificate
-    kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > /tmp/k8s-ca.crt
-    K8S_CA_CERT="/tmp/k8s-ca.crt"
+    # Get the CA certificate if available
+    CA_DATA=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' 2>/dev/null || echo "")
+    if [[ -n "$CA_DATA" ]]; then
+        echo "$CA_DATA" | base64 --decode > /tmp/k8s-ca.crt 2>/dev/null
+        K8S_CA_CERT="/tmp/k8s-ca.crt"
+    else
+        # Check for insecure-skip-tls-verify
+        INSECURE_SKIP=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.insecure-skip-tls-verify}' 2>/dev/null || echo "false")
+        if [[ "$INSECURE_SKIP" == "true" ]]; then
+            log_info "Cluster configured with insecure-skip-tls-verify, will use disable_local_ca_jwt"
+            K8S_CA_CERT=""
+        else
+            log_warning "No CA certificate found and TLS verification is enabled"
+            K8S_CA_CERT=""
+        fi
+    fi
     
     # Create a service account token (if needed)
     if kubectl get serviceaccount "$SERVICE_ACCOUNT_NAME" -n "$SERVICE_ACCOUNT_NAMESPACE" >/dev/null 2>&1; then
@@ -234,12 +247,36 @@ get_k8s_config_from_kubectl() {
     return 0
 }
 
-# Check Vault connection
+# Execute Vault command inside the Vault pod
+exec_vault_cmd() {
+    local cmd="$1"
+    kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- sh -c "
+        export VAULT_ADDR=http://localhost:8200
+        export VAULT_TOKEN='$VAULT_TOKEN'
+        $cmd
+    " 2>/dev/null
+}
+
+# Check Vault connection using pod execution or local CLI
 check_vault_connection() {
     log_info "Checking Vault connection to $VAULT_ADDR"
     
+    # Try using kubectl exec to the Vault pod first (preferred method)
+    if kubectl get pod "$VAULT_POD" -n "$VAULT_NAMESPACE" >/dev/null 2>&1; then
+        log_info "Using Vault CLI inside pod $VAULT_POD"
+        if exec_vault_cmd "vault status"; then
+            log_success "Connected to Vault via pod $VAULT_POD"
+            # Set a flag to use pod execution for all Vault commands
+            export USE_POD_EXECUTION=true
+            return 0
+        fi
+    fi
+    
+    # Fallback to local Vault CLI if pod execution fails
+    log_info "Trying local Vault CLI as fallback"
     if ! command -v vault >/dev/null 2>&1; then
-        log_error "Vault CLI not found. Please install vault CLI."
+        log_error "Vault CLI not found locally and pod execution failed"
+        log_error "Please ensure Vault pod is running or install Vault CLI locally"
         return 1
     fi
     
@@ -251,18 +288,29 @@ check_vault_connection() {
         return 1
     fi
     
-    log_success "Connected to Vault successfully"
+    log_success "Connected to Vault successfully using local CLI"
+    export USE_POD_EXECUTION=false
     return 0
+}
+
+# Execute vault command (pod or local)
+vault_exec() {
+    local cmd="$1"
+    if [[ "$USE_POD_EXECUTION" == "true" ]]; then
+        exec_vault_cmd "$cmd"
+    else
+        eval "$cmd"
+    fi
 }
 
 # Enable Kubernetes auth method
 enable_kubernetes_auth() {
     log_info "Enabling Kubernetes auth method"
     
-    if vault auth list | grep -q "^${K8S_AUTH_PATH}/"; then
+    if vault_exec "vault auth list" | grep -q "^${K8S_AUTH_PATH}/"; then
         log_warning "Kubernetes auth method already enabled at path: $K8S_AUTH_PATH"
     else
-        vault auth enable -path="$K8S_AUTH_PATH" kubernetes
+        vault_exec "vault auth enable -path='$K8S_AUTH_PATH' kubernetes"
         log_success "Enabled Kubernetes auth method at path: $K8S_AUTH_PATH"
     fi
 }
@@ -271,19 +319,86 @@ enable_kubernetes_auth() {
 configure_kubernetes_auth() {
     log_info "Configuring Kubernetes auth method"
     
-    vault write "auth/${K8S_AUTH_PATH}/config" \
-        token_reviewer_jwt="$K8S_JWT_TOKEN" \
-        kubernetes_host="$K8S_HOST" \
-        kubernetes_ca_cert=@"$K8S_CA_CERT"
-    
-    log_success "Configured Kubernetes auth method"
+    if [[ "$USE_POD_EXECUTION" == "true" ]]; then
+        # Configure based on whether we have CA certificate or insecure setup
+        if [[ -z "$K8S_CA_CERT" ]] || [[ ! -s "$K8S_CA_CERT" ]]; then
+            # No CA certificate or insecure setup
+            if vault_exec "vault write auth/${K8S_AUTH_PATH}/config token_reviewer_jwt='$K8S_JWT_TOKEN' kubernetes_host='$K8S_HOST' disable_local_ca_jwt=true disable_iss_validation=true"; then
+                log_success "Configured Kubernetes auth method (insecure/no CA cert)"
+            else
+                log_error "Failed to configure Kubernetes auth method"
+                return 1
+            fi
+        else
+            # Have CA certificate - try with it
+            kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- sh -c "
+                cat > /tmp/k8s-ca.crt << 'EOF'
+$(cat "$K8S_CA_CERT")
+EOF
+            "
+            if vault_exec "vault write auth/${K8S_AUTH_PATH}/config token_reviewer_jwt='$K8S_JWT_TOKEN' kubernetes_host='$K8S_HOST' kubernetes_ca_cert=@/tmp/k8s-ca.crt"; then
+                log_success "Configured Kubernetes auth method (with CA cert)"
+            else
+                log_info "Retrying without CA certificate..."
+                if vault_exec "vault write auth/${K8S_AUTH_PATH}/config token_reviewer_jwt='$K8S_JWT_TOKEN' kubernetes_host='$K8S_HOST' disable_local_ca_jwt=true disable_iss_validation=true"; then
+                    log_success "Configured Kubernetes auth method (fallback to insecure)"
+                else
+                    log_error "Failed to configure Kubernetes auth method"
+                    return 1
+                fi
+            fi
+            # Clean up
+            kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- rm -f /tmp/k8s-ca.crt
+        fi
+    else
+        # Local execution
+        if [[ -z "$K8S_CA_CERT" ]] || [[ ! -s "$K8S_CA_CERT" ]]; then
+            if vault_exec "vault write auth/${K8S_AUTH_PATH}/config token_reviewer_jwt='$K8S_JWT_TOKEN' kubernetes_host='$K8S_HOST' disable_local_ca_jwt=true disable_iss_validation=true"; then
+                log_success "Configured Kubernetes auth method (insecure/no CA cert)"
+            else
+                log_error "Failed to configure Kubernetes auth method"
+                return 1
+            fi
+        else
+            if vault_exec "vault write auth/${K8S_AUTH_PATH}/config token_reviewer_jwt='$K8S_JWT_TOKEN' kubernetes_host='$K8S_HOST' kubernetes_ca_cert=@'$K8S_CA_CERT'"; then
+                log_success "Configured Kubernetes auth method (with CA cert)"
+            else
+                log_error "Failed to configure Kubernetes auth method"
+                return 1
+            fi
+        fi
+    fi
 }
 
 # Create Vault policy for RabbitMQ access
 create_vault_policy() {
     log_info "Creating Vault policy: $POLICY_NAME"
     
-    cat > /tmp/rabbitmq-policy.hcl << EOF
+    if [[ "$USE_POD_EXECUTION" == "true" ]]; then
+        # Create policy in pod
+        kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- sh -c "
+            cat > /tmp/rabbitmq-policy.hcl << 'EOF'
+# Allow reading RabbitMQ credentials
+path \"${SECRET_PATH}\" {
+  capabilities = [\"read\"]
+}
+
+# Allow reading metadata
+path \"${SECRET_PATH%/data/*}/metadata/*\" {
+  capabilities = [\"read\"]
+}
+
+# Allow listing secrets (optional)
+path \"${SECRET_PATH%/data/*}/metadata\" {
+  capabilities = [\"list\"]
+}
+EOF
+        "
+        vault_exec "vault policy write '$POLICY_NAME' /tmp/rabbitmq-policy.hcl"
+        kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- rm -f /tmp/rabbitmq-policy.hcl
+    else
+        # Local execution
+        cat > /tmp/rabbitmq-policy.hcl << EOF
 # Allow reading RabbitMQ credentials
 path "${SECRET_PATH}" {
   capabilities = ["read"]
@@ -299,9 +414,9 @@ path "${SECRET_PATH%/data/*}/metadata" {
   capabilities = ["list"]
 }
 EOF
-    
-    vault policy write "$POLICY_NAME" /tmp/rabbitmq-policy.hcl
-    rm -f /tmp/rabbitmq-policy.hcl
+        vault_exec "vault policy write '$POLICY_NAME' /tmp/rabbitmq-policy.hcl"
+        rm -f /tmp/rabbitmq-policy.hcl
+    fi
     
     log_success "Created Vault policy: $POLICY_NAME"
 }
@@ -310,11 +425,7 @@ EOF
 create_vault_role() {
     log_info "Creating Vault role: $VAULT_ROLE"
     
-    vault write "auth/${K8S_AUTH_PATH}/role/${VAULT_ROLE}" \
-        bound_service_account_names="$SERVICE_ACCOUNT_NAME" \
-        bound_service_account_namespaces="$SERVICE_ACCOUNT_NAMESPACE" \
-        policies="$POLICY_NAME" \
-        ttl="$TOKEN_TTL"
+    vault_exec "vault write auth/${K8S_AUTH_PATH}/role/${VAULT_ROLE} bound_service_account_names='$SERVICE_ACCOUNT_NAME' bound_service_account_namespaces='$SERVICE_ACCOUNT_NAMESPACE' policies='$POLICY_NAME' ttl='$TOKEN_TTL'"
     
     log_success "Created Vault role: $VAULT_ROLE"
 }
@@ -331,13 +442,26 @@ test_authentication() {
             log_info "Testing authentication with fresh service account token"
             
             # Test authentication
-            local auth_response=$(vault write -format=json "auth/${K8S_AUTH_PATH}/login" \
-                role="$VAULT_ROLE" \
-                jwt="$test_token" 2>/dev/null)
+            local auth_response
+            if [[ "$USE_POD_EXECUTION" == "true" ]]; then
+                log_info "Testing with pod execution: role=$VAULT_ROLE, namespace=$SERVICE_ACCOUNT_NAMESPACE"
+                auth_response=$(kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$VAULT_TOKEN" vault write -format=json "auth/${K8S_AUTH_PATH}/login" role="$VAULT_ROLE" jwt="$test_token" 2>&1)
+                auth_exit_code=$?
+            else
+                auth_response=$(vault write -format=json "auth/${K8S_AUTH_PATH}/login" \
+                    role="$VAULT_ROLE" \
+                    jwt="$test_token" 2>&1)
+                auth_exit_code=$?
+            fi
             
-            if [[ $? -eq 0 ]]; then
-                local client_token=$(echo "$auth_response" | jq -r '.auth.client_token')
-                local lease_duration=$(echo "$auth_response" | jq -r '.auth.lease_duration')
+            log_info "Authentication response exit code: $auth_exit_code"
+            log_info "Auth response (first 200 chars): ${auth_response:0:200}..."
+            
+            if [[ $auth_exit_code -eq 0 ]]; then
+                local client_token
+                local lease_duration
+                client_token=$(echo "$auth_response" | jq -r '.auth.client_token' 2>/dev/null || echo "")
+                lease_duration=$(echo "$auth_response" | jq -r '.auth.lease_duration' 2>/dev/null || echo "")
                 
                 log_success "Authentication test successful!"
                 log_info "  Client token: ${client_token:0:20}..."
@@ -345,7 +469,11 @@ test_authentication() {
                 
                 # Test secret access
                 log_info "Testing secret access"
-                VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                if [[ "$USE_POD_EXECUTION" == "true" ]]; then
+                    kubectl exec -n "$VAULT_NAMESPACE" "$VAULT_POD" -- env VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                else
+                    VAULT_TOKEN="$client_token" vault kv get "$SECRET_PATH" >/dev/null 2>&1
+                fi
                 if [[ $? -eq 0 ]]; then
                     log_success "Secret access test successful!"
                 else
