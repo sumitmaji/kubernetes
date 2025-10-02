@@ -72,6 +72,7 @@ CREATED_SECRETS=0
 UPDATED_SECRETS=0
 SKIPPED_SECRETS=0
 FAILED_SECRETS=0
+VALIDATED_SECRETS=0
 
 # Logging functions
 log_info() {
@@ -274,6 +275,56 @@ secret_exists() {
     kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault kv get "$secret_path" >/dev/null 2>&1
 }
 
+# Validate secret keys without showing values
+validate_secret_keys() {
+    local secret_path="$1"
+    local secret_name="$2"
+    shift 2
+    local expected_keys=("$@")
+    
+    log_info "Validating $secret_name keys..."
+    
+    # Get the secret and extract keys
+    local secret_output
+    if ! secret_output=$(kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault kv get -format=json "$secret_path" 2>/dev/null); then
+        log_error "Validation failed: Cannot retrieve $secret_name from $secret_path"
+        return 1
+    fi
+    
+    # Parse the JSON to get available keys
+    local available_keys
+    if ! available_keys=$(echo "$secret_output" | jq -r '.data | keys[]' 2>/dev/null); then
+        log_error "Validation failed: Cannot parse secret data for $secret_name"
+        return 1
+    fi
+    
+    # Convert to arrays for comparison
+    local missing_keys=()
+    local found_keys=()
+    
+    for expected_key in "${expected_keys[@]}"; do
+        if echo "$available_keys" | grep -q "^$expected_key$"; then
+            found_keys+=("$expected_key")
+        else
+            missing_keys+=("$expected_key")
+        fi
+    done
+    
+    # Report validation results
+    if [[ ${#missing_keys[@]} -eq 0 ]]; then
+        log_success "✓ All expected keys found in $secret_name (${#found_keys[@]} keys)"
+        VALIDATED_SECRETS=$((VALIDATED_SECRETS + 1))
+        return 0
+    else
+        log_error "✗ Validation failed for $secret_name:"
+        log_error "   Missing keys: ${missing_keys[*]}"
+        if [[ ${#found_keys[@]} -gt 0 ]]; then
+            log_info "   Found keys: ${found_keys[*]}"
+        fi
+        return 1
+    fi
+}
+
 # Delete secret if it exists
 delete_secret() {
     local secret_path="$1"
@@ -338,11 +389,19 @@ create_vault_secret() {
                 log_info "    $key=$value"
             fi
         done
+        log_info "[DRY-RUN] Would validate keys: ${secret_data[*]//=*/}"
         return 0
     fi
     
     # Execute the vault command
-    if kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- $vault_cmd >/dev/null 2>&1; then
+    # Build command array for proper escaping
+    local cmd_args=("kubectl" "exec" "$VAULT_POD" "-n" "$VAULT_NAMESPACE" "--" "vault" "kv" "put" "$secret_path")
+    for data in "${secret_data[@]}"; do
+        cmd_args+=("$data")
+    done
+    
+    # Show debug information if something fails
+    if "${cmd_args[@]}" >/dev/null 2>&1; then
         if [[ "$exists" == "true" ]]; then
             log_success "Updated $secret_name at $secret_path"
             UPDATED_SECRETS=$((UPDATED_SECRETS + 1))
@@ -352,6 +411,11 @@ create_vault_secret() {
         fi
     else
         log_error "Failed to create/update $secret_name at $secret_path"
+        log_error "Debug - Command that failed: ${cmd_args[*]}"
+        # Try to get the actual error
+        if ! "${cmd_args[@]}" 2>&1; then
+            log_error "Error details shown above"
+        fi
         FAILED_SECRETS=$((FAILED_SECRETS + 1))
     fi
 }
@@ -375,6 +439,13 @@ create_rabbitmq_secret() {
         "host=$RABBITMQ_HOST" \
         "port=$RABBITMQ_PORT" \
         "virtual_host=$RABBITMQ_VHOST"
+    
+    # Validate the secret was created with correct keys
+    if ! validate_secret_keys "secret/rabbitmq" "RabbitMQ Credentials" "username" "password" "host" "port" "virtual_host"; then
+        log_error "RabbitMQ secret validation failed"
+        FAILED_SECRETS=$((FAILED_SECRETS + 1))
+        return 1
+    fi
 }
 
 # Create gok-agent configuration secret
@@ -395,6 +466,13 @@ create_agent_config_secret() {
         "oauth_client_secret=$oauth_client_secret" \
         "static_config=$static_config" \
         "config_json=$config_json"
+    
+    # Validate the secret was created with correct keys
+    if ! validate_secret_keys "secret/gok-agent/config" "gok-agent Configuration" "oauth_client_secret" "static_config" "config_json"; then
+        log_error "gok-agent config secret validation failed"
+        FAILED_SECRETS=$((FAILED_SECRETS + 1))
+        return 1
+    fi
 }
 
 # Create gok-controller configuration secret  
@@ -415,6 +493,13 @@ create_controller_config_secret() {
         "oauth_client_secret=$oauth_client_secret" \
         "static_config=$static_config" \
         "config_json=$config_json"
+    
+    # Validate the secret was created with correct keys
+    if ! validate_secret_keys "secret/gok-controller/config" "gok-controller Configuration" "oauth_client_secret" "static_config" "config_json"; then
+        log_error "gok-controller config secret validation failed"
+        FAILED_SECRETS=$((FAILED_SECRETS + 1))
+        return 1
+    fi
 }
 
 # Show configuration summary
@@ -453,6 +538,7 @@ show_summary() {
     echo -e "  Updated: ${YELLOW}$UPDATED_SECRETS${NC}"
     echo -e "  Skipped: ${CYAN}$SKIPPED_SECRETS${NC}"
     echo -e "  Failed: ${RED}$FAILED_SECRETS${NC}"
+    echo -e "  Validated: ${GREEN}$VALIDATED_SECRETS${NC}"
     
     if [[ "$FAILED_SECRETS" -gt 0 ]]; then
         echo
@@ -470,6 +556,12 @@ show_summary() {
             log_info "Secrets are now available for gok-cloud components:"
             echo "  • Agent: Can access secret/rabbitmq and secret/gok-agent/config"
             echo "  • Controller: Can access secret/rabbitmq and secret/gok-controller/config"
+            echo
+            if [[ "$VALIDATED_SECRETS" -eq "$TOTAL_SECRETS" ]]; then
+                log_success "✓ All secrets validated successfully with correct keys!"
+            else
+                log_warning "⚠ Some secrets failed validation - check logs above"
+            fi
             echo
             log_info "Make sure your Vault policies allow access to these secrets!"
         fi
