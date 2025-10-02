@@ -2706,6 +2706,15 @@ gokAgentInstall(){
   # Create namespace for gok-agent
   kubectl create namespace gok-agent
 
+  createVaultSecretStore \
+  -p "secret/gok-agent" \
+  -r "gok-agent" \
+  -l "gok-agent-policy" \
+  -s "gok-agent-provider" \
+  -x "gok-agent" \
+  -n "gok-agent" \
+  -k "api-token=adfasdfsasdfasdfasd"
+
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-agent
 
   # Install Vault using Helm
