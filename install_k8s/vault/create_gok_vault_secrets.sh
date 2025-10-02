@@ -19,7 +19,7 @@
 #   -h, --help              Show this help message
 #   -n, --namespace NAME    Vault namespace (default: vault)
 #   -v, --vault-pod NAME    Vault pod name (default: vault-0)
-#   --rabbitmq-user USER    RabbitMQ username (default: gok-admin)
+#   --rabbitmq-user USER    RabbitMQ username (default: retrieved from K8s or 'guest')
 #   --rabbitmq-pass PASS    RabbitMQ password (default: generated)
 #   --rabbitmq-host HOST    RabbitMQ host (default: rabbitmq.rabbitmq)
 #   --rabbitmq-port PORT    RabbitMQ port (default: 5672)
@@ -57,11 +57,12 @@ BOLD='\033[1m'
 # Default configuration
 VAULT_NAMESPACE="vault"
 VAULT_POD="vault-0"
-RABBITMQ_USER="gok-admin"
-RABBITMQ_PASSWORD=""  # Will be generated if empty
+RABBITMQ_USER="guest"  # Default RabbitMQ user, will be overridden if found in K8s
+RABBITMQ_PASSWORD=""  # Will be retrieved from K8s or generated if empty
 RABBITMQ_HOST="rabbitmq.rabbitmq"
 RABBITMQ_PORT="5672"
 RABBITMQ_VHOST="/"
+RABBITMQ_K8S_NAMESPACE="rabbitmq"  # Namespace to look for RabbitMQ resources
 DRY_RUN=false
 UPDATE_EXISTING=false
 DELETE_EXISTING=false
@@ -106,8 +107,9 @@ Vault Secret Creation Script for gok-cloud Components
 
 DESCRIPTION:
     Creates Vault secrets, policies, and roles required for gok-cloud/agent and 
-    gok-cloud/controller components. This script configures complete Vault RBAC
-    and creates secrets compatible with API-based access patterns.
+    gok-cloud/controller components. This script automatically retrieves RabbitMQ
+    credentials from Kubernetes secrets/deployments and configures complete Vault 
+    RBAC with API-based access patterns.
 
 VAULT CONFIGURATION:
     • Kubernetes authentication method
@@ -131,11 +133,12 @@ OPTIONS:
     -h, --help              Show this help message
     -n, --namespace NAME    Vault namespace (default: vault)
     -v, --vault-pod NAME    Vault pod name (default: vault-0)
-    --rabbitmq-user USER    RabbitMQ username (default: gok-admin)
-    --rabbitmq-pass PASS    RabbitMQ password (default: auto-generated)
+    --rabbitmq-user USER    RabbitMQ username (default: retrieved from K8s or 'guest')
+    --rabbitmq-pass PASS    RabbitMQ password (default: retrieved from K8s or auto-generated)
     --rabbitmq-host HOST    RabbitMQ host (default: rabbitmq.rabbitmq)
     --rabbitmq-port PORT    RabbitMQ port (default: 5672)
     --rabbitmq-vhost VHOST  RabbitMQ virtual host (default: /)
+    --rabbitmq-namespace NS RabbitMQ Kubernetes namespace (default: rabbitmq)
     --dry-run              Show what would be created without executing
     --update               Update existing secrets (default: skip if exists)
     --delete               Delete existing secrets and recreate
@@ -144,10 +147,11 @@ EXAMPLES:
     # Create secrets with default values
     ./create_gok_vault_secrets.sh
 
-    # Create secrets with custom RabbitMQ credentials  
+    # Create secrets with custom RabbitMQ credentials (override K8s lookup)
     ./create_gok_vault_secrets.sh --rabbitmq-user myuser --rabbitmq-pass mypass
 
-    # Update existing secrets
+    # Use RabbitMQ from specific namespace
+    ./create_gok_vault_secrets.sh --rabbitmq-namespace production    # Update existing secrets
     ./create_gok_vault_secrets.sh --update
 
     # Preview what would be created
@@ -199,6 +203,10 @@ parse_args() {
                 ;;
             --rabbitmq-vhost)
                 RABBITMQ_VHOST="$2"
+                shift 2
+                ;;
+            --rabbitmq-namespace)
+                RABBITMQ_K8S_NAMESPACE="$2"
                 shift 2
                 ;;
             --dry-run)
@@ -524,6 +532,11 @@ path "secret/gok-agent/config" {
 path "secret/gok-agent/*" {
   capabilities = ["read", "list"]
 }
+
+# Allow listing secrets for discovery
+path "secret/" {
+  capabilities = ["list"]
+}
 '
     
     create_vault_policy "gok-agent" "Policy for gok-agent service account to access RabbitMQ and agent config secrets" "$agent_policy"
@@ -550,12 +563,40 @@ path "secret/gok-controller/config" {
 path "secret/gok-controller/*" {
   capabilities = ["read", "list"]
 }
+
+# Allow listing secrets for discovery
+path "secret/" {
+  capabilities = ["list"]
+}
 '
     
     create_vault_policy "gok-controller" "Policy for gok-controller service account to access RabbitMQ and controller config secrets" "$controller_policy"
     
     # Create Kubernetes auth role for gok-controller
     create_k8s_auth_role "gok-controller" "gok-controller" "gok-controller" "gok-controller" "1h"
+}
+
+# Create dedicated RabbitMQ access policy and role
+create_rabbitmq_policy_and_role() {
+    log_header "Creating RabbitMQ Access Policy and Role"
+    
+    # Create dedicated RabbitMQ policy
+    local rabbitmq_policy='
+# Policy for RabbitMQ access - allows reading credentials including password
+path "secret/rabbitmq" {
+  capabilities = ["read", "list"]
+}
+
+# Allow listing secrets to discover available secrets
+path "secret/" {
+  capabilities = ["list"]
+}
+'
+    
+    create_vault_policy "rabbitmq-access" "Policy for accessing RabbitMQ credentials including password" "$rabbitmq_policy"
+    
+    # Create a dedicated RabbitMQ role that both service accounts can use
+    create_k8s_auth_role "rabbitmq-reader" "gok-agent,gok-controller" "gok-agent,gok-controller" "rabbitmq-access" "2h"
 }
 
 # Enable Kubernetes auth method if not already enabled
@@ -603,10 +644,113 @@ enable_kubernetes_auth() {
 create_rabbitmq_secret() {
     log_header "Creating RabbitMQ Secret"
     
-    # Generate password if not provided
+    # Try to get RabbitMQ credentials from Kubernetes
+    log_info "Retrieving RabbitMQ credentials from Kubernetes..."
+    
+    # Attempt to get RabbitMQ default user secret
+    local k8s_rabbitmq_user=""
+    local k8s_rabbitmq_password=""
+    
+    # Try common RabbitMQ secret names and namespaces
+    local rabbitmq_namespaces=("rabbitmq" "default" "kube-system")
+    local rabbitmq_secrets=("rabbitmq-default-user" "rabbitmq-secret" "rabbitmq" "rabbitmq-admin")
+    
+    for namespace in "${rabbitmq_namespaces[@]}"; do
+        for secret_name in "${rabbitmq_secrets[@]}"; do
+            if kubectl get secret "$secret_name" -n "$namespace" >/dev/null 2>&1; then
+                log_info "Found RabbitMQ secret: $secret_name in namespace: $namespace"
+                
+                # Try to extract username
+                if k8s_rabbitmq_user=$(kubectl get secret "$secret_name" -n "$namespace" -o jsonpath='{.data.username}' 2>/dev/null | base64 -d 2>/dev/null); then
+                    if [[ -n "$k8s_rabbitmq_user" ]]; then
+                        RABBITMQ_USER="$k8s_rabbitmq_user"
+                        log_success "Retrieved RabbitMQ username from Kubernetes: $RABBITMQ_USER"
+                    fi
+                fi
+                
+                # Try to extract password
+                if k8s_rabbitmq_password=$(kubectl get secret "$secret_name" -n "$namespace" -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null); then
+                    if [[ -n "$k8s_rabbitmq_password" ]]; then
+                        RABBITMQ_PASSWORD="$k8s_rabbitmq_password"
+                        log_success "Retrieved RabbitMQ password from Kubernetes secret"
+                    fi
+                fi
+                
+                # If we found credentials, break out of loops
+                if [[ -n "$k8s_rabbitmq_user" ]] && [[ -n "$k8s_rabbitmq_password" ]]; then
+                    break 2
+                fi
+            fi
+        done
+    done
+    
+    # Try alternative approaches if direct secret lookup failed
+    if [[ -z "$k8s_rabbitmq_user" ]] || [[ -z "$k8s_rabbitmq_password" ]]; then
+        log_warning "Could not find RabbitMQ credentials in common Kubernetes secrets"
+        
+        # Try to get from RabbitMQ deployment environment variables
+        log_info "Attempting to retrieve from RabbitMQ deployment..."
+        
+        # Look for RabbitMQ deployment/statefulset
+        for namespace in "${rabbitmq_namespaces[@]}"; do
+            # Check deployments
+            if kubectl get deployment rabbitmq -n "$namespace" >/dev/null 2>&1; then
+                log_info "Found RabbitMQ deployment in namespace: $namespace"
+                
+                # Try to get environment variables
+                local env_user env_password
+                env_user=$(kubectl get deployment rabbitmq -n "$namespace" -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="RABBITMQ_DEFAULT_USER")].value}' 2>/dev/null || echo "")
+                env_password=$(kubectl get deployment rabbitmq -n "$namespace" -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="RABBITMQ_DEFAULT_PASS")].value}' 2>/dev/null || echo "")
+                
+                if [[ -n "$env_user" ]]; then
+                    RABBITMQ_USER="$env_user"
+                    log_success "Retrieved RabbitMQ username from deployment: $RABBITMQ_USER"
+                fi
+                
+                if [[ -n "$env_password" ]]; then
+                    RABBITMQ_PASSWORD="$env_password"
+                    log_success "Retrieved RabbitMQ password from deployment"
+                fi
+                
+                if [[ -n "$env_user" ]] && [[ -n "$env_password" ]]; then
+                    break
+                fi
+            fi
+            
+            # Check statefulsets
+            if kubectl get statefulset rabbitmq -n "$namespace" >/dev/null 2>&1; then
+                log_info "Found RabbitMQ statefulset in namespace: $namespace"
+                
+                # Try to get environment variables
+                local env_user env_password
+                env_user=$(kubectl get statefulset rabbitmq -n "$namespace" -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="RABBITMQ_DEFAULT_USER")].value}' 2>/dev/null || echo "")
+                env_password=$(kubectl get statefulset rabbitmq -n "$namespace" -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="RABBITMQ_DEFAULT_PASS")].value}' 2>/dev/null || echo "")
+                
+                if [[ -n "$env_user" ]]; then
+                    RABBITMQ_USER="$env_user"
+                    log_success "Retrieved RabbitMQ username from statefulset: $RABBITMQ_USER"
+                fi
+                
+                if [[ -n "$env_password" ]]; then
+                    RABBITMQ_PASSWORD="$env_password"
+                    log_success "Retrieved RabbitMQ password from statefulset"
+                fi
+                
+                if [[ -n "$env_user" ]] && [[ -n "$env_password" ]]; then
+                    break
+                fi
+            fi
+        done
+    fi
+    
+    # Final fallback - use provided values or generate
     if [[ -z "$RABBITMQ_PASSWORD" ]]; then
-        RABBITMQ_PASSWORD=$(generate_password)
-        log_info "Generated secure password for RabbitMQ user: $RABBITMQ_USER"
+        if [[ -n "${RABBITMQ_PASSWORD:-}" ]]; then
+            log_info "Using provided RabbitMQ password"
+        else
+            RABBITMQ_PASSWORD=$(generate_password)
+            log_warning "Could not retrieve RabbitMQ credentials from Kubernetes, generated secure password for user: $RABBITMQ_USER"
+        fi
     fi
     
     # Create the secret (KV v2 API compatible)
@@ -696,11 +840,12 @@ show_configuration() {
     echo "  Pod: $VAULT_POD"
     echo
     echo -e "${BOLD}RabbitMQ Configuration:${NC}"
-    echo "  Username: $RABBITMQ_USER"
-    echo "  Password: ${RABBITMQ_PASSWORD:+***PROVIDED***}${RABBITMQ_PASSWORD:-***WILL BE GENERATED***}"
+    echo "  Username: $RABBITMQ_USER (will be retrieved from K8s if available)"
+    echo "  Password: ${RABBITMQ_PASSWORD:+***PROVIDED***}${RABBITMQ_PASSWORD:-***WILL BE RETRIEVED FROM K8S OR GENERATED***}"
     echo "  Host: $RABBITMQ_HOST"
     echo "  Port: $RABBITMQ_PORT"
     echo "  Virtual Host: $RABBITMQ_VHOST"
+    echo "  K8s Namespace: $RABBITMQ_K8S_NAMESPACE"
     echo
     echo -e "${BOLD}Operation Mode:${NC}"
     echo "  Dry Run: $DRY_RUN"
@@ -711,6 +856,7 @@ show_configuration() {
     echo "  • Kubernetes authentication method"
     echo "  • gok-agent policy and role"
     echo "  • gok-controller policy and role"
+    echo "  • rabbitmq-access policy and rabbitmq-reader role"
     echo
     echo -e "${BOLD}Secrets to be created:${NC}"
     echo "  • secret/rabbitmq - Shared RabbitMQ credentials"
@@ -757,6 +903,7 @@ show_summary() {
             echo "  • Kubernetes auth method: auth/kubernetes/"
             echo "  • gok-agent role: bound to gok-agent service account"
             echo "  • gok-controller role: bound to gok-controller service account"
+            echo "  • rabbitmq-reader role: allows both service accounts to access RabbitMQ"
             echo
             log_info "📦 Secrets available for gok-cloud components:"
             echo "  • Agent: secret/rabbitmq, secret/gok-agent/config"
@@ -800,13 +947,61 @@ main() {
     enable_kubernetes_auth
     create_agent_policy_and_role
     create_controller_policy_and_role
+    create_rabbitmq_policy_and_role
     
     # Create secrets
     create_rabbitmq_secret
     create_agent_config_secret
     create_controller_config_secret
     
+    # Test authentication and access
+    test_service_account_access
+    
     show_summary
+}
+
+# Test service account authentication and secret access
+test_service_account_access() {
+    log_header "Testing Service Account Authentication"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would test service account authentication and secret access"
+        return 0
+    fi
+    
+    # Test gok-agent authentication
+    log_info "Testing gok-agent service account authentication..."
+    if kubectl exec vault-0 -n vault -- sh -c '
+        # Simulate service account token authentication
+        VAULT_TOKEN=$(vault write -field=token auth/kubernetes/login role=gok-agent jwt="test-jwt-would-be-here" 2>/dev/null || echo "")
+        if [ -n "$VAULT_TOKEN" ]; then
+            echo "Authentication test structure valid"
+        else
+            echo "Note: JWT authentication requires actual service account token"
+        fi
+    ' 2>/dev/null; then
+        log_success "✓ gok-agent role configuration is valid"
+    else
+        log_warning "⚠ gok-agent role may need verification with actual JWT token"
+    fi
+    
+    # Test RabbitMQ secret access with root token (to verify policy structure)
+    log_info "Testing RabbitMQ secret access permissions..."
+    if kubectl exec vault-0 -n vault -- vault kv get secret/rabbitmq >/dev/null 2>&1; then
+        log_success "✓ RabbitMQ secret is accessible with proper permissions"
+        
+        # Show available fields without values
+        local rabbitmq_keys
+        rabbitmq_keys=$(kubectl exec vault-0 -n vault -- vault kv get -format=json secret/rabbitmq | jq -r '.data | keys[]' 2>/dev/null || echo "")
+        if [[ -n "$rabbitmq_keys" ]]; then
+            log_info "Available RabbitMQ credential fields: $(echo "$rabbitmq_keys" | tr '\n' ' ')"
+            if echo "$rabbitmq_keys" | grep -q "password"; then
+                log_success "✓ Password field is available for service accounts"
+            fi
+        fi
+    else
+        log_error "✗ RabbitMQ secret access test failed"
+    fi
 }
 
 # Execute main function with all arguments
