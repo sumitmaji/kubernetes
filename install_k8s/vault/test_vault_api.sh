@@ -21,6 +21,147 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Test tracking variables
+declare -A TEST_RESULTS
+TEST_COUNT=0
+PASSED_COUNT=0
+FAILED_COUNT=0
+
+# Initialize test results
+init_test_tracking() {
+    TEST_RESULTS["Dependencies"]="PENDING"
+    TEST_RESULTS["Vault Login"]="PENDING"
+    TEST_RESULTS["Secret Creation"]="PENDING"
+    TEST_RESULTS["Policy Creation"]="PENDING"
+    TEST_RESULTS["Role Creation"]="PENDING"
+    TEST_RESULTS["Service Account"]="PENDING"
+    TEST_RESULTS["Python Script"]="PENDING"
+    TEST_RESULTS["Pod Creation"]="PENDING"
+    TEST_RESULTS["Pod Readiness"]="PENDING"
+    TEST_RESULTS["API Authentication"]="PENDING"
+    TEST_RESULTS["Token Validation"]="PENDING"
+    TEST_RESULTS["Secret Retrieval"]="PENDING"
+    TEST_RESULTS["Data Validation"]="PENDING"
+    TEST_COUNT=13
+}
+
+# Update test result
+update_test_result() {
+    local test_name="$1"
+    local result="$2"
+    
+    if [[ "$result" == "PASSED" ]]; then
+        TEST_RESULTS["$test_name"]="PASSED"
+        PASSED_COUNT=$((PASSED_COUNT + 1))
+    elif [[ "$result" == "FAILED" ]]; then
+        TEST_RESULTS["$test_name"]="FAILED"
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+    fi
+}
+
+# Show comprehensive test summary
+show_test_summary() {
+    echo
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo "🧪 VAULT API TEST SUMMARY"
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+    echo
+    
+    # Calculate overall result
+    local overall_result
+    if [[ $FAILED_COUNT -eq 0 ]]; then
+        overall_result="${GREEN}ALL TESTS PASSED ✅${NC}"
+    else
+        overall_result="${RED}SOME TESTS FAILED ❌${NC}"
+    fi
+    
+    echo -e "🎉 OVERALL RESULT: $overall_result"
+    echo -e "📊 STATISTICS: ${PASSED_COUNT}/${TEST_COUNT} tests passed ($(( (PASSED_COUNT * 100) / TEST_COUNT ))% success rate)"
+    echo
+    echo "📋 DETAILED TEST RESULTS:"
+    echo "─────────────────────────────────────────────────────────────────────────────"
+    printf "%-30s | %-10s | %s\n" "TEST NAME" "STATUS" "DESCRIPTION"
+    echo "─────────────────────────────────────────────────────────────────────────────"
+    
+    # Test descriptions
+    declare -A TEST_DESCRIPTIONS
+    TEST_DESCRIPTIONS["Dependencies"]="kubectl, jq, vault pod available"
+    TEST_DESCRIPTIONS["Vault Login"]="Successfully authenticated with Vault"
+    TEST_DESCRIPTIONS["Secret Creation"]="Test secret created at secret/api-test"
+    TEST_DESCRIPTIONS["Policy Creation"]="Vault policy 'api-test-policy' created"
+    TEST_DESCRIPTIONS["Role Creation"]="Kubernetes auth role 'api-test-role' created"
+    TEST_DESCRIPTIONS["Service Account"]="Service account 'api-test-sa' created"
+    TEST_DESCRIPTIONS["Python Script"]="Python API client script generated"
+    TEST_DESCRIPTIONS["Pod Creation"]="Test pod with Python runtime created"
+    TEST_DESCRIPTIONS["Pod Readiness"]="Pod became ready within timeout"
+    TEST_DESCRIPTIONS["API Authentication"]="Kubernetes auth to Vault successful"
+    TEST_DESCRIPTIONS["Token Validation"]="Vault token obtained and validated"
+    TEST_DESCRIPTIONS["Secret Retrieval"]="Secret fetched via direct API calls"
+    TEST_DESCRIPTIONS["Data Validation"]="All secret data validated successfully"
+    
+    # Display results
+    for test_name in "Dependencies" "Vault Login" "Secret Creation" "Policy Creation" "Role Creation" "Service Account" "Python Script" "Pod Creation" "Pod Readiness" "API Authentication" "Token Validation" "Secret Retrieval" "Data Validation"; do
+        local status="${TEST_RESULTS[$test_name]}"
+        local status_display
+        case "$status" in
+            "PASSED")
+                status_display="${GREEN}✅ PASSED${NC}"
+                ;;
+            "FAILED")
+                status_display="${RED}❌ FAILED${NC}"
+                ;;
+            *)
+                status_display="${YELLOW}⏳ PENDING${NC}"
+                ;;
+        esac
+        printf "%-30s | %-20s | %s\n" "$test_name" "$(echo -e "$status_display")" "${TEST_DESCRIPTIONS[$test_name]}"
+    done
+    
+    echo "─────────────────────────────────────────────────────────────────────────────"
+    echo
+    
+    # Category summary
+    echo "📁 TEST CATEGORIES SUMMARY:"
+    echo "┌───────────────────────────────────────────────────────────────────────────────┐"
+    echo "│ 🛠️  INFRASTRUCTURE SETUP                                               │"
+    echo "│   • Dependencies check: ${TEST_RESULTS["Dependencies"]}"
+    echo "│   • Vault login: ${TEST_RESULTS["Vault Login"]}"
+    echo "│                                                                         │"
+    echo "│ 🔐 VAULT CONFIGURATION                                                  │"
+    echo "│   • Secret creation: ${TEST_RESULTS["Secret Creation"]}"
+    echo "│   • Policy creation: ${TEST_RESULTS["Policy Creation"]}"
+    echo "│   • Role creation: ${TEST_RESULTS["Role Creation"]}"
+    echo "│                                                                         │"
+    echo "│ 🚀 KUBERNETES SETUP                                                     │"
+    echo "│   • Service account: ${TEST_RESULTS["Service Account"]}"
+    echo "│   • Python script: ${TEST_RESULTS["Python Script"]}"
+    echo "│   • Pod creation: ${TEST_RESULTS["Pod Creation"]}"
+    echo "│   • Pod readiness: ${TEST_RESULTS["Pod Readiness"]}"
+    echo "│                                                                         │"
+    echo "│ 🌐 API FUNCTIONALITY                                                    │"
+    echo "│   • API authentication: ${TEST_RESULTS["API Authentication"]}"
+    echo "│   • Token validation: ${TEST_RESULTS["Token Validation"]}"
+    echo "│   • Secret retrieval: ${TEST_RESULTS["Secret Retrieval"]}"
+    echo "│   • Data validation: ${TEST_RESULTS["Data Validation"]}"
+    echo "└───────────────────────────────────────────────────────────────────────────────┘"
+    echo
+    
+    # Final message
+    if [[ $FAILED_COUNT -eq 0 ]]; then
+        echo "🎊 CONGRATULATIONS! All Vault API tests passed successfully!"
+        echo "   Your Vault API integration is working correctly."
+    else
+        echo "⚠️  Some tests failed. Please review the logs above for details."
+        echo "   Common issues:"
+        echo "   • Check Vault pod status and logs"
+        echo "   • Verify Kubernetes auth is enabled in Vault"
+        echo "   • Ensure network connectivity from pods to Vault"
+        echo "   • Check Python package installation logs"
+    fi
+    echo
+    echo "═══════════════════════════════════════════════════════════════════════════════"
+}
+
 # Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -42,8 +183,52 @@ log_error() {
 vaultLogin() {
     log_info "Logging into Vault..."
     ROOT_TOKEN=$(kubectl get secret vault-init-keys -n vault -o json | jq -r '.data["vault-init.json"]' | base64 -d | jq -r '.root_token')
-    kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN} >/dev/null 2>&1
-    log_success "Vault login successful"
+    if kubectl exec -it vault-0 -n vault -- vault login ${ROOT_TOKEN} >/dev/null 2>&1; then
+        log_success "Vault login successful"
+        update_test_result "Vault Login" "PASSED"
+        return 0
+    else
+        log_error "Vault login failed"
+        update_test_result "Vault Login" "FAILED"
+        return 1
+    fi
+}
+
+# Cleanup Vault resources
+cleanup_vault_resources() {
+    log_info "Cleaning up Vault resources..."
+    
+    # Login to Vault first
+    if ! vaultLogin >/dev/null 2>&1; then
+        log_warning "Could not login to Vault for cleanup"
+        return 0
+    fi
+    
+    # Delete test secret
+    log_info "Deleting test secret: $SECRET_PATH"
+    if kubectl exec -it vault-0 -n vault -- vault kv delete "$SECRET_PATH" >/dev/null 2>&1; then
+        log_success "✓ Test secret deleted"
+    else
+        log_warning "Could not delete test secret (may not exist)"
+    fi
+    
+    # Delete Kubernetes auth role
+    log_info "Deleting Kubernetes auth role: $ROLE_NAME"
+    if kubectl exec -it vault-0 -n vault -- vault delete "auth/kubernetes/role/$ROLE_NAME" >/dev/null 2>&1; then
+        log_success "✓ Kubernetes auth role deleted"
+    else
+        log_warning "Could not delete Kubernetes auth role (may not exist)"
+    fi
+    
+    # Delete Vault policy
+    log_info "Deleting Vault policy: $POLICY_NAME"
+    if kubectl exec -it vault-0 -n vault -- vault policy delete "$POLICY_NAME" >/dev/null 2>&1; then
+        log_success "✓ Vault policy deleted"
+    else
+        log_warning "Could not delete Vault policy (may not exist)"
+    fi
+    
+    log_success "Vault resource cleanup completed"
 }
 
 # Cleanup function
@@ -62,6 +247,9 @@ cleanup() {
     # Wait for pod to be deleted
     kubectl wait --for=delete pod/$POD_NAME -n $NAMESPACE --timeout=60s >/dev/null 2>&1 || true
     
+    # Clean up Vault resources
+    cleanup_vault_resources
+    
     log_success "Cleanup completed"
 }
 
@@ -69,10 +257,10 @@ cleanup() {
 create_test_secret() {
     log_info "Creating test secret in Vault..."
     
-    vaultLogin
+    vaultLogin || return 1
     
     # Create secret with complex data
-    kubectl exec -it vault-0 -n vault -- vault kv put $SECRET_PATH \
+    if kubectl exec -it vault-0 -n vault -- vault kv put $SECRET_PATH \
         username="api-test-user" \
         password="api-test-password" \
         database_host="postgres.example.com" \
@@ -81,16 +269,22 @@ create_test_secret() {
         api_endpoint="https://api.example.com/v1" \
         api_key="api-test-key-abcdef123456" \
         config_json='{"timeout":60,"retries":3,"debug":true}' \
-        ssl_cert="-----BEGIN CERTIFICATE-----\nMIIC...test...cert\n-----END CERTIFICATE-----" >/dev/null 2>&1
-    
-    log_success "Test secret created at $SECRET_PATH"
+        ssl_cert="-----BEGIN CERTIFICATE-----\nMIIC...test...cert\n-----END CERTIFICATE-----" >/dev/null 2>&1; then
+        log_success "Test secret created at $SECRET_PATH"
+        update_test_result "Secret Creation" "PASSED"
+        return 0
+    else
+        log_error "Failed to create test secret"
+        update_test_result "Secret Creation" "FAILED"
+        return 1
+    fi
 }
 
 # Create Vault policy
 create_policy() {
     log_info "Creating Vault policy..."
     
-    kubectl exec -i vault-0 -n vault -- vault policy write "$POLICY_NAME" - <<EOF >/dev/null 2>&1
+    if kubectl exec -i vault-0 -n vault -- vault policy write "$POLICY_NAME" - <<EOF >/dev/null 2>&1
 path "$SECRET_PATH" {
   capabilities = ["read", "list"]
 }
@@ -101,30 +295,49 @@ path "auth/token/lookup-self" {
   capabilities = ["read"]
 }
 EOF
-    
-    log_success "Policy $POLICY_NAME created"
+    then
+        log_success "Policy $POLICY_NAME created"
+        update_test_result "Policy Creation" "PASSED"
+        return 0
+    else
+        log_error "Failed to create Vault policy"
+        update_test_result "Policy Creation" "FAILED"
+        return 1
+    fi
 }
 
 # Create Kubernetes role
 create_role() {
     log_info "Creating Kubernetes authentication role..."
     
-    kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$ROLE_NAME" \
+    if kubectl exec -it vault-0 -n vault -- vault write auth/kubernetes/role/"$ROLE_NAME" \
         bound_service_account_names="$SERVICE_ACCOUNT" \
         bound_service_account_namespaces="$NAMESPACE" \
         policies="$POLICY_NAME" \
-        ttl=24h >/dev/null 2>&1
-    
-    log_success "Role $ROLE_NAME created"
+        ttl=24h >/dev/null 2>&1; then
+        log_success "Role $ROLE_NAME created"
+        update_test_result "Role Creation" "PASSED"
+        return 0
+    else
+        log_error "Failed to create Kubernetes role"
+        update_test_result "Role Creation" "FAILED"
+        return 1
+    fi
 }
 
 # Create service account
 create_service_account() {
     log_info "Creating service account..."
     
-    kubectl create serviceaccount $SERVICE_ACCOUNT -n $NAMESPACE >/dev/null 2>&1 || true
-    
-    log_success "Service account $SERVICE_ACCOUNT created"
+    if kubectl create serviceaccount $SERVICE_ACCOUNT -n $NAMESPACE >/dev/null 2>&1 || kubectl get serviceaccount $SERVICE_ACCOUNT -n $NAMESPACE >/dev/null 2>&1; then
+        log_success "Service account $SERVICE_ACCOUNT created"
+        update_test_result "Service Account" "PASSED"
+        return 0
+    else
+        log_error "Failed to create service account"
+        update_test_result "Service Account" "FAILED"
+        return 1
+    fi
 }
 
 # Detect Vault address
@@ -132,8 +345,8 @@ detect_vault_address() {
     local vault_address=""
     
     # Try to get from ingress
-    if kubectl get ingress vault-ingress -n vault >/dev/null 2>&1; then
-        vault_address=$(kubectl get ingress vault-ingress -n vault -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
+    if kubectl get ingress vault -n vault >/dev/null 2>&1; then
+        vault_address=$(kubectl get ingress vault -n vault -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
         if [[ -n "$vault_address" ]]; then
             vault_address="https://$vault_address"
         fi
@@ -141,7 +354,7 @@ detect_vault_address() {
     
     # Fallback to service
     if [[ -z "$vault_address" ]]; then
-        vault_address="https://vault.vault.svc.cluster.local:8200"
+        vault_address="http://vault.vault.svc.cloud.uat:8200"
     fi
     
     echo "$vault_address"
@@ -155,7 +368,7 @@ create_python_script() {
     vault_address=$(detect_vault_address)
     log_info "Using Vault address: $vault_address"
     
-    cat <<EOF | kubectl create configmap $CONFIGMAP_NAME -n $NAMESPACE --from-file=test_script.py=/dev/stdin >/dev/null 2>&1
+    if cat <<EOF | kubectl create configmap $CONFIGMAP_NAME -n $NAMESPACE --from-file=test_script.py=/dev/stdin >/dev/null 2>&1
 #!/usr/bin/env python3
 """
 Vault API Test Script
@@ -415,15 +628,22 @@ def main():
 if __name__ == "__main__":
     exit(main())
 EOF
-    
-    log_success "Python test script created in ConfigMap"
+    then
+        log_success "Python test script created in ConfigMap"
+        update_test_result "Python Script" "PASSED"
+        return 0
+    else
+        log_error "Failed to create Python test script"
+        update_test_result "Python Script" "FAILED"
+        return 1
+    fi
 }
 
 # Create test pod with Python
 create_test_pod() {
     log_info "Creating test pod with Python API client..."
     
-    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+    if cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: v1
 kind: Pod
 metadata:
@@ -465,8 +685,15 @@ spec:
       defaultMode: 0755
   restartPolicy: Never
 EOF
-    
-    log_success "Test pod created"
+    then
+        log_success "Test pod created"
+        update_test_result "Pod Creation" "PASSED"
+        return 0
+    else
+        log_error "Failed to create test pod"
+        update_test_result "Pod Creation" "FAILED"
+        return 1
+    fi
 }
 
 # Wait for pod to complete
@@ -476,8 +703,10 @@ wait_for_pod() {
     # Wait for pod to be running
     if kubectl wait --for=condition=Ready pod/$POD_NAME -n $NAMESPACE --timeout=300s >/dev/null 2>&1; then
         log_success "Pod is ready"
+        update_test_result "Pod Readiness" "PASSED"
     else
         log_error "Pod failed to become ready within timeout"
+        update_test_result "Pod Readiness" "FAILED"
         kubectl describe pod $POD_NAME -n $NAMESPACE
         return 1
     fi
@@ -485,6 +714,7 @@ wait_for_pod() {
     # Wait a bit for the test to run
     log_info "Waiting for test execution to complete..."
     sleep 30
+    return 0
 }
 
 # Verify API test results
@@ -503,26 +733,48 @@ verify_api_test() {
     fi
     
     # Check for success indicators in logs
-    local success_indicators=(
-        "Authentication successful"
-        "Secret retrieved successfully"
-        "All expected secret keys found"
-        "Vault API test completed successfully"
-    )
-    
     local logs
     logs=$(kubectl logs $POD_NAME -n $NAMESPACE -c python-app 2>/dev/null || echo "")
     
     log_info "Checking test success indicators..."
     local all_success=true
-    for indicator in "${success_indicators[@]}"; do
-        if echo "$logs" | grep -q "$indicator"; then
-            log_success "✓ Found: '$indicator'"
-        else
-            log_warning "✗ Missing: '$indicator'"
-            all_success=false
-        fi
-    done
+    
+    # Check individual success indicators
+    if echo "$logs" | grep -q "Authentication successful"; then
+        log_success "✓ Found: 'Authentication successful'"
+        update_test_result "API Authentication" "PASSED"
+    else
+        log_warning "✗ Missing: 'Authentication successful'"
+        update_test_result "API Authentication" "FAILED"
+        all_success=false
+    fi
+    
+    if echo "$logs" | grep -q "Token info retrieved successfully"; then
+        log_success "✓ Found: 'Token info retrieved successfully'"
+        update_test_result "Token Validation" "PASSED"
+    else
+        log_warning "✗ Missing: 'Token info retrieved successfully'"
+        update_test_result "Token Validation" "FAILED"
+        all_success=false
+    fi
+    
+    if echo "$logs" | grep -q "Secret retrieved successfully"; then
+        log_success "✓ Found: 'Secret retrieved successfully'"
+        update_test_result "Secret Retrieval" "PASSED"
+    else
+        log_warning "✗ Missing: 'Secret retrieved successfully'"
+        update_test_result "Secret Retrieval" "FAILED"
+        all_success=false
+    fi
+    
+    if echo "$logs" | grep -q "All expected secret keys found"; then
+        log_success "✓ Found: 'All expected secret keys found'"
+        update_test_result "Data Validation" "PASSED"
+    else
+        log_warning "✗ Missing: 'All expected secret keys found'"
+        update_test_result "Data Validation" "FAILED"
+        all_success=false
+    fi
     
     if [[ "$all_success" == "true" ]]; then
         log_success "🎉 All success indicators found!"
@@ -583,50 +835,61 @@ run_test() {
     trap cleanup EXIT
     
     # Run test steps
-    create_test_secret
-    create_policy
-    create_role
-    create_service_account
-    create_python_script
-    create_test_pod
-    wait_for_pod
+    create_test_secret || return 1
+    create_policy || return 1
+    create_role || return 1
+    create_service_account || return 1
+    create_python_script || return 1
+    create_test_pod || return 1
+    wait_for_pod || return 1
     verify_api_test
     
     log_success "🎉 Vault API test completed!"
     
     # Show additional info
     show_pod_info
+    
+    # Show test summary
+    show_test_summary
 }
 
 # Check dependencies
 check_dependencies() {
     log_info "Checking dependencies..."
     
+    # Initialize test tracking
+    init_test_tracking
+    
     # Check if kubectl is available
     if ! command -v kubectl &> /dev/null; then
         log_error "kubectl is not installed or not in PATH"
+        update_test_result "Dependencies" "FAILED"
         exit 1
     fi
     
     # Check if jq is available
     if ! command -v jq &> /dev/null; then
         log_error "jq is not installed or not in PATH"
+        update_test_result "Dependencies" "FAILED"
         exit 1
     fi
     
     # Check if vault pod exists
     if ! kubectl get pod vault-0 -n vault >/dev/null 2>&1; then
         log_error "Vault pod (vault-0) not found in vault namespace"
+        update_test_result "Dependencies" "FAILED"
         exit 1
     fi
     
     # Check if vault is ready
     if ! kubectl wait --for=condition=Ready pod/vault-0 -n vault --timeout=10s >/dev/null 2>&1; then
         log_error "Vault pod is not ready"
+        update_test_result "Dependencies" "FAILED"
         exit 1
     fi
     
     log_success "All dependencies checked"
+    update_test_result "Dependencies" "PASSED"
 }
 
 # Help function
