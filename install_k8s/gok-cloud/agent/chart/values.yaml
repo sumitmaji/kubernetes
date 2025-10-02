@@ -109,3 +109,49 @@ vault:
 # rabbitmq:
 #   user: "guest"
 #   password: "guest"
+    # CSI Driver Configuration (for volume-based secrets)
+    csi:
+      enabled: true
+      role: "gok-agent"
+      secretProviderClass:
+        name: "vault-gok-agent-provider"
+      # Secret mappings for CSI Driver
+      secrets:
+        - objectName: "username"
+          secretPath: "secret/data/rabbitmq"
+          secretKey: "username"
+        - objectName: "password"
+          secretPath: "secret/data/rabbitmq"
+          secretKey: "password"
+        - objectName: "host"
+          secretPath: "secret/data/rabbitmq"
+          secretKey: "host"
+        - objectName: "port"
+          secretPath: "secret/data/rabbitmq"
+          secretKey: "port"
+        - objectName: "virtual_host"
+          secretPath: "secret/data/rabbitmq"
+          secretKey: "virtual_host" 
+        - objectName: "config_json"
+          secretPath: "secret/data/gok-agent/config"
+          secretKey: "config_json"
+      # Optional: Sync to Kubernetes Secrets
+      secretObjects:
+        - secretName: "vault-rabbitmq-secret"
+          type: "Opaque"
+          data:
+            - objectName: "username"
+              key: "username"
+            - objectName: "password"
+              key: "password"
+            - objectName: "host"
+              key: "host"
+            - objectName: "port"
+              key: "port"  
+            - objectName: "virtual_host"
+              key: "virtual_host"
+        - secretName: "vault-config-secret"
+          type: "Opaque"
+          data:
+            - objectName: "config_json"
+              key: "config.json"

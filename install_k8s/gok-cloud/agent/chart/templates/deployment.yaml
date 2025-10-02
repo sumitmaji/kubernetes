@@ -47,9 +47,15 @@ spec:
           - name: ca-cert
             mountPath: /usr/local/share/ca-certificates/issuer.crt
             subPath: issuer.crt
-          - name: service-account-token
-            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          - name: service-account-token            
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount            
             readOnly: true
+          {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
+          # Vault CSI Driver mount
+          - name: vault-secrets
+            mountPath: /mnt/secrets-store
+            readOnly: true
+          {{- end }}
           env:
             - name: OAUTH_ISSUER
               value: "{{ .Values.env.OAUTH_ISSUER }}"
@@ -124,3 +130,12 @@ spec:
               - path: namespace
                 fieldRef:
                   fieldPath: metadata.namespace
+      {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
+      # Vault CSI Driver volume
+      - name: vault-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ .Values.vault.integration.csi.secretProviderClass.name | default "vault-gok-agent-provider" }}
+      {{- end }}

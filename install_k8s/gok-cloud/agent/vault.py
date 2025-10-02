@@ -1,8 +1,51 @@
 import os
 import json
 import logging
+from typing import Dict, Optional, List
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+def get_vault_secrets_csi(mount_path: str = "/mnt/secrets-store") -> Optional[Dict]:
+    """
+    Get secrets from Vault CSI Driver mount
+    
+    Args:
+        mount_path: Path where CSI driver mounts secrets
+        
+    Returns:
+        Dictionary containing all mounted secrets or None if failed
+    """
+    try:
+        mount_dir = Path(mount_path)
+        if not mount_dir.exists():
+            logger.warning(f"CSI mount path does not exist: {mount_path}")
+            return None
+            
+        secrets = {}
+        for secret_file in mount_dir.iterdir():
+            if secret_file.is_file() and not secret_file.name.startswith('.'):
+                try:
+                    content = secret_file.read_text().strip()
+                    # Try to parse as JSON first, fallback to string
+                    try:
+                        secrets[secret_file.name] = json.loads(content)
+                    except json.JSONDecodeError:
+                        secrets[secret_file.name] = content
+                    logger.debug(f"Loaded secret from CSI: {secret_file.name}")
+                except Exception as e:
+                    logger.error(f"Error reading CSI secret file {secret_file.name}: {e}")
+                    
+        if secrets:
+            logger.info(f"Successfully loaded {len(secrets)} secrets from Vault CSI Driver")
+            return secrets
+        else:
+            logger.warning("No secrets found in CSI mount")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error accessing CSI mount {mount_path}: {e}")
+        return None
 
 def get_vault_secrets():
     """
@@ -64,11 +107,99 @@ def get_config_secrets():
     """
     return get_vault_secrets_from_files("config")
 
+def get_vault_secrets_multi_method(secret_name: str = "config", 
+                                   methods: List[str] = None) -> Optional[Dict]:
+    """
+    Get secrets using multiple Vault integration methods with fallback
+    
+    Args:
+        secret_name: Name of the secret to retrieve
+        methods: List of methods to try ['csi', 'agent', 'k8s-secret']
+        
+    Returns:
+        Dictionary containing secret data from first successful method
+    """
+    if methods is None:
+        methods = ['csi', 'agent', 'k8s-secret']
+        
+    logger.info(f"Attempting to load {secret_name} using methods: {methods}")
+    
+    for method in methods:
+        try:
+            if method == 'csi':
+                # Try CSI Driver mount
+                csi_secrets = get_vault_secrets_csi()
+                if csi_secrets and secret_name in csi_secrets:
+                    logger.info(f"Successfully loaded {secret_name} from CSI Driver")
+                    return {secret_name: csi_secrets[secret_name]}
+                    
+            elif method == 'agent':
+                # Try Agent Injector files
+                agent_secrets = get_vault_secrets_from_files(secret_name)
+                if agent_secrets:
+                    logger.info(f"Successfully loaded {secret_name} from Agent Injector")
+                    return agent_secrets
+                    
+            elif method == 'k8s-secret':
+                # Try Kubernetes secret (from CSI sync)
+                k8s_secrets = get_kubernetes_secret(secret_name)
+                if k8s_secrets:
+                    logger.info(f"Successfully loaded {secret_name} from Kubernetes Secret")
+                    return k8s_secrets
+                    
+        except Exception as e:
+            logger.warning(f"Method {method} failed for {secret_name}: {e}")
+            continue
+            
+    logger.error(f"All methods failed to load {secret_name}")
+    return None
+
+def get_kubernetes_secret(secret_name: str, namespace: str = None) -> Optional[Dict]:
+    """
+    Get secrets from Kubernetes Secret (typically synced by CSI Driver)
+    
+    Args:
+        secret_name: Name of the Kubernetes secret
+        namespace: Kubernetes namespace (defaults to current pod namespace)
+        
+    Returns:
+        Dictionary containing secret data or None if failed
+    """
+    try:
+        # Get current namespace if not provided
+        if namespace is None:
+            namespace_file = '/var/run/secrets/kubernetes.io/serviceaccount/namespace'
+            if os.path.exists(namespace_file):
+                with open(namespace_file, 'r') as f:
+                    namespace = f.read().strip()
+            else:
+                namespace = 'default'
+                
+        # Check if secret is mounted as volume
+        secret_path = f"/var/run/secrets/kubernetes.io/secret/{secret_name}"
+        if os.path.exists(secret_path):
+            secrets = {}
+            for file_path in os.listdir(secret_path):
+                full_path = os.path.join(secret_path, file_path)
+                if os.path.isfile(full_path):
+                    with open(full_path, 'r') as f:
+                        content = f.read().strip()
+                        try:
+                            secrets[file_path] = json.loads(content)
+                        except json.JSONDecodeError:
+                            secrets[file_path] = content
+            return secrets if secrets else None
+            
+    except Exception as e:
+        logger.error(f"Error reading Kubernetes secret {secret_name}: {e}")
+        
+    return None
+
 def get_rabbitmq_secrets_from_files():
     """
-    Get RabbitMQ credentials from Vault Agent Injector files
+    Get RabbitMQ credentials from Vault using multi-method approach
     
     Returns:
         Dictionary containing RabbitMQ credentials or None if failed
     """
-    return get_vault_secrets_from_files("rabbitmq")
+    return get_vault_secrets_multi_method("rabbitmq", methods=['csi', 'agent', 'k8s-secret'])

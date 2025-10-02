@@ -4,13 +4,13 @@ This module provides functions to securely retrieve RabbitMQ credentials from Va
 """
 
 import os
-import subprocess
 import json
+import subprocess
 import logging
 import requests
 import time
+from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
-from typing import Optional, Tuple, Dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,124 +26,134 @@ class RabbitMQCredentials:
     virtual_host: str = "/"
     
 class VaultCredentialManager:
-    """Manager class for Vault credential operations"""
+    """Manager class for Vault credential operations with Kubernetes Service Account support"""
     
     def __init__(self, 
                  vault_addr: str = None, 
                  vault_token: str = None,
                  vault_path: str = "secret/rabbitmq",
-                 vault_role: str = None, 
-                 k8s_auth_path: str = None, 
-                 service_account_token_path: str = None):
+                 vault_role: str = None,
+                 k8s_auth_path: str = "auth/kubernetes",
+                 service_account_token_path: str = "/var/run/secrets/kubernetes.io/serviceaccount/token"):
         """
         Initialize Vault credential manager
         
         Args:
             vault_addr: Vault server address
-            vault_token: Vault authentication token  
+            vault_token: Vault authentication token (optional if using K8s auth)
             vault_path: Path to RabbitMQ credentials in Vault
-            vault_role: Vault role for K8s auth (default: from env VAULT_K8S_ROLE)
-            k8s_auth_path: K8s auth path in Vault (default: from env VAULT_K8S_AUTH_PATH)
-            service_account_token_path: Path to service account token (default: /var/run/secrets/kubernetes.io/serviceaccount/token)
+            vault_role: Kubernetes auth role for service account
+            k8s_auth_path: Vault Kubernetes auth path
+            service_account_token_path: Path to Kubernetes service account token
         """
-        self.vault_addr = vault_addr or os.getenv('VAULT_ADDR', 'http://localhost:8200')
+        self.vault_addr = vault_addr or os.getenv('VAULT_ADDR', 'http://vault.vault:8200')
         self.vault_token = vault_token or os.getenv('VAULT_TOKEN')
         self.vault_path = vault_path or os.getenv('VAULT_PATH', 'secret/rabbitmq')
-        
-        # Kubernetes Service Account authentication parameters
-        self.vault_role = vault_role or os.getenv('VAULT_K8S_ROLE')
-        self.k8s_auth_path = k8s_auth_path or os.getenv('VAULT_K8S_AUTH_PATH', 'kubernetes')
-        self.service_account_token_path = service_account_token_path or '/var/run/secrets/kubernetes.io/serviceaccount/token'
+        self.vault_role = vault_role or os.getenv('VAULT_K8S_ROLE', 'gok-agent-role')
+        self.k8s_auth_path = k8s_auth_path
+        self.service_account_token_path = service_account_token_path
         
         # Token management
-        self.token_expire_time = None
-        self.token_ttl = None
+        self.token_expires = None
+        self.token_renewable = False
         
-        # Try to authenticate using Kubernetes Service Account if no token provided but role is available
-        if not self.vault_token and self.vault_role:
-            logger.info("No VAULT_TOKEN provided, attempting Kubernetes Service Account authentication")
+        # Try to authenticate with Kubernetes service account if no token provided
+        if not self.vault_token:
+            logger.info("No VAULT_TOKEN provided, attempting Kubernetes service account authentication")
+            self._authenticate_with_k8s_service_account()
+        
+        if not self.vault_token:
+            logger.warning("No Vault token available. Some operations may fail.")
+    
+    def is_token_valid(self) -> bool:
+        """
+        Check if current token is still valid
+        
+        Returns:
+            True if token is valid, False otherwise
+        """
+        if not self.vault_token or not self.token_expires:
+            return False
+        return time.time() < (self.token_expires - 60)  # 60 second buffer
+    
+    def test_token_info(self) -> Optional[Dict]:
+        """
+        Test token info endpoint to validate token
+        
+        Returns:
+            Token info dict if successful, None otherwise
+        """
+        if not self.is_token_valid():
+            logger.info("Token expired or invalid, re-authenticating...")
             if not self._authenticate_with_k8s_service_account():
-                raise ValueError("Failed to authenticate with Kubernetes Service Account")
-        elif not self.vault_token:
-            logger.warning("VAULT_TOKEN not provided. Some operations may fail.")
+                return None
+        
+        try:
+            token_url = f"{self.vault_addr}/v1/auth/token/lookup-self"
+            headers = {
+                'X-Vault-Token': self.vault_token,
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.get(token_url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            token_info = response.json()
+            logger.debug("Token info retrieved successfully")
+            return token_info
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get token info: {e}")
+            return None
     
     def _authenticate_with_k8s_service_account(self) -> bool:
         """
-        Authenticate with Vault using Kubernetes Service Account token.
+        Authenticate with Vault using Kubernetes service account token
         
         Returns:
-            bool: True if authentication successful, False otherwise
+            Vault token if successful, None otherwise
         """
         try:
-            # Read the service account JWT token
+            # Check if service account token exists
             if not os.path.exists(self.service_account_token_path):
-                logger.error(f"Service account token file not found: {self.service_account_token_path}")
-                return False
+                logger.warning(f"Service account token not found at {self.service_account_token_path}")
+                return None
             
+            # Read the service account token
             with open(self.service_account_token_path, 'r') as f:
                 jwt_token = f.read().strip()
             
             if not jwt_token:
-                logger.error("Service account token is empty")
-                return False
+                logger.warning("Service account token is empty")
+                return None
             
-            # Authenticate with Vault using the JWT token
-            auth_url = f"{self.vault_addr}/v1/auth/{self.k8s_auth_path}/login"
-            auth_payload = {
+            logger.info(f"Authenticating with Vault using Kubernetes service account (role: {self.vault_role})")
+            
+            # Authenticate with Vault using the service account token
+            auth_url = f"{self.vault_addr}/v1/{self.k8s_auth_path}/login"
+            
+            auth_data = {
                 "role": self.vault_role,
                 "jwt": jwt_token
             }
             
-            logger.info(f"Attempting Kubernetes authentication with Vault at {auth_url}")
-            response = requests.post(auth_url, json=auth_payload, timeout=30)
+            headers = {
+                "Content-Type": "application/json"
+            }
             
-            if response.status_code == 200:
-                auth_data = response.json()
-                client_token = auth_data.get('auth', {}).get('client_token')
-                lease_duration = auth_data.get('auth', {}).get('lease_duration', 3600)
-                
-                if client_token:
-                    self.vault_token = client_token
-                    self.token_ttl = lease_duration
-                    self.token_expire_time = time.time() + lease_duration - 300  # Refresh 5 minutes before expiry
-                    
-                    logger.info(f"Successfully authenticated with Vault using Kubernetes Service Account (TTL: {lease_duration}s)")
-                    return True
-                else:
-                    logger.error("No client token received from Vault authentication")
-                    return False
-            else:
-                logger.error(f"Vault authentication failed: {response.status_code} - {response.text}")
-                return False
-                
-        except FileNotFoundError:
-            logger.error(f"Service account token file not found: {self.service_account_token_path}")
-            return False
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Network error during Vault authentication: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error during Vault authentication: {e}")
-            return False
-
-    def _refresh_token_if_needed(self) -> bool:
-        """
-        Check if token needs refresh and refresh it if necessary.
-        
-        Returns:
-            bool: True if token is valid/refreshed, False if refresh failed
-        """
-        if not self.token_expire_time:
-            # Token doesn't have expiration tracking, assume it's valid
-            return True
-        
-        current_time = time.time()
-        if current_time >= self.token_expire_time:
-            logger.info("Vault token expired or expiring soon, refreshing...")
-            return self._authenticate_with_k8s_service_account()
-        
-        return True
-
+            response = requests.post(auth_url, json=auth_data, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            auth_response = response.json()
+            self.vault_token = auth_response['auth']['client_token']
+            
+            # Calculate token expiration
+            lease_duration = auth_response['auth'].get('lease_duration', 3600)
+            self.token_expires = time.time() + lease_duration
+            self.token_renewable = auth_response['auth'].get('renewable', False)
+            
+            logger.info(f\"Authentication successful, token expires in {lease_duration} seconds\")\n            return True\n                \n        except requests.exceptions.RequestException as e:\n            logger.error(f\"Network error during Vault authentication: {e}\")\n            return False\n        except FileNotFoundError:\n            logger.warning(\"Service account token file not found - not running in Kubernetes?\")\n            return False\n        except Exception as e:\n            logger.error(f\"Unexpected error during Vault authentication: {e}\")\n            return False
+    
     def _run_vault_command(self, command: list) -> Tuple[bool, str]:
         """
         Execute vault CLI command
@@ -197,6 +207,59 @@ class VaultCredentialManager:
             logger.error(f"Vault is not accessible: {output}")
             return False
     
+    def _refresh_token_if_needed(self) -> bool:
+        """
+        Refresh Vault token if it's expired or about to expire
+        
+        Returns:
+            True if token is valid or successfully refreshed, False otherwise
+        """
+        if not self.vault_token:
+            # Try to get a new token using service account
+            self.vault_token = self._authenticate_with_k8s_service_account()
+            return self.vault_token is not None
+        
+        # Check if current token is valid
+        try:
+            headers = {"X-Vault-Token": self.vault_token}
+            response = requests.get(f"{self.vault_addr}/v1/auth/token/lookup-self", 
+                                  headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                token_info = response.json()
+                ttl = token_info.get('data', {}).get('ttl', 0)
+                
+                # If token expires in less than 5 minutes, refresh it
+                if ttl < 300:
+                    logger.info("Token expires soon, refreshing...")
+                    new_token = self._authenticate_with_k8s_service_account()
+                    if new_token:
+                        self.vault_token = new_token
+                        return True
+                    else:
+                        logger.warning("Failed to refresh token")
+                        return False
+                
+                return True  # Token is still valid
+            else:
+                # Token is invalid, try to get a new one
+                logger.warning("Current token is invalid, attempting to refresh")
+                new_token = self._authenticate_with_k8s_service_account()
+                if new_token:
+                    self.vault_token = new_token
+                    return True
+                else:
+                    return False
+                    
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error checking token validity: {e}")
+            # Try to refresh anyway
+            new_token = self._authenticate_with_k8s_service_account()
+            if new_token:
+                self.vault_token = new_token
+                return True
+            return False
+    
     def get_rabbitmq_credentials(self) -> Optional[RabbitMQCredentials]:
         """
         Retrieve RabbitMQ credentials from Vault
@@ -204,13 +267,9 @@ class VaultCredentialManager:
         Returns:
             RabbitMQCredentials object or None if failed
         """
-        # Refresh token if needed (for K8s Service Account authentication)
+        # Ensure we have a valid token
         if not self._refresh_token_if_needed():
-            logger.error("Failed to refresh Vault token")
-            return None
-        
-        if not self.vault_token:
-            logger.error("Vault token not available")
+            logger.error("Cannot obtain valid Vault token")
             return None
         
         logger.info(f"Retrieving RabbitMQ credentials from Vault path: {self.vault_path}")

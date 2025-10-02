@@ -53,15 +53,60 @@ class VaultCredentialManager:
         self.k8s_auth_path = k8s_auth_path
         self.service_account_token_path = service_account_token_path
         
+        # Token management
+        self.token_expires = None
+        self.token_renewable = False
+        
         # Try to authenticate with Kubernetes service account if no token provided
         if not self.vault_token:
             logger.info("No VAULT_TOKEN provided, attempting Kubernetes service account authentication")
-            self.vault_token = self._authenticate_with_k8s_service_account()
+            self._authenticate_with_k8s_service_account()
         
         if not self.vault_token:
             logger.warning("No Vault token available. Some operations may fail.")
     
-    def _authenticate_with_k8s_service_account(self) -> Optional[str]:
+    def is_token_valid(self) -> bool:
+        """
+        Check if current token is still valid
+        
+        Returns:
+            True if token is valid, False otherwise
+        """
+        if not self.vault_token or not self.token_expires:
+            return False
+        return time.time() < (self.token_expires - 60)  # 60 second buffer
+    
+    def test_token_info(self) -> Optional[Dict]:
+        """
+        Test token info endpoint to validate token
+        
+        Returns:
+            Token info dict if successful, None otherwise
+        """
+        if not self.is_token_valid():
+            logger.info("Token expired or invalid, re-authenticating...")
+            if not self._authenticate_with_k8s_service_account():
+                return None
+        
+        try:
+            token_url = f"{self.vault_addr}/v1/auth/token/lookup-self"
+            headers = {
+                'X-Vault-Token': self.vault_token,
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.get(token_url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            token_info = response.json()
+            logger.debug("Token info retrieved successfully")
+            return token_info
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get token info: {e}")
+            return None
+    
+    def _authenticate_with_k8s_service_account(self) -> bool:
         """
         Authenticate with Vault using Kubernetes service account token
         
@@ -97,30 +142,17 @@ class VaultCredentialManager:
             }
             
             response = requests.post(auth_url, json=auth_data, headers=headers, timeout=30)
+            response.raise_for_status()
             
-            if response.status_code == 200:
-                auth_response = response.json()
-                vault_token = auth_response.get('auth', {}).get('client_token')
-                
-                if vault_token:
-                    logger.info("Successfully authenticated with Vault using Kubernetes service account")
-                    return vault_token
-                else:
-                    logger.error("No client_token in Vault authentication response")
-                    return None
-            else:
-                logger.error(f"Vault authentication failed: {response.status_code} - {response.text}")
-                return None
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Network error during Vault authentication: {e}")
-            return None
-        except FileNotFoundError:
-            logger.warning("Service account token file not found - not running in Kubernetes?")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error during Vault authentication: {e}")
-            return None
+            auth_response = response.json()
+            self.vault_token = auth_response['auth']['client_token']
+            
+            # Calculate token expiration
+            lease_duration = auth_response['auth'].get('lease_duration', 3600)
+            self.token_expires = time.time() + lease_duration
+            self.token_renewable = auth_response['auth'].get('renewable', False)
+            
+            logger.info(f\"Authentication successful, token expires in {lease_duration} seconds\")\n            return True\n                \n        except requests.exceptions.RequestException as e:\n            logger.error(f\"Network error during Vault authentication: {e}\")\n            return False\n        except FileNotFoundError:\n            logger.warning(\"Service account token file not found - not running in Kubernetes?\")\n            return False\n        except Exception as e:\n            logger.error(f\"Unexpected error during Vault authentication: {e}\")\n            return False
     
     def _run_vault_command(self, command: list) -> Tuple[bool, str]:
         """
