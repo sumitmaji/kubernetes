@@ -7,6 +7,8 @@ import base64
 from jose import jwt
 import requests
 import sys
+import time
+from functools import wraps
 # Import our Vault credential managers
 from vault_credentials import get_rabbitmq_credentials, VaultCredentialManager
 from vault import get_vault_secrets_from_files, get_config_secrets, get_rabbitmq_secrets_from_files
@@ -17,6 +19,61 @@ logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
 logger.handlers = [console_handler]
+
+# --- RETRY AND ERROR HANDLING ---
+def retry_with_backoff(max_retries=5, base_delay=1, max_delay=60, backoff_multiplier=2):
+    """Decorator for retrying functions with exponential backoff"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = base_delay
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt == max_retries - 1:
+                        logger.error(f"Function {func.__name__} failed after {max_retries} attempts. Last error: {e}")
+                        raise e
+                    
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay = min(delay * backoff_multiplier, max_delay)
+            
+            raise last_exception
+        return wrapper
+    return decorator
+
+def safe_rabbitmq_operation(operation_name, func, *args, **kwargs):
+    """Safely execute RabbitMQ operations with error handling"""
+    try:
+        return func(*args, **kwargs)
+    except pika.exceptions.ProbableAuthenticationError as e:
+        logger.error(f"{operation_name} - Authentication failed: {e}")
+        return False
+    except pika.exceptions.AMQPConnectionError as e:
+        logger.error(f"{operation_name} - Connection failed: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"{operation_name} - Unexpected error: {e}")
+        return False
+
+def check_rabbitmq_health():
+    """Check RabbitMQ connectivity and return status"""
+    def _health_check():
+        conn_params = get_rabbitmq_connection_params()
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(**conn_params)
+        )
+        connection.close()
+        return True
+    
+    is_healthy = safe_rabbitmq_operation("health_check", _health_check)
+    status = "✅ HEALTHY" if is_healthy else "❌ UNHEALTHY"
+    logger.info(f"RabbitMQ Health Status: {status}")
+    return is_healthy
 
 # --- RBAC CONFIG ---
 # Example RBAC config, replace with your actual config or import from a file
@@ -239,52 +296,131 @@ def on_message(ch, method, properties, body):
 
 def ensure_results_queue():
     """Ensure the 'results' queue exists in RabbitMQ, create if not present."""
-    conn_params = get_rabbitmq_connection_params()
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(**conn_params)
-    )
-    channel = connection.channel()
-    try:
-        channel.queue_declare(queue=RESULTS_QUEUE, passive=True)
-        logging.info(f"Queue '{RESULTS_QUEUE}' already exists.")
-    except pika.exceptions.ChannelClosedByBroker:
-        channel = connection.channel()  # Reopen channel after exception
-        channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
-        logging.info(f"Queue '{RESULTS_QUEUE}' created.")
-    finally:
-        connection.close()
+    def _ensure_queue():
+        conn_params = get_rabbitmq_connection_params()
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(**conn_params)
+        )
+        channel = connection.channel()
+        try:
+            channel.queue_declare(queue=RESULTS_QUEUE, passive=True)
+            logging.info(f"Queue '{RESULTS_QUEUE}' already exists.")
+            return True
+        except pika.exceptions.ChannelClosedByBroker:
+            channel = connection.channel()  # Reopen channel after exception
+            channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
+            logging.info(f"Queue '{RESULTS_QUEUE}' created.")
+            return True
+        finally:
+            connection.close()
+    
+    return safe_rabbitmq_operation("ensure_results_queue", _ensure_queue)
 
 def ensure_commands_queue():
     """Ensure the 'commands' queue exists in RabbitMQ, create if not present."""
+    def _ensure_queue():
+        conn_params = get_rabbitmq_connection_params()
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(**conn_params)
+        )
+        channel = connection.channel()
+        try:
+            channel.queue_declare(queue='commands', passive=True)
+            logging.info("Queue 'commands' already exists.")
+            return True
+        except pika.exceptions.ChannelClosedByBroker:
+            channel = connection.channel()  # Reopen channel after exception
+            channel.queue_declare(queue='commands', durable=True)
+            logging.info("Queue 'commands' created.")
+            return True
+        finally:
+            connection.close()
+    
+    return safe_rabbitmq_operation("ensure_commands_queue", _ensure_queue)
+
+@retry_with_backoff(max_retries=10, base_delay=5, max_delay=300)
+def establish_rabbitmq_connection():
+    """Establish RabbitMQ connection with retry logic"""
     conn_params = get_rabbitmq_connection_params()
     connection = pika.BlockingConnection(
         pika.ConnectionParameters(**conn_params)
     )
-    channel = connection.channel()
-    try:
-        channel.queue_declare(queue='commands', passive=True)
-        logging.info("Queue 'commands' already exists.")
-    except pika.exceptions.ChannelClosedByBroker:
-        channel = connection.channel()  # Reopen channel after exception
-        channel.queue_declare(queue='commands', durable=True)
-        logging.info("Queue 'commands' created.")
-    finally:
-        connection.close()
+    return connection
 
 def main():
-    conn_params = get_rabbitmq_connection_params()
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(**conn_params)
-    )
-    channel = connection.channel()
-    channel.queue_declare(queue='commands', durable=True)
-    channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue='commands', on_message_callback=on_message)
-    logging.info("Unified agent started, waiting for commands/batches...")
-    channel.start_consuming()
+    """Main application loop with robust error handling"""
+    while True:
+        try:
+            logger.info("Attempting to establish RabbitMQ connection...")
+            connection = establish_rabbitmq_connection()
+            channel = connection.channel()
+            
+            # Ensure queues exist
+            channel.queue_declare(queue='commands', durable=True)
+            channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
+            channel.basic_qos(prefetch_count=1)
+            channel.basic_consume(queue='commands', on_message_callback=on_message)
+            
+            logger.info("✅ RabbitMQ connection established successfully!")
+            logger.info("Unified agent started, waiting for commands/batches...")
+            
+            # Log initial health status
+            check_rabbitmq_health()
+            
+            try:
+                channel.start_consuming()
+            except KeyboardInterrupt:
+                logger.info("Received keyboard interrupt, stopping gracefully...")
+                channel.stop_consuming()
+                connection.close()
+                break
+            except pika.exceptions.ConnectionClosedByBroker:
+                logger.warning("Connection closed by broker, will reconnect...")
+                if connection and not connection.is_closed:
+                    connection.close()
+                continue
+            except pika.exceptions.StreamLostError:
+                logger.warning("Stream lost, will reconnect...")
+                if connection and not connection.is_closed:
+                    connection.close()
+                continue
+                
+        except pika.exceptions.ProbableAuthenticationError as e:
+            logger.error(f"❌ Authentication failed: {e}")
+            logger.info("Retrying with updated credentials in 30 seconds...")
+            time.sleep(30)
+            continue
+            
+        except pika.exceptions.AMQPConnectionError as e:
+            logger.error(f"❌ Connection failed: {e}")
+            logger.info("Retrying connection in 15 seconds...")
+            time.sleep(15)
+            continue
+            
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in main loop: {e}")
+            logger.info("Retrying in 10 seconds...")
+            time.sleep(10)
+            continue
 
 if __name__ == '__main__':
-    ensure_results_queue()
-    ensure_commands_queue()
-    main()
+    logger.info("🚀 Starting GOK Agent...")
+    
+    # Try to ensure queues exist, but don't fail if RabbitMQ is unavailable
+    logger.info("Checking RabbitMQ queue setup...")
+    results_queue_ok = ensure_results_queue()
+    commands_queue_ok = ensure_commands_queue()
+    
+    if results_queue_ok and commands_queue_ok:
+        logger.info("✅ Initial queue setup completed successfully")
+    else:
+        logger.warning("⚠️ Queue setup failed, but application will continue and retry...")
+    
+    # Start main loop (will retry connections automatically)
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("👋 Application stopped by user")
+    except Exception as e:
+        logger.error(f"💥 Fatal error: {e}")
+        sys.exit(1)

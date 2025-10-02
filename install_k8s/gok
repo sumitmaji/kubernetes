@@ -2707,13 +2707,14 @@ gokAgentInstall(){
   kubectl create namespace gok-agent
 
   createVaultSecretStore \
-  -p "secret/gok-agent" \
+  -p "secret/gok-agent/config" \
   -r "gok-agent" \
   -l "gok-agent-policy" \
   -s "gok-agent-provider" \
   -x "gok-agent" \
   -n "gok-agent" \
-  -k "api-token=adfasdfsasdfasdfasd"
+  -k "oauth_client_id=adfasdfsasdfasdfasd" \
+  -k "static_config=asdfasdf"
 
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-agent
 
