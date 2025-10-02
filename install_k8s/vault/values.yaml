@@ -27,7 +27,7 @@ server:
 
   # Annotations for the ingress
   ingress:
-    enabled: false
+    enabled: true
     ingressClassName: "nginx"
     pathType: ImplementationSpecific
     hosts:
