@@ -147,7 +147,7 @@ class SecretReloadHandler(FileSystemEventHandler):
         self.app = app
 
     def on_modified(self, event):
-        if event.src_path.endswith("web-controller"):
+        if event.src_path.endswith("gok-controller"):
             secrets = get_vault_secrets()
             self.app.config["API_TOKEN"] = secrets.get("api-token", self.app.config.get("API_TOKEN"))
             global API_TOKEN

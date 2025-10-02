@@ -9,7 +9,7 @@ kubectl get pods,svc -n rabbitmq -o wide
 
 ### **2. Get Controller Pod**  
 ```bash
-CONTROLLER_POD=$(kubectl get pods -n gok-controller -l app=web-controller -o jsonpath='{.items[0].metadata.name}')
+CONTROLLER_POD=$(kubectl get pods -n gok-controller -l app=gok-controller -o jsonpath='{.items[0].metadata.name}')
 echo "Controller Pod: $CONTROLLER_POD"
 ```
 
@@ -37,7 +37,7 @@ kubectl logs -n gok-controller $CONTROLLER_POD -c api --tail=20
 
 ### **7. Fix DNS Issues (if needed)**
 ```bash
-kubectl patch deployment web-controller -n gok-controller -p \
+kubectl patch deployment gok-controller -n gok-controller -p \
 '{"spec":{"template":{"spec":{"containers":[{"name":"api","env":[{"name":"RABBITMQ_HOST","value":"rabbitmq.rabbitmq"}]}]}}}}'
 ```
 

@@ -43,11 +43,11 @@ kubernetes/    kubernetes    auth_kubernetes_892cb77f    n/a
 token/         token         auth_token_c79f677b         token based credentials
 
 # Existing Roles
-web-controller
+gok-controller
 
 # Policies  
 default
-web-controller-policy
+gok-controller-policy
 root
 
 # Service Account Info
@@ -160,7 +160,7 @@ VAULT_TOKEN=\$SETUP_TOKEN sh /tmp/setup_vault_k8s_auth.sh
 
 ### **Option 3: Test Individual Components**
 ```bash
-# Test with existing web-controller role
+# Test with existing gok-controller role
 kubectl exec -n vault vault-0 -- sh -c "
 # Show what the script would create
 echo 'Script would create:'
@@ -170,7 +170,7 @@ echo '• Auth config: Kubernetes cluster trust relationship'
 echo ''
 echo 'Current state:'
 vault list auth/kubernetes/role
-vault policy list | grep -E '(web-controller|rabbitmq)'
+vault policy list | grep -E '(gok-controller|rabbitmq)'
 "
 ```
 

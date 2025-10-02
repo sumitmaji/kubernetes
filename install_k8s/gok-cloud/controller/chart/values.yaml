@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  api: registry.gokcloud.com/web-controller:latest
+  api: registry.gokcloud.com/gok-controller:latest
 
 # Service Account configuration for Vault authentication
 serviceAccount:
@@ -44,16 +44,16 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/websocket-services: "web-controller"
+    nginx.ingress.kubernetes.io/websocket-services: "gok-controller"
   hosts:
-    - host: web-controller.example.com
+    - host: gok-controller.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
     - hosts:
-        - web-controller.example.com
-      secretName: web-controller-tls
+        - gok-controller.example.com
+      secretName: gok-controller-tls
 
 vault:
   # Enable Vault integration for RabbitMQ credentials

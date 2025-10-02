@@ -2745,11 +2745,11 @@ gokControllerInstall(){
   kubectl create namespace gok-controller
   
   createVaultSecretStore \
-  -p "secret/web-controller" \
-  -r "web-controller" \
-  -l "web-controller-policy" \
-  -s "web-controller-provider" \
-  -x "web-controller" \
+  -p "secret/gok-controller" \
+  -r "gok-controller" \
+  -l "gok-controller-policy" \
+  -s "gok-controller-provider" \
+  -x "gok-controller" \
   -n "gok-controller" \
   -k "api-token=adfasdfasdfasdfasd"
   
@@ -2760,7 +2760,7 @@ gokControllerInstall(){
     --namespace gok-controller
 
   # Patch the ingress with Let's Encrypt
-  gok patch ingress web-controller gok-controller letsencrypt controller
+  gok patch ingress gok-controller gok-controller letsencrypt controller
   patchControllerWithOauth
   if [[ $? -ne 0 ]]; then
     echoFailed "Failed to patch Gok Controller ingress with Let's Encrypt!"
@@ -3371,7 +3371,7 @@ patchCloudshellWithOauth() {
 }
 
 patchControllerWithOauth() {
-  patchOauth2Secure web-controller gok-controller https://controller.$(rootDomain)
+  patchOauth2Secure gok-controller gok-controller https://controller.$(rootDomain)
 }
 
 checkAndPatchDashboard() {

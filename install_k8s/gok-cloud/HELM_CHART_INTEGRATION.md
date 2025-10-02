@@ -22,7 +22,7 @@ This document summarizes the changes made to integrate Vault Kubernetes Service 
 
 #### Agent & Controller `values.yaml` Changes:
 - ✅ **Updated ServiceAccount configuration**:
-  - Changed from `agent-backend-sa`/`web-controller-sa` to unified `gok-agent`
+  - Changed from `agent-backend-sa`/`gok-controller-sa` to unified `gok-agent`
   - Added `automountServiceAccountToken: true`
   - Added annotations support
 
@@ -156,7 +156,7 @@ This document summarizes the changes made to integrate Vault Kubernetes Service 
 # Controller used Vault agent injector
 annotations:
   vault.hashicorp.com/agent-inject: "true"
-  vault.hashicorp.com/role: "web-controller"
+  vault.hashicorp.com/role: "gok-controller"
   
 env:
   - name: VAULT_SECRETS_PATH
@@ -213,11 +213,11 @@ helm upgrade --install gok-controller . \
 ```bash
 # Check pods are running with correct service account
 kubectl get pods -l app=gok-agent -o jsonpath='{.items[*].spec.serviceAccountName}'
-kubectl get pods -l app=web-controller -o jsonpath='{.items[*].spec.serviceAccountName}'
+kubectl get pods -l app=gok-controller -o jsonpath='{.items[*].spec.serviceAccountName}'
 
 # Check logs for successful Vault authentication
 kubectl logs -l app=gok-agent | grep "Successfully authenticated with Vault"
-kubectl logs -l app=web-controller | grep "Successfully authenticated with Vault"
+kubectl logs -l app=gok-controller | grep "Successfully authenticated with Vault"
 ```
 
 ## 🔍 **Backward Compatibility**

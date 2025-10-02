@@ -84,27 +84,27 @@ cd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: web-controller
+  name: gok-controller
   namespace: gok-controller
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/websocket-services: "web-controller"
+    nginx.ingress.kubernetes.io/websocket-services: "gok-controller"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - web-controller.example.com
-      secretName: web-controller-tls
+        - gok-controller.example.com
+      secretName: gok-controller-tls
   rules:
-    - host: web-controller.example.com
+    - host: gok-controller.example.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: web-controller
+                name: gok-controller
                 port:
                   number: 8080
 ```

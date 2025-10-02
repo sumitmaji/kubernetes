@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: web-controller
+  name: gok-controller
   labels:
-    app: web-controller
+    app: gok-controller
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: web-controller
+      app: gok-controller
   template:
     metadata:
       labels:
-        app: web-controller
+        app: gok-controller
       {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "agent") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.agentInjector.enabled }}
       annotations:
         # Vault Agent Injector annotations for static secrets

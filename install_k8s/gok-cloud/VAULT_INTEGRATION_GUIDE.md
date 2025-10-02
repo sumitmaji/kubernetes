@@ -149,7 +149,7 @@ vault write auth/kubernetes/config \
 
 # Create role for GOK-Agent
 vault write auth/kubernetes/role/gok-agent-role \
-    bound_service_account_names=agent-backend-sa,web-controller-sa \
+    bound_service_account_names=agent-backend-sa,gok-controller-sa \
     bound_service_account_namespaces=default \
     policies=gok-agent-policy \
     ttl=1h

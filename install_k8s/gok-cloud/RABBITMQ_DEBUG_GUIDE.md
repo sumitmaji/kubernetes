@@ -32,7 +32,7 @@ Edit the script to match your environment:
 # Configuration section in script
 RABBITMQ_NAMESPACE="rabbitmq"           # RabbitMQ namespace
 CONTROLLER_NAMESPACE="gok-controller"   # Controller namespace  
-CONTROLLER_APP_LABEL="app=web-controller"  # Controller pod selector
+CONTROLLER_APP_LABEL="app=gok-controller"  # Controller pod selector
 AGENT_NAMESPACE="skmaji1"               # Agent namespace
 AGENT_APP_LABEL="app=agent-backend"    # Agent pod selector
 ```
@@ -101,7 +101,7 @@ Step 7: Configuration Recommendations
    ❌ RABBITMQ_HOST: "rabbitmq.rabbitmq.svc.cluster.uat"
 
 🔧 To fix DNS issues in running deployments:
-   kubectl patch deployment web-controller -n gok-controller -p '...'
+   kubectl patch deployment gok-controller -n gok-controller -p '...'
 ```
 
 ---
@@ -118,7 +118,7 @@ ERROR Address resolution failed: gaierror(-2, 'Name or service not known')
 **Solution:**
 ```bash
 # Update to use short DNS name
-kubectl patch deployment web-controller -n gok-controller -p \
+kubectl patch deployment gok-controller -n gok-controller -p \
 '{"spec":{"template":{"spec":{"containers":[{"name":"api","env":[{"name":"RABBITMQ_HOST","value":"rabbitmq.rabbitmq"}]}]}}}}'
 ```
 
@@ -137,7 +137,7 @@ kubectl patch deployment web-controller -n gok-controller -p \
 ### **Issue 3: Controller Pod Not Found**
 **Symptoms:**
 ```
-❌ No controller pod found with label 'app=web-controller'
+❌ No controller pod found with label 'app=gok-controller'
 ```
 
 **Solutions:**
@@ -159,7 +159,7 @@ kubectl get svc rabbitmq -n rabbitmq -o jsonpath='{.spec.clusterIP}'
 
 #### **Check Controller:**
 ```bash
-kubectl get pods -n gok-controller -l app=web-controller -o wide
+kubectl get pods -n gok-controller -l app=gok-controller -o wide
 kubectl describe pod -n gok-controller <pod-name>
 kubectl exec -n gok-controller <pod-name> -c api -- env | grep RABBITMQ
 ```
@@ -184,7 +184,7 @@ kubectl logs -n gok-controller <pod-name> -c api | grep -i rabbitmq
 
 #### **Update Configuration:**
 ```bash
-kubectl patch deployment web-controller -n gok-controller -p \
+kubectl patch deployment gok-controller -n gok-controller -p \
 '{"spec":{"template":{"spec":{"containers":[{"name":"api","env":[{"name":"RABBITMQ_HOST","value":"rabbitmq.rabbitmq"}]}]}}}}'
 ```
 

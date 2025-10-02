@@ -399,7 +399,7 @@ def rabbitmq_result_worker():
 # vault.py
 def get_vault_secrets():
     secrets_path = os.environ.get("VAULT_SECRETS_PATH", "/vault/secrets/")
-    secrets_file = os.path.join(secrets_path, "web-controller")
+    secrets_file = os.path.join(secrets_path, "gok-controller")
     with open(secrets_file, "r") as f:
         data = json.load(f)
     return data
@@ -409,7 +409,7 @@ def get_vault_secrets():
 ```python
 class SecretReloadHandler(FileSystemEventHandler):
     def on_modified(self, event):
-        if event.src_path.endswith("web-controller"):
+        if event.src_path.endswith("gok-controller"):
             secrets = get_vault_secrets()
             self.app.config["API_TOKEN"] = secrets.get("api-token")
             global API_TOKEN
@@ -458,9 +458,9 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # Long-lived connections
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"   # Long uploads
-    nginx.ingress.kubernetes.io/websocket-services: "web-controller"  # WebSocket support
+    nginx.ingress.kubernetes.io/websocket-services: "gok-controller"  # WebSocket support
   hosts:
-    - host: web-controller.example.com
+    - host: gok-controller.example.com
       paths:
         - path: /
           pathType: Prefix
@@ -472,15 +472,15 @@ ingress:
 vault:
   enabled: true
   agentInjector: true
-  role: "web-controller"
-  secretPath: "secret/web-controller"
+  role: "gok-controller"
+  secretPath: "secret/gok-controller"
 
 # Deployment annotations (in template)
 annotations:
   vault.hashicorp.com/agent-inject: "true"
-  vault.hashicorp.com/role: "web-controller"
-  vault.hashicorp.com/agent-inject-secret-web-controller: "secret/web-controller"
-  vault.hashicorp.com/agent-inject-template-web-controller: |
+  vault.hashicorp.com/role: "gok-controller"
+  vault.hashicorp.com/agent-inject-secret-gok-controller: "secret/gok-controller"
+  vault.hashicorp.com/agent-inject-template-gok-controller: |
     {{`{{- printf "{\"api-token\": \"{{ .Data.api-token }}\"}" }}`}}
 ```
 
@@ -541,11 +541,11 @@ gokControllerInstall(){
   
   # 3. Setup Vault integration
   createVaultSecretStore \
-    -p "secret/web-controller" \
-    -r "web-controller" \
-    -l "web-controller-policy" \
-    -s "web-controller-provider" \
-    -x "web-controller" \
+    -p "secret/gok-controller" \
+    -r "gok-controller" \
+    -l "gok-controller-policy" \
+    -s "gok-controller-provider" \
+    -x "gok-controller" \
     -n "gok-controller" \
     -k "api-token=adfasdfasdfasdfasd"
   
@@ -560,14 +560,14 @@ gokControllerInstall(){
     --namespace gok-controller
 
   # 6. Configure ingress with SSL
-  gok patch ingress web-controller gok-controller letsencrypt controller
+  gok patch ingress gok-controller gok-controller letsencrypt controller
   patchControllerWithOauth
 }
 ```
 
 **Installation Process**:
 1. **Multi-stage Build** - React frontend + Flask backend in single image
-2. **Registry Push** - Uploads to `registry.gokcloud.com/web-controller:latest`
+2. **Registry Push** - Uploads to `registry.gokcloud.com/gok-controller:latest`
 3. **Namespace Setup** - Dedicated namespace for web interface
 4. **Vault Configuration** - Creates secret store, role, and policy
 5. **Certificate Management** - CA certificate for OIDC/HTTPS
@@ -719,13 +719,13 @@ print('RabbitMQ connection: OK')
 ```bash
 # Verify controller deployment
 kubectl get pods -n gok-controller
-kubectl logs -f deployment/web-controller -n gok-controller
+kubectl logs -f deployment/gok-controller -n gok-controller
 
 # Test web interface
 curl -k https://controller.$(kubectl get cm cluster-info -o jsonpath='{.data.domain}')
 
 # Verify Vault integration
-kubectl exec -it deployment/web-controller -n gok-controller -- ls -la /vault/secrets/
+kubectl exec -it deployment/gok-controller -n gok-controller -- ls -la /vault/secrets/
 ```
 
 ### Command Execution Testing
@@ -777,7 +777,7 @@ curl -sk -X POST https://controller.gokcloud.com/send-command-batch \
 kubectl logs -f deployment/agent-backend -n gok-agent | grep "ERROR\|WARNING"
 
 # Controller logs  
-kubectl logs -f deployment/web-controller -n gok-controller | grep "authentication\|authorization"
+kubectl logs -f deployment/gok-controller -n gok-controller | grep "authentication\|authorization"
 
 # RabbitMQ logs
 kubectl logs -f statefulset/rabbitmq -n rabbitmq | grep "connection\|queue"
@@ -802,7 +802,7 @@ kubectl exec -it deployment/agent-backend -n gok-agent -- nslookup rabbitmq-0.ra
 ```bash
 # Symptoms: "Invalid token" errors in controller logs
 # Verify Keycloak connectivity
-kubectl exec -it deployment/web-controller -n gok-controller -- curl -k https://keycloak.gokcloud.com/realms/GokDevelopers/.well-known/openid-configuration
+kubectl exec -it deployment/gok-controller -n gok-controller -- curl -k https://keycloak.gokcloud.com/realms/GokDevelopers/.well-known/openid-configuration
 
 # Check OIDC configuration
 kubectl get configmap -n gok-controller -o yaml
@@ -825,7 +825,7 @@ kubectl exec -it deployment/agent-backend -n gok-agent -- ls -la /host/
 kubectl describe pod -n gok-controller | grep -A10 "vault.hashicorp.com"
 
 # Verify secret file
-kubectl exec -it deployment/web-controller -n gok-controller -- cat /vault/secrets/web-controller
+kubectl exec -it deployment/gok-controller -n gok-controller -- cat /vault/secrets/gok-controller
 ```
 
 ### Maintenance Procedures
@@ -840,7 +840,7 @@ kubectl rollout restart deployment/agent-backend -n gok-agent
 # Controller image update
 cd $MOUNT_PATH/kubernetes/install_k8s/gok-agent/controller  
 ./build.sh && ./tag_push.sh
-kubectl rollout restart deployment/web-controller -n gok-controller
+kubectl rollout restart deployment/gok-controller -n gok-controller
 ```
 
 #### Configuration Updates
@@ -856,7 +856,7 @@ helm upgrade gok-controller ./chart --namespace gok-controller \
 #### Clean Shutdown
 ```bash
 # Graceful shutdown order
-kubectl scale deployment web-controller --replicas=0 -n gok-controller
+kubectl scale deployment gok-controller --replicas=0 -n gok-controller
 kubectl scale deployment agent-backend --replicas=0 -n gok-agent
 
 # Complete removal
