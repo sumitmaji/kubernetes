@@ -1383,6 +1383,34 @@ EOF
     kubectl delete secretproviderclass "$provider_class" -n "$namespace" --ignore-not-found >/dev/null 2>&1
 }
 
+# Detect Vault address for API access
+detect_vault_address() {
+    local vault_address=""
+    
+    # Try to get from ingress
+    if kubectl get ingress vault -n vault >/dev/null 2>&1; then
+        vault_address=$(kubectl get ingress vault -n vault -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
+        if [[ -n "$vault_address" ]]; then
+            vault_address="https://$vault_address"
+        fi
+    fi
+    
+    # Fallback to service with multiple options
+    if [[ -z "$vault_address" ]]; then
+        # Try different service addresses
+        local service_addresses=(
+            "http://vault.vault.svc.cluster.local:8200"
+            "http://vault.vault:8200"
+            "http://vault:8200"
+        )
+        
+        # Use the first one as default (most common)
+        vault_address="${service_addresses[0]}"
+    fi
+    
+    echo "$vault_address"
+}
+
 # Test API method
 test_api_method() {
     local namespace="$1"
@@ -1411,55 +1439,125 @@ test_api_method() {
         role_name="rabbitmq-reader"
     fi
     
-    # Create Python test script
-    cat <<EOF | kubectl create configmap "$configmap_name" -n "$namespace" --from-file=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+    # Detect Vault address
+    local vault_address
+    vault_address=$(detect_vault_address)
+    log_info "Using Vault address: $vault_address"
+    
+    # Create Python test script with improved error handling
+    if cat <<EOF | kubectl create configmap "$configmap_name" -n "$namespace" --from-file=test_script.py=/dev/stdin >/dev/null 2>&1
 #!/usr/bin/env python3
 import os
 import requests
 import json
+import time
+import urllib3
 from urllib3.exceptions import InsecureRequestWarning
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+# Disable SSL warnings
+urllib3.disable_warnings(InsecureRequestWarning)
 
 def main():
+    print("🚀 Starting Vault API test for $secret_path")
+    vault_url = "$vault_address"
+    role_name = "$role_name"
+    secret_path = "$secret_path"
+    
+    print(f"Configuration: Vault={vault_url}, Role={role_name}, Secret={secret_path}")
+    
     try:
         # Read service account token
+        print("📖 Reading service account token...")
         with open('/var/run/secrets/kubernetes.io/serviceaccount/token', 'r') as f:
             jwt_token = f.read().strip()
+        print("✅ Service account token read successfully")
         
         # Authenticate with Vault
-        auth_url = 'http://vault.vault:8200/v1/auth/kubernetes/login'
+        print("🔐 Authenticating with Vault...")
+        auth_url = f'{vault_url}/v1/auth/kubernetes/login'
         auth_data = {
-            'role': '$role_name',
+            'role': role_name,
             'jwt': jwt_token
         }
         
-        auth_response = requests.post(auth_url, json=auth_data, verify=False)
+        auth_response = requests.post(
+            auth_url, 
+            json=auth_data, 
+            verify=False, 
+            timeout=30
+        )
+        
         if auth_response.status_code != 200:
-            print(f"Authentication failed: {auth_response.text}")
-            exit(1)
+            print(f"❌ Authentication failed: {auth_response.status_code} - {auth_response.text}")
+            return 1
         
-        vault_token = auth_response.json()['auth']['client_token']
+        auth_data = auth_response.json()
+        vault_token = auth_data['auth']['client_token']
+        print("✅ Authentication successful")
         
-        # Fetch secret
-        secret_url = f'http://vault.vault:8200/v1/$secret_path'
+        # Test token info
+        print("🔍 Testing token info...")
+        token_url = f'{vault_url}/v1/auth/token/lookup-self'
         headers = {'X-Vault-Token': vault_token}
         
-        secret_response = requests.get(secret_url, headers=headers, verify=False)
+        token_response = requests.get(
+            token_url, 
+            headers=headers, 
+            verify=False, 
+            timeout=30
+        )
+        
+        if token_response.status_code == 200:
+            print("✅ Token info retrieved successfully")
+        else:
+            print(f"⚠️ Token info check failed: {token_response.status_code}")
+        
+        # Fetch secret
+        print(f"📖 Retrieving secret from: {secret_path}")
+        secret_url = f'{vault_url}/v1/{secret_path}'
+        
+        secret_response = requests.get(
+            secret_url, 
+            headers=headers, 
+            verify=False, 
+            timeout=30
+        )
+        
         if secret_response.status_code != 200:
-            print(f"Secret fetch failed: {secret_response.text}")
-            exit(1)
+            print(f"❌ Secret fetch failed: {secret_response.status_code} - {secret_response.text}")
+            return 1
         
         secret_data = secret_response.json().get('data', {})
-        print(f"Successfully retrieved secret from $secret_path")
-        print(f"Available keys: {list(secret_data.keys())}")
+        print("✅ Secret retrieved successfully")
+        print(f"📊 Available keys: {list(secret_data.keys())}")
+        print(f"📊 Total keys: {len(secret_data)}")
         
+        # Validate we got some data
+        if len(secret_data) > 0:
+            print("✅ Secret data validation successful")
+            print("🎉 Vault API test completed successfully!")
+            return 0
+        else:
+            print("❌ No secret data found")
+            return 1
+        
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Network error: {e}")
+        return 1
     except Exception as e:
-        print(f"Error: {e}")
-        exit(1)
+        print(f"❌ Unexpected error: {e}")
+        return 1
 
 if __name__ == '__main__':
-    main()
+    exit(main())
 EOF
+    then
+        log_info "Python test script created in ConfigMap"
+    else
+        log_error "Failed to create Python test script ConfigMap"
+        update_test_result "$test_name" "FAILED"
+        return
+    fi
     
     # Create test pod with Python
     cat <<EOF | kubectl apply -f - >/dev/null 2>&1
@@ -1477,16 +1575,23 @@ spec:
     args:
     - -c
     - |
+      set -e
+      echo "Installing required packages..."
       pip install --quiet requests urllib3
+      echo "Packages installed successfully"
+      echo
+      echo "Starting Vault API test..."
       python /app/test_script.py
-      sleep 60
+      echo
+      echo "Test completed. Keeping container alive for inspection..."
+      sleep 300
     resources:
       requests:
-        memory: "64Mi"
-        cpu: "50m"
-      limits:
         memory: "128Mi"
         cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
     volumeMounts:
     - name: test-script
       mountPath: /app
@@ -1498,20 +1603,53 @@ spec:
   restartPolicy: Never
 EOF
     
-    # Wait for pod to complete
-    sleep 15
+    # Wait for pod to be ready first
+    if ! kubectl wait --for=condition=Ready pod/"$pod_name" -n "$namespace" --timeout=120s >/dev/null 2>&1; then
+        log_error "✗ API test pod failed to become ready for $secret_path"
+        update_test_result "$test_name" "FAILED"
+        return
+    fi
     
-    # Check logs for success
-    if kubectl logs "$pod_name" -n "$namespace" 2>/dev/null | grep -q "Successfully retrieved secret"; then
-        log_success "✓ API method test passed for $secret_path"
+    # Wait for test execution to complete
+    log_info "Waiting for API test execution to complete..."
+    sleep 45
+    
+    # Get pod logs for analysis
+    local logs
+    logs=$(kubectl logs "$pod_name" -n "$namespace" 2>/dev/null || echo "No logs available")
+    
+    # Check for multiple success indicators
+    local success_indicators=(
+        "Authentication successful"
+        "Secret retrieved successfully"
+        "Vault API test completed successfully"
+    )
+    
+    local success_count=0
+    local total_indicators=${#success_indicators[@]}
+    
+    log_info "Checking API test success indicators..."
+    for indicator in "${success_indicators[@]}"; do
+        if echo "$logs" | grep -q "$indicator"; then
+            log_info "✓ Found: '$indicator'"
+            success_count=$((success_count + 1))
+        else
+            log_info "✗ Missing: '$indicator'"
+        fi
+    done
+    
+    # Determine success based on indicators found
+    if [[ $success_count -ge 2 ]]; then
+        log_success "✓ API method test passed for $secret_path ($success_count/$total_indicators indicators)"
         update_test_result "$test_name" "PASSED"
     else
-        log_error "✗ API method test failed for $secret_path"
-        # Show logs for debugging
-        log_info "Pod logs:"
-        kubectl logs "$pod_name" -n "$namespace" 2>/dev/null || echo "No logs available"
+        log_error "✗ API method test failed for $secret_path ($success_count/$total_indicators indicators)"
         update_test_result "$test_name" "FAILED"
     fi
+    
+    # Always show logs for debugging
+    log_info "Pod logs:"
+    echo "$logs"
     
     # Track resources for cleanup
     track_created_resource "configmaps" "$configmap_name" "$namespace"
