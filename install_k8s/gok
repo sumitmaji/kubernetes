@@ -2501,7 +2501,7 @@ metadata:
 spec:
   provider: vault
   parameters:
-    vaultAddress: "https://vault.gokcloud.com"  
+    vaultAddress: "http://vault.vault.svc.cloud.uat:8200"  
     roleName: "my-role"  
     skipVerify: "true"   
     vaultSkipTLSVerify: "true"                 
