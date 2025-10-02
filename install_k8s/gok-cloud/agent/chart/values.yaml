@@ -34,7 +34,7 @@ env:
   VAULT_ADDR: "http://vault.vault.svc.cloud.uat:8200"
   VAULT_K8S_AUTH_PATH: "kubernetes"
   VAULT_K8S_ROLE: "gok-agent"
-  VAULT_PATH: "secret/data/rabbitmq"
+  VAULT_PATH: "secret/rabbitmq"
 
 vault:
   # Enable Vault integration for RabbitMQ credentials
@@ -58,7 +58,12 @@ vault:
         config:
           path: "secret/gok-agent/config"
           template: |
-            {{`{{- printf "{\"oauth_client_id\": \"{{ .Data.oauth_client_id }}\"}" }}`}}
+            {{`{{- with secret "secret/gok-agent/config" -}}`}}
+            {
+              "oauth_client_secret": "{{`{{ .Data.data.oauth_client_secret }}`}}",
+              "static_config": "{{`{{ .Data.data.static_config }}`}}"
+            }
+            {{`{{- end }}`}}
 
         # RabbitMQ credentials (can be used as fallback)
         rabbitmq:
@@ -118,22 +123,22 @@ vault:
       # Secret mappings for CSI Driver
       secrets:
         - objectName: "username"
-          secretPath: "secret/data/rabbitmq"
+          secretPath: "secret/rabbitmq"
           secretKey: "username"
         - objectName: "password"
-          secretPath: "secret/data/rabbitmq"
+          secretPath: "secret/rabbitmq"
           secretKey: "password"
         - objectName: "host"
-          secretPath: "secret/data/rabbitmq"
+          secretPath: "secret/rabbitmq"
           secretKey: "host"
         - objectName: "port"
-          secretPath: "secret/data/rabbitmq"
+          secretPath: "secret/rabbitmq"
           secretKey: "port"
         - objectName: "virtual_host"
-          secretPath: "secret/data/rabbitmq"
+          secretPath: "secret/rabbitmq"
           secretKey: "virtual_host" 
         - objectName: "config_json"
-          secretPath: "secret/data/gok-agent/config"
+          secretPath: "secret/gok-agent/config"
           secretKey: "config_json"
       # Optional: Sync to Kubernetes Secrets
       secretObjects:

@@ -75,22 +75,22 @@ vault:
       secrets:
         # Static configuration secrets
         config:
-          path: "secret/data/gok-controller/config"
+          path: "secret/gok-controller/config"
           template: |
-            {{`{{- with secret "secret/data/gok-controller/config" -}}`}}
+            {{`{{- with secret "secret/gok-controller/config" -}}`}}
             {
-              "oauth_client_secret": "{{`{{ .Data.data.oauth_client_secret }}`}}",
-              "static_config": "{{`{{ .Data.data.static_config }}`}}"
+              "oauth_client_secret": "{{`{{ .Data.oauth_client_secret }}`}}",
+              "static_config": "{{`{{ .Data.static_config }}`}}"
             }
             {{`{{- end }}`}}
         # RabbitMQ credentials (can be used as fallback)
         rabbitmq:
-          path: "secret/data/rabbitmq"
+          path: "secret/rabbitmq"
           template: |
-            {{`{{- with secret "secret/data/rabbitmq" -}}`}}
+            {{`{{- with secret "secret/rabbitmq" -}}`}}
             {
-              "username": "{{`{{ .Data.data.username }}`}}",
-              "password": "{{`{{ .Data.data.password }}`}}"
+              "username": "{{`{{ .Data.username }}`}}",
+              "password": "{{`{{ .Data.password }}`}}"
             }
             {{`{{- end }}`}}
     
@@ -98,9 +98,9 @@ vault:
     directApi:
       enabled: true
       # Path to RabbitMQ credentials in Vault
-      credentialPath: "secret/data/rabbitmq"
+      credentialPath: "secret/rabbitmq"
       # Path to static configuration
-      configPath: "secret/data/gok-controller/config"
+      configPath: "secret/gok-controller/config"
   
   # Authentication method for Vault
   auth:
