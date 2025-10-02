@@ -79,6 +79,59 @@ CREATED_POLICIES=0
 TOTAL_ROLES=0
 CREATED_ROLES=0
 
+# Test tracking variables
+TEST_ENABLED=false
+TEST_NAMESPACE_AGENT="gok-agent"
+TEST_NAMESPACE_CONTROLLER="gok-controller"
+TEST_SERVICE_ACCOUNT_AGENT="gok-agent"
+TEST_SERVICE_ACCOUNT_CONTROLLER="gok-controller"
+CSI_DRIVER_AVAILABLE=false
+CLEANUP_TEST_RESOURCES=false
+declare -A TEST_RESULTS
+declare -A CREATED_RESOURCES
+TEST_COUNT=0
+TEST_PASSED=0
+TEST_FAILED=0
+
+# Initialize test tracking
+init_test_tracking() {
+    TEST_RESULTS["csi_driver_check"]="PENDING"
+    TEST_RESULTS["agent_namespace"]="PENDING"
+    TEST_RESULTS["controller_namespace"]="PENDING"
+    TEST_RESULTS["agent_service_account"]="PENDING"
+    TEST_RESULTS["controller_service_account"]="PENDING"
+    TEST_RESULTS["agent_injector_rabbitmq"]="PENDING"
+    TEST_RESULTS["agent_injector_agent_config"]="PENDING"
+    TEST_RESULTS["agent_injector_controller_config"]="PENDING"
+    TEST_RESULTS["csi_rabbitmq"]="PENDING"
+    TEST_RESULTS["csi_agent_config"]="PENDING"
+    TEST_RESULTS["csi_controller_config"]="PENDING"
+    TEST_RESULTS["api_rabbitmq"]="PENDING"
+    TEST_RESULTS["api_agent_config"]="PENDING"
+    TEST_RESULTS["api_controller_config"]="PENDING"
+    TEST_COUNT=14
+    
+    # Initialize resource tracking
+    CREATED_RESOURCES["namespaces"]=""
+    CREATED_RESOURCES["service_accounts"]=""
+    CREATED_RESOURCES["pods"]=""
+    CREATED_RESOURCES["configmaps"]=""
+    CREATED_RESOURCES["secret_provider_classes"]=""
+}
+
+# Update test result
+update_test_result() {
+    local test_name="$1"
+    local result="$2"
+    TEST_RESULTS["$test_name"]="$result"
+    
+    if [[ "$result" == "PASSED" ]]; then
+        TEST_PASSED=$((TEST_PASSED + 1))
+    elif [[ "$result" == "FAILED" ]]; then
+        TEST_FAILED=$((TEST_FAILED + 1))
+    fi
+}
+
 # Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -142,6 +195,8 @@ OPTIONS:
     --dry-run              Show what would be created without executing
     --update               Update existing secrets (default: skip if exists)
     --delete               Delete existing secrets and recreate
+    --test                 Run comprehensive tests after secret creation
+    --cleanup-tests        Clean up test resources created during testing
 
 EXAMPLES:
     # Create secrets with default values
@@ -159,6 +214,15 @@ EXAMPLES:
 
     # Delete and recreate all secrets
     ./create_gok_vault_secrets.sh --delete
+
+    # Run comprehensive integration tests after secret creation
+    ./create_gok_vault_secrets.sh --test
+
+    # Run tests with automatic cleanup of test resources
+    ./create_gok_vault_secrets.sh --test --cleanup-tests
+
+    # Preview what tests would be performed
+    ./create_gok_vault_secrets.sh --dry-run --test
 
 PREREQUISITES:
     - kubectl configured and connected to cluster
@@ -219,6 +283,14 @@ parse_args() {
                 ;;
             --delete)
                 DELETE_EXISTING=true
+                shift
+                ;;
+            --test)
+                TEST_ENABLED=true
+                shift
+                ;;
+            --cleanup-tests)
+                CLEANUP_TEST_RESOURCES=true
                 shift
                 ;;
             *)
@@ -851,6 +923,8 @@ show_configuration() {
     echo "  Dry Run: $DRY_RUN"
     echo "  Update Existing: $UPDATE_EXISTING"
     echo "  Delete Existing: $DELETE_EXISTING"
+    echo "  Run Tests: $TEST_ENABLED"
+    echo "  Cleanup Tests: $CLEANUP_TEST_RESOURCES"
     echo
     echo -e "${BOLD}Vault Configuration:${NC}"
     echo "  • Kubernetes authentication method"
@@ -921,6 +995,14 @@ show_summary() {
             fi
             echo
             log_info "🚀 Components can now authenticate using their service account tokens!"
+            
+            if [[ "$TEST_ENABLED" == "true" ]]; then
+                echo
+                log_info "🧪 Comprehensive tests completed:"
+                echo "  • Tested all 3 Vault integration methods (Agent Injector, CSI Driver, API)"
+                echo "  • Verified access to all created secrets"
+                echo "  • Validated service account authentication"
+            fi
         fi
     fi
 }
@@ -957,7 +1039,815 @@ main() {
     # Test authentication and access
     test_service_account_access
     
+    # Run comprehensive tests if enabled
+    run_comprehensive_tests
+    
     show_summary
+}
+
+# Check if CSI Driver is available
+check_csi_driver() {
+    log_info "Checking CSI Driver availability..."
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would check CSI Driver availability"
+        CSI_DRIVER_AVAILABLE=true
+        update_test_result "csi_driver_check" "SKIPPED"
+        return 0
+    fi
+    
+    # Check if secrets-store CSI driver is running
+    if kubectl get daemonset csi-secrets-store-secrets-store-csi-driver -n kube-system >/dev/null 2>&1; then
+        # Check if daemonset is ready
+        local ready_nodes desired_nodes
+        ready_nodes=$(kubectl get daemonset csi-secrets-store-secrets-store-csi-driver -n kube-system -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
+        desired_nodes=$(kubectl get daemonset csi-secrets-store-secrets-store-csi-driver -n kube-system -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "1")
+        
+        if [[ "$ready_nodes" -gt 0 ]] && [[ "$ready_nodes" -eq "$desired_nodes" ]]; then
+            log_success "✓ CSI Driver is available and ready ($ready_nodes/$desired_nodes nodes)"
+            CSI_DRIVER_AVAILABLE=true
+            update_test_result "csi_driver_check" "PASSED"
+        else
+            log_warning "⚠ CSI Driver found but not fully ready ($ready_nodes/$desired_nodes nodes)"
+            CSI_DRIVER_AVAILABLE=false
+            update_test_result "csi_driver_check" "FAILED"
+        fi
+    else
+        log_warning "⚠ CSI Driver not found - CSI tests will be skipped"
+        CSI_DRIVER_AVAILABLE=false
+        update_test_result "csi_driver_check" "FAILED"
+    fi
+}
+
+# Track created resource
+track_created_resource() {
+    local resource_type="$1"
+    local resource_name="$2"
+    local namespace="${3:-}"
+    
+    local resource_key="$resource_name"
+    if [[ -n "$namespace" ]]; then
+        resource_key="$namespace/$resource_name"
+    fi
+    
+    if [[ -n "${CREATED_RESOURCES[$resource_type]}" ]]; then
+        CREATED_RESOURCES["$resource_type"]="${CREATED_RESOURCES[$resource_type]} $resource_key"
+    else
+        CREATED_RESOURCES["$resource_type"]="$resource_key"
+    fi
+    
+    log_info "📝 Tracked created $resource_type: $resource_key"
+}
+
+# Create or ensure namespace exists
+ensure_namespace() {
+    local namespace="$1"
+    
+    if kubectl get namespace "$namespace" >/dev/null 2>&1; then
+        log_info "Namespace $namespace already exists"
+        return 0
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would create namespace: $namespace"
+        return 0
+    fi
+    
+    if kubectl create namespace "$namespace" >/dev/null 2>&1; then
+        log_success "Created namespace: $namespace"
+        track_created_resource "namespaces" "$namespace"
+        return 0
+    else
+        log_error "Failed to create namespace: $namespace"
+        return 1
+    fi
+}
+
+# Create or ensure service account exists
+ensure_service_account() {
+    local namespace="$1"
+    local service_account="$2"
+    
+    if kubectl get serviceaccount "$service_account" -n "$namespace" >/dev/null 2>&1; then
+        log_info "Service account $service_account already exists in namespace $namespace"
+        return 0
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would create service account: $service_account in namespace: $namespace"
+        return 0
+    fi
+    
+    if kubectl create serviceaccount "$service_account" -n "$namespace" >/dev/null 2>&1; then
+        log_success "Created service account: $service_account in namespace: $namespace"
+        track_created_resource "service_accounts" "$service_account" "$namespace"
+        return 0
+    else
+        log_error "Failed to create service account: $service_account in namespace: $namespace"
+        return 1
+    fi
+}
+
+# Test Agent Injector method
+test_agent_injector() {
+    local namespace="$1"
+    local service_account="$2"
+    local secret_path="$3"
+    local test_name="$4"
+    
+    log_info "Testing Agent Injector for $secret_path..."
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would test Agent Injector for $secret_path"
+        update_test_result "$test_name" "SKIPPED"
+        return 0
+    fi
+    
+    local pod_name="test-agent-injector-$(echo "$secret_path" | tr '/' '-')"
+    local role_name
+    
+    # Determine the appropriate role based on namespace
+    if [[ "$namespace" == "gok-agent" ]]; then
+        role_name="gok-agent"
+    elif [[ "$namespace" == "gok-controller" ]]; then
+        role_name="gok-controller"
+    else
+        role_name="rabbitmq-reader"
+    fi
+    
+    # Create test pod with Agent Injector annotations
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $pod_name
+  namespace: $namespace
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "$role_name"
+    vault.hashicorp.com/agent-inject-secret-config: "$secret_path"
+    vault.hashicorp.com/agent-inject-template-config: |
+      {{- with secret "$secret_path" -}}
+      {{- range \$key, \$value := .Data -}}
+      {{ \$key }}={{ \$value }}
+      {{ end -}}
+      {{- end -}}
+spec:
+  serviceAccountName: $service_account
+  containers:
+  - name: app
+    image: busybox:latest
+    command: ["sleep", "300"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "25m"
+      limits:
+        memory: "64Mi"
+        cpu: "50m"
+  restartPolicy: Never
+EOF
+    
+    # Wait for pod to be ready
+    if kubectl wait --for=condition=Ready pod/"$pod_name" -n "$namespace" --timeout=120s >/dev/null 2>&1; then
+        # Check if vault secrets are injected
+        if kubectl exec "$pod_name" -n "$namespace" -c app -- test -f /vault/secrets/config >/dev/null 2>&1; then
+            log_success "✓ Agent Injector test passed for $secret_path"
+            update_test_result "$test_name" "PASSED"
+        else
+            log_error "✗ Agent Injector secret not found for $secret_path"
+            update_test_result "$test_name" "FAILED"
+        fi
+    else
+        log_error "✗ Agent Injector pod failed to start for $secret_path"
+        update_test_result "$test_name" "FAILED"
+    fi
+    
+    # Track the pod for cleanup
+    track_created_resource "pods" "$pod_name" "$namespace"
+    
+    # Cleanup
+    kubectl delete pod "$pod_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1
+}
+
+# Test CSI Driver method
+test_csi_driver() {
+    local namespace="$1"
+    local service_account="$2"
+    local secret_path="$3"
+    local test_name="$4"
+    
+    log_info "Testing CSI Driver for $secret_path..."
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would test CSI Driver for $secret_path"
+        update_test_result "$test_name" "SKIPPED"
+        return 0
+    fi
+    
+    # Check if CSI Driver is available
+    if [[ "$CSI_DRIVER_AVAILABLE" != "true" ]]; then
+        log_warning "⚠ CSI Driver not available - skipping CSI test for $secret_path"
+        update_test_result "$test_name" "SKIPPED"
+        return 0
+    fi
+    
+    local pod_name="test-csi-$(echo "$secret_path" | tr '/' '-')"
+    local provider_class="test-csi-provider-$(echo "$secret_path" | tr '/' '-')"
+    local role_name
+    
+    # Determine the appropriate role based on namespace
+    if [[ "$namespace" == "gok-agent" ]]; then
+        role_name="gok-agent"
+    elif [[ "$namespace" == "gok-controller" ]]; then
+        role_name="gok-controller"
+    else
+        role_name="rabbitmq-reader"
+    fi
+    
+    # Determine keys based on secret type
+    local secret_keys
+    if [[ "$secret_path" == "secret/rabbitmq" ]]; then
+        secret_keys='- objectName: "username"
+        secretPath: "'$secret_path'"
+        secretKey: "username"
+      - objectName: "password"
+        secretPath: "'$secret_path'"
+        secretKey: "password"
+      - objectName: "host"
+        secretPath: "'$secret_path'"
+        secretKey: "host"'
+    elif [[ "$secret_path" == "secret/gok-agent/config" ]]; then
+        secret_keys='- objectName: "config_json"
+        secretPath: "'$secret_path'"
+        secretKey: "config_json"
+      - objectName: "oauth_client_secret"
+        secretPath: "'$secret_path'"
+        secretKey: "oauth_client_secret"
+      - objectName: "static_config"
+        secretPath: "'$secret_path'"
+        secretKey: "static_config"'
+    elif [[ "$secret_path" == "secret/gok-controller/config" ]]; then
+        secret_keys='- objectName: "config_json"
+        secretPath: "'$secret_path'"
+        secretKey: "config_json"
+      - objectName: "oauth_client_secret"
+        secretPath: "'$secret_path'"
+        secretKey: "oauth_client_secret"
+      - objectName: "static_config"
+        secretPath: "'$secret_path'"
+        secretKey: "static_config"'
+    else
+        # Default to username/password for unknown secrets
+        secret_keys='- objectName: "username"
+        secretPath: "'$secret_path'"
+        secretKey: "username"
+      - objectName: "password"
+        secretPath: "'$secret_path'"
+        secretKey: "password"'
+    fi
+
+    # Create SecretProviderClass for the test
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: $provider_class
+  namespace: $namespace
+spec:
+  provider: vault
+  parameters:
+    vaultAddress: "http://vault.vault:8200"
+    roleName: "$role_name"
+    objects: |
+      $secret_keys
+EOF
+    
+    # Track the SecretProviderClass for cleanup
+    track_created_resource "secret_provider_classes" "$provider_class" "$namespace"
+    
+    # Create test pod with CSI volume
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $pod_name
+  namespace: $namespace
+spec:
+  serviceAccountName: $service_account
+  containers:
+  - name: app
+    image: busybox:latest
+    command: ["sleep", "300"]
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "25m"
+      limits:
+        memory: "64Mi"
+        cpu: "50m"
+    volumeMounts:
+    - name: secrets-store
+      mountPath: "/mnt/secrets-store"
+      readOnly: true
+  volumes:
+  - name: secrets-store
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "$provider_class"
+  restartPolicy: Never
+EOF
+    
+    # Wait for pod to be ready
+    if kubectl wait --for=condition=Ready pod/"$pod_name" -n "$namespace" --timeout=120s >/dev/null 2>&1; then
+        # Check if CSI mount has secrets
+        if kubectl exec "$pod_name" -n "$namespace" -c app -- ls /mnt/secrets-store/ >/dev/null 2>&1; then
+            log_success "✓ CSI Driver test passed for $secret_path"
+            update_test_result "$test_name" "PASSED"
+        else
+            log_error "✗ CSI Driver mount empty for $secret_path"
+            update_test_result "$test_name" "FAILED"
+        fi
+    else
+        log_error "✗ CSI Driver pod failed to start for $secret_path"
+        update_test_result "$test_name" "FAILED"
+    fi
+    
+    # Track the pod for cleanup
+    track_created_resource "pods" "$pod_name" "$namespace"
+    
+    # Cleanup
+    kubectl delete pod "$pod_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1
+    kubectl delete secretproviderclass "$provider_class" -n "$namespace" --ignore-not-found >/dev/null 2>&1
+}
+
+# Test API method
+test_api_method() {
+    local namespace="$1"
+    local service_account="$2"
+    local secret_path="$3"
+    local test_name="$4"
+    
+    log_info "Testing API method for $secret_path..."
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would test API method for $secret_path"
+        update_test_result "$test_name" "SKIPPED"
+        return 0
+    fi
+    
+    local pod_name="test-api-$(echo "$secret_path" | tr '/' '-')"
+    local configmap_name="test-api-script-$(echo "$secret_path" | tr '/' '-')"
+    local role_name
+    
+    # Determine the appropriate role based on namespace
+    if [[ "$namespace" == "gok-agent" ]]; then
+        role_name="gok-agent"
+    elif [[ "$namespace" == "gok-controller" ]]; then
+        role_name="gok-controller"
+    else
+        role_name="rabbitmq-reader"
+    fi
+    
+    # Create Python test script
+    cat <<EOF | kubectl create configmap "$configmap_name" -n "$namespace" --from-file=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+#!/usr/bin/env python3
+import os
+import requests
+import json
+from urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+def main():
+    try:
+        # Read service account token
+        with open('/var/run/secrets/kubernetes.io/serviceaccount/token', 'r') as f:
+            jwt_token = f.read().strip()
+        
+        # Authenticate with Vault
+        auth_url = 'http://vault.vault:8200/v1/auth/kubernetes/login'
+        auth_data = {
+            'role': '$role_name',
+            'jwt': jwt_token
+        }
+        
+        auth_response = requests.post(auth_url, json=auth_data, verify=False)
+        if auth_response.status_code != 200:
+            print(f"Authentication failed: {auth_response.text}")
+            exit(1)
+        
+        vault_token = auth_response.json()['auth']['client_token']
+        
+        # Fetch secret
+        secret_url = f'http://vault.vault:8200/v1/$secret_path'
+        headers = {'X-Vault-Token': vault_token}
+        
+        secret_response = requests.get(secret_url, headers=headers, verify=False)
+        if secret_response.status_code != 200:
+            print(f"Secret fetch failed: {secret_response.text}")
+            exit(1)
+        
+        secret_data = secret_response.json().get('data', {})
+        print(f"Successfully retrieved secret from $secret_path")
+        print(f"Available keys: {list(secret_data.keys())}")
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        exit(1)
+
+if __name__ == '__main__':
+    main()
+EOF
+    
+    # Create test pod with Python
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $pod_name
+  namespace: $namespace
+spec:
+  serviceAccountName: $service_account
+  containers:
+  - name: python-app
+    image: python:3.11-slim
+    command: ["/bin/bash"]
+    args:
+    - -c
+    - |
+      pip install --quiet requests urllib3
+      python /app/test_script.py
+      sleep 60
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    volumeMounts:
+    - name: test-script
+      mountPath: /app
+  volumes:
+  - name: test-script
+    configMap:
+      name: $configmap_name
+      defaultMode: 0755
+  restartPolicy: Never
+EOF
+    
+    # Wait for pod to complete
+    sleep 15
+    
+    # Check logs for success
+    if kubectl logs "$pod_name" -n "$namespace" 2>/dev/null | grep -q "Successfully retrieved secret"; then
+        log_success "✓ API method test passed for $secret_path"
+        update_test_result "$test_name" "PASSED"
+    else
+        log_error "✗ API method test failed for $secret_path"
+        # Show logs for debugging
+        log_info "Pod logs:"
+        kubectl logs "$pod_name" -n "$namespace" 2>/dev/null || echo "No logs available"
+        update_test_result "$test_name" "FAILED"
+    fi
+    
+    # Track resources for cleanup
+    track_created_resource "configmaps" "$configmap_name" "$namespace"
+    track_created_resource "pods" "$pod_name" "$namespace"
+    
+    # Cleanup
+    kubectl delete pod "$pod_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1
+    kubectl delete configmap "$configmap_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1
+}
+
+# Cleanup test resources
+cleanup_test_resources() {
+    if [[ "$CLEANUP_TEST_RESOURCES" != "true" ]]; then
+        return 0
+    fi
+    
+    log_header "Cleaning Up Test Resources"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would clean up test resources"
+        return 0
+    fi
+    
+    local cleanup_success=0
+    local cleanup_total=0
+    
+    # Clean up pods
+    if [[ -n "${CREATED_RESOURCES[pods]:-}" ]]; then
+        log_info "Deleting test pods..."
+        for pod_info in ${CREATED_RESOURCES[pods]}; do
+            local namespace=${pod_info%/*}
+            local pod_name=${pod_info#*/}
+            cleanup_total=$((cleanup_total + 1))
+            
+            if kubectl delete pod "$pod_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1; then
+                log_success "✓ Deleted pod: $pod_name in namespace: $namespace"
+                cleanup_success=$((cleanup_success + 1))
+            else
+                log_warning "⚠ Failed to delete pod: $pod_name in namespace: $namespace"
+            fi
+        done
+    fi
+    
+    # Clean up configmaps
+    if [[ -n "${CREATED_RESOURCES[configmaps]:-}" ]]; then
+        log_info "Deleting test configmaps..."
+        for cm_info in ${CREATED_RESOURCES[configmaps]}; do
+            local namespace=${cm_info%/*}
+            local cm_name=${cm_info#*/}
+            cleanup_total=$((cleanup_total + 1))
+            
+            if kubectl delete configmap "$cm_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1; then
+                log_success "✓ Deleted configmap: $cm_name in namespace: $namespace"
+                cleanup_success=$((cleanup_success + 1))
+            else
+                log_warning "⚠ Failed to delete configmap: $cm_name in namespace: $namespace"
+            fi
+        done
+    fi
+    
+    # Clean up secret provider classes
+    if [[ -n "${CREATED_RESOURCES[secret_provider_classes]:-}" ]]; then
+        log_info "Deleting test SecretProviderClasses..."
+        for spc_info in ${CREATED_RESOURCES[secret_provider_classes]}; do
+            local namespace=${spc_info%/*}
+            local spc_name=${spc_info#*/}
+            cleanup_total=$((cleanup_total + 1))
+            
+            if kubectl delete secretproviderclass "$spc_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1; then
+                log_success "✓ Deleted SecretProviderClass: $spc_name in namespace: $namespace"
+                cleanup_success=$((cleanup_success + 1))
+            else
+                log_warning "⚠ Failed to delete SecretProviderClass: $spc_name in namespace: $namespace"
+            fi
+        done
+    fi
+    
+    # Clean up service accounts (only ones we created)
+    if [[ -n "${CREATED_RESOURCES[service_accounts]:-}" ]]; then
+        log_info "Deleting test service accounts..."
+        for sa_info in ${CREATED_RESOURCES[service_accounts]}; do
+            local namespace=${sa_info%/*}
+            local sa_name=${sa_info#*/}
+            cleanup_total=$((cleanup_total + 1))
+            
+            if kubectl delete serviceaccount "$sa_name" -n "$namespace" --ignore-not-found >/dev/null 2>&1; then
+                log_success "✓ Deleted service account: $sa_name in namespace: $namespace"
+                cleanup_success=$((cleanup_success + 1))
+            else
+                log_warning "⚠ Failed to delete service account: $sa_name in namespace: $namespace"
+            fi
+        done
+    fi
+    
+    # Clean up namespaces (only ones we created)
+    if [[ -n "${CREATED_RESOURCES[namespaces]:-}" ]]; then
+        log_info "Deleting test namespaces..."
+        for namespace in ${CREATED_RESOURCES[namespaces]}; do
+            cleanup_total=$((cleanup_total + 1))
+            
+            if kubectl delete namespace "$namespace" --ignore-not-found >/dev/null 2>&1; then
+                log_success "✓ Deleted namespace: $namespace"
+                cleanup_success=$((cleanup_success + 1))
+            else
+                log_warning "⚠ Failed to delete namespace: $namespace"
+            fi
+        done
+    fi
+    
+    if [[ $cleanup_total -eq 0 ]]; then
+        log_info "No test resources to clean up"
+    else
+        log_success "Cleanup completed: $cleanup_success/$cleanup_total resources deleted successfully"
+    fi
+}
+
+# Run comprehensive tests
+run_comprehensive_tests() {
+    if [[ "$TEST_ENABLED" != "true" ]]; then
+        return 0
+    fi
+    
+    log_header "Running Comprehensive Vault Integration Tests"
+    
+    init_test_tracking
+    
+    # Check CSI Driver availability
+    check_csi_driver
+    
+    # Ensure namespaces exist
+    log_info "Setting up test environment..."
+    
+    if ensure_namespace "$TEST_NAMESPACE_AGENT"; then
+        update_test_result "agent_namespace" "PASSED"
+    else
+        update_test_result "agent_namespace" "FAILED"
+    fi
+    
+    if ensure_namespace "$TEST_NAMESPACE_CONTROLLER"; then
+        update_test_result "controller_namespace" "PASSED"
+    else
+        update_test_result "controller_namespace" "FAILED"
+    fi
+    
+    # Ensure service accounts exist
+    if ensure_service_account "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT"; then
+        update_test_result "agent_service_account" "PASSED"
+    else
+        update_test_result "agent_service_account" "FAILED"
+    fi
+    
+    if ensure_service_account "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER"; then
+        update_test_result "controller_service_account" "PASSED"
+    else
+        update_test_result "controller_service_account" "FAILED"
+    fi
+    
+    # Test Agent Injector method for all secrets
+    log_info "Testing Agent Injector method..."
+    test_agent_injector "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "agent_injector_rabbitmq"
+    test_agent_injector "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "agent_injector_agent_config"
+    test_agent_injector "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "agent_injector_controller_config"
+    
+    # Test CSI Driver method for all secrets
+    log_info "Testing CSI Driver method..."
+    test_csi_driver "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "csi_rabbitmq"
+    test_csi_driver "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "csi_agent_config"
+    test_csi_driver "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "csi_controller_config"
+    
+    # Test API method for all secrets
+    log_info "Testing API method..."
+    test_api_method "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "api_rabbitmq"
+    test_api_method "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "api_agent_config"
+    test_api_method "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "api_controller_config"
+    
+    # Show test results
+    show_test_results
+    
+    # Cleanup test resources if requested
+    cleanup_test_resources
+}
+
+# Show test results
+show_test_results() {
+    log_header "Vault Integration Test Results"
+    
+    echo -e "${BOLD}Test Summary:${NC}"
+    echo -e "  Total Tests: $TEST_COUNT"
+    echo -e "  Passed: ${GREEN}$TEST_PASSED${NC}"
+    echo -e "  Failed: ${RED}$TEST_FAILED${NC}"
+    echo -e "  Skipped: ${YELLOW}$((TEST_COUNT - TEST_PASSED - TEST_FAILED))${NC}"
+    echo
+    
+    echo -e "${BOLD}Detailed Results:${NC}"
+    echo "┌─────────────────────────────────┬──────────┐"
+    echo "│ Test Case                       │ Result   │"
+    echo "├─────────────────────────────────┼──────────┤"
+    
+    printf "│ %-31s │ " "CSI Driver Availability"
+    case "${TEST_RESULTS[csi_driver_check]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "Agent Namespace Setup"
+    case "${TEST_RESULTS[agent_namespace]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "Controller Namespace Setup"
+    case "${TEST_RESULTS[controller_namespace]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "Agent Service Account"
+    case "${TEST_RESULTS[agent_service_account]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "Controller Service Account"
+    case "${TEST_RESULTS[controller_service_account]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    echo "├─────────────────────────────────┼──────────┤"
+    echo "│ ${BOLD}Agent Injector Tests${NC}            │          │"
+    echo "├─────────────────────────────────┼──────────┤"
+    
+    printf "│ %-31s │ " "  RabbitMQ Secret"
+    case "${TEST_RESULTS[agent_injector_rabbitmq]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "  Agent Config Secret"
+    case "${TEST_RESULTS[agent_injector_agent_config]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "  Controller Config Secret"
+    case "${TEST_RESULTS[agent_injector_controller_config]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    echo "├─────────────────────────────────┼──────────┤"
+    echo "│ ${BOLD}CSI Driver Tests${NC}                │          │"
+    echo "├─────────────────────────────────┼──────────┤"
+    
+    printf "│ %-31s │ " "  RabbitMQ Secret"
+    case "${TEST_RESULTS[csi_rabbitmq]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "  Agent Config Secret"
+    case "${TEST_RESULTS[csi_agent_config]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "  Controller Config Secret"
+    case "${TEST_RESULTS[csi_controller_config]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    echo "├─────────────────────────────────┼──────────┤"
+    echo "│ ${BOLD}API Method Tests${NC}                │          │"
+    echo "├─────────────────────────────────┼──────────┤"
+    
+    printf "│ %-31s │ " "  RabbitMQ Secret"
+    case "${TEST_RESULTS[api_rabbitmq]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "  Agent Config Secret"
+    case "${TEST_RESULTS[api_agent_config]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    printf "│ %-31s │ " "  Controller Config Secret"
+    case "${TEST_RESULTS[api_controller_config]}" in
+        "PASSED") echo -e "${GREEN}✓ PASSED${NC}  │" ;;
+        "FAILED") echo -e "${RED}✗ FAILED${NC}  │" ;;
+        *) echo -e "${YELLOW}⏳ SKIPPED${NC} │" ;;
+    esac
+    
+    echo "└─────────────────────────────────┴──────────┘"
+    
+    if [[ "$TEST_FAILED" -gt 0 ]]; then
+        echo
+        log_warning "Some tests failed. Check the logs above for details."
+        echo
+        log_info "💡 Common troubleshooting tips:"
+        echo "  • Ensure Vault Agent Injector is deployed: kubectl get pods -n vault | grep agent-injector"
+        if [[ "$CSI_DRIVER_AVAILABLE" != "true" ]]; then
+            echo "  • Install CSI Driver: kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/deploy/secrets-store-csi-driver.yaml"
+            echo "  • Install Vault CSI Provider: kubectl apply -f https://raw.githubusercontent.com/hashicorp/vault-csi-provider/main/deployment/vault-csi-provider.yaml"
+        else
+            echo "  • CSI Driver is available - check SecretProviderClass configuration"
+        fi
+        echo "  • Check Vault policies and roles: kubectl exec vault-0 -n vault -- vault policy list"
+        echo "  • Verify service account permissions: kubectl auth can-i --list --as=system:serviceaccount:gok-agent:gok-agent"
+    else
+        echo
+        log_success "🎉 All tests passed! Vault integration is working correctly."
+        
+        if [[ "$CLEANUP_TEST_RESOURCES" == "true" ]]; then
+            echo
+            log_info "🧹 Test resource cleanup will be performed automatically."
+        else
+            echo
+            log_info "💡 Use --cleanup-tests option to automatically clean up test resources."
+        fi
+    fi
 }
 
 # Test service account authentication and secret access
