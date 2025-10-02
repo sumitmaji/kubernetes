@@ -73,6 +73,10 @@ UPDATED_SECRETS=0
 SKIPPED_SECRETS=0
 FAILED_SECRETS=0
 VALIDATED_SECRETS=0
+TOTAL_POLICIES=0
+CREATED_POLICIES=0
+TOTAL_ROLES=0
+CREATED_ROLES=0
 
 # Logging functions
 log_info() {
@@ -101,14 +105,24 @@ show_help() {
 Vault Secret Creation Script for gok-cloud Components
 
 DESCRIPTION:
-    Creates Vault secrets required for gok-cloud/agent and gok-cloud/controller 
-    components. This script reads the configurations from values.yaml files and 
-    creates the corresponding secrets in Vault.
+    Creates Vault secrets, policies, and roles required for gok-cloud/agent and 
+    gok-cloud/controller components. This script configures complete Vault RBAC
+    and creates secrets compatible with API-based access patterns.
+
+VAULT CONFIGURATION:
+    • Kubernetes authentication method
+    • Service account policies with read/list permissions
+    • Kubernetes auth roles for service accounts
 
 SECRETS CREATED:
     secret/rabbitmq              - Shared RabbitMQ credentials
     secret/gok-agent/config      - Agent-specific configuration  
     secret/gok-controller/config - Controller-specific configuration
+
+API ACCESS PATHS (KV v1):
+    secret/rabbitmq              - API path for RabbitMQ credentials
+    secret/gok-agent/config      - API path for agent configuration
+    secret/gok-controller/config - API path for controller configuration
 
 USAGE:
     ./create_gok_vault_secrets.sh [OPTIONS]
@@ -420,6 +434,171 @@ create_vault_secret() {
     fi
 }
 
+# Create Vault policy
+create_vault_policy() {
+    local policy_name="$1"
+    local policy_description="$2"
+    local policy_content="$3"
+    
+    TOTAL_POLICIES=$((TOTAL_POLICIES + 1))
+    
+    log_info "Creating Vault policy: $policy_name"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would create policy $policy_name:"
+        log_info "  Description: $policy_description"
+        log_info "  Policy content:"
+        echo "$policy_content" | sed 's/^/    /'
+        return 0
+    fi
+    
+    # Create a temporary file for the policy
+    local temp_policy_file
+    temp_policy_file=$(mktemp)
+    echo "$policy_content" > "$temp_policy_file"
+    
+    # Copy policy file to Vault pod and create policy
+    if kubectl cp "$temp_policy_file" "$VAULT_NAMESPACE/$VAULT_POD:/tmp/policy-$policy_name.hcl" && \
+       kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault policy write "$policy_name" "/tmp/policy-$policy_name.hcl" >/dev/null 2>&1 && \
+       kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- rm "/tmp/policy-$policy_name.hcl" >/dev/null 2>&1; then
+        log_success "Created Vault policy: $policy_name"
+        CREATED_POLICIES=$((CREATED_POLICIES + 1))
+    else
+        log_error "Failed to create Vault policy: $policy_name"
+        FAILED_SECRETS=$((FAILED_SECRETS + 1))
+    fi
+    
+    # Clean up temporary file
+    rm -f "$temp_policy_file"
+}
+
+# Create Kubernetes auth role
+create_k8s_auth_role() {
+    local role_name="$1"
+    local service_account="$2"
+    local namespace="$3"
+    local policies="$4"
+    local ttl="${5:-1h}"
+    
+    TOTAL_ROLES=$((TOTAL_ROLES + 1))
+    
+    log_info "Creating Kubernetes auth role: $role_name"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would create Kubernetes auth role $role_name:"
+        log_info "  Service Account: $service_account"
+        log_info "  Namespace: $namespace"
+        log_info "  Policies: $policies"
+        log_info "  TTL: $ttl"
+        return 0
+    fi
+    
+    if kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault write "auth/kubernetes/role/$role_name" \
+        bound_service_account_names="$service_account" \
+        bound_service_account_namespaces="$namespace" \
+        policies="$policies" \
+        ttl="$ttl" >/dev/null 2>&1; then
+        log_success "Created Kubernetes auth role: $role_name"
+        CREATED_ROLES=$((CREATED_ROLES + 1))
+    else
+        log_error "Failed to create Kubernetes auth role: $role_name"
+        FAILED_SECRETS=$((FAILED_SECRETS + 1))
+    fi
+}
+
+# Create gok-agent policy and role
+create_agent_policy_and_role() {
+    log_header "Creating gok-agent Vault Policy and Role"
+    
+    # Create policy for gok-agent (KV v1 compatible)
+    local agent_policy='
+# Policy for gok-agent service account
+path "secret/rabbitmq" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/gok-agent/config" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/gok-agent/*" {
+  capabilities = ["read", "list"]
+}
+'
+    
+    create_vault_policy "gok-agent" "Policy for gok-agent service account to access RabbitMQ and agent config secrets" "$agent_policy"
+    
+    # Create Kubernetes auth role for gok-agent
+    create_k8s_auth_role "gok-agent" "gok-agent" "gok-agent" "gok-agent" "1h"
+}
+
+# Create gok-controller policy and role
+create_controller_policy_and_role() {
+    log_header "Creating gok-controller Vault Policy and Role"
+    
+    # Create policy for gok-controller (KV v1 compatible)
+    local controller_policy='
+# Policy for gok-controller service account  
+path "secret/rabbitmq" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/gok-controller/config" {
+  capabilities = ["read", "list"]
+}
+
+path "secret/gok-controller/*" {
+  capabilities = ["read", "list"]
+}
+'
+    
+    create_vault_policy "gok-controller" "Policy for gok-controller service account to access RabbitMQ and controller config secrets" "$controller_policy"
+    
+    # Create Kubernetes auth role for gok-controller
+    create_k8s_auth_role "gok-controller" "gok-controller" "gok-controller" "gok-controller" "1h"
+}
+
+# Enable Kubernetes auth method if not already enabled
+enable_kubernetes_auth() {
+    log_header "Configuring Kubernetes Authentication"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY-RUN] Would enable and configure Kubernetes authentication"
+        return 0
+    fi
+    
+    # Check if Kubernetes auth is already enabled
+    if kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault auth list -format=json 2>/dev/null | jq -e '.["kubernetes/"]' >/dev/null 2>&1; then
+        log_info "Kubernetes authentication already enabled"
+    else
+        log_info "Enabling Kubernetes authentication..."
+        if kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault auth enable kubernetes >/dev/null 2>&1; then
+            log_success "Enabled Kubernetes authentication"
+        else
+            log_error "Failed to enable Kubernetes authentication"
+            return 1
+        fi
+    fi
+    
+    # Configure Kubernetes auth
+    log_info "Configuring Kubernetes authentication..."
+    
+    # Get Kubernetes cluster info
+    local k8s_host k8s_ca_cert
+    k8s_host=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.server}')
+    k8s_ca_cert=$(kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
+    
+    if kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- vault write auth/kubernetes/config \
+        token_reviewer_jwt="$(kubectl exec "$VAULT_POD" -n "$VAULT_NAMESPACE" -- cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+        kubernetes_host="$k8s_host" \
+        kubernetes_ca_cert="$k8s_ca_cert" >/dev/null 2>&1; then
+        log_success "Configured Kubernetes authentication"
+    else
+        log_error "Failed to configure Kubernetes authentication"
+        return 1
+    fi
+}
+
 # Create RabbitMQ secret
 create_rabbitmq_secret() {
     log_header "Creating RabbitMQ Secret"
@@ -430,7 +609,7 @@ create_rabbitmq_secret() {
         log_info "Generated secure password for RabbitMQ user: $RABBITMQ_USER"
     fi
     
-    # Create the secret
+    # Create the secret (KV v2 API compatible)
     create_vault_secret \
         "secret/rabbitmq" \
         "RabbitMQ Credentials" \
@@ -446,6 +625,8 @@ create_rabbitmq_secret() {
         FAILED_SECRETS=$((FAILED_SECRETS + 1))
         return 1
     fi
+    
+    log_info "💡 API Access: Use path 'secret/rabbitmq' for API-based secret retrieval"
 }
 
 # Create gok-agent configuration secret
@@ -473,6 +654,8 @@ create_agent_config_secret() {
         FAILED_SECRETS=$((FAILED_SECRETS + 1))
         return 1
     fi
+    
+    log_info "💡 API Access: Use path 'secret/gok-agent/config' for API-based secret retrieval"
 }
 
 # Create gok-controller configuration secret  
@@ -500,6 +683,8 @@ create_controller_config_secret() {
         FAILED_SECRETS=$((FAILED_SECRETS + 1))
         return 1
     fi
+    
+    log_info "💡 API Access: Use path 'secret/gok-controller/config' for API-based secret retrieval"
 }
 
 # Show configuration summary
@@ -522,10 +707,20 @@ show_configuration() {
     echo "  Update Existing: $UPDATE_EXISTING"
     echo "  Delete Existing: $DELETE_EXISTING"
     echo
+    echo -e "${BOLD}Vault Configuration:${NC}"
+    echo "  • Kubernetes authentication method"
+    echo "  • gok-agent policy and role"
+    echo "  • gok-controller policy and role"
+    echo
     echo -e "${BOLD}Secrets to be created:${NC}"
     echo "  • secret/rabbitmq - Shared RabbitMQ credentials"
     echo "  • secret/gok-agent/config - Agent configuration"
     echo "  • secret/gok-controller/config - Controller configuration"
+    echo
+    echo -e "${BOLD}API Access Paths (for KV v1):${NC}"
+    echo "  • secret/rabbitmq - RabbitMQ credentials via API"
+    echo "  • secret/gok-agent/config - Agent config via API"  
+    echo "  • secret/gok-controller/config - Controller config via API"
 }
 
 # Show execution summary
@@ -533,12 +728,17 @@ show_summary() {
     log_header "Execution Summary"
     
     echo -e "${BOLD}Results:${NC}"
-    echo "  Total Secrets: $TOTAL_SECRETS"
+    echo -e "${BOLD}Secrets:${NC}"
+    echo "  Total: $TOTAL_SECRETS"
     echo -e "  Created: ${GREEN}$CREATED_SECRETS${NC}"
     echo -e "  Updated: ${YELLOW}$UPDATED_SECRETS${NC}"
     echo -e "  Skipped: ${CYAN}$SKIPPED_SECRETS${NC}"
     echo -e "  Failed: ${RED}$FAILED_SECRETS${NC}"
     echo -e "  Validated: ${GREEN}$VALIDATED_SECRETS${NC}"
+    echo
+    echo -e "${BOLD}Policies & Roles:${NC}"
+    echo -e "  Policies Created: ${GREEN}$CREATED_POLICIES${NC}/$TOTAL_POLICIES"
+    echo -e "  Roles Created: ${GREEN}$CREATED_ROLES${NC}/$TOTAL_ROLES"
     
     if [[ "$FAILED_SECRETS" -gt 0 ]]; then
         echo
@@ -553,9 +753,19 @@ show_summary() {
         
         if [[ "$CREATED_SECRETS" -gt 0 ]] || [[ "$UPDATED_SECRETS" -gt 0 ]]; then
             echo
-            log_info "Secrets are now available for gok-cloud components:"
-            echo "  • Agent: Can access secret/rabbitmq and secret/gok-agent/config"
-            echo "  • Controller: Can access secret/rabbitmq and secret/gok-controller/config"
+            log_info "🔐 Vault Authentication & RBAC:"
+            echo "  • Kubernetes auth method: auth/kubernetes/"
+            echo "  • gok-agent role: bound to gok-agent service account"
+            echo "  • gok-controller role: bound to gok-controller service account"
+            echo
+            log_info "📦 Secrets available for gok-cloud components:"
+            echo "  • Agent: secret/rabbitmq, secret/gok-agent/config"
+            echo "  • Controller: secret/rabbitmq, secret/gok-controller/config"
+            echo
+            log_info "🌐 API Access Paths (for application code):"
+            echo "  • RabbitMQ: GET /v1/secret/rabbitmq"
+            echo "  • Agent Config: GET /v1/secret/gok-agent/config"
+            echo "  • Controller Config: GET /v1/secret/gok-controller/config"
             echo
             if [[ "$VALIDATED_SECRETS" -eq "$TOTAL_SECRETS" ]]; then
                 log_success "✓ All secrets validated successfully with correct keys!"
@@ -563,7 +773,7 @@ show_summary() {
                 log_warning "⚠ Some secrets failed validation - check logs above"
             fi
             echo
-            log_info "Make sure your Vault policies allow access to these secrets!"
+            log_info "🚀 Components can now authenticate using their service account tokens!"
         fi
     fi
 }
@@ -585,6 +795,11 @@ main() {
     else
         log_info "Dry run mode - skipping prerequisite checks and Vault authentication"
     fi
+    
+    # Configure Vault authentication and RBAC
+    enable_kubernetes_auth
+    create_agent_policy_and_role
+    create_controller_policy_and_role
     
     # Create secrets
     create_rabbitmq_secret
