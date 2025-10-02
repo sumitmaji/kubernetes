@@ -58,12 +58,8 @@ vault:
         config:
           path: "secret/gok-agent/config"
           template: |
-            {{`{{- with secret "secret/gok-agent/config" -}}`}}
-            {
-              "oauth_client_id": "{{`{{ .Data.oauth_client_id }}`}}",
-              "static_config": "{{`{{ .Data.static_config }}`}}"
-            }
-            {{`{{- end }}`}}
+            {{`{{- printf "{\"oauth_client_id\": \"{{ .Data.oauth_client_id }}\"}" }}`}}
+
         # RabbitMQ credentials (can be used as fallback)
         rabbitmq:
           path: "secret/rabbitmq"
