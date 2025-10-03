@@ -152,7 +152,18 @@ class VaultCredentialManager:
             self.token_expires = time.time() + lease_duration
             self.token_renewable = auth_response['auth'].get('renewable', False)
             
-            logger.info(f\"Authentication successful, token expires in {lease_duration} seconds\")\n            return True\n                \n        except requests.exceptions.RequestException as e:\n            logger.error(f\"Network error during Vault authentication: {e}\")\n            return False\n        except FileNotFoundError:\n            logger.warning(\"Service account token file not found - not running in Kubernetes?\")\n            return False\n        except Exception as e:\n            logger.error(f\"Unexpected error during Vault authentication: {e}\")\n            return False
+            logger.info(f"Authentication successful, token expires in {lease_duration} seconds")
+            return True
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error during Vault authentication: {e}")
+            return False
+        except FileNotFoundError:
+            logger.warning("Service account token file not found - not running in Kubernetes?")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error during Vault authentication: {e}")
+            return False
     
     def _run_vault_command(self, command: list) -> Tuple[bool, str]:
         """
