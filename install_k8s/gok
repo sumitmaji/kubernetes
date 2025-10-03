@@ -10252,6 +10252,214 @@ function startCmd() {
   fi
 }
 
+# Enhanced user confirmation with detailed information
+confirm_reset() {
+    local component="$1"
+    local description="$2"
+    local warning="$3"
+    
+    echo
+    log_section "🔄 Reset Confirmation" "${EMOJI_WARNING}"
+    
+    echo -e "${COLOR_CYAN}Component:${COLOR_RESET} ${COLOR_BOLD}$component${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}Description:${COLOR_RESET} $description"
+    
+    if [ -n "$warning" ]; then
+        echo
+        log_warning "$warning"
+    fi
+    
+    echo
+    echo -e "${COLOR_RED}${COLOR_BOLD}⚠️  WARNING: This operation is destructive and irreversible!${COLOR_RESET}"
+    echo -e "${COLOR_RED}   • All data and configurations will be permanently lost${COLOR_RESET}"
+    echo -e "${COLOR_RED}   • Backup your important data before proceeding${COLOR_RESET}"
+    echo -e "${COLOR_RED}   • Some operations require cluster admin privileges${COLOR_RESET}"
+    echo
+    
+    while true; do
+        echo -n -e "${COLOR_YELLOW}Do you want to continue? [y/N]: ${COLOR_RESET}"
+        read -r response
+        case $response in
+            [Yy]|[Yy][Ee][Ss]) 
+                log_info "User confirmed reset operation"
+                return 0
+                ;;
+            [Nn]|[Nn][Oo]|"") 
+                log_info "Reset operation cancelled by user"
+                echo -e "${COLOR_GREEN}Reset cancelled. No changes made.${COLOR_RESET}"
+                return 1
+                ;;
+            *) 
+                echo -e "${COLOR_RED}Please answer yes or no.${COLOR_RESET}"
+                ;;
+        esac
+    done
+}
+
+# Enhanced cleanup function for Kubernetes files and directories
+cleanup_kubernetes_files() {
+    local cleanup_type="${1:-full}"
+    
+    log_step 1 "Cleaning up Kubernetes configuration files"
+    
+    # Kubernetes config directories
+    local k8s_dirs=(
+        "/etc/kubernetes"
+        "/var/lib/kubelet"
+        "/var/lib/kube-proxy"
+        "/var/lib/kube-scheduler" 
+        "/var/lib/kube-controller-manager"
+        "/var/lib/etcd"
+        "/opt/cni/bin"
+        "/etc/cni/net.d"
+        "/var/lib/cni"
+        "/var/run/kubernetes"
+        "/etc/systemd/system/kubelet.service.d"
+    )
+    
+    # User kubeconfig files
+    local user_configs=(
+        "$HOME/.kube"
+        "/root/.kube"
+    )
+    
+    # Container runtime directories
+    local container_dirs=(
+        "/var/lib/docker/containers"
+        "/var/lib/containerd"
+        "/run/containerd"
+        "/var/lib/dockershim"
+    )
+    
+    # Network configuration
+    local network_files=(
+        "/etc/cni/net.d/*"
+        "/opt/cni/bin/*"
+        "/var/lib/calico"
+        "/var/lib/canal"
+        "/var/lib/weave"
+    )
+    
+    log_info "Stopping Kubernetes services..."
+    
+    # Stop services gracefully
+    local services=("kubelet" "kube-proxy" "docker" "containerd")
+    for service in "${services[@]}"; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            log_detail "Stopping $service service"
+            systemctl stop "$service" 2>/dev/null || log_warning "Failed to stop $service"
+        fi
+    done
+    
+    # Remove Kubernetes directories
+    log_info "Removing Kubernetes directories..."
+    for dir in "${k8s_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            log_detail "Removing directory: $dir"
+            rm -rf "$dir" 2>/dev/null || log_warning "Failed to remove $dir"
+        fi
+    done
+    
+    # Handle user kubeconfig files
+    log_info "Cleaning up kubeconfig files..."
+    for config in "${user_configs[@]}"; do
+        if [ -d "$config" ]; then
+            log_detail "Backing up and removing: $config"
+            # Create backup before removing
+            if [ -f "$config/config" ]; then
+                cp "$config/config" "$config/config.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
+                log_detail "Created backup: $config/config.backup.$(date +%Y%m%d_%H%M%S)"
+            fi
+            rm -rf "$config" 2>/dev/null || log_warning "Failed to remove $config"
+        fi
+    done
+    
+    # Clean network configurations
+    log_info "Cleaning up network configurations..."
+    for net_path in "${network_files[@]}"; do
+        if ls $net_path 1> /dev/null 2>&1; then
+            log_detail "Removing network files: $net_path"
+            rm -rf $net_path 2>/dev/null || log_warning "Failed to remove $net_path"
+        fi
+    done
+    
+    # Clean container runtime if full cleanup
+    if [ "$cleanup_type" = "full" ]; then
+        log_info "Performing full container runtime cleanup..."
+        
+        # Stop and remove all containers
+        if command -v docker &> /dev/null; then
+            log_detail "Stopping and removing Docker containers"
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+            docker system prune -af 2>/dev/null || true
+        fi
+        
+        # Clean containerd
+        if command -v ctr &> /dev/null; then
+            log_detail "Cleaning containerd containers and images"
+            ctr -n k8s.io containers rm $(ctr -n k8s.io containers list -q) 2>/dev/null || true
+            ctr -n k8s.io images rm $(ctr -n k8s.io images list -q) 2>/dev/null || true
+        fi
+        
+        # Clean container directories
+        for dir in "${container_dirs[@]}"; do
+            if [ -d "$dir" ]; then
+                log_detail "Cleaning container directory: $dir"
+                find "$dir" -type f -name "*.pid" -delete 2>/dev/null || true
+                find "$dir" -type f -name "*.lock" -delete 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Clean systemd files
+    log_info "Cleaning up systemd service files..."
+    local systemd_files=(
+        "/etc/systemd/system/kubelet.service"
+        "/etc/systemd/system/kubelet.service.d"
+        "/etc/systemd/system/kube-proxy.service"
+        "/lib/systemd/system/kubelet.service"
+    )
+    
+    for file in "${systemd_files[@]}"; do
+        if [ -e "$file" ]; then
+            log_detail "Removing systemd file: $file"
+            rm -rf "$file" 2>/dev/null || log_warning "Failed to remove $file"
+        fi
+    done
+    
+    # Reload systemd daemon
+    log_detail "Reloading systemd daemon"
+    systemctl daemon-reload 2>/dev/null || log_warning "Failed to reload systemd daemon"
+    
+    # Clean up iptables rules (optional)
+    log_info "Cleaning up iptables rules..."
+    iptables -F 2>/dev/null || log_warning "Failed to flush iptables rules"
+    iptables -t nat -F 2>/dev/null || log_warning "Failed to flush NAT rules"
+    iptables -t mangle -F 2>/dev/null || log_warning "Failed to flush mangle rules"
+    
+    # Clean up network interfaces
+    log_info "Cleaning up network interfaces..."
+    local interfaces=$(ip link show | grep -E "(cni|flannel|calico|weave)" | awk -F: '{print $2}' | tr -d ' ')
+    for iface in $interfaces; do
+        if [ -n "$iface" ]; then
+            log_detail "Removing network interface: $iface"
+            ip link delete "$iface" 2>/dev/null || log_warning "Failed to remove interface $iface"
+        fi
+    done
+    
+    log_success "Kubernetes file cleanup completed"
+}
+
+# Enhanced progress tracking for reset operations
+track_reset_progress() {
+    local component="$1"
+    local steps="$2"
+    local current="$3"
+    
+    show_progress "Resetting $component" "$current" "$steps"
+}
+
 function resetCmd() {
   COMPONENT=$1
   
@@ -10334,9 +10542,23 @@ function resetCmd() {
   fi
   
   if [ "$COMPONENT" == "kubernetes" ]; then
+    track_reset_progress "Starting Kubernetes cluster reset..."
+    
+    # Get user confirmation
+    if ! confirm_reset "Kubernetes cluster" "This will completely remove the Kubernetes cluster and all data"; then
+      echo "Kubernetes reset cancelled by user."
+      return 0
+    fi
+    
+    track_reset_progress "Performing kubeadm reset..."
     kubeadm reset <<EOF
 y
 EOF
+    
+    track_reset_progress "Cleaning up Kubernetes files and configurations..."
+    cleanup_kubernetes_files
+    
+    track_reset_progress "Kubernetes reset completed successfully."
   elif [ "$COMPONENT" == "monitoring" ]; then
     prometheusGrafanaResetv2
 
