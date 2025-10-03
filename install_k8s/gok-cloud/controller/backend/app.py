@@ -10,10 +10,7 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit, join_room
 from werkzeug.security import check_password_hash, generate_password_hash
-from vault import get_vault_secrets
 from threading import Thread
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 from jose import jwt as jose_jwt
 import sys
 # Import our Vault credential managers
@@ -141,25 +138,7 @@ def get_application_config():
         logger.error(f"Error getting application config: {e}")
         return {}
 
-# --- Vault secret reload logic ---
-class SecretReloadHandler(FileSystemEventHandler):
-    def __init__(self, app):
-        self.app = app
 
-    def on_modified(self, event):
-        if event.src_path.endswith("gok-controller"):
-            secrets = get_vault_secrets()
-            self.app.config["API_TOKEN"] = secrets.get("api-token", self.app.config.get("API_TOKEN"))
-            global API_TOKEN
-            API_TOKEN = secrets.get("api-token", self.app.config.get("API_TOKEN"))
-            print("Secrets reloaded from Vault!")
-
-def start_secrets_watcher(app):
-    path = os.environ.get("VAULT_SECRETS_PATH", "/vault/secrets/")
-    event_handler = SecretReloadHandler(app)
-    observer = Observer()
-    observer.schedule(event_handler, path=path, recursive=False)
-    observer.start()
 
 # --- OIDC/JWT helpers ---
 def get_jwks():
@@ -226,10 +205,7 @@ app = Flask(
 )
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Initial load
-vault_secrets = get_vault_secrets()
-app.config["API_TOKEN"] = vault_secrets.get("api-token", "changeme")
-API_TOKEN = app.config["API_TOKEN"]
+# Initial load - removed API_TOKEN logic as it's not used
 
 def log_access(event, username=None, ip=None, details=None, status="success"):
     log_entry = {
@@ -328,5 +304,4 @@ def index():
     return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == "__main__":
-    Thread(target=start_secrets_watcher, args=(app,), daemon=True).start()
     socketio.run(app, host="0.0.0.0", port=8080, allow_unsafe_werkzeug=True)
