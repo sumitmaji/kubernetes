@@ -52,7 +52,7 @@ spec:
             readOnly: true
           {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
           # Vault CSI Driver mount
-          - name: vault-secrets
+          - name: vault-csi-secrets
             mountPath: /mnt/secrets-store
             readOnly: true
           {{- end }}
@@ -132,7 +132,7 @@ spec:
                   fieldPath: metadata.namespace
       {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
       # Vault CSI Driver volume
-      - name: vault-secrets
+      - name: vault-csi-secrets
         csi:
           driver: secrets-store.csi.k8s.io
           readOnly: true

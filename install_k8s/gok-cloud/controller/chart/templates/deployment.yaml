@@ -44,6 +44,12 @@ spec:
           - name: service-account-token
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             readOnly: true
+          {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
+          # Vault CSI Driver mount
+          - name: vault-csi-secrets
+            mountPath: /mnt/secrets-store
+            readOnly: true
+          {{- end }}
           env:
             - name: RABBITMQ_HOST
               value: "{{ .Values.env.RABBITMQ_HOST }}"
@@ -114,4 +120,13 @@ spec:
               - path: namespace
                 fieldRef:
                   fieldPath: metadata.namespace
+      {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
+      # Vault CSI Driver volume
+      - name: vault-csi-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ .Values.vault.integration.csi.secretProviderClass.name | default "gok-controller-provider" }}
+      {{- end }}
           
