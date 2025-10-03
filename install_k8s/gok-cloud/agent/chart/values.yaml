@@ -1,0 +1,160 @@
+replicaCount: 1
+
+image:
+  repository: registry.gokcloud.com/agent
+  tag: latest
+  pullPolicy: Always
+
+serviceAccount:
+  create: true
+  name: gok-agent
+  annotations: {}
+  automountServiceAccountToken: true
+
+# RBAC configuration for Vault authentication
+rbac:
+  create: true
+  rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
+
+env:
+  OAUTH_ISSUER: "https://keycloak.gokcloud.com/realms/GokDevelopers"
+  OAUTH_CLIENT_ID: "gok-developers-client"
+  REQUIRED_ROLE: "administrators"
+  RABBITMQ_HOST: "rabbitmq.rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: "/"
+  
+  # Vault Configuration for RabbitMQ credentials (using service URL)
+  VAULT_ADDR: "http://vault.vault.svc.cloud.uat:8200"
+  VAULT_K8S_AUTH_PATH: "kubernetes"
+  VAULT_K8S_ROLE: "gok-agent"
+  VAULT_PATH: "secret/rabbitmq"
+
+vault:
+  # Enable Vault integration for RabbitMQ credentials
+  enabled: true
+  
+  # Vault server configuration (using ingress URL that works in tests)
+  address: "http://vault.vault.svc.cloud.uat:8200"
+  
+  # === SWITCHABLE VAULT INTEGRATION MODES ===
+  # Choose between agent injector (static) and direct API (dynamic)
+  integration:
+    # Mode: "agent" for Vault Agent Injector, "api" for direct API calls, "hybrid" for both
+    mode: "hybrid"  # Options: "agent", "api", "hybrid"
+    
+    # Agent Injector Configuration (for static secrets)
+    agentInjector:
+      enabled: true
+      role: "gok-agent"
+      secrets:
+        # Static configuration secrets
+        config:
+          path: "secret/gok-agent/config"
+
+        # RabbitMQ credentials (can be used as fallback)
+        rabbitmq:
+          path: "secret/rabbitmq"
+    
+    # Direct API Configuration (for dynamic credentials)
+    directApi:
+      enabled: true
+      # Path to RabbitMQ credentials in Vault
+      credentialPath: "secret/rabbitmq"
+      # Path to static configuration
+      configPath: "secret/gok-agent/config"
+    
+    # CSI Driver Configuration (for volume-based secrets)
+    csi:
+      enabled: true
+      role: "gok-agent"
+      vaultNamespace: ""  # Leave empty if not using Vault Enterprise namespaces
+      secretProviderClass:
+        name: "vault-gok-agent-provider"
+      # Secret mappings for CSI Driver
+      secrets:
+        - objectName: "username"
+          secretPath: "secret/rabbitmq"
+          secretKey: "username"
+        - objectName: "password"
+          secretPath: "secret/rabbitmq"
+          secretKey: "password"
+        - objectName: "host"
+          secretPath: "secret/rabbitmq"
+          secretKey: "host"
+        - objectName: "port"
+          secretPath: "secret/rabbitmq"
+          secretKey: "port"
+        - objectName: "virtual_host"
+          secretPath: "secret/rabbitmq"
+          secretKey: "virtual_host" 
+        - objectName: "config_json"
+          secretPath: "secret/gok-agent/config"
+          secretKey: "config_json"
+        - objectName: "oauth_client_secret"
+          secretPath: "secret/gok-agent/config"
+          secretKey: "oauth_client_secret"
+        - objectName: "static_config"
+          secretPath: "secret/gok-agent/config"
+          secretKey: "static_config"
+      # Optional: Sync to Kubernetes Secrets
+      secretObjects:
+        - secretName: "vault-rabbitmq-secret"
+          type: "Opaque"
+          data:
+            - objectName: "username"
+              key: "username"
+            - objectName: "password"
+              key: "password"
+            - objectName: "host"
+              key: "host"
+            - objectName: "port"
+              key: "port"  
+            - objectName: "virtual_host"
+              key: "virtual_host"
+        - secretName: "vault-config-secret"
+          type: "Opaque"
+          data:
+            - objectName: "config_json"
+              key: "config.json"
+            - objectName: "oauth_client_secret"
+              key: "oauth_client_secret"
+            - objectName: "static_config"
+              key: "static_config"
+
+  # Authentication method for Vault
+  auth:
+    # Use Kubernetes service account for authentication
+    method: "kubernetes"
+    # Alternative: use token-based authentication
+    # method: "token"
+    # token: "vault-token-here"
+    
+    # Kubernetes auth configuration (matches setup_vault_k8s_auth.sh)
+    kubernetes:
+      role: "gok-agent"
+      authPath: "kubernetes"
+      serviceAccount: "gok-agent"
+      namespace: "gok-agent"
+      tokenPath: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+  
+  # Fallback configuration if Vault is unavailable
+  fallback:
+    # Try Kubernetes secret as fallback
+    useKubernetesSecret: true
+    secretName: "rabbitmq-default-user"
+    secretNamespace: "rabbitmq"
+    
+    # Final fallback to environment variables
+    useEnvironmentVariables: true
+
+# Legacy RabbitMQ configuration (deprecated, use Vault instead)
+# rabbitmq:
+#   user: "guest"
+#   password: "guest"

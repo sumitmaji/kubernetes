@@ -2501,7 +2501,7 @@ metadata:
 spec:
   provider: vault
   parameters:
-    vaultAddress: "https://vault.gokcloud.com"  
+    vaultAddress: "http://vault.vault.svc.cloud.uat:8200"  
     roleName: "my-role"  
     skipVerify: "true"   
     vaultSkipTLSVerify: "true"                 
@@ -2615,12 +2615,12 @@ vaultInstall() {
 
 
   # Valut UI is disabled, so ingress is not created
-  # gok patch ingress vault vault letsencrypt vault
-  # if [[ $? -ne 0 ]]; then
-  #   echoFailed "Failed to patch Vault ingress with Let's Encrypt!"
-  #   return 1
-  # fi
-  # echoSuccess "Vault ingress patched successfully with Let's Encrypt!"
+  gok patch ingress vault vault letsencrypt vault
+  if [[ $? -ne 0 ]]; then
+    echoFailed "Failed to patch Vault ingress with Let's Encrypt!"
+    return 1
+  fi
+  echoSuccess "Vault ingress patched successfully with Let's Encrypt!"
   
   echo "Vault installation started. This may take a few minutes..."
 
@@ -2680,6 +2680,9 @@ vaultInstall() {
       kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     
     kubectl exec -it vault-0 -n vault -- vault secrets enable -path=secret kv
+    pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+    ./create_gok_vault_secrets.sh
+    popd
     
   else
     echoFailed "Vault services timed-out, please check!"
@@ -2698,7 +2701,7 @@ gokAgentReset(){
 
 gokAgentInstall(){
   
-  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-cloud/agent
   ./build.sh
   ./tag_push.sh
   popd
@@ -2706,10 +2709,22 @@ gokAgentInstall(){
   # Create namespace for gok-agent
   kubectl create namespace gok-agent
 
+  # Moved the secret creation in create_gok_vault_secretes.sh
+  # Moved the SecretProviderClass creation to helm chart
+  # createVaultSecretStore \
+  # -p "secret/gok-agent/config" \
+  # -r "gok-agent" \
+  # -l "gok-agent-policy" \
+  # -s "gok-agent-provider" \
+  # -x "gok-agent" \
+  # -n "gok-agent" \
+  # -k "oauth_client_id=adfasdfsasdfasdfasd" \
+  # -k "static_config=asdfasdf"
+
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-agent
 
   # Install Vault using Helm
-  helm install gok-agent ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/agent/chart \
+  helm install gok-agent ${MOUNT_PATH}/kubernetes/install_k8s/gok-cloud/agent/chart \
     --namespace gok-agent
 
 }
@@ -2736,31 +2751,33 @@ gokControllerReset(){
 
 
 gokControllerInstall(){
-  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller
+  pushd ${MOUNT_PATH}/kubernetes/install_k8s/gok-cloud/controller
   ./build.sh
   ./tag_push.sh
   popd
 
   # Create namespace for gok-controller
   kubectl create namespace gok-controller
-  
-  createVaultSecretStore \
-  -p "secret/web-controller" \
-  -r "web-controller" \
-  -l "web-controller-policy" \
-  -s "web-controller-provider" \
-  -x "web-controller" \
-  -n "gok-controller" \
-  -k "api-token=adfasdfasdfasdfasd"
+
+  # Moved the secret creation in create_gok_vault_secretes.sh
+  # Moved the SecretProviderClass creation to helm chart  
+  # createVaultSecretStore \
+  # -p "secret/gok-controller" \
+  # -r "gok-controller" \
+  # -l "gok-controller-policy" \
+  # -s "gok-controller-provider" \
+  # -x "gok-controller" \
+  # -n "gok-controller" \
+  # -k "api-token=adfasdfasdfasdfasd"
   
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-controller
 
   # Install Vault using Helm
-  helm install gok-controller ${MOUNT_PATH}/kubernetes/install_k8s/gok-agent/controller/chart \
+  helm install gok-controller ${MOUNT_PATH}/kubernetes/install_k8s/gok-cloud/controller/chart \
     --namespace gok-controller
 
   # Patch the ingress with Let's Encrypt
-  gok patch ingress web-controller gok-controller letsencrypt controller
+  gok patch ingress gok-controller gok-controller letsencrypt controller
   patchControllerWithOauth
   if [[ $? -ne 0 ]]; then
     echoFailed "Failed to patch Gok Controller ingress with Let's Encrypt!"
@@ -3371,7 +3388,7 @@ patchCloudshellWithOauth() {
 }
 
 patchControllerWithOauth() {
-  patchOauth2Secure web-controller gok-controller https://controller.$(rootDomain)
+  patchOauth2Secure gok-controller gok-controller https://controller.$(rootDomain)
 }
 
 checkAndPatchDashboard() {
@@ -4226,13 +4243,119 @@ EOF
   docker exec -it halyard hal deploy apply
 }
 
+rabbitmqInst(){
+  echo "Installing RabbitMQ using Cluster Operator..."
+  
+  kubectl create namespace rabbitmq || true
+  createLocalStorageClassAndPV "rabbitmq-storage" "rabbitmq-pv" "/data/volumes/rabbitmq"
+  
+  # Install RabbitMQ Cluster Operator
+  kubectl apply -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"
+  
+  # Wait for operator to be ready
+  kubectl wait --for=condition=available deployment/rabbitmq-cluster-operator --timeout=300s -n rabbitmq-system
+  
+  # Create RabbitMQ cluster
+  cat <<EOF | kubectl apply -f -
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq
+  namespace: rabbitmq
+spec:
+  replicas: 1
+  image: rabbitmq:3.12-management
+  resources:
+    requests:
+      cpu: 256m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  rabbitmq:
+    additionalConfig: |
+      log.console.level = info
+      channel_max = 1700
+      default_user_tags.administrator = true
+      management.tcp.port = 15672
+  persistence:
+    storageClassName: rabbitmq-storage
+    storage: 10Gi
+  service:
+    type: ClusterIP
+  override:
+    statefulSet:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: rabbitmq
+              ports:
+              - containerPort: 5672
+                name: amqp
+              - containerPort: 15672
+                name: management
+EOF
+
+  # Create ingress for management UI
+  cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rabbitmq-management
+  namespace: rabbitmq
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: rabbitmq.$(rootDomain)
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rabbitmq
+            port:
+              number: 15672
+EOF
+
+  # Wait for RabbitMQ to be ready - use the correct condition
+  echo "Waiting for RabbitMQ cluster to be ready..."
+  kubectl wait --for=condition=AllReplicasReady rabbitmqcluster/rabbitmq -n rabbitmq --timeout=600s
+  
+  # Alternative: Wait for the StatefulSet to be ready as well
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=rabbitmq -n rabbitmq --timeout=300s
+  
+  # Get default credentials
+  echo "RabbitMQ default credentials:"
+  echo "Username: $(kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.username}' | base64 --decode)"
+  echo "Password: $(kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.password}' | base64 --decode)"
+  
+  gok patch ingress rabbitmq-management rabbitmq letsencrypt rabbitmq
+}
+
 rabbitmqReset(){
+  # Delete RabbitMQ cluster
+  kubectl delete rabbitmqcluster rabbitmq -n rabbitmq --ignore-not-found=true
+  
+  # Delete operator (optional - might affect other clusters)
+  kubectl delete -f "https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml"
+  
+  # Clean up namespace and storage
+  kubectl delete namespace rabbitmq --ignore-not-found=true
+  emptyLocalFsStorage "RabbitMQ" "rabbitmq-pv" "rabbitmq-storage" "/data/volumes/rabbitmq"
+}
+
+
+rabbitmqResetLegacy(){
   kubectl delete all --all -n rabbitmq
   kubectl delete ns rabbitmq
   emptyLocalFsStorage "RabbitMQ" "rabbitmq-pv" "rabbitmq-storage" "/data/volumes/rabbitmq" "rabbitmq"
 }
 
-rabbitmqInst(){
+rabbitmqInstLegacy(){
   helm repo add bitnami https://charts.bitnami.com/bitnami
   helm repo update
 

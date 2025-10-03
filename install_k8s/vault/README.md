@@ -1,338 +1,672 @@
-# Process of retrieving secret from vault
+# Vault Integration Test Scripts# Process of retrieving secret from vault
 
-When a secret from HashiCorp Vault is mounted on a Kubernetes pod, the process involves several components working together to securely retrieve the secret from Vault and make it available to the pod. Below is a detailed explanation of how this works:
 
----
 
-### **1. Overview**
-The secret is mounted into the pod as a file using the **Secrets Store CSI Driver** and the **Vault provider**. The CSI Driver dynamically fetches the secret from Vault at runtime and makes it available to the pod as a volume.
+This directory contains comprehensive test scripts for validating different Vault integration methods in Kubernetes. Each script automatically discovers configuration, creates test secrets, and verifies the integration is working correctly.When a secret from HashiCorp Vault is mounted on a Kubernetes pod, the process involves several components working together to securely retrieve the secret from Vault and make it available to the pod. Below is a detailed explanation of how this works:
 
----
 
-### **2. Components Involved**
-1. **HashiCorp Vault**:
-   - Stores the secret securely.
-   - Provides APIs to retrieve the secret.
+
+## 📋 Test Scripts Overview---
+
+
+
+### 1. **test_vault_agent_injector.sh** - Vault Agent Injector Test### **1. Overview**
+
+Tests Vault's Agent Injector functionality where Vault automatically injects secrets into pods using init containers and sidecars.The secret is mounted into the pod as a file using the **Secrets Store CSI Driver** and the **Vault provider**. The CSI Driver dynamically fetches the secret from Vault at runtime and makes it available to the pod as a volume.
+
+
+
+**What it tests:**---
+
+- Creates test secrets in Vault with multiple key-value pairs
+
+- Sets up Vault policies and Kubernetes authentication roles### **2. Components Involved**
+
+- Creates a pod with Vault Agent Injector annotations1. **HashiCorp Vault**:
+
+- Verifies secrets are mounted at `/vault/secrets/`   - Stores the secret securely.
+
+- Validates secret content and format   - Provides APIs to retrieve the secret.
+
    - Uses Kubernetes authentication to validate which pods can access which secrets.
 
-2. **Secrets Store CSI Driver**:
-   - A Kubernetes-native mechanism that integrates external secret stores (like Vault) with Kubernetes.
-   - Dynamically fetches secrets from Vault and mounts them as volumes in pods.
+**Key Features:**
 
-3. **Vault Provider for CSI Driver**:
-   - An extension of the CSI Driver that enables it to communicate with HashiCorp Vault specifically.
+- Tests environment variable injection2. **Secrets Store CSI Driver**:
 
-4. **Kubernetes Service Account**:
-   - Used by the pod to authenticate with Vault.
-   - Vault validates the service account token to ensure the pod is authorized to access the secret.
+- Validates JSON templating   - A Kubernetes-native mechanism that integrates external secret stores (like Vault) with Kubernetes.
 
-5. **SecretProviderClass**:
-   - A Kubernetes resource that defines how the CSI Driver should retrieve the secret from Vault (e.g., Vault address, role, secret path).
+- Checks file-based secret access   - Dynamically fetches secrets from Vault and mounts them as volumes in pods.
 
----
 
-### **3. Step-by-Step Process**
 
-#### **Step 1: Pod Starts**
+### 2. **test_vault_csi.sh** - Vault CSI Driver Test3. **Vault Provider for CSI Driver**:
+
+Tests the Secrets Store CSI Driver with Vault provider for mounting secrets as volumes.   - An extension of the CSI Driver that enables it to communicate with HashiCorp Vault specifically.
+
+
+
+**What it tests:**4. **Kubernetes Service Account**:
+
+- Creates test secrets in Vault with complex data types   - Used by the pod to authenticate with Vault.
+
+- Creates SecretProviderClass for Vault integration   - Vault validates the service account token to ensure the pod is authorized to access the secret.
+
+- Mounts secrets as CSI volumes in pods
+
+- Synchronizes secrets to Kubernetes secrets5. **SecretProviderClass**:
+
+- Tests environment variable injection from K8s secrets   - A Kubernetes resource that defines how the CSI Driver should retrieve the secret from Vault (e.g., Vault address, role, secret path).
+
+
+
+**Key Features:**---
+
+- CSI volume mounting
+
+- Kubernetes secret synchronization### **3. Step-by-Step Process**
+
+- File-based secret access
+
+- Environment variable integration#### **Step 1: Pod Starts**
+
 - A pod is created in Kubernetes with a volume that uses the **Secrets Store CSI Driver**.
-- The pod specifies a `SecretProviderClass` that defines how to retrieve the secret from Vault.
+
+### 3. **test_vault_api.sh** - Vault API Test- The pod specifies a `SecretProviderClass` that defines how to retrieve the secret from Vault.
+
+Tests direct API access to Vault using Kubernetes authentication from within pods.
 
 #### **Step 2: Service Account Token**
-- The pod uses a Kubernetes **service account** to authenticate with Vault.
-- The service account token is automatically mounted into the pod at `/var/run/secrets/kubernetes.io/serviceaccount/token`.
 
-#### **Step 3: CSI Driver Requests the Secret**
-- The Secrets Store CSI Driver reads the `SecretProviderClass` associated with the pod.
-- The CSI Driver uses the service account token to authenticate with Vault via the Kubernetes authentication method (`v1/auth/kubernetes/login`).
+**What it tests:**- The pod uses a Kubernetes **service account** to authenticate with Vault.
 
-#### **Step 4: Vault Authenticates the Pod**
-- Vault validates the service account token by calling the Kubernetes **TokenReview API**.
-- Vault checks if the service account and namespace match the **role** configuration in Vault.
-- If the authentication is successful, Vault issues a **client token** to the CSI Driver.
+- Kubernetes service account authentication to Vault- The service account token is automatically mounted into the pod at `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+
+- Direct API calls to retrieve secrets
+
+- Token management and renewal#### **Step 3: CSI Driver Requests the Secret**
+
+- JSON parsing and data validation- The Secrets Store CSI Driver reads the `SecretProviderClass` associated with the pod.
+
+- Python-based API client implementation- The CSI Driver uses the service account token to authenticate with Vault via the Kubernetes authentication method (`v1/auth/kubernetes/login`).
+
+
+
+**Key Features:**#### **Step 4: Vault Authenticates the Pod**
+
+- Programmatic API access- Vault validates the service account token by calling the Kubernetes **TokenReview API**.
+
+- Token lifecycle management- Vault checks if the service account and namespace match the **role** configuration in Vault.
+
+- Complex data type handling- If the authentication is successful, Vault issues a **client token** to the CSI Driver.
+
+- Error handling and retry logic
 
 #### **Step 5: CSI Driver Fetches the Secret**
-- The CSI Driver uses the client token to request the secret from Vault.
+
+## 🚀 Quick Start- The CSI Driver uses the client token to request the secret from Vault.
+
 - The secret is retrieved from the specified path in Vault (e.g., `secret/data/my-secret`).
 
-#### **Step 6: Secret is Mounted into the Pod**
-- The Secrets Store CSI Driver mounts the secret into the pod as a file in the specified volume path (e.g., `/mnt/secrets-store`).
-- The secret is now available to the application running in the pod.
+### Prerequisites
+
+- Kubernetes cluster with Vault installed#### **Step 6: Secret is Mounted into the Pod**
+
+- `kubectl` configured and connected to cluster- The Secrets Store CSI Driver mounts the secret into the pod as a file in the specified volume path (e.g., `/mnt/secrets-store`).
+
+- `jq` installed for JSON processing- The secret is now available to the application running in the pod.
+
+- Vault initialized with root token in `vault-init-keys` secret
 
 ---
+
+### Running Tests
 
 ### **4. Example Workflow**
 
-#### **Vault Configuration**
-1. Store a secret in Vault:
-   ```bash
-   vault kv put secret/my-secret username="my-username" password="my-password"
+```bash
+
+# Run all tests#### **Vault Configuration**
+
+./test_vault_agent_injector.sh1. Store a secret in Vault:
+
+./test_vault_csi.sh   ```bash
+
+./test_vault_api.sh   vault kv put secret/my-secret username="my-username" password="my-password"
+
    ```
 
-2. Create a Vault role:
+# Run specific test with verbose output
+
+./test_vault_agent_injector.sh --verbose2. Create a Vault role:
+
    ```bash
-   vault write auth/kubernetes/role/my-role \
-       bound_service_account_names=vault-auth \
-       bound_service_account_namespaces=default \
-       policies=my-policy \
+
+# Clean up test resources   vault write auth/kubernetes/role/my-role \
+
+./test_vault_agent_injector.sh --cleanup       bound_service_account_names=vault-auth \
+
+./test_vault_csi.sh --cleanup       bound_service_account_namespaces=default \
+
+./test_vault_api.sh --cleanup       policies=my-policy \
+
        ttl=24h
-   ```
 
-3. Create a Vault policy:
+# Get help   ```
+
+./test_vault_agent_injector.sh --help
+
+```3. Create a Vault policy:
+
    ```hcl
-   path "secret/data/my-secret" {
+
+## 📊 Test Scenarios   path "secret/data/my-secret" {
+
      capabilities = ["read"]
-   }
-   ```
 
-#### **Kubernetes Configuration**
-1. Create a `SecretProviderClass`:
-   ```yaml
-   apiVersion: secrets-store.csi.x-k8s.io/v1
-   kind: SecretProviderClass
-   metadata:
+### Agent Injector Test Scenario   }
+
+```   ```
+
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
+
+│  Vault Server   │    │ Agent        │    │   Test Pod      │#### **Kubernetes Configuration**
+
+│                 │    │ Injector     │    │                 │1. Create a `SecretProviderClass`:
+
+│ secret/agent... │◄───┤ Init/Sidecar │◄───┤ /vault/secrets/ │   ```yaml
+
+│                 │    │              │    │                 │   apiVersion: secrets-store.csi.x-k8s.io/v1
+
+└─────────────────┘    └──────────────┘    └─────────────────┘   kind: SecretProviderClass
+
+```   metadata:
+
      name: vault-secret-provider
-     namespace: default
-   spec:
-     provider: vault
-     parameters:
-       vaultAddress: "https://vault.example.com"
-       roleName: "my-role"
+
+**Created Resources:**     namespace: default
+
+- Secret: `secret/agent-test`   spec:
+
+- Policy: `agent-test-policy`     provider: vault
+
+- Role: `agent-test-role`     parameters:
+
+- ServiceAccount: `agent-test-sa`       vaultAddress: "https://vault.example.com"
+
+- Pod: `vault-agent-test-pod`       roleName: "my-role"
+
        objects: |
-         - objectName: "my-secret"
-           secretPath: "secret/data/my-secret"
-           secretKey: "username"
-   ```
 
-2. Create a pod that uses the `SecretProviderClass`:
-   ```yaml
-   apiVersion: v1
-   kind: Pod
+**Test Data:**         - objectName: "my-secret"
+
+```json           secretPath: "secret/data/my-secret"
+
+{           secretKey: "username"
+
+  "username": "agent-test-user",   ```
+
+  "password": "agent-test-password",
+
+  "database_url": "postgresql://localhost:5432/testdb",2. Create a pod that uses the `SecretProviderClass`:
+
+  "api_key": "test-api-key-12345"   ```yaml
+
+}   apiVersion: v1
+
+```   kind: Pod
+
    metadata:
-     name: vault-secret-pod
-     namespace: default
-   spec:
-     serviceAccountName: vault-auth
-     containers:
-     - name: app
-       image: nginx
-       volumeMounts:
-       - name: secrets-store-inline
-         mountPath: "/mnt/secrets-store"
-         readOnly: true
-     volumes:
-     - name: secrets-store-inline
-       csi:
-         driver: secrets-store.csi.k8s.io
-         readOnly: true
+
+### CSI Driver Test Scenario     name: vault-secret-pod
+
+```     namespace: default
+
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐   spec:
+
+│  Vault Server   │    │ CSI Driver   │    │   Test Pod      │     serviceAccountName: vault-auth
+
+│                 │    │              │    │                 │     containers:
+
+│ secret/csi...   │◄───┤ Volume Mount │◄───┤ /mnt/secrets/   │     - name: app
+
+│                 │    │              │    │                 │       image: nginx
+
+└─────────────────┘    └──────────────┘    └─────────────────┘       volumeMounts:
+
+                              │       - name: secrets-store-inline
+
+                              ▼         mountPath: "/mnt/secrets-store"
+
+                       ┌──────────────┐         readOnly: true
+
+                       │ K8s Secret   │     volumes:
+
+                       │              │     - name: secrets-store-inline
+
+                       │ vault-csi... │       csi:
+
+                       └──────────────┘         driver: secrets-store.csi.k8s.io
+
+```         readOnly: true
+
          volumeAttributes:
-           secretProviderClass: "vault-secret-provider"
-   ```
 
----
+**Created Resources:**           secretProviderClass: "vault-secret-provider"
 
-### **5. Security Considerations**
-- **Authentication**:
-  - Vault uses Kubernetes service account tokens to authenticate pods.
+- Secret: `secret/csi-test`   ```
+
+- Policy: `csi-test-policy`
+
+- Role: `csi-test-role`---
+
+- ServiceAccount: `csi-test-sa`
+
+- SecretProviderClass: `vault-csi-test-provider`### **5. Security Considerations**
+
+- Pod: `vault-csi-test-pod`- **Authentication**:
+
+- K8s Secret: `vault-csi-secret`  - Vault uses Kubernetes service account tokens to authenticate pods.
+
   - Only authorized pods can access specific secrets based on Vault roles and policies.
 
-- **Dynamic Secrets**:
-  - Secrets are not hardcoded into the application or Kubernetes manifests.
-  - Secrets can be updated in Vault without requiring changes to the pod.
+**Test Data:**
 
-- **Access Control**:
-  - Vault policies ensure fine-grained access control to secrets.
-  - Only specific service accounts and namespaces can access specific secrets.
+```json- **Dynamic Secrets**:
 
----
+{  - Secrets are not hardcoded into the application or Kubernetes manifests.
 
-### **6. Benefits of Using Vault with CSI Driver**
-1. **Centralized Secret Management**:
-   - Secrets are stored and managed centrally in Vault, ensuring consistency and security.
+  "username": "csi-test-user",  - Secrets can be updated in Vault without requiring changes to the pod.
 
-2. **Dynamic Secret Retrieval**:
-   - Secrets are dynamically fetched at runtime, reducing the risk of stale or outdated secrets.
+  "password": "csi-test-password",
 
-3. **Seamless Integration**:
-   - The Secrets Store CSI Driver integrates seamlessly with Kubernetes, making it easy to mount secrets into pods.
+  "database_url": "mysql://localhost:3306/testdb",- **Access Control**:
 
-4. **Improved Security**:
-   - Secrets are not stored in Kubernetes manifests or ConfigMaps, reducing the risk of accidental exposure.
+  "api_token": "csi-test-token-67890",  - Vault policies ensure fine-grained access control to secrets.
 
----
+  "config_json": "{\"server\":\"https://api.example.com\",\"timeout\":30}"  - Only specific service accounts and namespaces can access specific secrets.
 
-### **7. Summary**
-- The Secrets Store CSI Driver and Vault provider enable Kubernetes pods to securely retrieve secrets from Vault.
+}
+
+```---
+
+
+
+### API Test Scenario### **6. Benefits of Using Vault with CSI Driver**
+
+```1. **Centralized Secret Management**:
+
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐   - Secrets are stored and managed centrally in Vault, ensuring consistency and security.
+
+│  Vault Server   │    │              │    │   Python Pod    │
+
+│                 │◄──────── HTTPS ───────┤                 │2. **Dynamic Secret Retrieval**:
+
+│ secret/api...   │    │   API Call   │    │ requests lib    │   - Secrets are dynamically fetched at runtime, reducing the risk of stale or outdated secrets.
+
+│                 │    │              │    │                 │
+
+└─────────────────┘    └──────────────┘    └─────────────────┘3. **Seamless Integration**:
+
+```   - The Secrets Store CSI Driver integrates seamlessly with Kubernetes, making it easy to mount secrets into pods.
+
+
+
+**Created Resources:**4. **Improved Security**:
+
+- Secret: `secret/api-test`   - Secrets are not stored in Kubernetes manifests or ConfigMaps, reducing the risk of accidental exposure.
+
+- Policy: `api-test-policy`
+
+- Role: `api-test-role`---
+
+- ServiceAccount: `api-test-sa`
+
+- ConfigMap: `vault-api-test-script`### **7. Summary**
+
+- Pod: `vault-api-test-pod`- The Secrets Store CSI Driver and Vault provider enable Kubernetes pods to securely retrieve secrets from Vault.
+
 - The process involves Kubernetes service accounts, Vault roles, and policies to ensure only authorized pods can access specific secrets.
-- Secrets are dynamically fetched and mounted into pods as files, providing a secure and scalable solution for secret management in Kubernetes.
 
+**Test Data:**- Secrets are dynamically fetched and mounted into pods as files, providing a secure and scalable solution for secret management in Kubernetes.
 
-# Mounting Secrets from Vault into Kubernetes Pods
+```json
 
-This guide explains the steps required to securely retrieve and mount secrets from HashiCorp Vault into Kubernetes pods using the Secrets Store CSI Driver.
+{
 
----
+  "username": "api-test-user",# Mounting Secrets from Vault into Kubernetes Pods
 
-## Steps to Mount Secrets into a Pod
+  "password": "api-test-password",
 
-### 1. Install the Secrets Store CSI Driver and Vault Provider
+  "database_host": "postgres.example.com",This guide explains the steps required to securely retrieve and mount secrets from HashiCorp Vault into Kubernetes pods using the Secrets Store CSI Driver.
 
-#### Why This Step is Needed
+  "database_port": "5432",
+
+  "database_name": "api_test_db",---
+
+  "api_endpoint": "https://api.example.com/v1",
+
+  "api_key": "api-test-key-abcdef123456",## Steps to Mount Secrets into a Pod
+
+  "config_json": "{\"timeout\":60,\"retries\":3,\"debug\":true}",
+
+  "ssl_cert": "-----BEGIN CERTIFICATE-----\\nMIIC...test...cert\\n-----END CERTIFICATE-----"### 1. Install the Secrets Store CSI Driver and Vault Provider
+
+}
+
+```#### Why This Step is Needed
+
 - The **Secrets Store CSI Driver** is a Kubernetes-native mechanism that allows secrets from external secret stores (like Vault) to be mounted as volumes in Kubernetes pods.
-- The **Vault provider** is an extension of the CSI Driver that enables it to communicate with HashiCorp Vault specifically.
+
+## 🔧 Configuration Auto-Discovery- The **Vault provider** is an extension of the CSI Driver that enables it to communicate with HashiCorp Vault specifically.
+
 - Without the CSI Driver and Vault provider, Kubernetes cannot directly interact with Vault to retrieve secrets.
 
+All scripts automatically discover Vault configuration:
+
 #### What It Does
-- The CSI Driver acts as a bridge between Kubernetes and Vault.
-- It dynamically fetches secrets from Vault and mounts them into pods as files.
+
+### Vault Address Detection- The CSI Driver acts as a bridge between Kubernetes and Vault.
+
+1. **Ingress Route**: Checks for `vault-ingress` in `vault` namespace- It dynamically fetches secrets from Vault and mounts them into pods as files.
+
+2. **Service DNS**: Falls back to `https://vault.vault.svc.cluster.local:8200`
 
 #### Code Snippets
 
-Install the Secrets Store CSI Driver:
-```bash
+### Authentication
+
+- Uses root token from `vault-init-keys` secret in `vault` namespaceInstall the Secrets Store CSI Driver:
+
+- Automatically extracts token from base64 encoded JSON```bash
+
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/deploy/rbac-secretproviderclass.yaml
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/deploy/csi-secrets-store.yaml
-```
+
+### Namespacekubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/deploy/csi-secrets-store.yaml
+
+- Defaults to `default` namespace```
+
+- Can be customized by modifying script variables
 
 Install the Vault provider for the CSI Driver:
-```bash
+
+## 📈 Success Criteria```bash
+
 kubectl apply -f https://raw.githubusercontent.com/hashicorp/secrets-store-csi-driver-provider-vault/main/deployment/provider-vault-installer.yaml
-```
----
 
-### 2. Configure Vault with Kubernetes Authentication, a Role, a Policy, and the Secret
+### Agent Injector Test```
 
-#### Why This Step is Needed
+✅ **Pass Criteria:**---
+
+- Pod starts with both app and vault-agent containers
+
+- Secrets file exists at `/vault/secrets/config`### 2. Configure Vault with Kubernetes Authentication, a Role, a Policy, and the Secret
+
+- All expected secret values are present in the file
+
+- Template rendering works correctly (environment variables + JSON)#### Why This Step is Needed
+
 - Vault needs to authenticate Kubernetes pods securely to ensure that only authorized pods can access specific secrets.
-- The **Kubernetes authentication method** allows Vault to validate Kubernetes service account tokens.
-- The **role** maps Kubernetes service accounts and namespaces to Vault policies.
-- The **policy** defines what secrets the authenticated pod can access.
-- The **secret** is the actual data stored in Vault that the pod needs.
 
-#### What It Does
-- **Kubernetes Authentication**: Enables Vault to validate Kubernetes service account tokens using the Kubernetes API.
+### CSI Driver Test- The **Kubernetes authentication method** allows Vault to validate Kubernetes service account tokens.
+
+✅ **Pass Criteria:**- The **role** maps Kubernetes service accounts and namespaces to Vault policies.
+
+- CSI volume mounts successfully- The **policy** defines what secrets the authenticated pod can access.
+
+- All secret files are created in `/mnt/secrets-store/`- The **secret** is the actual data stored in Vault that the pod needs.
+
+- Kubernetes secret is synchronized automatically
+
+- Environment variables are injected from K8s secret#### What It Does
+
+- File contents match expected values- **Kubernetes Authentication**: Enables Vault to validate Kubernetes service account tokens using the Kubernetes API.
+
 - **Role**: Maps Kubernetes service accounts to Vault policies, ensuring only specific pods can access specific secrets.
-- **Policy**: Grants fine-grained access control to secrets stored in Vault.
-- **Secret**: Stores sensitive data (e.g., API keys, passwords) securely in Vault.
 
-#### Code Snippets
+### API Test- **Policy**: Grants fine-grained access control to secrets stored in Vault.
 
-Enable Kubernetes authentication in Vault:
-```bash
-vault auth enable kubernetes
+✅ **Pass Criteria:**- **Secret**: Stores sensitive data (e.g., API keys, passwords) securely in Vault.
+
+- Kubernetes authentication succeeds
+
+- Token is obtained and validated#### Code Snippets
+
+- Secret retrieval via API works
+
+- All expected secret keys are presentEnable Kubernetes authentication in Vault:
+
+- JSON parsing of complex data succeeds```bash
+
+- Python HTTP client completes without errorsvault auth enable kubernetes
+
 ```
+
+## 🛠️ Troubleshooting
 
 Configure Kubernetes authentication in Vault:
-```bash
+
+### Common Issues```bash
+
 vault write auth/kubernetes/config \
-    token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
-    kubernetes_host="https://<KUBERNETES_API_SERVER>" \
-    kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-```
 
-Create a Vault role:
-```bash
-vault write auth/kubernetes/role/my-role \
+**Pod Won't Start:**    token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+
+```bash    kubernetes_host="https://<KUBERNETES_API_SERVER>" \
+
+# Check pod status    kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+kubectl describe pod [pod-name] -n default```
+
+
+
+# Check eventsCreate a Vault role:
+
+kubectl get events -n default --sort-by=.metadata.creationTimestamp```bash
+
+```vault write auth/kubernetes/role/my-role \
+
     bound_service_account_names=vault-auth \
-    bound_service_account_namespaces=default \
-    policies=my-policy \
-    ttl=24h
-```
 
-Create a Vault policy:
-```bash
-vault policy write my-policy - <<EOF
+**Vault Authentication Issues:**    bound_service_account_namespaces=default \
+
+```bash    policies=my-policy \
+
+# Verify Vault is accessible    ttl=24h
+
+kubectl exec -it vault-0 -n vault -- vault status```
+
+
+
+# Check Kubernetes auth configurationCreate a Vault policy:
+
+kubectl exec -it vault-0 -n vault -- vault auth list```bash
+
+```vault policy write my-policy - <<EOF
+
 path "secret/data/my-secret" {
-  capabilities = ["read"]
-}
-EOF
+
+**CSI Driver Issues:**  capabilities = ["read"]
+
+```bash}
+
+# Check CSI driver installationEOF
+
+kubectl get daemonset -n kube-system | grep csi```
+
+
+
+# Check CSI driver logsStore a secret in Vault:
+
+kubectl logs -n kube-system -l app=secrets-store-csi-driver```bash
+
+```vault kv put secret/my-secret username="my-username" password="my-password"
+
 ```
 
-Store a secret in Vault:
-```bash
-vault kv put secret/my-secret username="my-username" password="my-password"
-```
+**Network Issues:**
 
----
+```bash---
 
-### 3. Create a Kubernetes Service Account and Bind it to the `system:auth-delegator` Role
+# Test DNS resolution from pod
 
-#### Why This Step is Needed
-- The Kubernetes service account is used by the pod to authenticate with Vault.
-- The `system:auth-delegator` role is required to allow Vault to perform **TokenReview API calls**. These calls validate the service account token presented by the pod.
+kubectl exec [pod-name] -n default -- nslookup vault.vault.svc.cluster.local### 3. Create a Kubernetes Service Account and Bind it to the `system:auth-delegator` Role
 
-#### What It Does
+
+
+# Test network connectivity#### Why This Step is Needed
+
+kubectl exec [pod-name] -n default -- telnet vault.vault.svc.cluster.local 8200- The Kubernetes service account is used by the pod to authenticate with Vault.
+
+```- The `system:auth-delegator` role is required to allow Vault to perform **TokenReview API calls**. These calls validate the service account token presented by the pod.
+
+
+
+### Debug Mode#### What It Does
+
 - The service account provides the pod with a token that Vault can validate.
-- The `system:auth-delegator` role allows Vault to verify the authenticity of the service account token by calling the Kubernetes API.
 
-#### Code Snippets
+Run any script with verbose output:- The `system:auth-delegator` role allows Vault to verify the authenticity of the service account token by calling the Kubernetes API.
+
+```bash
+
+./test_vault_agent_injector.sh --verbose#### Code Snippets
+
+```
 
 Create a Kubernetes service account:
-```bash
-kubectl create serviceaccount vault -n vault
-```
 
-Bind the service account to the system:auth-delegator role:
+This enables:```bash
+
+- Detailed command execution (`set -x`)kubectl create serviceaccount vault -n vault
+
+- Step-by-step progress logging```
+
+- Full error output
+
+- Resource descriptions on failureBind the service account to the system:auth-delegator role:
+
 ```bash
-kubectl create clusterrolebinding vault-auth-delegator \
+
+## 🧹 Cleanupkubectl create clusterrolebinding vault-auth-delegator \
+
   --clusterrole=system:auth-delegator \
-  --serviceaccount=vault:vault
+
+Each script includes automatic cleanup on exit, but you can also run manual cleanup:  --serviceaccount=vault:vault
+
 ```
 
----
+```bash
+
+# Clean up specific test---
+
+./test_vault_agent_injector.sh --cleanup
 
 ### 4. Create a SecretProviderClass to Define How the Secret is Retrieved from Vault
 
-#### Why This Step is Needed
-- The `SecretProviderClass` is a Kubernetes resource that tells the Secrets Store CSI Driver how to retrieve secrets from Vault.
-- It specifies:
-  - The Vault server address.
+# Clean up all tests
+
+for script in test_vault_*.sh; do#### Why This Step is Needed
+
+    ./$script --cleanup- The `SecretProviderClass` is a Kubernetes resource that tells the Secrets Store CSI Driver how to retrieve secrets from Vault.
+
+done- It specifies:
+
+```  - The Vault server address.
+
   - The Vault role to use for authentication.
-  - The path to the secret in Vault.
-  - The specific keys within the secret to retrieve.
 
-#### What It Does
-- The `SecretProviderClass` acts as a configuration file for the CSI Driver.
-- It ensures that the correct secret is retrieved from Vault and made available to the pod.
+**Cleanup includes:**  - The path to the secret in Vault.
 
-#### Code Snippets
+- Test pods deletion  - The specific keys within the secret to retrieve.
 
-Create a `SecretProviderClass`:
-```bash
+- Service accounts removal
+
+- ConfigMaps/SecretProviderClass cleanup#### What It Does
+
+- Kubernetes secrets cleanup- The `SecretProviderClass` acts as a configuration file for the CSI Driver.
+
+- Graceful resource termination- It ensures that the correct secret is retrieved from Vault and made available to the pod.
+
+
+
+## 📝 Customization#### Code Snippets
+
+
+
+### Modifying Test DataCreate a `SecretProviderClass`:
+
+Edit the `create_test_secret()` function in each script to add/modify test data:```bash
+
 apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: vault-secret-provider
-  namespace: default
-spec:
+
+```bashkind: SecretProviderClass
+
+kubectl exec -it vault-0 -n vault -- vault kv put $SECRET_PATH \metadata:
+
+    your_key="your_value" \  name: vault-secret-provider
+
+    another_key="another_value"  namespace: default
+
+```spec:
+
   provider: vault
-  parameters:
-    vaultAddress: "https://vault.gokcloud.com"
+
+### Changing Namespaces  parameters:
+
+Modify the `NAMESPACE` variable at the top of each script:    vaultAddress: "https://vault.gokcloud.com"
+
     roleName: "my-role"
-    objects: |
-      - objectName: "my-secret"
-        secretPath: "secret/data/my-secret"
+
+```bash    objects: |
+
+NAMESPACE="your-test-namespace"      - objectName: "my-secret"
+
+```        secretPath: "secret/data/my-secret"
+
         secretKey: "username"
-```
----
 
-### 5. Create a Pod that Mounts the Secret Using the SecretProviderClass
+### Custom Vault Paths```
 
-#### Why This Step is Needed
+Update the `SECRET_PATH` variable:---
+
+
+
+```bash### 5. Create a Pod that Mounts the Secret Using the SecretProviderClass
+
+SECRET_PATH="secret/your/custom/path"
+
+```#### Why This Step is Needed
+
 - The pod is the application that needs access to the secret.
-- By mounting the secret as a volume, the application running in the pod can securely access the secret without hardcoding it into the application or storing it in an insecure location.
 
-#### What It Does
+## 🎯 Integration Examples- By mounting the secret as a volume, the application running in the pod can securely access the secret without hardcoding it into the application or storing it in an insecure location.
+
+
+
+These test scripts serve as working examples for:#### What It Does
+
 - The pod uses the `SecretProviderClass` to dynamically fetch the secret from Vault.
-- The secret is mounted into the pod as a file, making it accessible to the application.
+
+1. **Production Vault Setup**: Configuration patterns and best practices- The secret is mounted into the pod as a file, making it accessible to the application.
+
+2. **CI/CD Integration**: Automated testing of Vault configurations
+
+3. **Development Workflows**: Local testing of secret management
+
+4. **Troubleshooting**: Validation tools for production issues#### Code Snippets
 
 
-#### Code Snippets
 
-Create a pod:
+Each script can be adapted for specific use cases by modifying the test data and resource configurations.Create a pod:
+
 ```yaml
-apiVersion: v1
+
+## 📚 Additional ResourcesapiVersion: v1
+
 kind: Pod
-metadata:
+
+For detailed information about Vault integration processes, see `README_backup.md` which contains the original documentation about how secrets are retrieved from Vault and mounted in Kubernetes pods.metadata:
   name: vault-secret-pod
   namespace: default
 spec:

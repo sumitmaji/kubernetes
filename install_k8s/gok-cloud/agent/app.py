@@ -1,0 +1,426 @@
+import os
+import pika
+import subprocess
+import logging
+import json
+import base64
+from jose import jwt
+import requests
+import sys
+import time
+from functools import wraps
+# Import our Vault credential managers
+from vault_credentials import get_rabbitmq_credentials, VaultCredentialManager
+from vault import get_vault_secrets_from_files, get_config_secrets, get_rabbitmq_secrets_from_files
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+logger.handlers = [console_handler]
+
+# --- RETRY AND ERROR HANDLING ---
+def retry_with_backoff(max_retries=5, base_delay=1, max_delay=60, backoff_multiplier=2):
+    """Decorator for retrying functions with exponential backoff"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = base_delay
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt == max_retries - 1:
+                        logger.error(f"Function {func.__name__} failed after {max_retries} attempts. Last error: {e}")
+                        raise e
+                    
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    delay = min(delay * backoff_multiplier, max_delay)
+            
+            raise last_exception
+        return wrapper
+    return decorator
+
+def safe_rabbitmq_operation(operation_name, func, *args, **kwargs):
+    """Safely execute RabbitMQ operations with error handling"""
+    try:
+        return func(*args, **kwargs)
+    except pika.exceptions.ProbableAuthenticationError as e:
+        logger.error(f"{operation_name} - Authentication failed: {e}")
+        return False
+    except pika.exceptions.AMQPConnectionError as e:
+        logger.error(f"{operation_name} - Connection failed: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"{operation_name} - Unexpected error: {e}")
+        return False
+
+def check_rabbitmq_health():
+    """Check RabbitMQ connectivity and return status"""
+    def _health_check():
+        conn_params = get_rabbitmq_connection_params()
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(**conn_params)
+        )
+        connection.close()
+        return True
+    
+    is_healthy = safe_rabbitmq_operation("health_check", _health_check)
+    status = "✅ HEALTHY" if is_healthy else "❌ UNHEALTHY"
+    logger.info(f"RabbitMQ Health Status: {status}")
+    return is_healthy
+
+# --- RBAC CONFIG ---
+# Example RBAC config, replace with your actual config or import from a file
+TOKEN_GROUP_MAP = {
+    "supersecrettoken": "administrators",
+    "usertoken": "developers"
+}
+GROUP_COMMANDS = {
+    "administrators": ["*"],
+    "developers": ["ls", "whoami", "uptime"]
+}
+
+# --- OAUTH/JWT CONFIG ---
+OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "https://accounts.google.com")
+OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID", "your-client-id")
+REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "administrators")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq")
+RESULTS_QUEUE = 'results'
+
+# Vault integration mode configuration
+VAULT_INTEGRATION_MODE = os.environ.get("VAULT_INTEGRATION_MODE", "hybrid")  # Options: "agent", "api", "hybrid"
+
+# Get RabbitMQ credentials using hybrid Vault approach
+def get_rabbitmq_connection_params():
+    """
+    Get RabbitMQ connection parameters with hybrid Vault integration
+    Supports both Agent Injector (static) and Direct API (dynamic) approaches
+    Returns connection parameters for pika
+    """
+    try:
+        logger.info(f"Using Vault integration mode: {VAULT_INTEGRATION_MODE}")
+        
+        credentials_obj = None
+        
+        # Try different approaches based on integration mode
+        if VAULT_INTEGRATION_MODE in ["agent", "hybrid"]:
+            # Try Agent Injector approach first (file-based)
+            logger.info("Attempting to retrieve RabbitMQ credentials from Vault Agent Injector")
+            agent_secrets = get_rabbitmq_secrets_from_files()
+            if agent_secrets and agent_secrets.get('username') and agent_secrets.get('password'):
+                logger.info("Successfully retrieved RabbitMQ credentials from Vault Agent Injector")
+                return {
+                    'host': agent_secrets.get('host', RABBITMQ_HOST),
+                    'port': int(agent_secrets.get('port', 5672)),
+                    'virtual_host': agent_secrets.get('virtual_host', '/'),
+                    'credentials': pika.PlainCredentials(
+                        agent_secrets.get('username'),
+                        agent_secrets.get('password')
+                    )
+                }
+            else:
+                logger.warning("Agent Injector credentials not available or incomplete")
+        
+        if VAULT_INTEGRATION_MODE in ["api", "hybrid"]:
+            # Try Direct API approach (dynamic)
+            logger.info("Attempting to retrieve RabbitMQ credentials from Vault Direct API")
+            credentials_obj = get_rabbitmq_credentials(prefer_vault=True)
+            
+            if credentials_obj:
+                logger.info(f"Successfully retrieved RabbitMQ credentials from Vault API for user: {credentials_obj.username}")
+                return {
+                    'host': credentials_obj.host,
+                    'port': credentials_obj.port,
+                    'virtual_host': credentials_obj.virtual_host,
+                    'credentials': pika.PlainCredentials(
+                        credentials_obj.username, 
+                        credentials_obj.password
+                    )
+                }
+            else:
+                logger.warning("Direct API credentials not available")
+        
+        # Final fallback to environment variables
+        logger.warning("Could not retrieve credentials from any Vault method, using environment variables")
+        return {
+            'host': RABBITMQ_HOST,
+            'port': 5672,
+            'virtual_host': '/',
+            'credentials': pika.PlainCredentials(
+                os.environ.get("RABBITMQ_USER", "guest"),
+                os.environ.get("RABBITMQ_PASSWORD", "guest")
+            )
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting RabbitMQ credentials: {e}")
+        # Ultimate fallback
+        return {
+            'host': RABBITMQ_HOST,
+            'port': 5672,
+            'virtual_host': '/',
+            'credentials': pika.PlainCredentials("guest", "guest")
+        }
+
+session_shells = {}
+
+def get_jwks():
+    try:
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=True).json()
+        jwks_uri = oidc_conf["jwks_uri"]
+        return requests.get(jwks_uri, verify=True).json()
+    except Exception as e:
+        logging.error(f"Failed to fetch JWKS: {e}")
+        return {"keys": []}
+
+JWKS = get_jwks()
+
+def verify_id_token(token):
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=["RS256"],
+                audience=OAUTH_CLIENT_ID,
+                issuer=OAUTH_ISSUER,
+            )
+            return payload
+        except jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jwt.get_unverified_claims(token)
+                logging.warning("Ignoring at_hash error in id_token: using unverified claims.")
+                return payload
+            else:
+                raise
+    except Exception as e:
+        logging.error(f"JWT verification failed: {e}")
+        return None
+
+def get_group_from_token(token):
+    # Try RBAC config first
+    if token in TOKEN_GROUP_MAP:
+        return TOKEN_GROUP_MAP[token]
+    # Try JWT validation
+    payload = verify_id_token(token)
+    if payload:
+        groups = payload.get("groups", [])
+        if isinstance(groups, str):
+            groups = [groups]
+        # Return the first matching group in GROUP_COMMANDS
+        for group in groups:
+            if group in GROUP_COMMANDS:
+                return group
+    return None
+
+def is_command_allowed(group, command):
+    cmd = command.split()[0]
+    # Administrators can run any command
+    if group == "administrators":
+        return True
+    return group in GROUP_COMMANDS and cmd in GROUP_COMMANDS[group]
+
+
+def stream_result(channel, batch_id, command_id, output):
+    result_msg = {
+        'batch_id': batch_id,
+        'command_id': command_id,
+        'output': output
+    }
+    channel.basic_publish(exchange='', routing_key=RESULTS_QUEUE, body=json.dumps(result_msg))
+
+def process_command(channel, batch_id, command, command_id, group):
+    if not is_command_allowed(group, command):
+        out = f"Group '{group}' not allowed to run '{command}'"
+        logging.warning(f"{out} (batch_id={batch_id}, command_id={command_id})")
+        stream_result(channel, batch_id, command_id, out)
+        return
+    try:
+        # Prepare environment setup before the actual command
+        setup = (
+            "export MOUNT_PATH=/root && "
+            "source /root/kubernetes/install_k8s/gok && "
+            "source /root/kubernetes/install_k8s/util && "
+        )
+        # Use nsenter to run the command in the host's namespaces
+        nsenter_prefix = "nsenter --mount=/host/proc/1/ns/mnt --uts=/host/proc/1/ns/uts --ipc=/host/proc/1/ns/ipc --net=/host/proc/1/ns/net --pid=/host/proc/1/ns/pid --"
+        command_to_run = f"{nsenter_prefix} bash -c \"{setup}{command}\""
+        proc = subprocess.Popen(command_to_run, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        while True:
+            line = proc.stdout.readline()
+            if not line and proc.poll() is not None:
+                break
+            if line:
+                stream_result(channel, batch_id, command_id, line)
+        proc.wait()
+        if proc.returncode == 0:
+            logging.info(f"Command '{command_to_run}' succeeded (batch_id={batch_id}, command_id={command_id})")
+        else:
+            logging.error(f"Command '{command_to_run}' failed (batch_id={batch_id}, command_id={command_id})")
+    except Exception as e:
+        out = str(e)
+        logging.error(f"Exception running '{command}' (batch_id={batch_id}, command_id={command_id}): {out}")
+        stream_result(channel, batch_id, command_id, out)
+
+def on_message(ch, method, properties, body):
+    try:
+        msg = json.loads(body)
+        token = msg.get('token') or msg.get('user_info', {}).get('id_token')
+        batch_id = msg.get('batch_id', 'single')
+        commands = msg.get('commands', [])
+        # Support single command as well
+        if not commands and 'command' in msg:
+            commands = [{'command': msg['command'], 'command_id': msg.get('command_id', 'single')}]
+        group = get_group_from_token(token)
+        if not group:
+            logging.warning(f"Unauthorized or unknown token/group (batch_id={batch_id})")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            return
+        for cmd in commands:
+            command = cmd['command']
+            command_id = cmd.get('command_id', 'single')
+            process_command(ch, batch_id, command, command_id, group)
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+    except Exception as e:
+        logging.error(f"Malformed message or processing error: {str(e)}")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+def ensure_results_queue():
+    """Ensure the 'results' queue exists in RabbitMQ, create if not present."""
+    def _ensure_queue():
+        conn_params = get_rabbitmq_connection_params()
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(**conn_params)
+        )
+        channel = connection.channel()
+        try:
+            channel.queue_declare(queue=RESULTS_QUEUE, passive=True)
+            logging.info(f"Queue '{RESULTS_QUEUE}' already exists.")
+            return True
+        except pika.exceptions.ChannelClosedByBroker:
+            channel = connection.channel()  # Reopen channel after exception
+            channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
+            logging.info(f"Queue '{RESULTS_QUEUE}' created.")
+            return True
+        finally:
+            connection.close()
+    
+    return safe_rabbitmq_operation("ensure_results_queue", _ensure_queue)
+
+def ensure_commands_queue():
+    """Ensure the 'commands' queue exists in RabbitMQ, create if not present."""
+    def _ensure_queue():
+        conn_params = get_rabbitmq_connection_params()
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(**conn_params)
+        )
+        channel = connection.channel()
+        try:
+            channel.queue_declare(queue='commands', passive=True)
+            logging.info("Queue 'commands' already exists.")
+            return True
+        except pika.exceptions.ChannelClosedByBroker:
+            channel = connection.channel()  # Reopen channel after exception
+            channel.queue_declare(queue='commands', durable=True)
+            logging.info("Queue 'commands' created.")
+            return True
+        finally:
+            connection.close()
+    
+    return safe_rabbitmq_operation("ensure_commands_queue", _ensure_queue)
+
+@retry_with_backoff(max_retries=10, base_delay=5, max_delay=300)
+def establish_rabbitmq_connection():
+    """Establish RabbitMQ connection with retry logic"""
+    conn_params = get_rabbitmq_connection_params()
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(**conn_params)
+    )
+    return connection
+
+def main():
+    """Main application loop with robust error handling"""
+    while True:
+        try:
+            logger.info("Attempting to establish RabbitMQ connection...")
+            connection = establish_rabbitmq_connection()
+            channel = connection.channel()
+            
+            # Ensure queues exist
+            channel.queue_declare(queue='commands', durable=True)
+            channel.queue_declare(queue=RESULTS_QUEUE, durable=True)
+            channel.basic_qos(prefetch_count=1)
+            channel.basic_consume(queue='commands', on_message_callback=on_message)
+            
+            logger.info("✅ RabbitMQ connection established successfully!")
+            logger.info("Unified agent started, waiting for commands/batches...")
+            
+            # Log initial health status
+            check_rabbitmq_health()
+            
+            try:
+                channel.start_consuming()
+            except KeyboardInterrupt:
+                logger.info("Received keyboard interrupt, stopping gracefully...")
+                channel.stop_consuming()
+                connection.close()
+                break
+            except pika.exceptions.ConnectionClosedByBroker:
+                logger.warning("Connection closed by broker, will reconnect...")
+                if connection and not connection.is_closed:
+                    connection.close()
+                continue
+            except pika.exceptions.StreamLostError:
+                logger.warning("Stream lost, will reconnect...")
+                if connection and not connection.is_closed:
+                    connection.close()
+                continue
+                
+        except pika.exceptions.ProbableAuthenticationError as e:
+            logger.error(f"❌ Authentication failed: {e}")
+            logger.info("Retrying with updated credentials in 30 seconds...")
+            time.sleep(30)
+            continue
+            
+        except pika.exceptions.AMQPConnectionError as e:
+            logger.error(f"❌ Connection failed: {e}")
+            logger.info("Retrying connection in 15 seconds...")
+            time.sleep(15)
+            continue
+            
+        except Exception as e:
+            logger.error(f"❌ Unexpected error in main loop: {e}")
+            logger.info("Retrying in 10 seconds...")
+            time.sleep(10)
+            continue
+
+if __name__ == '__main__':
+    logger.info("🚀 Starting GOK Agent...")
+    
+    # Try to ensure queues exist, but don't fail if RabbitMQ is unavailable
+    logger.info("Checking RabbitMQ queue setup...")
+    results_queue_ok = ensure_results_queue()
+    commands_queue_ok = ensure_commands_queue()
+    
+    if results_queue_ok and commands_queue_ok:
+        logger.info("✅ Initial queue setup completed successfully")
+    else:
+        logger.warning("⚠️ Queue setup failed, but application will continue and retry...")
+    
+    # Start main loop (will retry connections automatically)
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("👋 Application stopped by user")
+    except Exception as e:
+        logger.error(f"💥 Fatal error: {e}")
+        sys.exit(1)

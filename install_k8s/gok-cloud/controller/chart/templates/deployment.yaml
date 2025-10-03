@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gok-controller
+  labels:
+    app: gok-controller
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: gok-controller
+  template:
+    metadata:
+      labels:
+        app: gok-controller
+      {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "agent") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.agentInjector.enabled }}
+      annotations:
+        # Vault Agent Injector annotations for static secrets
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "{{ .Values.vault.integration.agentInjector.role }}"
+        {{- if .Values.vault.integration.agentInjector.secrets.config }}
+        vault.hashicorp.com/agent-inject-secret-config: "{{ .Values.vault.integration.agentInjector.secrets.config.path }}"
+        {{- if .Values.vault.integration.agentInjector.secrets.config.template }}
+        vault.hashicorp.com/agent-inject-template-config: |
+{{ .Values.vault.integration.agentInjector.secrets.config.template | indent 10 }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.vault.integration.agentInjector.secrets.rabbitmq }}
+        vault.hashicorp.com/agent-inject-secret-rabbitmq: "{{ .Values.vault.integration.agentInjector.secrets.rabbitmq.path }}"
+        {{- if .Values.vault.integration.agentInjector.secrets.rabbitmq.template }}
+        vault.hashicorp.com/agent-inject-template-rabbitmq: |
+{{ .Values.vault.integration.agentInjector.secrets.rabbitmq.template | indent 10 }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | default "gok-controller" }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret | default "regcred" }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.api }}"
+          imagePullPolicy: Always
+          volumeMounts:
+          - name: ca-cert
+            mountPath: /usr/local/share/ca-certificates/issuer.crt
+            subPath: issuer.crt
+          - name: service-account-token
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            readOnly: true
+          {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
+          # Vault CSI Driver mount
+          - name: vault-csi-secrets
+            mountPath: /mnt/secrets-store
+            readOnly: true
+          {{- end }}
+          env:
+            - name: RABBITMQ_HOST
+              value: "{{ .Values.env.RABBITMQ_HOST }}"
+            - name: RABBITMQ_PORT
+              value: "{{ .Values.env.RABBITMQ_PORT }}"
+            - name: RABBITMQ_VHOST
+              value: "{{ .Values.env.RABBITMQ_VHOST }}"
+            {{- if .Values.vault.enabled }}
+            # Vault Integration Mode Configuration
+            - name: VAULT_INTEGRATION_MODE
+              value: "{{ .Values.vault.integration.mode }}"
+            - name: VAULT_ADDR
+              value: "{{ .Values.vault.address }}"
+            {{- if or (eq .Values.vault.integration.mode "api") (eq .Values.vault.integration.mode "hybrid") }}
+            # Direct API Configuration
+            {{- if .Values.vault.integration.directApi.enabled }}
+            - name: VAULT_K8S_ROLE
+              value: "{{ .Values.vault.auth.kubernetes.role }}"
+            - name: VAULT_K8S_AUTH_PATH
+              value: "{{ .Values.vault.auth.kubernetes.authPath }}"
+            - name: VAULT_PATH
+              value: "{{ .Values.vault.integration.directApi.credentialPath }}"
+            - name: VAULT_CONFIG_PATH
+              value: "{{ .Values.vault.integration.directApi.configPath }}"
+            {{- end }}
+            {{- end }}
+            {{- if or (eq .Values.vault.integration.mode "agent") (eq .Values.vault.integration.mode "hybrid") }}
+            # Agent Injector Configuration
+            {{- if .Values.vault.integration.agentInjector.enabled }}
+            - name: VAULT_SECRETS_PATH
+              value: "/vault/secrets"
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.env.RABBITMQ_USER }}
+            - name: RABBITMQ_USER
+              value: "{{ .Values.env.RABBITMQ_USER }}"
+            {{- end }}
+            {{- if .Values.env.RABBITMQ_PASSWORD }}
+            - name: RABBITMQ_PASSWORD
+              value: "{{ .Values.env.RABBITMQ_PASSWORD }}"
+            {{- end }}
+            - name: OAUTH_ISSUER
+              value: "{{ .Values.oidc.issuer }}"
+            - name: OAUTH_CLIENT_ID
+              value: "{{ .Values.oidc.clientId }}"
+            - name: REQUIRED_GROUP
+              value: "{{ .Values.oidc.requiredGroup }}"
+            - name: REQUESTS_CA_BUNDLE
+              value: /usr/local/share/ca-certificates/issuer.crt
+      volumes:
+      - name: ca-cert
+        configMap:
+          name: ca-cert
+      - name: service-account-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
+          - downwardAPI:
+              items:
+              - path: namespace
+                fieldRef:
+                  fieldPath: metadata.namespace
+      {{- if and .Values.vault.enabled (or (eq .Values.vault.integration.mode "csi") (eq .Values.vault.integration.mode "hybrid")) .Values.vault.integration.csi.enabled }}
+      # Vault CSI Driver volume
+      - name: vault-csi-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ .Values.vault.integration.csi.secretProviderClass.name | default "gok-controller-provider" }}
+      {{- end }}
+          

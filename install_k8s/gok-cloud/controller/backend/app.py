@@ -1,0 +1,307 @@
+import os
+import uuid
+import json
+import pika
+import logging
+import requests
+import base64
+import subprocess
+from functools import wraps
+from flask import Flask, request, jsonify, send_from_directory
+from flask_socketio import SocketIO, emit, join_room
+from werkzeug.security import check_password_hash, generate_password_hash
+from threading import Thread
+from jose import jwt as jose_jwt
+import sys
+# Import our Vault credential managers
+from vault_credentials import get_rabbitmq_credentials, VaultCredentialManager
+from vault import get_vault_secrets_from_files, get_config_secrets, get_rabbitmq_secrets_from_files
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+logger.handlers = [console_handler]
+
+# --- Config ---
+OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER")
+OAUTH_CLIENT_ID = os.environ.get("OAUTH_CLIENT_ID")
+REQUIRED_GROUP = os.environ.get("REQUIRED_GROUP", "user")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.rabbitmq")
+
+# Vault integration mode configuration
+VAULT_INTEGRATION_MODE = os.environ.get("VAULT_INTEGRATION_MODE", "hybrid")  # Options: "agent", "api", "hybrid"
+
+# Get RabbitMQ credentials using hybrid Vault approach
+def get_rabbitmq_connection_params():
+    """
+    Get RabbitMQ connection parameters with hybrid Vault integration
+    Supports both Agent Injector (static) and Direct API (dynamic) approaches
+    Returns connection parameters for pika
+    """
+    try:
+        logger.info(f"Using Vault integration mode: {VAULT_INTEGRATION_MODE}")
+        
+        credentials_obj = None
+        
+        # Try different approaches based on integration mode
+        if VAULT_INTEGRATION_MODE in ["agent", "hybrid"]:
+            # Try Agent Injector approach first (file-based)
+            logger.info("Attempting to retrieve RabbitMQ credentials from Vault Agent Injector")
+            agent_secrets = get_rabbitmq_secrets_from_files()
+            if agent_secrets and agent_secrets.get('username') and agent_secrets.get('password'):
+                logger.info("Successfully retrieved RabbitMQ credentials from Vault Agent Injector")
+                return {
+                    'host': agent_secrets.get('host', RABBITMQ_HOST),
+                    'port': int(agent_secrets.get('port', 5672)),
+                    'virtual_host': agent_secrets.get('virtual_host', '/'),
+                    'credentials': pika.PlainCredentials(
+                        agent_secrets.get('username'),
+                        agent_secrets.get('password')
+                    )
+                }
+            else:
+                logger.warning("Agent Injector credentials not available or incomplete")
+        
+        if VAULT_INTEGRATION_MODE in ["api", "hybrid"]:
+            # Try Direct API approach (dynamic)
+            logger.info("Attempting to retrieve RabbitMQ credentials from Vault Direct API")
+            credentials_obj = get_rabbitmq_credentials(prefer_vault=True)
+            
+            if credentials_obj:
+                logger.info(f"Successfully retrieved RabbitMQ credentials from Vault API for user: {credentials_obj.username}")
+                return {
+                    'host': credentials_obj.host,
+                    'port': credentials_obj.port,
+                    'virtual_host': credentials_obj.virtual_host,
+                    'credentials': pika.PlainCredentials(
+                        credentials_obj.username, 
+                        credentials_obj.password
+                    )
+                }
+            else:
+                logger.warning("Direct API credentials not available")
+        
+        # Final fallback to environment variables
+        logger.warning("Could not retrieve credentials from any Vault method, using environment variables")
+        return {
+            'host': RABBITMQ_HOST,
+            'port': 5672,
+            'virtual_host': '/',
+            'credentials': pika.PlainCredentials(
+                os.environ.get("RABBITMQ_USER", "guest"),
+                os.environ.get("RABBITMQ_PASSWORD", "guest")
+            )
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting RabbitMQ credentials: {e}")
+        # Ultimate fallback
+        return {
+            'host': RABBITMQ_HOST,
+            'port': 5672,
+            'virtual_host': '/',
+            'credentials': pika.PlainCredentials("guest", "guest")
+        }
+
+# Get configuration secrets using hybrid Vault approach
+def get_application_config():
+    """
+    Get application configuration using hybrid Vault integration
+    Returns configuration dictionary with oauth secrets, etc.
+    """
+    try:
+        logger.info(f"Retrieving application config using Vault integration mode: {VAULT_INTEGRATION_MODE}")
+        
+        if VAULT_INTEGRATION_MODE in ["agent", "hybrid"]:
+            # Try Agent Injector approach first (file-based)
+            logger.info("Attempting to retrieve config from Vault Agent Injector")
+            config_secrets = get_config_secrets()
+            if config_secrets:
+                logger.info("Successfully retrieved config from Vault Agent Injector")
+                return config_secrets
+            else:
+                logger.warning("Agent Injector config not available")
+        
+        if VAULT_INTEGRATION_MODE in ["api", "hybrid"]:
+            # Try Direct API approach for config
+            logger.info("Attempting to retrieve config from Vault Direct API")
+            # This would use the VaultCredentialManager for config retrieval
+            # Implementation can be extended based on requirements
+            logger.warning("Direct API config retrieval not yet implemented")
+        
+        logger.warning("Could not retrieve config from any Vault method")
+        return {}
+        
+    except Exception as e:
+        logger.error(f"Error getting application config: {e}")
+        return {}
+
+
+
+# --- OIDC/JWT helpers ---
+def get_jwks():
+    try:
+        oidc_conf = requests.get(f"{OAUTH_ISSUER}/.well-known/openid-configuration", verify=True).json()
+        jwks_uri = oidc_conf["jwks_uri"]
+        return requests.get(jwks_uri, verify=True).json()
+    except Exception as e:
+        logging.error(f"Failed to fetch JWKS: {e}")
+        return {"keys": []}
+
+JWKS = get_jwks()
+
+def verify_id_token(token):
+    try:
+        unverified_header = jose_jwt.get_unverified_header(token)
+        key = next(k for k in JWKS["keys"] if k["kid"] == unverified_header["kid"])
+        try:
+            payload = jose_jwt.decode(
+                token, key, algorithms=["RS256"], audience=OAUTH_CLIENT_ID, issuer=OAUTH_ISSUER,
+            )
+            return payload
+        except jose_jwt.JWTError as e:
+            if "at_hash" in str(e):
+                # Ignore at_hash error if you don't have access_token
+                payload = jose_jwt.get_unverified_claims(token)
+                return payload
+            else:
+                raise
+    except Exception as e:
+        print("JWT verification failed:", e)
+        return None
+
+def require_oauth(required_group=None):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            auth = request.headers.get("Authorization", "")
+            if not auth.startswith("Bearer "):
+                return jsonify({"msg": "Missing token"}), 401
+            token = auth.split(" ", 1)[1]
+            payload = verify_id_token(token)
+            if not payload:
+                return jsonify({"msg": "Invalid token"}), 401
+            request.user = payload
+            if required_group:
+                groups = payload.get("groups", [])
+                if isinstance(groups, str):
+                    groups = [groups]
+                if required_group not in groups:
+                    print(f"User groups: {groups}")
+                    print(f"Required group: {required_group}")
+
+                    return jsonify({"msg": "Insufficient group"}), 403
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+# --- Flask app ---
+app = Flask(
+    __name__,
+    static_folder="static",  # This is where your React build is copied
+    static_url_path=""       # Serve static files at root
+)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Initial load - removed API_TOKEN logic as it's not used
+
+def log_access(event, username=None, ip=None, details=None, status="success"):
+    log_entry = {
+        "event": event,
+        "username": username,
+        "ip": ip or request.remote_addr,
+        "details": details,
+        "status": status
+    }
+    logging.info(json.dumps(log_entry))
+
+@app.route("/logininfo")
+@require_oauth()
+def logininfo():
+    return jsonify({
+        "user": request.user.get("preferred_username"),
+        "name": request.user.get("name"),
+        "userid": request.user.get("sub"),
+        "groups": request.user.get("groups", []),
+        "email": request.user.get("email"),
+    })
+
+@app.route("/send-command-batch", methods=["POST"])
+@require_oauth(REQUIRED_GROUP)
+def send_command_batch():
+    username = request.user.get("name") or request.user.get("sub")
+    groups = request.user.get("groups", [])
+    ip = request.remote_addr
+    data = request.json or {}
+    commands = data.get("commands", [])
+    if not isinstance(commands, list) or not all(isinstance(c, str) for c in commands):
+        log_access("send-command-batch", username, ip, details="Invalid commands format", status="failed")
+        return jsonify({"error": "Invalid commands format"}), 400
+    user_info = {
+        "sub": request.user.get("sub"),
+        "name": request.user.get("name"),
+        "groups": request.user.get("groups", []),
+        "id_token": request.headers.get("Authorization").split(" ", 1)[1]
+    }
+    batch_id = publish_batch(commands, user_info)
+    log_access("send-command-batch", username, ip, details={"batch_id": batch_id, "groups": groups})
+    return jsonify({"msg": "Command batch accepted", "batch_id": batch_id, "issued_by": user_info["sub"], "groups": groups}), 200
+
+def publish_batch(commands, user_info):
+    conn_params = get_rabbitmq_connection_params()
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(**conn_params)
+    )
+    channel = connection.channel()
+    batch_id = user_info["sub"] + "-" + str(abs(hash(json.dumps(commands))))
+    msg = {
+        "commands": [{"command": c, "command_id": i} for i, c in enumerate(commands)],
+        "user_info": user_info,
+        "batch_id": batch_id
+    }
+    channel.queue_declare(queue="commands", durable=True)
+    channel.basic_publish(exchange='', routing_key="commands", body=json.dumps(msg))
+    connection.close()
+    return batch_id
+
+@socketio.on("join")
+def on_join(data):
+    batch_id = data.get("batch_id")
+    if batch_id:
+        join_room(batch_id)
+        emit("joined", {"batch_id": batch_id})
+
+def rabbitmq_result_worker():
+    conn_params = get_rabbitmq_connection_params()
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(**conn_params)
+    )
+    channel = connection.channel()
+    channel.queue_declare(queue="results", durable=True)
+    for method_frame, properties, body in channel.consume("results", inactivity_timeout=1):
+        if body is not None:
+            msg = json.loads(body)
+            batch_id = msg.get("batch_id")
+            socketio.emit("result", msg, room=batch_id)
+            channel.basic_ack(method_frame.delivery_tag)
+        socketio.sleep(0.01)
+
+@socketio.on("connect")
+def start_worker():
+    if not hasattr(socketio, "result_thread"):
+        socketio.result_thread = socketio.start_background_task(rabbitmq_result_worker)
+
+# Catch-all route to serve React for client-side routing
+@app.errorhandler(404)
+def not_found(e):
+    return send_from_directory(app.static_folder, "index.html")
+
+@app.route("/")
+def index():
+    # Serve the React index.html
+    return send_from_directory(app.static_folder, "index.html")
+
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=8080, allow_unsafe_werkzeug=True)
