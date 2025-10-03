@@ -68,6 +68,9 @@ EOF
 
 source ${MOUNT_PATH}/root_config
 
+# Initialize remote hosts configuration
+setup_default_remote_hosts
+
 rootDomain(){
   echo "$GOK_ROOT_DOMAIN"
 }
@@ -377,6 +380,468 @@ echoFailed() {
 
 echoWarning() {
     log_warning "$1"
+}
+
+# =============================================================================
+# 🌐 REMOTE EXECUTION SYSTEM
+# =============================================================================
+
+# Remote execution configuration
+declare -A REMOTE_HOSTS
+declare -A REMOTE_USERS
+declare -A REMOTE_KEYS
+
+# Default remote host configuration
+DEFAULT_REMOTE_CONFIG_FILE="$HOME/.gok_remote_config"
+
+# Load default remote configuration
+load_default_remote_config() {
+    if [ -f "$DEFAULT_REMOTE_CONFIG_FILE" ]; then
+        source "$DEFAULT_REMOTE_CONFIG_FILE" 2>/dev/null
+        if [ -n "$DEFAULT_REMOTE_HOST" ] && [ -n "$DEFAULT_REMOTE_USER" ]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Save default remote configuration  
+save_default_remote_config() {
+    local host="$1"
+    local user="$2"
+    local key_file="${3:-$HOME/.ssh/id_rsa}"
+    
+    cat > "$DEFAULT_REMOTE_CONFIG_FILE" << EOF
+# GOK Default Remote Configuration
+DEFAULT_REMOTE_HOST="$host"
+DEFAULT_REMOTE_USER="$user" 
+DEFAULT_REMOTE_KEY="$key_file"
+EOF
+    
+    log_success "Default remote configuration saved: $user@$host"
+}
+
+# Simple remote exec using default configuration
+simple_remote_exec() {
+    local commands="$*"
+    
+    # Load default configuration
+    if ! load_default_remote_config; then
+        log_error "No default remote configuration found!"
+        echo ""
+        echo "Please set up your default remote host first:"
+        echo "  gok remote setup <host> <user> [key_file]"
+        echo ""
+        echo "Example:"
+        echo "  gok remote setup 10.0.0.244 sumit"
+        return 1
+    fi
+    
+    log_info "Executing on default remote ($DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST): $commands"
+    
+    # Execute command using SSH
+    ssh -i "$DEFAULT_REMOTE_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+        "$DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST" "$commands"
+}
+
+# Setup SSH keys for passwordless authentication
+setup_ssh_keys() {
+    local key_file="${1:-$HOME/.ssh/id_rsa}"
+    
+    log_info "Setting up SSH keys for remote access..."
+    
+    # Generate SSH key if it doesn't exist
+    if [ ! -f "$key_file" ]; then
+        log_info "Generating SSH key pair..."
+        ssh-keygen -t rsa -b 4096 -f "$key_file" -N ""
+        if [ $? -eq 0 ]; then
+            log_success "SSH key pair generated: $key_file"
+        else
+            log_error "Failed to generate SSH key pair"
+            return 1
+        fi
+    else
+        log_info "SSH key already exists: $key_file"
+    fi
+    
+    # Set proper permissions
+    chmod 600 "$key_file"
+    chmod 644 "${key_file}.pub"
+    
+    log_success "SSH keys are ready for use"
+}
+
+# Copy SSH key to remote host
+copy_ssh_key() {
+    local host="$1"
+    local user="${2:-root}"
+    local key_file="${3:-$HOME/.ssh/id_rsa}"
+    
+    log_info "Copying SSH key to $user@$host..."
+    
+    # Ensure SSH key exists
+    if [ ! -f "$key_file" ]; then
+        log_warning "SSH key not found, generating it first..."
+        setup_ssh_keys "$key_file"
+    fi
+    
+    # Copy the key
+    ssh-copy-id -i "${key_file}.pub" "$user@$host"
+    if [ $? -eq 0 ]; then
+        log_success "SSH key successfully copied to $user@$host"
+        
+        # Test the connection
+        log_info "Testing SSH connection..."
+        ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            "$user@$host" "echo 'SSH connection successful'; hostname; date"
+        if [ $? -eq 0 ]; then
+            log_success "SSH connection test successful"
+        else
+            log_warning "SSH connection test failed, but key was copied"
+        fi
+    else
+        log_error "Failed to copy SSH key to $user@$host"
+        return 1
+    fi
+}
+
+# Configure passwordless sudo for remote user
+setup_passwordless_sudo() {
+    local host="$1"
+    local user="${2:-root}"
+    local key_file="${3:-$HOME/.ssh/id_rsa}"
+    local user_password="$4"
+    
+    log_info "Setting up passwordless sudo for $user@$host..."
+    
+    # Skip if user is already root
+    if [ "$user" = "root" ]; then
+        log_info "User is root, passwordless sudo not needed"
+        return 0
+    fi
+    
+    # Test if passwordless sudo is already working
+    ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+        "$user@$host" "sudo -n whoami" >/dev/null 2>&1
+    
+    if [ $? -eq 0 ]; then
+        log_info "Passwordless sudo already configured for $user"
+        return 0
+    fi
+    
+    # If no password provided, prompt for it
+    if [ -z "$user_password" ]; then
+        echo -n "Enter password for $user on $host: "
+        read -s user_password
+        echo
+    fi
+    
+    # Configure passwordless sudo
+    log_info "Configuring passwordless sudo..."
+    ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+        "$user@$host" "echo '$user_password' | sudo -S bash -c 'echo \"$user ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/$user && chmod 440 /etc/sudoers.d/$user'" 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        # Test passwordless sudo
+        ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            "$user@$host" "sudo whoami" >/dev/null 2>&1
+        
+        if [ $? -eq 0 ]; then
+            log_success "Passwordless sudo configured successfully for $user"
+            return 0
+        else
+            log_error "Passwordless sudo configuration failed - testing failed"
+            return 1
+        fi
+    else
+        log_error "Failed to configure passwordless sudo (wrong password?)"
+        return 1
+    fi
+}
+
+# Configure remote host
+configure_remote_host() {
+    local alias="$1"
+    local host="$2"
+    local user="${3:-root}"
+    local key_file="${4:-$HOME/.ssh/id_rsa}"
+    local auto_setup="${5:-true}"
+    
+    log_info "Configuring remote host: $alias ($user@$host)"
+    
+    # Automatically setup SSH keys if requested
+    if [ "$auto_setup" = "true" ]; then
+        setup_ssh_keys "$key_file"
+        copy_ssh_key "$host" "$user" "$key_file"
+        if [ $? -ne 0 ]; then
+            log_error "Failed to setup SSH access to $user@$host"
+            return 1
+        fi
+    fi
+    
+    REMOTE_HOSTS["$alias"]="$host"
+    REMOTE_USERS["$alias"]="$user"
+    REMOTE_KEYS["$alias"]="$key_file"
+    
+    log_success "Configured remote host: $alias ($user@$host)"
+}
+
+# Execute command on remote host
+remote_exec() {
+    local alias="$1"
+    shift
+    local commands="$*"
+    
+    if [[ -z "${REMOTE_HOSTS[$alias]}" ]]; then
+        log_error "Remote host '$alias' not configured"
+        log_info "Available hosts: ${!REMOTE_HOSTS[*]}"
+        return 1
+    fi
+    
+    local host="${REMOTE_HOSTS[$alias]}"
+    local user="${REMOTE_USERS[$alias]}"
+    local key_file="${REMOTE_KEYS[$alias]}"
+    
+    log_info "Executing on $alias ($user@$host): $commands"
+    
+    ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+        "$user@$host" "$commands"
+}
+
+# Execute command on multiple remote hosts
+remote_exec_all() {
+    local commands="$*"
+    local failed_hosts=()
+    
+    log_info "Executing on all configured hosts: $commands"
+    
+    for alias in "${!REMOTE_HOSTS[@]}"; do
+        echo
+        log_section "Executing on $alias" "${EMOJI_NETWORK}"
+        
+        if remote_exec "$alias" "$commands"; then
+            log_success "Command succeeded on $alias"
+        else
+            log_error "Command failed on $alias"
+            failed_hosts+=("$alias")
+        fi
+    done
+    
+    if [[ ${#failed_hosts[@]} -gt 0 ]]; then
+        echo
+        log_warning "Commands failed on: ${failed_hosts[*]}"
+        return 1
+    else
+        log_success "Commands executed successfully on all hosts"
+        return 0
+    fi
+}
+
+# Copy file to remote host
+remote_copy() {
+    local alias="$1"
+    local local_file="$2"
+    local remote_path="$3"
+    
+    if [[ -z "${REMOTE_HOSTS[$alias]}" ]]; then
+        log_error "Remote host '$alias' not configured"
+        return 1
+    fi
+    
+    local host="${REMOTE_HOSTS[$alias]}"
+    local user="${REMOTE_USERS[$alias]}"
+    local key_file="${REMOTE_KEYS[$alias]}"
+    
+    log_info "Copying $local_file to $alias:$remote_path"
+    
+    scp -i "$key_file" -o StrictHostKeyChecking=no \
+        "$local_file" "$user@$host:$remote_path"
+}
+
+# Setup default remote hosts from config
+setup_default_remote_hosts() {
+    # Configure master node
+    if [[ -n "$MASTER_HOST_IP" ]]; then
+        configure_remote_host "master" "$MASTER_HOST_IP" "root"
+    fi
+    
+    # Configure additional nodes if defined
+    if [[ -n "$NODE_HOST_IPS" ]]; then
+        IFS=',' read -ra NODE_IPS <<< "$NODE_HOST_IPS"
+        local node_num=1
+        for ip in "${NODE_IPS[@]}"; do
+            configure_remote_host "node$node_num" "$ip" "root"
+            ((node_num++))
+        done
+    fi
+}
+
+# Show configured remote hosts
+show_remote_hosts() {
+    echo
+    log_section "Configured Remote Hosts" "${EMOJI_NETWORK}"
+    
+    if [[ ${#REMOTE_HOSTS[@]} -eq 0 ]]; then
+        log_warning "No remote hosts configured"
+        echo
+        echo -e "${COLOR_CYAN}To configure remote hosts:${COLOR_RESET}"
+        echo -e "  ${COLOR_YELLOW}gok remote add master 192.168.1.100 ubuntu${COLOR_RESET}"
+        echo -e "  ${COLOR_YELLOW}gok remote add node1 192.168.1.101 ubuntu${COLOR_RESET}"
+        return 0
+    fi
+    
+    for alias in "${!REMOTE_HOSTS[@]}"; do
+        local host="${REMOTE_HOSTS[$alias]}"
+        local user="${REMOTE_USERS[$alias]}"
+        local key_file="${REMOTE_KEYS[$alias]}"
+        
+        echo -e "  ${COLOR_GREEN}${alias}${COLOR_RESET}: ${COLOR_CYAN}${user}@${host}${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}Key: ${key_file}${COLOR_RESET}"
+        
+        # Test connectivity
+        if ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+               "$user@$host" "echo 'Connection test'" >/dev/null 2>&1; then
+            echo -e "    ${COLOR_GREEN}${EMOJI_SUCCESS} Connected${COLOR_RESET}"
+        else
+            echo -e "    ${COLOR_RED}${EMOJI_ERROR} Connection failed${COLOR_RESET}"
+        fi
+        echo
+    done
+}
+
+# Auto-setup SSH and remote host configuration
+auto_setup_remote_host() {
+    local host="$1"
+    local user="${2:-root}"
+    local alias="${3:-${host//\./_}}"  # Replace dots with underscores for alias
+    local key_file="${4:-$HOME/.ssh/id_rsa}"
+    
+    log_info "Auto-setting up remote access to $user@$host..."
+    
+    # Step 1: Setup SSH keys if needed
+    if [ ! -f "$key_file" ]; then
+        log_info "SSH keys not found, generating them..."
+        setup_ssh_keys "$key_file"
+        if [ $? -ne 0 ]; then
+            log_error "Failed to generate SSH keys"
+            return 1
+        fi
+    fi
+    
+    # Step 2: Copy SSH key if not already copied  
+    log_info "Ensuring SSH key is copied to $user@$host..."
+    ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+        "$user@$host" "echo 'test'" >/dev/null 2>&1
+    
+    if [ $? -ne 0 ]; then
+        log_info "SSH key access not working, copying key..."
+        copy_ssh_key "$host" "$user" "$key_file"
+        if [ $? -ne 0 ]; then
+            log_error "Failed to setup SSH access to $user@$host"
+            return 1
+        fi
+    else
+        log_info "SSH key access already working"
+    fi
+    
+    # Step 3: Configure remote host if not already configured
+    if [[ -z "${REMOTE_HOSTS[$alias]}" ]]; then
+        log_info "Configuring remote host alias: $alias"
+        configure_remote_host "$alias" "$host" "$user" "$key_file" "false"  # Don't auto-setup again
+    else
+        log_info "Remote host '$alias' already configured"
+    fi
+    
+    log_success "Auto-setup complete for $alias ($user@$host)"
+    return 0
+}
+
+# Smart remote exec that auto-configures hosts
+smart_remote_exec() {
+    local target="$1"
+    shift
+    local commands="$*"
+    
+    # If target looks like host:user format, auto-configure it
+    if [[ "$target" == *":"* ]]; then
+        local host="${target%:*}"
+        local user="${target#*:}"
+        local alias="${host//\./_}_${user}"
+        
+        log_info "Auto-configuring new remote host: $user@$host as '$alias'"
+        auto_setup_remote_host "$host" "$user" "$alias"
+        if [ $? -eq 0 ]; then
+            target="$alias"
+        else
+            log_error "Failed to auto-configure $user@$host"
+            return 1
+        fi
+    fi
+    
+    # Check if target is configured, if not try to auto-configure as root@target
+    if [[ -z "${REMOTE_HOSTS[$target]}" ]] && [[ "$target" != "all" ]]; then
+        # If target looks like an IP or hostname, try to auto-configure it
+        if [[ "$target" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || [[ "$target" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+            log_info "Auto-configuring new remote host: root@$target"
+            auto_setup_remote_host "$target" "root" "$target"
+            if [ $? -ne 0 ]; then
+                log_error "Failed to auto-configure root@$target"
+                return 1
+            fi
+        fi
+    fi
+    
+    # Now execute the command using the standard remote_exec
+    if [[ "$target" == "all" ]]; then
+        remote_exec_all "$commands"
+    else
+        remote_exec "$target" "$commands"
+    fi
+}
+
+# Remote command shortcuts for common operations
+remote_status() {
+    local alias="${1:-all}"
+    
+    local commands="
+        echo '=== System Info ==='
+        hostname && date
+        echo '=== Kubernetes Status ==='
+        kubectl get nodes 2>/dev/null || echo 'kubectl not available'
+        echo '=== Docker Status ==='
+        systemctl is-active docker 2>/dev/null || echo 'Docker not running'
+        echo '=== Load Average ==='
+        uptime
+        echo '=== Disk Usage ==='
+        df -h / | tail -1
+    "
+    
+    if [[ "$alias" == "all" ]]; then
+        remote_exec_all "$commands"
+    else
+        remote_exec "$alias" "$commands"
+    fi
+}
+
+# Install GOK on remote hosts
+remote_install_gok() {
+    local alias="${1:-all}"
+    
+    local commands="
+        # Download GOK script
+        curl -fsSL https://raw.githubusercontent.com/sumitmaji/kubernetes/main/install_k8s/gok -o /tmp/gok
+        chmod +x /tmp/gok
+        sudo mv /tmp/gok /usr/local/bin/gok
+        
+        # Verify installation
+        gok --version || echo 'GOK installation completed'
+    "
+    
+    if [[ "$alias" == "all" ]]; then
+        remote_exec_all "$commands"
+    else
+        remote_exec "$alias" "$commands"
+    fi
 }
 
 # =============================================================================
@@ -10415,6 +10880,7 @@ _gok_completion() {
          generate) COMPREPLY=($(compgen -W "${generate_types}" -- ${cur})) ;;
          patch) COMPREPLY=($(compgen -W "${patch_resources}" -- ${cur})) ;;
          desc) COMPREPLY=($(compgen -W "methods" -- ${cur})) ;;
+         remote) COMPREPLY=($(compgen -W "setup setup-ssh setup-keys copy-key setup-sudo passwordless-sudo add list show test-connection exec status copy install-gok" -- ${cur})) ;;
          completion) COMPREPLY=($(compgen -W "enable setup" -- ${cur})) ;;
        esac ;;
     3) local prev2="${COMP_WORDS[COMP_CWORD-2]}"
@@ -10502,6 +10968,252 @@ elif [ "$CMD" == "create" ]; then
   createCmd "$2" "$3" "$4"
 elif [ "$CMD" == "generate" ]; then
   generateCmd "$2" "$3" "$4" "$5" "$6"
+elif [ "$CMD" == "remote" ]; then
+  case "$2" in
+    setup)
+      if [[ -z "$3" || -z "$4" ]]; then
+        echo "Usage: gok remote setup <host> <user> [key_file]"
+        echo ""
+        echo "Set up default remote host for simple execution."
+        echo ""
+        echo "Examples:"
+        echo "  gok remote setup 10.0.0.244 sumit"
+        echo "  gok remote setup 192.168.1.100 ubuntu ~/.ssh/custom_key"
+        echo ""
+        echo "After setup, you can simply use:"
+        echo "  gok remote exec \"kubectl get pods\""
+        exit 1
+      fi
+      
+      local host="$3"
+      local user="$4"
+      local key_file="${5:-$HOME/.ssh/id_rsa}"
+      
+      log_info "Setting up default remote host: $user@$host"
+      
+      # Setup SSH keys if needed
+      setup_ssh_keys "$key_file"
+      
+      # Copy SSH key if needed
+      log_info "Ensuring SSH access to $user@$host..."
+      ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+          "$user@$host" "echo 'test'" >/dev/null 2>&1
+      
+      if [ $? -ne 0 ]; then
+        log_info "Setting up SSH key access..."
+        copy_ssh_key "$host" "$user" "$key_file"
+        if [ $? -ne 0 ]; then
+          log_error "Failed to setup SSH access"
+          exit 1
+        fi
+      else
+        log_info "SSH access already working"
+      fi
+      
+      # Setup passwordless sudo
+      log_info "Setting up passwordless sudo for root commands..."
+      if ! setup_passwordless_sudo "$host" "$user" "$key_file"; then
+        log_warning "Passwordless sudo setup failed, you'll need to use passwords for root commands"
+        echo ""
+        echo "You can retry passwordless sudo setup later with:"
+        echo "  gok remote exec \"echo 'your_password' | sudo -S bash -c 'echo \\\"$user ALL=(ALL) NOPASSWD: ALL\\\" > /etc/sudoers.d/$user && chmod 440 /etc/sudoers.d/$user'\""
+      fi
+      
+      # Save as default
+      save_default_remote_config "$host" "$user" "$key_file"
+      
+      # Test the configuration
+      log_info "Testing default remote configuration..."
+      if simple_remote_exec "echo 'Remote setup successful! Host:' \$(hostname)"; then
+        echo ""
+        log_success "✨ Default remote setup complete!"
+        echo ""
+        echo "You can now use simple commands like:"
+        echo "  gok remote exec \"kubectl get pods\""
+        echo "  gok remote exec \"docker ps\""
+        echo "  gok remote exec \"systemctl status nginx\""
+      else
+        log_error "Setup test failed"
+        exit 1
+      fi
+      ;;
+    add)
+      if [[ -z "$3" || -z "$4" ]]; then
+        echo "Usage: gok remote add <alias> <host> [user] [key_file]"
+        echo ""
+        echo "Examples:"
+        echo "  gok remote add master 192.168.1.100 ubuntu"
+        echo "  gok remote add node1 192.168.1.101 root ~/.ssh/id_rsa"
+        exit 1
+      fi
+      configure_remote_host "$3" "$4" "${5:-root}" "${6:-$HOME/.ssh/id_rsa}"
+      ;;
+    list|show)
+      show_remote_hosts
+      ;;
+    exec)
+      if [[ -z "$3" ]]; then
+        echo "Usage: gok remote exec [target] <command>"
+        echo ""
+        echo "Simple usage (after 'gok remote setup'):"
+        echo "  gok remote exec \"kubectl get pods\"                         # Use default remote host"
+        echo "  gok remote exec \"docker ps\"                                # Use default remote host"
+        echo ""
+        echo "Advanced usage with target:"
+        echo "  gok remote exec master 'kubectl get nodes'                    # Use configured alias"
+        echo "  gok remote exec 10.0.0.244:sumit 'kubectl get pods'          # Auto-setup sumit@10.0.0.244"
+        echo "  gok remote exec 192.168.1.100 'docker ps'                    # Auto-setup root@192.168.1.100"
+        echo "  gok remote exec all 'systemctl status docker'                # Execute on all hosts"
+        echo ""
+        echo "First-time setup:"
+        echo "  gok remote setup <host> <user>                               # One-time configuration"
+        echo ""
+        exit 1
+      fi
+      
+      # Check if we have a simple command (no target specified)
+      # If $3 doesn't contain spaces and $4 exists, then $3 is likely a target
+      # If $3 contains spaces or $4 is empty, then $3 is likely the command
+      if [[ "$3" != *" "* ]] && [[ -n "$4" ]] && [[ "$3" != *":"* ]] && [[ "$3" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        # Advanced usage: gok remote exec <target> <command>
+        local target="$3"
+        shift 3
+        smart_remote_exec "$target" "$*"
+      else
+        # Simple usage: gok remote exec <command>
+        shift 2
+        simple_remote_exec "$*"
+      fi
+      ;;
+    status)
+      remote_status "${3:-all}"
+      ;;
+    install-gok)
+      remote_install_gok "${3:-all}"
+      ;;
+    copy)
+      if [[ -z "$3" || -z "$4" || -z "$5" ]]; then
+        echo "Usage: gok remote copy <alias> <local_file> <remote_path>"
+        echo ""
+        echo "Examples:"
+        echo "  gok remote copy master ./script.sh /tmp/script.sh"
+        echo "  gok remote copy node1 ./config.yaml /etc/app/config.yaml"
+        exit 1
+      fi
+      remote_copy "$3" "$4" "$5"
+      ;;
+    setup-ssh|setup-keys)
+      local key_file="${3:-$HOME/.ssh/id_rsa}"
+      setup_ssh_keys "$key_file"
+      ;;
+    copy-key)
+      if [[ -z "$3" || -z "$4" ]]; then
+        echo "Usage: gok remote copy-key <host> <user> [key_file]"
+        echo ""
+        echo "Examples:"
+        echo "  gok remote copy-key 10.0.0.244 sumit"
+        echo "  gok remote copy-key 192.168.1.100 ubuntu ~/.ssh/id_rsa"
+        exit 1
+      fi
+      copy_ssh_key "$3" "$4" "${5:-$HOME/.ssh/id_rsa}"
+      ;;
+    setup-sudo|passwordless-sudo)
+      if [[ -z "$3" || -z "$4" ]]; then
+        echo "Usage: gok remote setup-sudo <host> <user> [key_file] [password]"
+        echo ""
+        echo "Configure passwordless sudo for root commands."
+        echo ""
+        echo "Examples:"
+        echo "  gok remote setup-sudo 10.0.0.244 sumit"
+        echo "  gok remote setup-sudo 192.168.1.100 ubuntu ~/.ssh/id_rsa mypassword"
+        echo ""
+        echo "Note: If password is not provided, you'll be prompted for it."
+        exit 1
+      fi
+      setup_passwordless_sudo "$3" "$4" "${5:-$HOME/.ssh/id_rsa}" "$6"
+      ;;
+    test-connection)
+      if [[ -z "$3" ]]; then
+        echo "Usage: gok remote test-connection <alias>"
+        echo ""
+        echo "Examples:"
+        echo "  gok remote test-connection master"
+        echo "  gok remote test-connection node1"
+        exit 1
+      fi
+      if [[ -z "${REMOTE_HOSTS[$3]}" ]]; then
+        log_error "Remote host '$3' not configured"
+        log_info "Available hosts: ${!REMOTE_HOSTS[*]}"
+        exit 1
+      fi
+      local host="${REMOTE_HOSTS[$3]}"
+      local user="${REMOTE_USERS[$3]}"
+      local key_file="${REMOTE_KEYS[$3]}"
+      
+      log_info "Testing connection to $3 ($user@$host)..."
+      ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          "$user@$host" "echo 'SSH connection successful'; hostname; date"
+      if [ $? -eq 0 ]; then
+        log_success "Connection test successful for $3"
+      else
+        log_error "Connection test failed for $3"
+      fi
+      ;;
+    *)
+      echo "gok remote - Remote execution management"
+      echo ""
+      echo "🎯 SIMPLE 2-STEP PROCESS:"
+      echo ""
+      echo "Step 1 - One-time setup:"
+      echo "  gok remote setup <host> <user> [key_file]         # Configure default remote"
+      echo ""
+      echo "Step 2 - Execute commands:"
+      echo "  gok remote exec \"<command>\"                       # Run on default remote"
+      echo ""
+      echo "✨ Example workflow:"
+      echo "  gok remote setup 10.0.0.244 sumit                # Setup once"
+      echo "  gok remote exec \"kubectl get pods\"               # Use anytime"
+      echo "  gok remote exec \"docker ps\"                      # Use anytime"
+      echo "  gok remote exec \"systemctl status nginx\"        # Use anytime"
+      echo ""
+      echo "📋 All Commands:"
+      echo "  gok remote setup <host> <user> [key_file]         # Setup default remote (includes passwordless sudo)"
+      echo "  gok remote exec \"<command>\"                       # Execute on default remote"
+      echo "  gok remote setup-ssh [key_file]                   # Generate SSH keys"
+      echo "  gok remote copy-key <host> <user> [key_file]      # Copy SSH key to host"
+      echo "  gok remote setup-sudo <host> <user> [key_file]    # Setup passwordless sudo"
+      echo "  gok remote add <alias> <host> [user] [key_file]   # Add remote host alias"
+      echo "  gok remote list                                   # Show configured hosts"
+      echo "  gok remote test-connection <alias>               # Test SSH connection"
+      echo "  gok remote exec <alias> \"<command>\"              # Execute on specific alias"  
+      echo "  gok remote status [alias]                        # Show system status"
+      echo "  gok remote copy <alias> <local_file> <remote_path> # Copy file"
+      echo "  gok remote install-gok [alias]                   # Install GOK remotely"
+      echo ""
+      echo "📋 Manual Setup Examples:"
+      echo "  gok remote setup-ssh                             # Generate SSH keys"
+      echo "  gok remote copy-key 10.0.0.244 sumit            # Copy key to host"
+      echo "  gok remote add debug 10.0.0.244 sumit           # Add debug host"
+      echo "  gok remote test-connection debug                 # Test connection"
+      echo ""
+      echo "🔧 Advanced Examples:"
+      echo "  gok remote add master 192.168.1.100 ubuntu       # Add master node"
+      echo "  gok remote add node1 192.168.1.101 ubuntu        # Add worker node"
+      echo "  gok remote list                                   # Show all hosts"
+      echo "  gok remote exec master 'kubectl get nodes'       # Run kubectl on master"
+      echo "  gok remote exec all 'docker ps'                  # Run docker on all hosts"
+      echo "  gok remote status                                 # Check all host status"
+      echo "  gok remote copy master ./script.sh /tmp/         # Copy script to master"
+      echo ""
+      echo "💡 Auto-Setup Features:"
+      echo "  • SSH keys generated automatically if missing"
+      echo "  • SSH keys copied to hosts automatically"
+      echo "  • Passwordless sudo configured automatically"
+      echo "  • Remote hosts configured automatically"
+      echo "  • No manual setup steps required!"
+      echo "  • Execute any root command without passwords!"
+      ;;
+  esac
 elif [ "$CMD" == "completion" ]; then
   case "$2" in
     enable)
