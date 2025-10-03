@@ -2681,7 +2681,7 @@ vaultInstall() {
     
     kubectl exec -it vault-0 -n vault -- vault secrets enable -path=secret kv
     pushd $MOUNT_PATH/kubernetes/install_k8s/vault
-    ./create_gok_vault_secretes.sh
+    ./create_gok_vault_secrets.sh
     popd
     
   else
