@@ -1395,17 +1395,9 @@ detect_vault_address() {
         fi
     fi
     
-    # Fallback to service with multiple options
+    # Fallback to service (use same address as working script)
     if [[ -z "$vault_address" ]]; then
-        # Try different service addresses
-        local service_addresses=(
-            "http://vault.vault.svc.cluster.local:8200"
-            "http://vault.vault:8200"
-            "http://vault:8200"
-        )
-        
-        # Use the first one as default (most common)
-        vault_address="${service_addresses[0]}"
+        vault_address="http://vault.vault.svc.cluster.local:8200"
     fi
     
     echo "$vault_address"
@@ -1459,7 +1451,7 @@ urllib3.disable_warnings(InsecureRequestWarning)
 
 def main():
     print("🚀 Starting Vault API test for $secret_path")
-    vault_url = "$vault_address"
+    vault_url = "$vault_address".rstrip('/')
     role_name = "$role_name"
     secret_path = "$secret_path"
     
@@ -1535,6 +1527,7 @@ def main():
         # Validate we got some data
         if len(secret_data) > 0:
             print("✅ Secret data validation successful")
+            print(f"📊 Secret keys validated: {list(secret_data.keys())}")
             print("🎉 Vault API test completed successfully!")
             return 0
         else:
@@ -1559,8 +1552,8 @@ EOF
         return
     fi
     
-    # Create test pod with Python
-    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+    # Create test pod with Python (with error checking)
+    if cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: v1
 kind: Pod
 metadata:
@@ -1602,6 +1595,13 @@ spec:
       defaultMode: 0755
   restartPolicy: Never
 EOF
+    then
+        log_info "Test pod created successfully"
+    else
+        log_error "Failed to create test pod for $secret_path"
+        update_test_result "$test_name" "FAILED"
+        return
+    fi
     
     # Wait for pod to be ready first
     if ! kubectl wait --for=condition=Ready pod/"$pod_name" -n "$namespace" --timeout=120s >/dev/null 2>&1; then
