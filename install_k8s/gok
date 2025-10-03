@@ -3073,12 +3073,13 @@ helmInst() {
     local current_version=$(helm version --short --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
     log_info "Helm is already installed (version: ${current_version})"
     
-    # Check if it's snap version
-    if [[ "$(which helm)" == *"/snap/"* ]]; then
-      log_info "Using Helm from snap package manager"
-      log_success "Helm installation verification complete"
+    # Test if Helm works
+    if helm version --short >/dev/null 2>&1; then
+      log_success "Helm is working correctly"
       show_helm_next_steps
       return 0
+    else
+      log_warning "Helm installed but not working correctly, attempting reinstall..."
     fi
   fi
   
@@ -3087,7 +3088,7 @@ helmInst() {
   # Method 1: Try snap first (recommended for Ubuntu)
   if command -v snap >/dev/null 2>&1; then
     log_info "Installing Helm via snap package manager..."
-    if run_with_progress "snap install helm --classic" "Installing Helm via snap"; then
+    if sudo snap install helm --classic >/dev/null 2>&1; then
       log_success "Helm installed successfully via snap"
       helm version --short
       show_helm_next_steps
@@ -3099,9 +3100,9 @@ helmInst() {
   
   # Method 2: Official Helm installation script
   log_info "Installing Helm via official installation script..."
-  if curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3; then
+  if curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 2>/dev/null; then
     chmod 700 get_helm.sh
-    if run_with_progress "./get_helm.sh" "Installing Helm via official script"; then
+    if ./get_helm.sh >/dev/null 2>&1; then
       rm -f get_helm.sh
       log_success "Helm installed successfully via official script"
       helm version --short
@@ -3111,6 +3112,8 @@ helmInst() {
       rm -f get_helm.sh
       log_error "Official script installation failed, trying APT method..."
     fi
+  else
+    log_warning "Could not download Helm installation script"
   fi
   
   # Method 3: APT with updated repository (fallback)
@@ -3123,24 +3126,40 @@ helmInst() {
   fi
   
   log_error "All Helm installation methods failed"
-  log_error "Please install Helm manually using one of these methods:"
+  
+  # Check for network connectivity issues
+  if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+    log_error "Network connectivity issue detected"
+    echo "  Please check your internet connection and try again"
+    echo "  Or install Helm manually when online:"
+  else
+    log_error "Installation failed despite network connectivity"
+    echo "  Please install Helm manually using one of these methods:"
+  fi
+  
   echo "  1. Snap: sudo snap install helm --classic"
   echo "  2. Script: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
   echo "  3. GitHub Releases: https://github.com/helm/helm/releases"
+  echo "  4. Direct binary: wget https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz"
   return 1
 }
 
 # Helper function for APT installation
 install_helm_via_apt() {
   # Clean up any old repositories first
-  rm -f /etc/apt/sources.list.d/helm*.list 2>/dev/null
+  sudo rm -f /etc/apt/sources.list.d/helm*.list 2>/dev/null
+  
+  # Check network connectivity first
+  if ! curl -s --connect-timeout 5 https://baltocdn.com >/dev/null 2>&1; then
+    log_warning "Cannot reach baltocdn.com - network connectivity issue"
+    return 1
+  fi
   
   # Add official Helm APT repository with proper key management
-  if curl -fsSL https://baltocdn.com/helm/signing.asc | gpg --dearmor | tee /usr/share/keyrings/helm.gpg > /dev/null; then
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list
+  if curl -fsSL https://baltocdn.com/helm/signing.asc 2>/dev/null | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null 2>&1; then
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list >/dev/null
     
-    if run_with_progress "apt-get update" "Updating package lists" && \
-       run_with_progress "apt-get install -y helm" "Installing Helm package"; then
+    if sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y helm >/dev/null 2>&1; then
       return 0
     fi
   fi
