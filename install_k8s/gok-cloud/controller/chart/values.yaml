@@ -59,14 +59,14 @@ vault:
   # Enable Vault integration for RabbitMQ credentials
   enabled: true
   
-  # Vault server configuration (using service URL with cloud.uat domain)
-  address: "http://vault.vault.svc.cloud.uat:8200"
+  # Vault server configuration (using ingress URL that works in tests)
+  address: "https://vault.gokcloud.com"
   
   # === SWITCHABLE VAULT INTEGRATION MODES ===
-  # Choose between agent injector (static) and direct API (dynamic)
+  # Choose between agent injector (static), CSI driver, direct API (dynamic), or hybrid
   integration:
-    # Mode: "agent" for Vault Agent Injector, "api" for direct API calls, "hybrid" for both
-    mode: "hybrid"  # Options: "agent", "api", "hybrid"
+    # Mode: "agent" for Vault Agent Injector, "api" for direct API calls, "csi" for CSI driver, "hybrid" for all
+    mode: "hybrid"  # Options: "agent", "api", "csi", "hybrid"
     
     # Agent Injector Configuration (for static secrets)
     agentInjector:
@@ -101,6 +101,54 @@ vault:
       credentialPath: "secret/rabbitmq"
       # Path to static configuration
       configPath: "secret/gok-controller/config"
+    
+    # CSI Driver Configuration (for file-based secrets)
+    csi:
+      enabled: true
+      role: "gok-controller"
+      vaultNamespace: ""  # Leave empty if not using Vault Enterprise namespaces
+      secretProviderClass:
+        name: "gok-controller-provider"
+      # Define secrets to retrieve via CSI
+      secrets:
+        - objectName: "config-json"
+          secretPath: "secret/gok-controller/config"
+          secretKey: "config_json"
+        - objectName: "oauth-client-secret"
+          secretPath: "secret/gok-controller/config"
+          secretKey: "oauth_client_secret"
+        - objectName: "static-config"
+          secretPath: "secret/gok-controller/config"
+          secretKey: "static_config"
+        - objectName: "rabbitmq-username"
+          secretPath: "secret/rabbitmq"
+          secretKey: "username"
+        - objectName: "rabbitmq-password"
+          secretPath: "secret/rabbitmq"
+          secretKey: "password"
+        - objectName: "rabbitmq-host"
+          secretPath: "secret/rabbitmq"
+          secretKey: "host"
+      # Optional: Create Kubernetes secrets from CSI mounted secrets
+      secretObjects:
+        - secretName: "gok-controller-config-secret"
+          type: "Opaque"
+          data:
+            - objectName: "config-json"
+              key: "config.json"
+            - objectName: "oauth-client-secret"
+              key: "oauth_client_secret"
+            - objectName: "static-config"
+              key: "static_config"
+        - secretName: "gok-controller-rabbitmq-secret"
+          type: "Opaque"
+          data:
+            - objectName: "rabbitmq-username"
+              key: "username"
+            - objectName: "rabbitmq-password"
+              key: "password"
+            - objectName: "rabbitmq-host"
+              key: "host"
   
   # Authentication method for Vault
   auth:
