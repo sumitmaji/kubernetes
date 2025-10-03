@@ -2680,6 +2680,9 @@ vaultInstall() {
       kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     
     kubectl exec -it vault-0 -n vault -- vault secrets enable -path=secret kv
+    pushd $MOUNT_PATH/kubernetes/install_k8s/vault
+    ./create_gok_vault_secretes.sh
+    popd
     
   else
     echoFailed "Vault services timed-out, please check!"
