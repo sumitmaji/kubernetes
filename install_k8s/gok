@@ -2982,11 +2982,20 @@ taintNode() {
 
 k8sInst() {
   local k8s_type="${1:-kubernetes}"
+  local verbose_mode="${GOK_VERBOSE:-false}"
+  
+  # Check for verbose flags in arguments
+  if [[ "$*" == *"--verbose"* ]] || [[ "$*" == *"-v"* ]]; then
+    verbose_mode="true"
+  fi
   
   log_header "Kubernetes Cluster" "Starting ${k8s_type} Installation"
   
   echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🚀 KUBERNETES CLUSTER INSTALLATION${COLOR_RESET}"
   echo -e "${COLOR_YELLOW}Installation Type: ${COLOR_BOLD}${k8s_type}${COLOR_RESET}"
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Verbose mode: Enabled${COLOR_RESET}"
+  fi
   echo
   
   # Step 1: System Prerequisites and Kernel Modules
@@ -2998,11 +3007,20 @@ k8sInst() {
   fi
   
   log_info "Loading required kernel modules..."
-  if sudo modprobe overlay && sudo modprobe br_netfilter; then
-    log_success "Kernel modules loaded successfully"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if sudo modprobe overlay && sudo modprobe br_netfilter; then
+      log_success "Kernel modules loaded successfully"
+    else
+      log_error "Failed to load kernel modules"
+      return 1
+    fi
   else
-    log_error "Failed to load kernel modules"
-    return 1
+    if sudo modprobe overlay >/dev/null 2>&1 && sudo modprobe br_netfilter >/dev/null 2>&1; then
+      log_success "Kernel modules loaded successfully"
+    else
+      log_error "Failed to load kernel modules"
+      return 1
+    fi
   fi
   
   # Configure persistent module loading
@@ -3023,11 +3041,20 @@ net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
 EOF
   
-  if sudo sysctl --system >/dev/null 2>&1; then
-    log_success "Network settings applied successfully"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if sudo sysctl --system; then
+      log_success "Network settings applied successfully"
+    else
+      log_error "Failed to apply network settings"
+      return 1
+    fi
   else
-    log_error "Failed to apply network settings"
-    return 1
+    if sudo sysctl --system >/dev/null 2>&1; then
+      log_success "Network settings applied successfully"
+    else
+      log_error "Failed to apply network settings"
+      return 1
+    fi
   fi
   
   # Step 3: Container Runtime Configuration
@@ -3053,23 +3080,40 @@ EOF
   
   # Restart and enable containerd
   log_info "Starting containerd service..."
-  if sudo systemctl restart containerd && sudo systemctl enable containerd >/dev/null 2>&1; then
-    log_success "Containerd service started and enabled"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if sudo systemctl restart containerd && sudo systemctl enable containerd; then
+      log_success "Containerd service started and enabled"
+    else
+      log_error "Failed to start containerd service"
+      return 1
+    fi
   else
-    log_error "Failed to start containerd service"
-    return 1
+    if sudo systemctl restart containerd >/dev/null 2>&1 && sudo systemctl enable containerd >/dev/null 2>&1; then
+      log_success "Containerd service started and enabled"
+    else
+      log_error "Failed to start containerd service"
+      return 1
+    fi
   fi
   
   # Step 4: Kubernetes Repository Setup
   log_step "4" "Setting up Kubernetes package repository"
   
   log_info "Installing required packages..."
-  if sudo apt-get update >/dev/null 2>&1 && \
-     sudo apt-get install -y apt-transport-https ca-certificates curl >/dev/null 2>&1; then
-    log_success "Required packages installed"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl; then
+      log_success "Required packages installed"
+    else
+      log_error "Failed to install required packages"
+      return 1
+    fi
   else
-    log_error "Failed to install required packages"
-    return 1
+    if sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl >/dev/null 2>&1; then
+      log_success "Required packages installed"
+    else
+      log_error "Failed to install required packages"
+      return 1
+    fi
   fi
   
   # Setup Kubernetes signing key
@@ -3096,33 +3140,51 @@ EOF
   log_step "5" "Installing Kubernetes components"
   
   log_info "Updating package lists..."
-  if sudo apt-get update >/dev/null 2>&1; then
-    log_success "Package lists updated"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if sudo apt-get update; then
+      log_success "Package lists updated"
+    else
+      log_error "Failed to update package lists"
+      return 1
+    fi
   else
-    log_error "Failed to update package lists"
-    return 1
+    if sudo apt-get update >/dev/null 2>&1; then
+      log_success "Package lists updated"
+    else
+      log_error "Failed to update package lists"
+      return 1
+    fi
   fi
   
   log_info "Installing kubectl, kubeadm, and kubelet..."
-  if sudo apt-get install -y kubectl kubeadm kubelet >/dev/null 2>&1; then
-    log_success "Kubernetes components installed successfully"
-    
-    # Show installed versions
-    local kubectl_version=$(kubectl version --client --short 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
-    local kubeadm_version=$(kubeadm version -o short 2>/dev/null || echo "unknown")
-    echo -e "  ${COLOR_GREEN}✓ kubectl: ${kubectl_version}${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}✓ kubeadm: ${kubeadm_version}${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}✓ kubelet: ${kubectl_version}${COLOR_RESET}"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if sudo apt-get install -y kubectl kubeadm kubelet; then
+      log_success "Kubernetes components installed successfully"
+    else
+      log_error "Failed to install Kubernetes components"
+      return 1
+    fi
   else
-    log_error "Failed to install Kubernetes components"
-    return 1
+    if sudo apt-get install -y kubectl kubeadm kubelet >/dev/null 2>&1; then
+      log_success "Kubernetes components installed successfully"
+    else
+      log_error "Failed to install Kubernetes components"
+      return 1
+    fi
   fi
+  
+  # Show installed versions
+  local kubectl_version=$(kubectl version --client --short 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+  local kubeadm_version=$(kubeadm version -o short 2>/dev/null || echo "unknown")
+  echo -e "  ${COLOR_GREEN}✓ kubectl: ${kubectl_version}${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}✓ kubeadm: ${kubeadm_version}${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}✓ kubelet: ${kubectl_version}${COLOR_RESET}"
   
   # Step 6: Cluster Initialization (Master) or Worker Setup
   if [ "$k8s_type" == "kubernetes" ]; then
-    initialize_kubernetes_master
+    initialize_kubernetes_master "$verbose_mode"
   elif [ "$k8s_type" == "kubernetes-worker" ]; then
-    setup_kubernetes_worker
+    setup_kubernetes_worker "$verbose_mode"
   else
     log_error "Unknown Kubernetes installation type: $k8s_type"
     return 1
@@ -3171,6 +3233,7 @@ validate_system_requirements() {
 
 # Initialize Kubernetes master node
 initialize_kubernetes_master() {
+  local verbose_mode="${1:-false}"
   log_step "6" "Initializing Kubernetes master node"
   
   # Disable swap
@@ -3189,10 +3252,18 @@ initialize_kubernetes_master() {
   
   # Pull container images
   log_info "Pulling required container images..."
-  if kubeadm config images pull >/dev/null 2>&1; then
-    log_success "Container images pulled successfully"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if kubeadm config images pull; then
+      log_success "Container images pulled successfully"
+    else
+      log_warning "Some container images may not have been pulled"
+    fi
   else
-    log_warning "Some container images may not have been pulled"
+    if kubeadm config images pull >/dev/null 2>&1; then
+      log_success "Container images pulled successfully"
+    else
+      log_warning "Some container images may not have been pulled"
+    fi
   fi
   
   # Generate cluster configuration
@@ -3213,12 +3284,22 @@ initialize_kubernetes_master() {
   fi
   init_cmd="$init_cmd --upload-certs"
   
-  if $init_cmd >/dev/null 2>&1; then
-    log_success "Kubernetes cluster initialized successfully"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if $init_cmd; then
+      log_success "Kubernetes cluster initialized successfully"
+    else
+      log_error "Kubernetes cluster initialization failed"
+      echo "Please check the logs with: sudo journalctl -xeu kubelet"
+      return 1
+    fi
   else
-    log_error "Kubernetes cluster initialization failed"
-    echo "Please check the logs with: sudo journalctl -xeu kubelet"
-    return 1
+    if $init_cmd >/dev/null 2>&1; then
+      log_success "Kubernetes cluster initialized successfully"
+    else
+      log_error "Kubernetes cluster initialization failed"
+      echo "Please check the logs with: sudo journalctl -xeu kubelet"
+      return 1
+    fi
   fi
   
   # Setup kubectl configuration
@@ -3249,6 +3330,7 @@ initialize_kubernetes_master() {
 
 # Setup Kubernetes worker node
 setup_kubernetes_worker() {
+  local verbose_mode="${1:-false}"
   log_step "6" "Setting up Kubernetes worker node"
   
   log_info "Setting up CA certificates..."
@@ -3453,9 +3535,19 @@ show_kubernetes_complete_next_steps() {
 }
 
 calicoInst(){
+  local verbose_mode="${1:-${GOK_VERBOSE:-false}}"
+  
+  # Check for verbose flags in arguments
+  if [[ "$*" == *"--verbose"* ]] || [[ "$*" == *"-v"* ]]; then
+    verbose_mode="true"
+  fi
+  
   log_header "Calico Network Plugin" "Installing Container Networking"
   
   echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🌐 CALICO NETWORK PLUGIN INSTALLATION${COLOR_RESET}"
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Verbose mode: Enabled${COLOR_RESET}"
+  fi
   echo
   
   # Step 1: Validate cluster is ready
@@ -3502,12 +3594,22 @@ calicoInst(){
   fi
   
   log_info "Applying Calico network plugin..."
-  if kubectl create -f "$calico_manifest" >/dev/null 2>&1; then
-    log_success "Calico manifest applied successfully"
+  if [[ "$verbose_mode" == "true" ]]; then
+    if kubectl create -f "$calico_manifest"; then
+      log_success "Calico manifest applied successfully"
+    else
+      log_error "Failed to apply Calico manifest"
+      echo "  Please check cluster status and try again"
+      return 1
+    fi
   else
-    log_error "Failed to apply Calico manifest"
-    echo "  Please check cluster status and try again"
-    return 1
+    if kubectl create -f "$calico_manifest" >/dev/null 2>&1; then
+      log_success "Calico manifest applied successfully"
+    else
+      log_error "Failed to apply Calico manifest"
+      echo "  Please check cluster status and try again"
+      return 1
+    fi
   fi
   
   # Step 4: Wait for Calico pods to be ready
@@ -9319,8 +9421,8 @@ function installCmd() {
   elif [ "$COMPONENT" == "base" ]; then
     baseInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
-    dockrInst
-    k8sInst "kubernetes-worker"
+    dockrInst $verbose_flag
+    k8sInst "kubernetes-worker" $verbose_flag
   elif [ "$COMPONENT" == "base-services" ]; then
     installBaseServices
   elif [ "$COMPONENT" == "haproxy" ] || [ "$COMPONENT" == "ha-proxy" ] || [ "$COMPONENT" == "ha" ]; then
@@ -9360,7 +9462,7 @@ function installCmd() {
     fi
     
     # Step 3: Install Kubernetes cluster
-    if k8sInst "kubernetes"; then
+    if k8sInst "kubernetes" $verbose_flag; then
       log_success "Kubernetes master node installation completed"
       
       # Validate Kubernetes installation before proceeding
@@ -9393,7 +9495,7 @@ function installCmd() {
     
     # Step 6: Install network plugin (Calico)
     log_info "Installing Calico network plugin..."
-    if calicoInst; then
+    if calicoInst $verbose_flag; then
       log_success "Calico network plugin installed"
     else
       log_error "Calico installation failed - cluster networking may not work"
