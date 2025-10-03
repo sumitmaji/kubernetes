@@ -68,9 +68,6 @@ EOF
 
 source ${MOUNT_PATH}/root_config
 
-# Initialize remote hosts configuration
-setup_default_remote_hosts
-
 rootDomain(){
   echo "$GOK_ROOT_DOMAIN"
 }
@@ -10453,11 +10450,10 @@ cleanup_kubernetes_files() {
 
 # Enhanced progress tracking for reset operations
 track_reset_progress() {
-    local component="$1"
-    local steps="$2"
-    local current="$3"
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
-    show_progress "Resetting $component" "$current" "$steps"
+    echo -e "${COLOR_BRIGHT_BLUE}[${timestamp}]${COLOR_RESET} ${COLOR_CYAN}${message}${COLOR_RESET}"
 }
 
 function resetCmd() {
