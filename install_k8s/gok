@@ -3015,18 +3015,23 @@ k8sInst() {
   fi
   
   log_info "Loading required kernel modules..."
+  local mod_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if sudo modprobe overlay && sudo modprobe br_netfilter; then
+    echo -e "${COLOR_DIM}Executing: sudo modprobe overlay br_netfilter${COLOR_RESET}"
+    if mod_output=$(sudo modprobe overlay && sudo modprobe br_netfilter 2>&1); then
       log_success "Kernel modules loaded successfully"
+      [[ -n "$mod_output" ]] && echo -e "${COLOR_DIM}$mod_output${COLOR_RESET}"
     else
       log_error "Failed to load kernel modules"
+      echo -e "${COLOR_RED}Error details: $mod_output${COLOR_RESET}"
       return 1
     fi
   else
-    if sudo modprobe overlay >/dev/null 2>&1 && sudo modprobe br_netfilter >/dev/null 2>&1; then
+    if mod_output=$(sudo modprobe overlay && sudo modprobe br_netfilter 2>&1); then
       log_success "Kernel modules loaded successfully"
     else
       log_error "Failed to load kernel modules"
+      echo -e "${COLOR_RED}Error details: $mod_output${COLOR_RESET}"
       return 1
     fi
   fi
@@ -3049,18 +3054,23 @@ net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
 EOF
   
+  local sysctl_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if sudo sysctl --system; then
+    echo -e "${COLOR_DIM}Executing: sudo sysctl --system${COLOR_RESET}"
+    if sysctl_output=$(sudo sysctl --system 2>&1); then
       log_success "Network settings applied successfully"
+      echo -e "${COLOR_DIM}$sysctl_output${COLOR_RESET}"
     else
       log_error "Failed to apply network settings"
+      echo -e "${COLOR_RED}Error details: $sysctl_output${COLOR_RESET}"
       return 1
     fi
   else
-    if sudo sysctl --system >/dev/null 2>&1; then
+    if sysctl_output=$(sudo sysctl --system 2>&1); then
       log_success "Network settings applied successfully"
     else
       log_error "Failed to apply network settings"
+      echo -e "${COLOR_RED}Error details: $sysctl_output${COLOR_RESET}"
       return 1
     fi
   fi
@@ -3071,56 +3081,73 @@ EOF
   log_info "Setting up containerd configuration..."
   sudo mkdir -p /etc/containerd
   
+  local containerd_config_output
   if [[ "$verbose_mode" == "true" ]]; then
     echo -e "${COLOR_DIM}Creating /etc/containerd directory and configuration...${COLOR_RESET}"
-    if containerd config default | sudo tee /etc/containerd/config.toml; then
+    echo -e "${COLOR_DIM}Executing: containerd config default | sudo tee /etc/containerd/config.toml${COLOR_RESET}"
+    if containerd_config_output=$(containerd config default 2>&1) && echo "$containerd_config_output" | sudo tee /etc/containerd/config.toml >/dev/null; then
       log_success "Default containerd configuration created"
+      echo -e "${COLOR_DIM}Configuration written to /etc/containerd/config.toml${COLOR_RESET}"
     else
       log_error "Failed to create containerd configuration"
+      echo -e "${COLOR_RED}Error details: $containerd_config_output${COLOR_RESET}"
       return 1
     fi
   else
-    if containerd config default | sudo tee /etc/containerd/config.toml >/dev/null; then
+    if containerd_config_output=$(containerd config default 2>&1) && echo "$containerd_config_output" | sudo tee /etc/containerd/config.toml >/dev/null; then
       log_success "Default containerd configuration created"
     else
       log_error "Failed to create containerd configuration"
+      echo -e "${COLOR_RED}Error details: $containerd_config_output${COLOR_RESET}"
       return 1
     fi
   fi
   
   # Configure systemd cgroup driver
   log_info "Configuring systemd cgroup driver..."
+  local sed_output
   if [[ "$verbose_mode" == "true" ]]; then
     echo -e "${COLOR_DIM}Updating containerd config: SystemdCgroup = false -> SystemdCgroup = true${COLOR_RESET}"
-    if sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml; then
+    echo -e "${COLOR_DIM}Executing: sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml${COLOR_RESET}"
+    if sed_output=$(sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml 2>&1); then
       log_success "Systemd cgroup driver configured"
       echo -e "${COLOR_DIM}Verification:${COLOR_RESET}"
-      grep -n "SystemdCgroup" /etc/containerd/config.toml || true
+      local cgroup_check=$(grep -n "SystemdCgroup" /etc/containerd/config.toml || echo "SystemdCgroup setting not found")
+      echo -e "${COLOR_DIM}$cgroup_check${COLOR_RESET}"
     else
       log_warning "Cgroup driver configuration may have failed"
+      echo -e "${COLOR_YELLOW}Warning details: $sed_output${COLOR_RESET}"
     fi
   else
-    if sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml; then
+    if sed_output=$(sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml 2>&1); then
       log_success "Systemd cgroup driver configured"
     else
       log_warning "Cgroup driver configuration may have failed"
+      echo -e "${COLOR_YELLOW}Warning details: $sed_output${COLOR_RESET}"
     fi
   fi
   
   # Restart and enable containerd
   log_info "Starting containerd service..."
+  local containerd_service_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if sudo systemctl restart containerd && sudo systemctl enable containerd; then
+    echo -e "${COLOR_DIM}Executing: sudo systemctl restart containerd && sudo systemctl enable containerd${COLOR_RESET}"
+    if containerd_service_output=$(sudo systemctl restart containerd 2>&1 && sudo systemctl enable containerd 2>&1); then
       log_success "Containerd service started and enabled"
+      [[ -n "$containerd_service_output" ]] && echo -e "${COLOR_DIM}$containerd_service_output${COLOR_RESET}"
     else
       log_error "Failed to start containerd service"
+      echo -e "${COLOR_RED}Error details: $containerd_service_output${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}Try: ${COLOR_CYAN}sudo systemctl status containerd${COLOR_RESET} for more details"
       return 1
     fi
   else
-    if sudo systemctl restart containerd >/dev/null 2>&1 && sudo systemctl enable containerd >/dev/null 2>&1; then
+    if containerd_service_output=$(sudo systemctl restart containerd 2>&1 && sudo systemctl enable containerd 2>&1); then
       log_success "Containerd service started and enabled"
     else
       log_error "Failed to start containerd service"
+      echo -e "${COLOR_RED}Error details: $containerd_service_output${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}Try: ${COLOR_CYAN}sudo systemctl status containerd${COLOR_RESET} for more details"
       return 1
     fi
   fi
@@ -3129,18 +3156,23 @@ EOF
   log_step "4" "Setting up Kubernetes package repository"
   
   log_info "Installing required packages..."
+  local repo_packages_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl; then
+    echo -e "${COLOR_DIM}Executing: sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl${COLOR_RESET}"
+    if repo_packages_output=$(sudo apt-get update 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
       log_success "Required packages installed"
+      echo -e "${COLOR_DIM}$repo_packages_output${COLOR_RESET}"
     else
       log_error "Failed to install required packages"
+      echo -e "${COLOR_RED}Error details: $repo_packages_output${COLOR_RESET}"
       return 1
     fi
   else
-    if sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl >/dev/null 2>&1; then
+    if repo_packages_output=$(sudo apt-get update 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
       log_success "Required packages installed"
     else
       log_error "Failed to install required packages"
+      echo -e "${COLOR_RED}Error details: $repo_packages_output${COLOR_RESET}"
       return 1
     fi
   fi
@@ -3188,35 +3220,45 @@ EOF
   log_step "5" "Installing Kubernetes components"
   
   log_info "Updating package lists..."
+  local apt_update_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if sudo apt-get update; then
+    echo -e "${COLOR_DIM}Executing: sudo apt-get update${COLOR_RESET}"
+    if apt_update_output=$(sudo apt-get update 2>&1); then
       log_success "Package lists updated"
+      echo -e "${COLOR_DIM}$apt_update_output${COLOR_RESET}"
     else
       log_error "Failed to update package lists"
+      echo -e "${COLOR_RED}Error details: $apt_update_output${COLOR_RESET}"
       return 1
     fi
   else
-    if sudo apt-get update >/dev/null 2>&1; then
+    if apt_update_output=$(sudo apt-get update 2>&1); then
       log_success "Package lists updated"
     else
       log_error "Failed to update package lists"
+      echo -e "${COLOR_RED}Error details: $apt_update_output${COLOR_RESET}"
       return 1
     fi
   fi
   
   log_info "Installing kubectl, kubeadm, and kubelet..."
+  local apt_install_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if sudo apt-get install -y kubectl kubeadm kubelet; then
+    echo -e "${COLOR_DIM}Executing: sudo apt-get install -y kubectl kubeadm kubelet${COLOR_RESET}"
+    if apt_install_output=$(sudo apt-get install -y kubectl kubeadm kubelet 2>&1); then
       log_success "Kubernetes components installed successfully"
+      echo -e "${COLOR_DIM}$apt_install_output${COLOR_RESET}"
     else
       log_error "Failed to install Kubernetes components"
+      echo -e "${COLOR_RED}Error details: $apt_install_output${COLOR_RESET}"
       return 1
     fi
   else
-    if sudo apt-get install -y kubectl kubeadm kubelet >/dev/null 2>&1; then
+    if apt_install_output=$(sudo apt-get install -y kubectl kubeadm kubelet 2>&1); then
       log_success "Kubernetes components installed successfully"
     else
       log_error "Failed to install Kubernetes components"
+      echo -e "${COLOR_RED}Error details: $apt_install_output${COLOR_RESET}"
       return 1
     fi
   fi
@@ -3300,17 +3342,22 @@ initialize_kubernetes_master() {
   
   # Pull container images
   log_info "Pulling required container images..."
+  local pull_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if kubeadm config images pull; then
+    echo -e "${COLOR_DIM}Executing: kubeadm config images pull${COLOR_RESET}"
+    if pull_output=$(kubeadm config images pull 2>&1); then
       log_success "Container images pulled successfully"
+      echo -e "${COLOR_DIM}$pull_output${COLOR_RESET}"
     else
       log_warning "Some container images may not have been pulled"
+      echo -e "${COLOR_YELLOW}Warning details: $pull_output${COLOR_RESET}"
     fi
   else
-    if kubeadm config images pull >/dev/null 2>&1; then
+    if pull_output=$(kubeadm config images pull 2>&1); then
       log_success "Container images pulled successfully"
     else
       log_warning "Some container images may not have been pulled"
+      echo -e "${COLOR_YELLOW}Warning details: $pull_output${COLOR_RESET}"
     fi
   fi
   
@@ -3332,22 +3379,30 @@ initialize_kubernetes_master() {
   fi
   init_cmd="$init_cmd --upload-certs"
   
+  local init_output
   if [[ "$verbose_mode" == "true" ]]; then
     echo -e "${COLOR_DIM}Executing: sudo $init_cmd${COLOR_RESET}"
     echo -e "${COLOR_DIM}This will initialize the control plane and may take 5-10 minutes...${COLOR_RESET}"
-    if sudo $init_cmd; then
+    if init_output=$(sudo $init_cmd 2>&1); then
       log_success "Kubernetes cluster initialized successfully"
+      echo -e "${COLOR_DIM}$init_output${COLOR_RESET}"
     else
       log_error "Kubernetes cluster initialization failed"
-      echo "Please check the logs with: sudo journalctl -xeu kubelet"
+      echo -e "${COLOR_RED}Error details: $init_output${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}Troubleshooting commands:${COLOR_RESET}"
+      echo -e "  ${COLOR_CYAN}sudo journalctl -xeu kubelet${COLOR_RESET}"
+      echo -e "  ${COLOR_CYAN}sudo kubeadm reset -f${COLOR_RESET} (to reset and try again)"
       return 1
     fi
   else
-    if sudo $init_cmd >/dev/null 2>&1; then
+    if init_output=$(sudo $init_cmd 2>&1); then
       log_success "Kubernetes cluster initialized successfully"
     else
       log_error "Kubernetes cluster initialization failed"
-      echo "Please check the logs with: sudo journalctl -xeu kubelet"
+      echo -e "${COLOR_RED}Error details: $init_output${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}Troubleshooting commands:${COLOR_RESET}"
+      echo -e "  ${COLOR_CYAN}sudo journalctl -xeu kubelet${COLOR_RESET}"
+      echo -e "  ${COLOR_CYAN}sudo kubeadm reset -f${COLOR_RESET} (to reset and try again)"
       return 1
     fi
   fi
@@ -3357,23 +3412,25 @@ initialize_kubernetes_master() {
   export KUBECONFIG=/etc/kubernetes/admin.conf
   mkdir -p "$HOME/.kube"
   
+  local config_output
   if [[ "$verbose_mode" == "true" ]]; then
     echo -e "${COLOR_DIM}Copying admin.conf to ~/.kube/config${COLOR_RESET}"
     echo -e "${COLOR_DIM}Setting proper ownership and permissions...${COLOR_RESET}"
-    if sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config"; then
-      sudo chown $(id -u):$(id -g) "$HOME/.kube/config"
+    if config_output=$(sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>&1 && sudo chown $(id -u):$(id -g) "$HOME/.kube/config" 2>&1); then
       log_success "Kubectl configuration completed"
       echo -e "${COLOR_DIM}Config location: $HOME/.kube/config${COLOR_RESET}"
+      [[ -n "$config_output" ]] && echo -e "${COLOR_DIM}$config_output${COLOR_RESET}"
     else
       log_error "Failed to setup kubectl configuration"
+      echo -e "${COLOR_RED}Error details: $config_output${COLOR_RESET}"
       return 1
     fi
   else
-    if sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null; then
-      sudo chown $(id -u):$(id -g) "$HOME/.kube/config"
+    if config_output=$(sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>&1 && sudo chown $(id -u):$(id -g) "$HOME/.kube/config" 2>&1); then
       log_success "Kubectl configuration completed"
     else
       log_error "Failed to setup kubectl configuration"
+      echo -e "${COLOR_RED}Error details: $config_output${COLOR_RESET}"
       return 1
     fi
   fi
@@ -3680,20 +3737,31 @@ calicoInst(){
   fi
   
   log_info "Applying Calico network plugin..."
+  local calico_apply_output
   if [[ "$verbose_mode" == "true" ]]; then
-    if kubectl create -f "$calico_manifest"; then
+    echo -e "${COLOR_DIM}Executing: kubectl create -f $calico_manifest${COLOR_RESET}"
+    if calico_apply_output=$(kubectl create -f "$calico_manifest" 2>&1); then
       log_success "Calico manifest applied successfully"
+      echo -e "${COLOR_DIM}$calico_apply_output${COLOR_RESET}"
     else
       log_error "Failed to apply Calico manifest"
-      echo "  Please check cluster status and try again"
+      echo -e "${COLOR_RED}Error details: $calico_apply_output${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}Troubleshooting:${COLOR_RESET}"
+      echo -e "  ${COLOR_CYAN}kubectl get nodes${COLOR_RESET} - Check node status"
+      echo -e "  ${COLOR_CYAN}kubectl get pods -n kube-system${COLOR_RESET} - Check system pods"
+      echo -e "  ${COLOR_CYAN}kubectl describe nodes${COLOR_RESET} - Check node details"
       return 1
     fi
   else
-    if kubectl create -f "$calico_manifest" >/dev/null 2>&1; then
+    if calico_apply_output=$(kubectl create -f "$calico_manifest" 2>&1); then
       log_success "Calico manifest applied successfully"
     else
       log_error "Failed to apply Calico manifest"
-      echo "  Please check cluster status and try again"
+      echo -e "${COLOR_RED}Error details: $calico_apply_output${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}Troubleshooting:${COLOR_RESET}"
+      echo -e "  ${COLOR_CYAN}kubectl get nodes${COLOR_RESET} - Check node status"
+      echo -e "  ${COLOR_CYAN}kubectl get pods -n kube-system${COLOR_RESET} - Check system pods"
+      echo -e "  ${COLOR_CYAN}kubectl describe nodes${COLOR_RESET} - Check node details"
       return 1
     fi
   fi
