@@ -60,7 +60,7 @@ vault:
   enabled: true
   
   # Vault server configuration (using ingress URL that works in tests)
-  address: "https://vault.gokcloud.com"
+  address: "http://vault.vault.svc.cloud.uat:8200"
   
   # === SWITCHABLE VAULT INTEGRATION MODES ===
   # Choose between agent injector (static), CSI driver, direct API (dynamic), or hybrid
@@ -76,26 +76,9 @@ vault:
         # Static configuration secrets
         config:
           path: "secret/gok-controller/config"
-          template: |
-            {{`{{- with secret "secret/gok-controller/config" -}}`}}
-            {
-              "oauth_client_secret": "{{`{{ .oauth_client_secret }}`}}",
-              "static_config": "{{`{{ .static_config }}`}}"
-            }
-            {{`{{- end }}`}}
         # RabbitMQ credentials (can be used as fallback)
         rabbitmq:
           path: "secret/rabbitmq"
-          template: |
-            {{`{{- with secret "secret/rabbitmq" -}}`}}
-            {
-              "username": "{{`{{ .Data.username }}`}}",
-              "password": "{{`{{ .Data.password }}`}}",
-              "host": "{{`{{ .Data.host }}`}}",
-              "port": "{{`{{ .Data.port }}`}}",
-              "virtual_host": "{{`{{ .Data.virtual_host }}`}}"
-            }
-            {{`{{- end }}`}}
     
     # Direct API Configuration (for dynamic credentials)
     directApi:

@@ -57,27 +57,10 @@ vault:
         # Static configuration secrets
         config:
           path: "secret/gok-agent/config"
-          template: |
-            {{`{{- with secret "secret/gok-agent/config" -}}`}}
-            {
-              "oauth_client_secret": "{{`{{ .Data.oauth_client_secret }}`}}",
-              "static_config": "{{`{{ .Data.static_config }}`}}"
-            }
-            {{`{{- end }}`}}
 
         # RabbitMQ credentials (can be used as fallback)
         rabbitmq:
           path: "secret/rabbitmq"
-          template: |
-            {{`{{- with secret "secret/rabbitmq" -}}`}}
-            {
-              "username": "{{`{{ .Data.username }}`}}",
-              "password": "{{`{{ .Data.password }}`}}",
-              "host": "{{`{{ .Data.host }}`}}",
-              "port": "{{`{{ .Data.port }}`}}",
-              "virtual_host": "{{`{{ .Data.virtual_host }}`}}"
-            }
-            {{`{{- end }}`}}
     
     # Direct API Configuration (for dynamic credentials)
     directApi:

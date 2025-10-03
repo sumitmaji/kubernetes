@@ -20,13 +20,17 @@ spec:
         vault.hashicorp.com/role: "{{ .Values.vault.integration.agentInjector.role }}"
         {{- if .Values.vault.integration.agentInjector.secrets.config }}
         vault.hashicorp.com/agent-inject-secret-config: "{{ .Values.vault.integration.agentInjector.secrets.config.path }}"
+        {{- if .Values.vault.integration.agentInjector.secrets.config.template }}
         vault.hashicorp.com/agent-inject-template-config: |
 {{ .Values.vault.integration.agentInjector.secrets.config.template | indent 10 }}
         {{- end }}
+        {{- end }}
         {{- if .Values.vault.integration.agentInjector.secrets.rabbitmq }}
         vault.hashicorp.com/agent-inject-secret-rabbitmq: "{{ .Values.vault.integration.agentInjector.secrets.rabbitmq.path }}"
+        {{- if .Values.vault.integration.agentInjector.secrets.rabbitmq.template }}
         vault.hashicorp.com/agent-inject-template-rabbitmq: |
 {{ .Values.vault.integration.agentInjector.secrets.rabbitmq.template | indent 10 }}
+        {{- end }}
         {{- end }}
       {{- end }}
     spec:
