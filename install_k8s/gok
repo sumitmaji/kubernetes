@@ -1869,8 +1869,96 @@ getpod() {
   echo "$pod"
 }
 
+# =============================================================================
+# 📦 SYSTEM UPDATE & DEPENDENCY MANAGEMENT
+# Enhanced with progress bars and optional verbose logging
+# =============================================================================
+
+# Global flag for verbose output (can be set via environment or command line)
+: ${GOK_VERBOSE:=false}
+: ${GOK_SHOW_PROGRESS:=true}
+
+# Function to check if verbose mode is enabled
+is_verbose_mode() {
+    [[ "$GOK_VERBOSE" == "true" ]] || [[ "$1" == "--verbose" ]] || [[ "$1" == "-v" ]]
+}
+
+# Enhanced system update with progress bar
 updateSys() {
-  apt-get update
+    local verbose_flag="${1:-}"
+    local start_time=$(date +%s)
+    
+    log_step "System Update" "Updating package repositories"
+    
+    if is_verbose_mode "$verbose_flag"; then
+        log_info "Running in verbose mode - showing detailed output"
+        if ! apt-get update; then
+            log_error "System update failed"
+            return 1
+        fi
+    else
+        # Run with progress bar
+        log_substep "Downloading package information"
+        
+        # Create a temporary file for capturing output
+        local temp_log=$(mktemp)
+        local pid
+        
+        # Start the update process in background
+        {
+            apt-get update > "$temp_log" 2>&1
+            echo $? > "${temp_log}.exit"
+        } &
+        pid=$!
+        
+        # Show progress while update is running
+        local progress=0
+        local spinner_chars="|/-\\"
+        local spinner_idx=0
+        
+        while kill -0 $pid 2>/dev/null; do
+            local char=${spinner_chars:spinner_idx:1}
+            printf "\r${COLOR_BLUE}  Updating repositories [%c] %d%%${COLOR_RESET}" "$char" "$progress"
+            
+            spinner_idx=$(( (spinner_idx + 1) % 4 ))
+            progress=$(( (progress + 2) % 101 ))
+            sleep 0.1
+        done
+        
+        # Wait for process to complete and get exit code
+        wait $pid
+        local exit_code
+        if [[ -f "${temp_log}.exit" ]]; then
+            exit_code=$(cat "${temp_log}.exit")
+        else
+            exit_code=1
+        fi
+        
+        printf "\r${COLOR_GREEN}  Repository update completed [✓] 100%%${COLOR_RESET}\n"
+        
+        # Check for errors
+        if [[ $exit_code -ne 0 ]]; then
+            log_error "System update failed - showing detailed output:"
+            cat "$temp_log"
+            rm -f "$temp_log" "${temp_log}.exit"
+            return 1
+        fi
+        
+        # Check for important warnings in output
+        if grep -qi "error\|fail\|warning" "$temp_log"; then
+            log_warning "Update completed with warnings - use --verbose flag for details"
+            log_info "Run: GOK_VERBOSE=true gok install <component> for detailed output"
+        fi
+        
+        # Clean up
+        rm -f "$temp_log" "${temp_log}.exit"
+    fi
+    
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    log_success "System update completed in ${duration}s"
+    
+    return 0
 }
 
 setupDockerRegistry(){
@@ -1925,15 +2013,159 @@ setupDockerRegistry(){
   fi
 }
 
+# Enhanced dependency installation with progress tracking
 installDeps() {
-  #Install network tools
-  apt-get install net-tools
-  apt-get install jq -y
+    local verbose_flag="${1:-}"
+    local start_time=$(date +%s)
+    
+    log_step "Dependencies" "Installing essential system dependencies"
+    
+    # Define packages to install
+    local packages=(
+        "net-tools:Network utilities and tools"
+        "jq:JSON processor for command line"
+        "python3:Python 3 interpreter"
+        "python3-pip:Python package installer"
+        "curl:Command line tool for transferring data"
+        "wget:Network downloader"
+        "gnupg:GNU Privacy Guard"
+        "software-properties-common:Manage software repositories"
+        "apt-transport-https:HTTPS transport for APT"
+        "ca-certificates:Common CA certificates"
+    )
+    
+    local total_packages=${#packages[@]}
+    local current_package=0
+    local failed_packages=()
+    
+    for package_info in "${packages[@]}"; do
+        IFS=':' read -r package_name package_desc <<< "$package_info"
+        current_package=$((current_package + 1))
+        
+        log_substep "Installing $package_name ($current_package/$total_packages)"
+        
+        if is_verbose_mode "$verbose_flag"; then
+            log_info "$package_desc"
+            if ! apt-get install -y "$package_name"; then
+                log_error "Failed to install $package_name"
+                failed_packages+=("$package_name")
+            fi
+        else
+            # Install with progress indication
+            local temp_log=$(mktemp)
+            local pid
+            
+            # Start installation in background
+            {
+                apt-get install -y "$package_name" > "$temp_log" 2>&1
+                echo $? > "${temp_log}.exit"
+            } &
+            pid=$!
+            
+            # Show progress
+            local dots=""
+            while kill -0 $pid 2>/dev/null; do
+                printf "\r${COLOR_CYAN}    Installing $package_name${dots}${COLOR_RESET}"
+                dots="${dots}."
+                if [[ ${#dots} -gt 3 ]]; then dots=""; fi
+                sleep 0.3
+            done
+            
+            wait $pid
+            local exit_code
+            if [[ -f "${temp_log}.exit" ]]; then
+                exit_code=$(cat "${temp_log}.exit")
+            else
+                exit_code=1
+            fi
+            
+            if [[ $exit_code -eq 0 ]]; then
+                printf "\r${COLOR_GREEN}    ✓ $package_name installed successfully${COLOR_RESET}\n"
+            else
+                printf "\r${COLOR_RED}    ✗ $package_name installation failed${COLOR_RESET}\n"
+                failed_packages+=("$package_name")
+                
+                # Show error details for failed packages
+                log_error "Failed to install $package_name - error details:"
+                tail -10 "$temp_log" | while read line; do
+                    log_error "  $line"
+                done
+            fi
+            
+            rm -f "$temp_log" "${temp_log}.exit"
+        fi
+        
+        # Update progress
+        log_progress "$current_package" "$total_packages" "Installing dependencies"
+    done
+    
+    echo # New line after progress
+    
+    # Summary
+    local successful_packages=$((total_packages - ${#failed_packages[@]}))
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
+    if [[ ${#failed_packages[@]} -eq 0 ]]; then
+        log_success "All $total_packages dependencies installed successfully in ${duration}s"
+    else
+        log_warning "$successful_packages/$total_packages dependencies installed successfully"
+        log_error "Failed packages: ${failed_packages[*]}"
+        
+        # Provide troubleshooting suggestions
+        log_troubleshooting "Dependency Installation" \
+            "Run with verbose mode: GOK_VERBOSE=true gok install <component>" \
+            "Update package cache: apt-get update" \
+            "Check available disk space: df -h" \
+            "Check network connectivity: ping archive.ubuntu.com" \
+            "Try installing manually: apt-get install ${failed_packages[*]}"
+        
+        if [[ ${#failed_packages[@]} -gt 3 ]]; then
+            log_error "Too many failed packages - aborting installation"
+            return 1
+        else
+            log_warning "Continuing with partial dependency installation"
+        fi
+    fi
+    
+    # Verify critical dependencies
+    verify_critical_dependencies
+    
+    return 0
+}
 
-  #Installing python
-  apt-get install python3 -y
-  apt-get install python3-pip -y
-
+# Verify that critical dependencies are available
+verify_critical_dependencies() {
+    log_substep "Verifying critical dependencies"
+    
+    local critical_commands=(
+        "curl:HTTP client"
+        "wget:Download utility" 
+        "jq:JSON processor"
+        "python3:Python interpreter"
+    )
+    
+    local missing_critical=()
+    
+    for cmd_info in "${critical_commands[@]}"; do
+        IFS=':' read -r cmd_name cmd_desc <<< "$cmd_info"
+        
+        if ! command -v "$cmd_name" >/dev/null 2>&1; then
+            missing_critical+=("$cmd_name")
+            log_error "Critical dependency missing: $cmd_name ($cmd_desc)"
+        else
+            log_substep "✓ $cmd_name available"
+        fi
+    done
+    
+    if [[ ${#missing_critical[@]} -gt 0 ]]; then
+        log_error "Critical dependencies missing: ${missing_critical[*]}"
+        log_error "Installation cannot continue without these dependencies"
+        return 1
+    fi
+    
+    log_success "All critical dependencies verified"
+    return 0
 }
 
 ingressUnInst() {
@@ -7896,7 +8128,11 @@ function installCmd() {
   if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
     echo "gok install - Install and configure Kubernetes components and services"
     echo ""
-    echo "Usage: gok install <component>"
+    echo "Usage: gok install <component> [--verbose|-v]"
+    echo ""
+    echo "Options:"
+    echo "  --verbose, -v     Show detailed installation output (default: progress bars)"
+    echo "  GOK_VERBOSE=true  Environment variable to enable verbose mode globally"
     echo ""
     echo "Core Infrastructure:"
     echo "  docker            Docker container runtime"
@@ -7983,11 +8219,26 @@ function installCmd() {
   # Initialize component tracking
   init_component_tracking "$COMPONENT" "Installing $COMPONENT component"
   
+  # Check for verbose flag in component arguments
+  local verbose_flag=""
+  if [[ "$2" == "--verbose" ]] || [[ "$2" == "-v" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
+    verbose_flag="--verbose"
+    log_info "Verbose logging enabled"
+  fi
+  
   # Start component installation with enhanced logging
   start_component "$COMPONENT" "Installing $COMPONENT component"
   
-  updateSys
-  installDeps
+  # Run system updates with progress bars (unless verbose)
+  if ! updateSys "$verbose_flag"; then
+    fail_component "$COMPONENT" "System update failed"
+    return 1
+  fi
+  
+  if ! installDeps "$verbose_flag"; then
+    fail_component "$COMPONENT" "Dependency installation failed"
+    return 1
+  fi
   
   # Enhanced installation with validation
   if [ "$COMPONENT" == "docker" ]; then
@@ -8693,11 +8944,11 @@ _gok_completion() {
       # Second argument - complete based on first command
       case ${prev} in
         install)
-          COMPREPLY=($(compgen -W "${install_components}" -- ${cur}))
+          COMPREPLY=($(compgen -W "${install_components} --verbose -v" -- ${cur}))
           return 0
           ;;
         reset)
-          COMPREPLY=($(compgen -W "${reset_components}" -- ${cur}))
+          COMPREPLY=($(compgen -W "${reset_components} --verbose -v" -- ${cur}))
           return 0
           ;;
         start)
@@ -8734,6 +8985,13 @@ _gok_completion() {
       # Third argument - complete based on first two commands
       local prev2="${COMP_WORDS[COMP_CWORD-2]}"
       case ${prev2} in
+        install|reset)
+          # If previous word is a component, suggest verbose flags
+          if [[ "${install_components}" =~ ${prev} ]]; then
+            COMPREPLY=($(compgen -W "--verbose -v" -- ${cur}))
+            return 0
+          fi
+          ;;
         create)
           case ${prev} in
             secret)
