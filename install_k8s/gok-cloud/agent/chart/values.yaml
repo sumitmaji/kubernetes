@@ -41,7 +41,7 @@ vault:
   enabled: true
   
   # Vault server configuration (using ingress URL that works in tests)
-  address: "https://vault.gokcloud.com"
+  address: "http://vault.vault.svc.cloud.uat:8200"
   
   # === SWITCHABLE VAULT INTEGRATION MODES ===
   # Choose between agent injector (static) and direct API (dynamic)
@@ -60,8 +60,8 @@ vault:
           template: |
             {{`{{- with secret "secret/gok-agent/config" -}}`}}
             {
-              "oauth_client_secret": "{{`{{ .Data.data.oauth_client_secret }}`}}",
-              "static_config": "{{`{{ .Data.data.static_config }}`}}"
+              "oauth_client_secret": "{{`{{ .Data.oauth_client_secret }}`}}",
+              "static_config": "{{`{{ .Data.static_config }}`}}"
             }
             {{`{{- end }}`}}
 
