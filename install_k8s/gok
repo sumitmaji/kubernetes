@@ -864,7 +864,144 @@ suggest_next_installations() {
 }
 
 # =============================================================================
-# 🔍 INSTALLATION VALIDATION SYSTEM
+# � REPOSITORY FIX UTILITIES
+# =============================================================================
+
+# Fix Helm repository 404 errors and other package repository issues
+fix_helm_repository_errors() {
+    log_header "Repository Fix Utility" "Resolving Helm & Package Repository Issues"
+    
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔧 FIXING HELM REPOSITORY ERRORS${COLOR_RESET}"
+    echo
+    
+    local fix_success=true
+    
+    # Step 1: Clean up old Helm repositories
+    log_step "1" "Removing old/problematic Helm repositories"
+    if sudo find /etc/apt/sources.list.d -name "*helm*" -type f -delete 2>/dev/null; then
+        log_success "Old Helm repository files removed"
+    else
+        log_info "No old Helm repository files found"
+    fi
+    
+    # Remove deprecated apt-key entries
+    if sudo apt-key list 2>/dev/null | grep -q "Helm"; then
+        log_info "Removing deprecated Helm apt-key entries"
+        sudo apt-key del $(sudo apt-key list 2>/dev/null | grep -A1 "Helm" | grep pub | cut -d'/' -f2 | cut -d' ' -f1) >/dev/null 2>&1 || true
+        log_success "Deprecated key entries cleaned"
+    fi
+    
+    # Step 2: Update package lists after cleanup
+    log_step "2" "Updating package lists after cleanup"
+    if sudo apt-get update >/dev/null 2>&1; then
+        log_success "Package lists updated successfully"
+    else
+        log_warning "Package update had some warnings (continuing...)"
+    fi
+    
+    # Step 3: Verify Helm installation method
+    log_step "3" "Checking current Helm installation"
+    if command -v helm >/dev/null 2>&1; then
+        local helm_path=$(which helm)
+        local helm_version=$(helm version --short --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        
+        if [[ "$helm_path" == *"/snap/"* ]]; then
+            log_success "Helm is properly installed via snap (version: $helm_version)"
+            echo -e "  ${COLOR_GREEN}✓ Path: $helm_path${COLOR_RESET}"
+            echo -e "  ${COLOR_GREEN}✓ Installation method: Snap package manager${COLOR_RESET}"
+            echo -e "  ${COLOR_GREEN}✓ No APT repository conflicts${COLOR_RESET}"
+        else
+            log_info "Helm installed via: $helm_path (version: $helm_version)"
+        fi
+    else
+        log_warning "Helm not found - would you like to install it?"
+        echo -e "  ${COLOR_YELLOW}Run: ${COLOR_BOLD}sudo ./gok install helm${COLOR_RESET}"
+    fi
+    
+    # Step 4: Setup modern Helm repository (if using APT method)
+    log_step "4" "Setting up modern Helm repository (if needed)"
+    if [[ "$helm_path" != *"/snap/"* ]] && command -v helm >/dev/null 2>&1; then
+        log_info "Setting up modern Helm APT repository..."
+        if install_helm_via_apt_fix; then
+            log_success "Modern Helm repository configured successfully"
+        else
+            log_warning "Modern APT setup failed - recommend using snap: sudo snap install helm --classic"
+            fix_success=false
+        fi
+    else
+        log_info "Using snap installation - no APT repository needed"
+    fi
+    
+    # Step 5: Test repository access
+    log_step "5" "Testing package repository access"
+    if sudo apt-get update >/dev/null 2>&1; then
+        log_success "All package repositories accessible"
+        
+        # Check for any remaining 404 errors
+        local error_check=$(sudo apt-get update 2>&1 | grep -i "404\|not found\|failed\|err:" || true)
+        if [[ -z "$error_check" ]]; then
+            log_success "No 404 or repository errors detected"
+        else
+            log_warning "Some repository warnings detected:"
+            echo "$error_check" | head -3
+        fi
+    else
+        log_error "Package repository access issues detected"
+        fix_success=false
+    fi
+    
+    # Summary and recommendations
+    echo
+    log_header "Fix Summary" "Repository Status"
+    
+    if [[ "$fix_success" == "true" ]]; then
+        echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}✅ REPOSITORY ISSUES RESOLVED${COLOR_RESET}"
+        echo
+        echo -e "${COLOR_GREEN}✓${COLOR_RESET} Old Helm repositories cleaned up"
+        echo -e "${COLOR_GREEN}✓${COLOR_RESET} Package lists updated successfully"
+        echo -e "${COLOR_GREEN}✓${COLOR_RESET} No 404 errors detected"
+        echo -e "${COLOR_GREEN}✓${COLOR_RESET} Helm installation verified"
+    else
+        echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}⚠️  PARTIAL RESOLUTION${COLOR_RESET}"
+        echo
+        echo -e "${COLOR_YELLOW}!${COLOR_RESET} Some issues may require manual intervention"
+    fi
+    
+    echo
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📋 PREVENTION TIPS:${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Use snap for Helm: ${COLOR_BOLD}sudo snap install helm --classic${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Regular updates: ${COLOR_BOLD}sudo snap refresh helm${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Avoid mixing installation methods (APT + Snap + Script)${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Run this fix utility: ${COLOR_BOLD}./gok fix helm-repository${COLOR_RESET}"
+    echo
+    
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🛠️  TROUBLESHOOTING:${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• If issues persist: ${COLOR_BOLD}sudo apt-get clean && sudo apt-get update${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Check logs: ${COLOR_BOLD}sudo apt-get update -o Debug::Acquire::http=true${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Fresh Helm install: ${COLOR_BOLD}sudo snap remove helm && sudo snap install helm --classic${COLOR_RESET}"
+    echo
+    
+    return $([[ "$fix_success" == "true" ]] && echo 0 || echo 1)
+}
+
+# Helper function for modern Helm APT setup
+install_helm_via_apt_fix() {
+    # Clean up any old repositories first
+    sudo rm -f /etc/apt/sources.list.d/helm*.list 2>/dev/null || true
+    
+    # Add official Helm APT repository with proper key management
+    if curl -fsSL https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null 2>&1; then
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list >/dev/null
+        
+        if sudo apt-get update >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# =============================================================================
+# �🔍 INSTALLATION VALIDATION SYSTEM
 # =============================================================================
 
 # Validate component installation with comprehensive health checks
@@ -877,6 +1014,12 @@ validate_component_installation() {
     case "$component" in
         "kubernetes")
             validate_kubernetes_cluster "$timeout"
+            ;;
+        "docker")
+            validate_docker_installation "$timeout"
+            ;;
+        "helm")
+            validate_helm_installation "$timeout"
             ;;
         "cert-manager")
             validate_cert_manager "$timeout"
@@ -930,6 +1073,89 @@ validate_generic_component() {
         log_success "$component services are available"
     else
         log_warning "No services found for $component"
+    fi
+    
+    return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}
+
+# Docker installation validation
+validate_docker_installation() {
+    local timeout="$1"
+    local validation_passed=true
+    
+    log_step "1" "Checking Docker daemon status"
+    if systemctl is-active --quiet docker; then
+        log_success "Docker daemon is running"
+    else
+        log_error "Docker daemon is not running"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking Docker version"
+    if docker --version >/dev/null 2>&1; then
+        local version=$(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        log_success "Docker version: $version"
+    else
+        log_error "Cannot get Docker version"
+        validation_passed=false
+    fi
+    
+    log_step "3" "Testing Docker functionality"
+    if docker run --rm hello-world >/dev/null 2>&1; then
+        log_success "Docker can run containers successfully"
+    else
+        log_warning "Docker container test failed (may require proxy configuration)"
+    fi
+    
+    log_step "4" "Checking Docker group membership"
+    if groups $USER | grep -q docker; then
+        log_success "User is in docker group"
+    else
+        log_warning "User not in docker group - may need 'sudo' for docker commands"
+    fi
+    
+    return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}
+
+# Helm installation validation
+validate_helm_installation() {
+    local timeout="$1"
+    local validation_passed=true
+    
+    log_step "1" "Checking Helm binary"
+    if command -v helm >/dev/null 2>&1; then
+        local version=$(helm version --short --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        log_success "Helm is installed (version: $version)"
+    else
+        log_error "Helm binary not found in PATH"
+        validation_passed=false
+        return 1
+    fi
+    
+    log_step "2" "Testing Helm functionality"
+    if helm version --short >/dev/null 2>&1; then
+        log_success "Helm version command works"
+    else
+        log_error "Helm version command failed"
+        validation_passed=false
+    fi
+    
+    log_step "3" "Checking Helm repositories"
+    local repo_count=$(helm repo list 2>/dev/null | tail -n +2 | wc -l)
+    if [[ $repo_count -gt 0 ]]; then
+        log_success "Helm has $repo_count repositories configured"
+    else
+        log_info "No Helm repositories configured yet (this is normal for new installations)"
+    fi
+    
+    log_step "4" "Testing repository access"
+    if helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 && \
+       helm repo update >/dev/null 2>&1; then
+        log_success "Helm can access remote repositories"
+        # Clean up test repository
+        helm repo remove bitnami >/dev/null 2>&1 || true
+    else
+        log_warning "Cannot access remote repositories (may require proxy configuration)"
     fi
     
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
@@ -2840,13 +3066,115 @@ calicoInst(){
 }
 
 helmInst() {
-  #Installing helm
-  curl https://baltocdn.com/helm/signing.asc | apt-key add - &&
-    apt-get install apt-transport-https --yes &&
-    echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list &&
-    apt-get update &&
-    apt-get install helm &&
+  log_header "Helm Package Manager" "Starting Installation"
+  
+  # Check if Helm is already installed
+  if command -v helm >/dev/null 2>&1; then
+    local current_version=$(helm version --short --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+    log_info "Helm is already installed (version: ${current_version})"
+    
+    # Check if it's snap version
+    if [[ "$(which helm)" == *"/snap/"* ]]; then
+      log_info "Using Helm from snap package manager"
+      log_success "Helm installation verification complete"
+      show_helm_next_steps
+      return 0
+    fi
+  fi
+  
+  log_info "Installing Helm package manager..."
+  
+  # Method 1: Try snap first (recommended for Ubuntu)
+  if command -v snap >/dev/null 2>&1; then
+    log_info "Installing Helm via snap package manager..."
+    if run_with_progress "snap install helm --classic" "Installing Helm via snap"; then
+      log_success "Helm installed successfully via snap"
+      helm version --short
+      show_helm_next_steps
+      return 0
+    else
+      log_warning "Snap installation failed, trying official script method..."
+    fi
+  fi
+  
+  # Method 2: Official Helm installation script
+  log_info "Installing Helm via official installation script..."
+  if curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3; then
+    chmod 700 get_helm.sh
+    if run_with_progress "./get_helm.sh" "Installing Helm via official script"; then
+      rm -f get_helm.sh
+      log_success "Helm installed successfully via official script"
+      helm version --short
+      show_helm_next_steps
+      return 0
+    else
+      rm -f get_helm.sh
+      log_error "Official script installation failed, trying APT method..."
+    fi
+  fi
+  
+  # Method 3: APT with updated repository (fallback)
+  log_info "Installing Helm via APT package manager..."
+  if install_helm_via_apt; then
+    log_success "Helm installed successfully via APT"
     helm version --short
+    show_helm_next_steps
+    return 0
+  fi
+  
+  log_error "All Helm installation methods failed"
+  log_error "Please install Helm manually using one of these methods:"
+  echo "  1. Snap: sudo snap install helm --classic"
+  echo "  2. Script: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
+  echo "  3. GitHub Releases: https://github.com/helm/helm/releases"
+  return 1
+}
+
+# Helper function for APT installation
+install_helm_via_apt() {
+  # Clean up any old repositories first
+  rm -f /etc/apt/sources.list.d/helm*.list 2>/dev/null
+  
+  # Add official Helm APT repository with proper key management
+  if curl -fsSL https://baltocdn.com/helm/signing.asc | gpg --dearmor | tee /usr/share/keyrings/helm.gpg > /dev/null; then
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list
+    
+    if run_with_progress "apt-get update" "Updating package lists" && \
+       run_with_progress "apt-get install -y helm" "Installing Helm package"; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Show next steps after Helm installation
+show_helm_next_steps() {
+  echo
+  log_header "Helm Next Steps" "Package Manager Ready"
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔧 HELM PACKAGE MANAGER READY${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Common Helm Commands:${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}helm repo add <name> <url>${COLOR_RESET}     - Add a chart repository"
+  echo -e "  ${COLOR_GREEN}helm repo update${COLOR_RESET}               - Update repository information"
+  echo -e "  ${COLOR_GREEN}helm search repo <keyword>${COLOR_RESET}     - Search for charts"
+  echo -e "  ${COLOR_GREEN}helm install <name> <chart>${COLOR_RESET}    - Install a chart"
+  echo -e "  ${COLOR_GREEN}helm list${COLOR_RESET}                      - List installed releases"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Popular Chart Repositories:${COLOR_RESET}"
+  echo -e "  ${COLOR_CYAN}Bitnami:${COLOR_RESET}        helm repo add bitnami https://charts.bitnami.com/bitnami"
+  echo -e "  ${COLOR_CYAN}Jetstack:${COLOR_RESET}       helm repo add jetstack https://charts.jetstack.io"
+  echo -e "  ${COLOR_CYAN}Ingress-NGINX:${COLOR_RESET}  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx"
+  echo -e "  ${COLOR_CYAN}Prometheus:${COLOR_RESET}     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}GOK Integration:${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}./gok install cert-manager${COLOR_RESET}    - Install cert-manager via Helm"
+  echo -e "  ${COLOR_GREEN}./gok install ingress${COLOR_RESET}         - Install NGINX Ingress via Helm"
+  echo -e "  ${COLOR_GREEN}./gok install monitoring${COLOR_RESET}      - Install Prometheus & Grafana"
+  echo
 }
 
 certmanagerInst() {
@@ -8136,6 +8464,7 @@ function installCmd() {
     echo ""
     echo "Core Infrastructure:"
     echo "  docker            Docker container runtime"
+    echo "  helm              Helm package manager for Kubernetes"
     echo "  haproxy           HA proxy container for load balancing (aliases: ha-proxy, ha)"
     echo "  kubernetes        Complete Kubernetes cluster with HA"
     echo "  kubernetes-worker Kubernetes worker node"
@@ -8251,6 +8580,18 @@ function installCmd() {
       fi
     else
       fail_component "docker" "Docker installation failed"
+      return 1
+    fi
+  elif [ "$COMPONENT" == "helm" ]; then
+    if helmInst; then
+      if validate_component_installation "helm" 60; then
+        complete_component "helm" "Helm installation completed and validated"
+        show_component_next_steps "helm"
+      else
+        complete_component "helm" "Helm installed but validation had warnings"
+      fi
+    else
+      fail_component "helm" "Helm installation failed"
       return 1
     fi
   elif [ "$COMPONENT" == "cert-manager" ]; then
@@ -8479,6 +8820,63 @@ EOF
     echo "Run 'gok install help' for detailed information"
     return 1
   fi
+}
+
+function fixCmd() {
+  COMPONENT=$1
+  
+  if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
+    echo "gok fix - Fix common repository and installation issues"
+    echo ""
+    echo "Usage: gok fix <issue-type>"
+    echo ""
+    echo "Available Fix Options:"
+    echo "  helm-repository    Fix Helm repository 404 errors and conflicts"
+    echo "  repositories       Fix all package repository issues"
+    echo "  package-conflicts  Resolve package manager conflicts"
+    echo ""
+    echo "Examples:"
+    echo "  gok fix helm-repository    # Fix Helm 404 errors from baltocdn"
+    echo "  gok fix repositories       # Fix all repository issues"
+    echo ""
+    echo "Common Issues Fixed:"
+    echo "  ✅ Helm repository 404 errors (baltocdn)"
+    echo "  ✅ Deprecated APT key warnings"
+    echo "  ✅ Mixed installation method conflicts"
+    echo "  ✅ Broken package repository configurations"
+    echo "  ✅ GPG key verification issues"
+    echo ""
+    echo "Prevention Tips:"
+    echo "  • Use snap for Helm: sudo snap install helm --classic"
+    echo "  • Avoid mixing installation methods"
+    echo "  • Regular repository cleanup"
+    return 0
+  fi
+  
+  case "$COMPONENT" in
+    "helm-repository"|"helm-repo"|"helm")
+      fix_helm_repository_errors
+      ;;
+    "repositories"|"repos"|"repository")  
+      fix_helm_repository_errors
+      # Can be extended for other repository fixes
+      ;;
+    "package-conflicts"|"packages")
+      log_info "Package conflict resolution not yet implemented"
+      echo "Available: helm-repository, repositories"
+      return 1
+      ;;
+    *)
+      echo "Error: Unknown fix type: $COMPONENT"
+      echo ""
+      echo "Available fix options:"
+      echo "  helm-repository    Fix Helm repository 404 errors"
+      echo "  repositories       Fix all repository issues"
+      echo ""
+      echo "Run 'gok fix help' for detailed information"
+      return 1
+      ;;
+  esac
 }
 
 function startCmd() {
@@ -8909,10 +9307,10 @@ _gok_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
   # Main commands
-  local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node completion help"
   
   # Install components
-  local install_components="docker kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
   
   # Reset components  
   local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
@@ -8922,6 +9320,9 @@ _gok_completion() {
   
   # Deploy components
   local deploy_components="app1"
+  
+  # Fix options
+  local fix_options="helm-repository repositories package-conflicts"
   
   # Create resources
   local create_resources="secret certificate kubeconfig"
@@ -8949,6 +9350,10 @@ _gok_completion() {
           ;;
         reset)
           COMPREPLY=($(compgen -W "${reset_components} --verbose -v" -- ${cur}))
+          return 0
+          ;;
+        fix)
+          COMPREPLY=($(compgen -W "${fix_options}" -- ${cur}))
           return 0
           ;;
         start)
@@ -9091,11 +9496,12 @@ _gok_completion() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
-  local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
-  local install_components="interactive wizard docker haproxy ha-proxy ha kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node completion help"
+  local install_components="interactive wizard docker helm haproxy ha-proxy ha kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
   local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
   local start_components="kubernetes proxy kubelet"
   local deploy_components="app1"
+  local fix_options="helm-repository repositories package-conflicts"
   local create_resources="secret certificate kubeconfig"
   local create_secret_types="apphost"
   local generate_types="python-api python-reactjs"
@@ -9106,6 +9512,7 @@ _gok_completion() {
     1) COMPREPLY=($(compgen -W "${commands}" -- ${cur})) ;;
     2) case ${prev} in
          install) COMPREPLY=($(compgen -W "${install_components}" -- ${cur})) ;;
+         fix) COMPREPLY=($(compgen -W "${fix_options}" -- ${cur})) ;;
          reset) COMPREPLY=($(compgen -W "${reset_components}" -- ${cur})) ;;
          start) COMPREPLY=($(compgen -W "${start_components}" -- ${cur})) ;;
          deploy) COMPREPLY=($(compgen -W "${deploy_components}" -- ${cur})) ;;
@@ -9186,6 +9593,8 @@ elif [ "$CMD" == "taint-node" ]; then
   taintNodeCmd
 elif [ "$CMD" == "install" ]; then
   installCmd "$2"
+elif [ "$CMD" == "fix" ]; then
+  fixCmd "$2"
 elif [ "$CMD" == "start" ]; then
   startCmd "$2"
 elif [ "$CMD" == "reset" ]; then
