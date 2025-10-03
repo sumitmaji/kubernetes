@@ -2706,15 +2706,17 @@ gokAgentInstall(){
   # Create namespace for gok-agent
   kubectl create namespace gok-agent
 
-  createVaultSecretStore \
-  -p "secret/gok-agent/config" \
-  -r "gok-agent" \
-  -l "gok-agent-policy" \
-  -s "gok-agent-provider" \
-  -x "gok-agent" \
-  -n "gok-agent" \
-  -k "oauth_client_id=adfasdfsasdfasdfasd" \
-  -k "static_config=asdfasdf"
+  # Moved the secret creation in create_gok_vault_secretes.sh
+  # Moved the SecretProviderClass creation to helm chart
+  # createVaultSecretStore \
+  # -p "secret/gok-agent/config" \
+  # -r "gok-agent" \
+  # -l "gok-agent-policy" \
+  # -s "gok-agent-provider" \
+  # -x "gok-agent" \
+  # -n "gok-agent" \
+  # -k "oauth_client_id=adfasdfsasdfasdfasd" \
+  # -k "static_config=asdfasdf"
 
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-agent
 
@@ -2753,15 +2755,17 @@ gokControllerInstall(){
 
   # Create namespace for gok-controller
   kubectl create namespace gok-controller
-  
-  createVaultSecretStore \
-  -p "secret/gok-controller" \
-  -r "gok-controller" \
-  -l "gok-controller-policy" \
-  -s "gok-controller-provider" \
-  -x "gok-controller" \
-  -n "gok-controller" \
-  -k "api-token=adfasdfasdfasdfasd"
+
+  # Moved the secret creation in create_gok_vault_secretes.sh
+  # Moved the SecretProviderClass creation to helm chart  
+  # createVaultSecretStore \
+  # -p "secret/gok-controller" \
+  # -r "gok-controller" \
+  # -l "gok-controller-policy" \
+  # -s "gok-controller-provider" \
+  # -x "gok-controller" \
+  # -n "gok-controller" \
+  # -k "api-token=adfasdfasdfasdfasd"
   
   kubectl create configmap ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n gok-controller
 
