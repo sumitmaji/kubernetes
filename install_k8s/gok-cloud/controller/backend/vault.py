@@ -1,5 +1,6 @@
 import os
 import json
+import yaml
 import logging
 from typing import Dict, Optional, List
 from pathlib import Path
@@ -73,6 +74,7 @@ def get_vault_secrets():
 def get_vault_secrets_from_files(secret_name="config"):
     """
     Get secrets from Vault Agent Injector files
+    Supports both JSON and YAML formats with intelligent parsing
     
     Args:
         secret_name: Name of the secret file (config, rabbitmq, etc.)
@@ -85,14 +87,56 @@ def get_vault_secrets_from_files(secret_name="config"):
     
     try:
         with open(secrets_file, "r") as f:
-            data = json.load(f)
-        logger.info(f"Successfully loaded {secret_name} secrets from Vault Agent Injector")
-        return data
+            content = f.read().strip()
+            
+        if not content:
+            logger.warning(f"Empty secret file: {secrets_file}")
+            return None
+            
+        # Try to determine format and parse accordingly
+        data = None
+        format_used = None
+        
+        # First, try JSON parsing
+        try:
+            data = json.loads(content)
+            format_used = "JSON"
+        except json.JSONDecodeError:
+            # If JSON fails, try YAML parsing
+            try:
+                data = yaml.safe_load(content)
+                format_used = "YAML"
+            except yaml.YAMLError as yaml_err:
+                # If both fail, try simple key=value parsing (for raw Vault output)
+                try:
+                    data = {}
+                    for line in content.split('\n'):
+                        line = line.strip()
+                        if line and ':' in line:
+                            key, value = line.split(':', 1)
+                            data[key.strip()] = value.strip()
+                    if data:
+                        format_used = "Key-Value"
+                    else:
+                        raise ValueError("No valid key-value pairs found")
+                except Exception as kv_err:
+                    logger.error(f"Failed to parse {secret_name} as JSON, YAML, or key-value format")
+                    logger.error(f"JSON error: {str(json.JSONDecodeError('Invalid JSON', content, 0))}")
+                    logger.error(f"YAML error: {yaml_err}")
+                    logger.error(f"Key-Value error: {kv_err}")
+                    logger.error(f"Raw content preview: {content[:200]}...")
+                    return None
+        
+        if data:
+            logger.info(f"Successfully loaded {secret_name} secrets from Vault Agent Injector ({format_used} format)")
+            logger.debug(f"Loaded keys: {list(data.keys()) if isinstance(data, dict) else 'Non-dict data'}")
+            return data
+        else:
+            logger.warning(f"No data extracted from {secret_name}")
+            return None
+            
     except FileNotFoundError:
         logger.warning(f"Vault agent injector secret file not found: {secrets_file}")
-        return None
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing Vault agent injector secret file {secret_name}: {e}")
         return None
     except Exception as e:
         logger.error(f"Unexpected error reading Vault agent injector secrets {secret_name}: {e}")
