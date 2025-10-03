@@ -2984,8 +2984,16 @@ k8sInst() {
   local k8s_type="${1:-kubernetes}"
   local verbose_mode="${GOK_VERBOSE:-false}"
   
-  # Check for verbose flags in arguments
-  if [[ "$*" == *"--verbose"* ]] || [[ "$*" == *"-v"* ]]; then
+  # Check for verbose flags in all arguments
+  for arg in "$@"; do
+    if [[ "$arg" == "--verbose" ]] || [[ "$arg" == "-v" ]]; then
+      verbose_mode="true"
+      break
+    fi
+  done
+  
+  # Also check if GOK_VERBOSE environment variable is set
+  if [[ "${GOK_VERBOSE}" == "true" ]]; then
     verbose_mode="true"
   fi
   
@@ -3063,19 +3071,40 @@ EOF
   log_info "Setting up containerd configuration..."
   sudo mkdir -p /etc/containerd
   
-  if containerd config default | sudo tee /etc/containerd/config.toml >/dev/null; then
-    log_success "Default containerd configuration created"
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Creating /etc/containerd directory and configuration...${COLOR_RESET}"
+    if containerd config default | sudo tee /etc/containerd/config.toml; then
+      log_success "Default containerd configuration created"
+    else
+      log_error "Failed to create containerd configuration"
+      return 1
+    fi
   else
-    log_error "Failed to create containerd configuration"
-    return 1
+    if containerd config default | sudo tee /etc/containerd/config.toml >/dev/null; then
+      log_success "Default containerd configuration created"
+    else
+      log_error "Failed to create containerd configuration"
+      return 1
+    fi
   fi
   
   # Configure systemd cgroup driver
   log_info "Configuring systemd cgroup driver..."
-  if sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml; then
-    log_success "Systemd cgroup driver configured"
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Updating containerd config: SystemdCgroup = false -> SystemdCgroup = true${COLOR_RESET}"
+    if sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml; then
+      log_success "Systemd cgroup driver configured"
+      echo -e "${COLOR_DIM}Verification:${COLOR_RESET}"
+      grep -n "SystemdCgroup" /etc/containerd/config.toml || true
+    else
+      log_warning "Cgroup driver configuration may have failed"
+    fi
   else
-    log_warning "Cgroup driver configuration may have failed"
+    if sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml; then
+      log_success "Systemd cgroup driver configured"
+    else
+      log_warning "Cgroup driver configuration may have failed"
+    fi
   fi
   
   # Restart and enable containerd
@@ -3120,19 +3149,38 @@ EOF
   log_info "Adding Kubernetes signing key..."
   sudo mkdir -p -m 755 /etc/apt/keyrings
   
-  if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key 2>/dev/null | \
-     sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null; then
-    sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    log_success "Kubernetes signing key added"
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Downloading Kubernetes signing key from pkgs.k8s.io...${COLOR_RESET}"
+    if curl -fsSL --show-error https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | \
+       sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
+      sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      log_success "Kubernetes signing key added"
+      echo -e "${COLOR_DIM}Key location: /etc/apt/keyrings/kubernetes-apt-keyring.gpg${COLOR_RESET}"
+    else
+      log_error "Failed to add Kubernetes signing key"
+      return 1
+    fi
   else
-    log_error "Failed to add Kubernetes signing key"
-    return 1
+    if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key 2>/dev/null | \
+       sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null; then
+      sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      log_success "Kubernetes signing key added"
+    else
+      log_error "Failed to add Kubernetes signing key"
+      return 1
+    fi
   fi
   
   # Add Kubernetes repository
   log_info "Adding Kubernetes repository..."
-  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | \
-    sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Creating repository configuration: /etc/apt/sources.list.d/kubernetes.list${COLOR_RESET}"
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | \
+      sudo tee /etc/apt/sources.list.d/kubernetes.list
+  else
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | \
+      sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
+  fi
   sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
   log_success "Kubernetes repository added"
   
@@ -3285,7 +3333,9 @@ initialize_kubernetes_master() {
   init_cmd="$init_cmd --upload-certs"
   
   if [[ "$verbose_mode" == "true" ]]; then
-    if $init_cmd; then
+    echo -e "${COLOR_DIM}Executing: sudo $init_cmd${COLOR_RESET}"
+    echo -e "${COLOR_DIM}This will initialize the control plane and may take 5-10 minutes...${COLOR_RESET}"
+    if sudo $init_cmd; then
       log_success "Kubernetes cluster initialized successfully"
     else
       log_error "Kubernetes cluster initialization failed"
@@ -3293,7 +3343,7 @@ initialize_kubernetes_master() {
       return 1
     fi
   else
-    if $init_cmd >/dev/null 2>&1; then
+    if sudo $init_cmd >/dev/null 2>&1; then
       log_success "Kubernetes cluster initialized successfully"
     else
       log_error "Kubernetes cluster initialization failed"
@@ -3307,24 +3357,52 @@ initialize_kubernetes_master() {
   export KUBECONFIG=/etc/kubernetes/admin.conf
   mkdir -p "$HOME/.kube"
   
-  if sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null; then
-    sudo chown $(id -u):$(id -g) "$HOME/.kube/config"
-    log_success "Kubectl configuration completed"
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Copying admin.conf to ~/.kube/config${COLOR_RESET}"
+    echo -e "${COLOR_DIM}Setting proper ownership and permissions...${COLOR_RESET}"
+    if sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config"; then
+      sudo chown $(id -u):$(id -g) "$HOME/.kube/config"
+      log_success "Kubectl configuration completed"
+      echo -e "${COLOR_DIM}Config location: $HOME/.kube/config${COLOR_RESET}"
+    else
+      log_error "Failed to setup kubectl configuration"
+      return 1
+    fi
   else
-    log_error "Failed to setup kubectl configuration"
-    return 1
+    if sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null; then
+      sudo chown $(id -u):$(id -g) "$HOME/.kube/config"
+      log_success "Kubectl configuration completed"
+    else
+      log_error "Failed to setup kubectl configuration"
+      return 1
+    fi
   fi
   
   # Validate cluster is running
   log_info "Validating cluster status..."
   sleep 10  # Give cluster time to start
   
-  if kubectl cluster-info >/dev/null 2>&1; then
-    log_success "Kubernetes cluster is running and accessible"
-    show_kubernetes_master_next_steps
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Checking cluster connectivity and status...${COLOR_RESET}"
+    if kubectl cluster-info; then
+      log_success "Kubernetes cluster is running and accessible"
+      echo -e "${COLOR_DIM}Checking node status:${COLOR_RESET}"
+      kubectl get nodes
+      echo -e "${COLOR_DIM}Checking system pods:${COLOR_RESET}"
+      kubectl get pods -n kube-system
+      show_kubernetes_master_next_steps
+    else
+      log_error "Cluster validation failed"
+      return 1
+    fi
   else
-    log_error "Cluster validation failed"
-    return 1
+    if kubectl cluster-info >/dev/null 2>&1; then
+      log_success "Kubernetes cluster is running and accessible"
+      show_kubernetes_master_next_steps
+    else
+      log_error "Cluster validation failed"
+      return 1
+    fi
   fi
 }
 
@@ -3535,10 +3613,18 @@ show_kubernetes_complete_next_steps() {
 }
 
 calicoInst(){
-  local verbose_mode="${1:-${GOK_VERBOSE:-false}}"
+  local verbose_mode="${GOK_VERBOSE:-false}"
   
-  # Check for verbose flags in arguments
-  if [[ "$*" == *"--verbose"* ]] || [[ "$*" == *"-v"* ]]; then
+  # Check for verbose flags in all arguments
+  for arg in "$@"; do
+    if [[ "$arg" == "--verbose" ]] || [[ "$arg" == "-v" ]]; then
+      verbose_mode="true"
+      break
+    fi
+  done
+  
+  # Also check if GOK_VERBOSE environment variable is set
+  if [[ "${GOK_VERBOSE}" == "true" ]]; then
     verbose_mode="true"
   fi
   
