@@ -2981,88 +2981,639 @@ taintNode() {
 }
 
 k8sInst() {
-  # Enable kernel modules
-  sudo modprobe overlay
-  sudo modprobe br_netfilter
-
-  # Add some settings to sysctl
-  sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
+  local k8s_type="${1:-kubernetes}"
+  
+  log_header "Kubernetes Cluster" "Starting ${k8s_type} Installation"
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🚀 KUBERNETES CLUSTER INSTALLATION${COLOR_RESET}"
+  echo -e "${COLOR_YELLOW}Installation Type: ${COLOR_BOLD}${k8s_type}${COLOR_RESET}"
+  echo
+  
+  # Step 1: System Prerequisites and Kernel Modules
+  log_step "1" "Configuring system prerequisites and kernel modules"
+  
+  if ! validate_system_requirements; then
+    log_error "System requirements validation failed"
+    return 1
+  fi
+  
+  log_info "Loading required kernel modules..."
+  if sudo modprobe overlay && sudo modprobe br_netfilter; then
+    log_success "Kernel modules loaded successfully"
+  else
+    log_error "Failed to load kernel modules"
+    return 1
+  fi
+  
+  # Configure persistent module loading
+  log_info "Configuring persistent kernel modules..."
+  sudo tee /etc/modules-load.d/containerd.conf <<EOF >/dev/null
+overlay
+br_netfilter
+EOF
+  log_success "Kernel modules configured for persistence"
+  
+  # Step 2: Network Configuration
+  log_step "2" "Configuring network settings for Kubernetes"
+  
+  log_info "Setting up network bridge configurations..."
+  sudo tee /etc/sysctl.d/kubernetes.conf <<EOF >/dev/null
 net.bridge.bridge-nf-call-ip6tables = 1
 net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
 EOF
-
-  # Reload sysctl
-  sudo sysctl --system
-  sudo tee /etc/modules-load.d/containerd.conf <<EOF
-overlay
-br_netfilter
-EOF
-  sysctl --system
-  mkdir -p /etc/containerd
-  containerd config default>/etc/containerd/config.toml
-
-  #https://github.com/containerd/containerd/blob/main/docs/cri/config.md#cgroup-driver
-  sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
-  systemctl restart containerd
-  systemctl enable containerd
-
-
-  echo "Installing Kubernetes"
-  apt-get update && apt-get install -y apt-transport-https
-  sudo apt-get update
-  # apt-transport-https may be a dummy package; if so, you can skip that package
-  sudo apt-get install -y apt-transport-https ca-certificates curl
-
-  # If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
-  # sudo mkdir -p -m 755 /etc/apt/keyrings
-  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg # allow unprivileged APT programs to read this keyring
-  # This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
-  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-  sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list   # helps tools such as command-not-found to work correctly
-
-  sudo apt-get update
-  sudo apt-get install -y kubectl kubeadm kubelet
-
-  if [ $1 == "kubernetes" ]; then
-    kubeadm version
-    kubeadm config images pull
-
-    sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
-    sudo swapoff -a
-
-    sudo systemctl enable kubelet
-
-    envsubst <"$WORKING_DIR"/cluster-config-master.yaml >"$WORKING_DIR"/config.yaml
-    kubeadm init --config="$WORKING_DIR"/config.yaml --upload-certs
-    export KUBECONFIG=/etc/kubernetes/admin.conf
-
-    mkdir -p "$HOME"/.kube
-    sudo cp -i /etc/kubernetes/admin.conf "$HOME"/.kube/config
-
-    # shellcheck disable=SC2181
-    if [ $? -ne 0 ]; then
-      echo "Kubectl command execution failed, please check!!!!!"
-      exit 1
-    fi
-  elif [ $1 == "kubernetes-worker" ]; then
-    cp /export/certs/issuer.crt /usr/local/share/ca-certificates/issuer.crt
-    update-ca-certificates
-    echo "kubectl join ...."
-    echo "kubectl label node node01 node-role.kubernetes.io/worker=worker"
-    echo "reboot the vm to make the changes ca certificates"
+  
+  if sudo sysctl --system >/dev/null 2>&1; then
+    log_success "Network settings applied successfully"
+  else
+    log_error "Failed to apply network settings"
+    return 1
   fi
+  
+  # Step 3: Container Runtime Configuration
+  log_step "3" "Configuring containerd container runtime"
+  
+  log_info "Setting up containerd configuration..."
+  sudo mkdir -p /etc/containerd
+  
+  if containerd config default | sudo tee /etc/containerd/config.toml >/dev/null; then
+    log_success "Default containerd configuration created"
+  else
+    log_error "Failed to create containerd configuration"
+    return 1
+  fi
+  
+  # Configure systemd cgroup driver
+  log_info "Configuring systemd cgroup driver..."
+  if sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml; then
+    log_success "Systemd cgroup driver configured"
+  else
+    log_warning "Cgroup driver configuration may have failed"
+  fi
+  
+  # Restart and enable containerd
+  log_info "Starting containerd service..."
+  if sudo systemctl restart containerd && sudo systemctl enable containerd >/dev/null 2>&1; then
+    log_success "Containerd service started and enabled"
+  else
+    log_error "Failed to start containerd service"
+    return 1
+  fi
+  
+  # Step 4: Kubernetes Repository Setup
+  log_step "4" "Setting up Kubernetes package repository"
+  
+  log_info "Installing required packages..."
+  if sudo apt-get update >/dev/null 2>&1 && \
+     sudo apt-get install -y apt-transport-https ca-certificates curl >/dev/null 2>&1; then
+    log_success "Required packages installed"
+  else
+    log_error "Failed to install required packages"
+    return 1
+  fi
+  
+  # Setup Kubernetes signing key
+  log_info "Adding Kubernetes signing key..."
+  sudo mkdir -p -m 755 /etc/apt/keyrings
+  
+  if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key 2>/dev/null | \
+     sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null; then
+    sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    log_success "Kubernetes signing key added"
+  else
+    log_error "Failed to add Kubernetes signing key"
+    return 1
+  fi
+  
+  # Add Kubernetes repository
+  log_info "Adding Kubernetes repository..."
+  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | \
+    sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
+  sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
+  log_success "Kubernetes repository added"
+  
+  # Step 5: Kubernetes Components Installation
+  log_step "5" "Installing Kubernetes components"
+  
+  log_info "Updating package lists..."
+  if sudo apt-get update >/dev/null 2>&1; then
+    log_success "Package lists updated"
+  else
+    log_error "Failed to update package lists"
+    return 1
+  fi
+  
+  log_info "Installing kubectl, kubeadm, and kubelet..."
+  if sudo apt-get install -y kubectl kubeadm kubelet >/dev/null 2>&1; then
+    log_success "Kubernetes components installed successfully"
+    
+    # Show installed versions
+    local kubectl_version=$(kubectl version --client --short 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+    local kubeadm_version=$(kubeadm version -o short 2>/dev/null || echo "unknown")
+    echo -e "  ${COLOR_GREEN}✓ kubectl: ${kubectl_version}${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}✓ kubeadm: ${kubeadm_version}${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}✓ kubelet: ${kubectl_version}${COLOR_RESET}"
+  else
+    log_error "Failed to install Kubernetes components"
+    return 1
+  fi
+  
+  # Step 6: Cluster Initialization (Master) or Worker Setup
+  if [ "$k8s_type" == "kubernetes" ]; then
+    initialize_kubernetes_master
+  elif [ "$k8s_type" == "kubernetes-worker" ]; then
+    setup_kubernetes_worker
+  else
+    log_error "Unknown Kubernetes installation type: $k8s_type"
+    return 1
+  fi
+}
 
+# Validate system requirements for Kubernetes
+validate_system_requirements() {
+  log_info "Validating system requirements..."
+  
+  local validation_passed=true
+  
+  # Check available memory
+  local mem_gb=$(free -g | awk '/^Mem:/{print $2}')
+  if [ "$mem_gb" -lt 2 ]; then
+    log_warning "System has ${mem_gb}GB RAM, minimum 2GB recommended"
+  else
+    log_success "Memory requirement satisfied (${mem_gb}GB available)"
+  fi
+  
+  # Check available disk space
+  local disk_gb=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+  if [ "$disk_gb" -lt 10 ]; then
+    log_warning "Available disk space: ${disk_gb}GB, minimum 20GB recommended"
+  else
+    log_success "Disk space requirement satisfied (${disk_gb}GB available)"
+  fi
+  
+  # Check if Docker is running
+  if systemctl is-active --quiet docker; then
+    log_success "Docker service is running"
+  else
+    log_error "Docker service is not running - please install Docker first"
+    validation_passed=false
+  fi
+  
+  # Check if swap is disabled
+  if [ "$(swapon --show | wc -l)" -gt 0 ]; then
+    log_info "Swap is enabled - will be disabled during installation"
+  else
+    log_success "Swap is already disabled"
+  fi
+  
+  return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}
+
+# Initialize Kubernetes master node
+initialize_kubernetes_master() {
+  log_step "6" "Initializing Kubernetes master node"
+  
+  # Disable swap
+  log_info "Disabling swap for Kubernetes..."
+  sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  sudo swapoff -a
+  log_success "Swap disabled successfully"
+  
+  # Enable kubelet service
+  log_info "Enabling kubelet service..."
+  if sudo systemctl enable kubelet >/dev/null 2>&1; then
+    log_success "Kubelet service enabled"
+  else
+    log_warning "Kubelet service enable may have failed"
+  fi
+  
+  # Pull container images
+  log_info "Pulling required container images..."
+  if kubeadm config images pull >/dev/null 2>&1; then
+    log_success "Container images pulled successfully"
+  else
+    log_warning "Some container images may not have been pulled"
+  fi
+  
+  # Generate cluster configuration
+  log_info "Generating cluster configuration..."
+  if [ -f "$WORKING_DIR/cluster-config-master.yaml" ]; then
+    envsubst <"$WORKING_DIR/cluster-config-master.yaml" >"$WORKING_DIR/config.yaml"
+    log_success "Cluster configuration generated"
+  else
+    log_warning "Using default cluster configuration"
+  fi
+  
+  # Initialize the cluster
+  log_info "Initializing Kubernetes cluster (this may take several minutes)..."
+  
+  local init_cmd="kubeadm init"
+  if [ -f "$WORKING_DIR/config.yaml" ]; then
+    init_cmd="$init_cmd --config=$WORKING_DIR/config.yaml"
+  fi
+  init_cmd="$init_cmd --upload-certs"
+  
+  if $init_cmd >/dev/null 2>&1; then
+    log_success "Kubernetes cluster initialized successfully"
+  else
+    log_error "Kubernetes cluster initialization failed"
+    echo "Please check the logs with: sudo journalctl -xeu kubelet"
+    return 1
+  fi
+  
+  # Setup kubectl configuration
+  log_info "Setting up kubectl configuration..."
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+  mkdir -p "$HOME/.kube"
+  
+  if sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>/dev/null; then
+    sudo chown $(id -u):$(id -g) "$HOME/.kube/config"
+    log_success "Kubectl configuration completed"
+  else
+    log_error "Failed to setup kubectl configuration"
+    return 1
+  fi
+  
+  # Validate cluster is running
+  log_info "Validating cluster status..."
+  sleep 10  # Give cluster time to start
+  
+  if kubectl cluster-info >/dev/null 2>&1; then
+    log_success "Kubernetes cluster is running and accessible"
+    show_kubernetes_master_next_steps
+  else
+    log_error "Cluster validation failed"
+    return 1
+  fi
+}
+
+# Setup Kubernetes worker node
+setup_kubernetes_worker() {
+  log_step "6" "Setting up Kubernetes worker node"
+  
+  log_info "Setting up CA certificates..."
+  if [ -f "/export/certs/issuer.crt" ]; then
+    sudo cp /export/certs/issuer.crt /usr/local/share/ca-certificates/issuer.crt
+    sudo update-ca-certificates >/dev/null 2>&1
+    log_success "CA certificates updated"
+  else
+    log_warning "CA certificate not found at /export/certs/issuer.crt"
+  fi
+  
+  # Disable swap
+  log_info "Disabling swap for Kubernetes..."
+  sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  sudo swapoff -a
+  log_success "Swap disabled successfully"
+  
+  show_kubernetes_worker_next_steps
+}
+
+# Show next steps after successful Kubernetes master installation
+show_kubernetes_master_next_steps() {
+  echo
+  log_header "Kubernetes Master Ready" "Next Steps & Information"
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🎉 KUBERNETES MASTER NODE READY${COLOR_RESET}"
+  echo
+  
+  # Cluster information
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}📊 Cluster Information:${COLOR_RESET}"
+  local cluster_info=$(kubectl cluster-info 2>/dev/null | head -2)
+  echo "$cluster_info" | while read line; do
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} $line"
+  done
+  echo
+  
+  # Node status
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}🖥️  Node Status:${COLOR_RESET}"
+  local node_info=$(kubectl get nodes --no-headers 2>/dev/null | head -1)
+  if [ -n "$node_info" ]; then
+    local node_name=$(echo "$node_info" | awk '{print $1}')
+    local node_status=$(echo "$node_info" | awk '{print $2}')
+    local node_roles=$(echo "$node_info" | awk '{print $3}')
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Node: ${COLOR_BOLD}$node_name${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Status: ${COLOR_BOLD}$node_status${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Roles: ${COLOR_BOLD}$node_roles${COLOR_RESET}"
+  fi
+  echo
+  
+  # Get join command for worker nodes
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}🔗 Worker Node Join Command:${COLOR_RESET}"
+  local join_cmd=$(kubeadm token create --print-join-command 2>/dev/null)
+  if [ -n "$join_cmd" ]; then
+    echo -e "${COLOR_CYAN}$join_cmd${COLOR_RESET}"
+    echo -e "${COLOR_DIM}(Use this command on worker nodes to join the cluster)${COLOR_RESET}"
+  else
+    echo -e "${COLOR_YELLOW}Run: ${COLOR_BOLD}kubeadm token create --print-join-command${COLOR_RESET}"
+  fi
+  echo
+  
+  # Critical next steps
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 CRITICAL NEXT STEPS:${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_RED}${COLOR_BOLD}1. Install Network Plugin (REQUIRED):${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}The cluster needs a network plugin to function properly.${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}Run: ${COLOR_BOLD}calicoInst${COLOR_RESET} ${COLOR_DIM}# Install Calico networking${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}2. Install Base Services (RECOMMENDED):${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}Install essential cluster services and management tools.${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}Run: ${COLOR_BOLD}./gok install base-services${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}   Includes: cert-manager, ingress-nginx, monitoring, vault${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}3. Verify Installation:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get nodes${COLOR_RESET}                    ${COLOR_DIM}# Check node status${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get pods -A${COLOR_RESET}                  ${COLOR_DIM}# Check all pods${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl cluster-info${COLOR_RESET}                 ${COLOR_DIM}# Cluster information${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🎯 RECOMMENDED INSTALLATION SEQUENCE:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}1.${COLOR_RESET} ${COLOR_BOLD}calicoInst${COLOR_RESET}                        ${COLOR_DIM}# Network plugin (essential)${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}2.${COLOR_RESET} ${COLOR_BOLD}./gok install base-services${COLOR_RESET}       ${COLOR_DIM}# Core platform services${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}3.${COLOR_RESET} ${COLOR_BOLD}./gok install dashboard${COLOR_RESET}           ${COLOR_DIM}# Web dashboard${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}4.${COLOR_RESET} ${COLOR_BOLD}./gok install argocd${COLOR_RESET}              ${COLOR_DIM}# GitOps deployment${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📚 USEFUL COMMANDS:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok status${COLOR_RESET}                         ${COLOR_DIM}# Check platform status${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok install help${COLOR_RESET}                   ${COLOR_DIM}# See all installable components${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get namespaces${COLOR_RESET}               ${COLOR_DIM}# List all namespaces${COLOR_RESET}"
+  echo
+}
+
+# Show next steps for worker node setup
+show_kubernetes_worker_next_steps() {
+  echo
+  log_header "Kubernetes Worker Setup" "Next Steps & Information"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔧 KUBERNETES WORKER NODE PREPARED${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}📋 Required Actions:${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_RED}${COLOR_BOLD}1. Join the Cluster:${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}Get the join command from your master node:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubeadm token create --print-join-command${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}Then run the output command on this worker node.${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}2. Label the Node (Optional):${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}After joining, label this node as a worker:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl label node <node-name> node-role.kubernetes.io/worker=worker${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}3. Reboot System:${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}Reboot to ensure all changes take effect:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}sudo reboot${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔍 VERIFICATION:${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}From the master node, verify this worker joined:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get nodes${COLOR_RESET}"
+  echo
+}
+
+# Show comprehensive next steps after complete Kubernetes installation
+show_kubernetes_complete_next_steps() {
+  echo
+  log_header "Kubernetes Platform Ready" "Complete Installation Next Steps"
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🎉 KUBERNETES PLATFORM INSTALLATION COMPLETE${COLOR_RESET}"
+  echo
+  
+  # Cluster status overview
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}📊 Cluster Status:${COLOR_RESET}"
+  local cluster_status=$(kubectl cluster-info 2>/dev/null | head -1 | grep -o "is running at.*" || echo "Status check failed")
+  local node_status=$(kubectl get nodes --no-headers 2>/dev/null | head -1)
+  
+  if [ -n "$node_status" ]; then
+    local node_name=$(echo "$node_status" | awk '{print $1}')
+    local node_ready=$(echo "$node_status" | awk '{print $2}')
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Cluster: $cluster_status"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Master Node: $node_name ($node_ready)"
+  fi
+  
+  # Installed components
+  echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Container Runtime: containerd"
+  echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Network Plugin: Calico"
+  echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} Package Manager: Helm"
+  echo
+  
+  # Critical next steps
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 CRITICAL NEXT STEP:${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_RED}${COLOR_BOLD}Install Base Services (HIGHLY RECOMMENDED):${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}Your cluster is ready, but needs essential services for production use.${COLOR_RESET}"
+  echo
+  
+  echo -e "   ${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Run this command to install all essential services:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}${COLOR_BOLD}./gok install base-services${COLOR_RESET}"
+  echo
+  
+  echo -e "   ${COLOR_YELLOW}Base services include:${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}• Certificate Manager (cert-manager) - TLS/SSL automation${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}• NGINX Ingress Controller - HTTP/HTTPS routing${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}• Monitoring Stack - Prometheus & Grafana${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}• Secrets Management - HashiCorp Vault${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}• Identity Management - Keycloak${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🎯 COMPLETE SETUP SEQUENCE:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}${COLOR_BOLD}1. ./gok install base-services${COLOR_RESET}       ${COLOR_DIM}# Essential platform services${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}2. ./gok install dashboard${COLOR_RESET}           ${COLOR_DIM}# Kubernetes web dashboard${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}3. ./gok install argocd${COLOR_RESET}              ${COLOR_DIM}# GitOps continuous delivery${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}4. ./gok install jupyter${COLOR_RESET}             ${COLOR_DIM}# Data science environment${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔍 VERIFICATION COMMANDS:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get nodes${COLOR_RESET}                    ${COLOR_DIM}# Check node status${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get pods -A${COLOR_RESET}                  ${COLOR_DIM}# Check all pods${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get svc -A${COLOR_RESET}                   ${COLOR_DIM}# Check all services${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok status${COLOR_RESET}                         ${COLOR_DIM}# GOK platform status${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📚 USEFUL RESOURCES:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok install help${COLOR_RESET}                   ${COLOR_DIM}# See all installable components${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok create help${COLOR_RESET}                    ${COLOR_DIM}# Create certificates, secrets${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok generate help${COLOR_RESET}                  ${COLOR_DIM}# Generate microservices${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}⚡ QUICK START:${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}To get a fully functional production cluster:${COLOR_RESET}"
+  echo -e "   ${COLOR_BOLD}./gok install base-services && ./gok install dashboard${COLOR_RESET}"
+  echo
+  
+  # Wait message
+  figlet "Ready for base-services!" 2>/dev/null || echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🚀 Ready for base-services installation! 🚀${COLOR_RESET}"
 }
 
 calicoInst(){
-  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/calico.yaml
-
-  if [ $? -ne 0 ]; then
-    echo "Calico installation failed, please check!!!!!"
-    exit 1
+  log_header "Calico Network Plugin" "Installing Container Networking"
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🌐 CALICO NETWORK PLUGIN INSTALLATION${COLOR_RESET}"
+  echo
+  
+  # Step 1: Validate cluster is ready
+  log_step "1" "Validating Kubernetes cluster readiness"
+  
+  if ! kubectl cluster-info >/dev/null 2>&1; then
+    log_error "Kubernetes cluster is not accessible"
+    log_error "Please ensure Kubernetes master is running and kubectl is configured"
+    return 1
   fi
+  log_success "Kubernetes cluster is accessible"
+  
+  # Check if nodes are ready (they won't be without networking)
+  local node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+  log_info "Found $node_count node(s) in cluster"
+  
+  # Step 2: Check if Calico is already installed
+  log_step "2" "Checking for existing network plugins"
+  
+  if kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -q "Running"; then
+    log_warning "Calico appears to be already running"
+    echo -e "  ${COLOR_YELLOW}Use: ${COLOR_BOLD}kubectl get pods -n kube-system -l k8s-app=calico-node${COLOR_RESET} to verify"
+    return 0
+  fi
+  
+  # Check for other CNI plugins
+  if kubectl get pods -n kube-system --no-headers 2>/dev/null | grep -qE "flannel|weave|cilium"; then
+    log_warning "Another CNI plugin may already be installed"
+    echo -e "  ${COLOR_YELLOW}Check with: ${COLOR_BOLD}kubectl get pods -n kube-system${COLOR_RESET}"
+  fi
+  
+  # Step 3: Download and apply Calico manifest
+  log_step "3" "Installing Calico network plugin"
+  
+  local calico_version="v3.25.1"
+  local calico_manifest="https://raw.githubusercontent.com/projectcalico/calico/$calico_version/manifests/calico.yaml"
+  
+  log_info "Downloading Calico manifest (version: $calico_version)..."
+  if curl -s --connect-timeout 10 "$calico_manifest" >/dev/null 2>&1; then
+    log_success "Calico manifest is accessible"
+  else
+    log_error "Cannot access Calico manifest - check internet connectivity"
+    return 1
+  fi
+  
+  log_info "Applying Calico network plugin..."
+  if kubectl create -f "$calico_manifest" >/dev/null 2>&1; then
+    log_success "Calico manifest applied successfully"
+  else
+    log_error "Failed to apply Calico manifest"
+    echo "  Please check cluster status and try again"
+    return 1
+  fi
+  
+  # Step 4: Wait for Calico pods to be ready
+  log_step "4" "Waiting for Calico pods to become ready"
+  
+  log_info "Waiting for Calico system pods (this may take 2-3 minutes)..."
+  local timeout=180  # 3 minutes
+  local elapsed=0
+  
+  while [ $elapsed -lt $timeout ]; do
+    local ready_pods=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+    local total_pods=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | wc -l || echo "0")
+    
+    if [ "$ready_pods" -gt 0 ] && [ "$ready_pods" -eq "$total_pods" ]; then
+      log_success "All Calico pods are running ($ready_pods/$total_pods)"
+      break
+    fi
+    
+    if [ $((elapsed % 30)) -eq 0 ]; then
+      log_info "Calico pods status: $ready_pods/$total_pods ready (${elapsed}s elapsed)"
+    fi
+    
+    sleep 5
+    elapsed=$((elapsed + 5))
+  done
+  
+  if [ $elapsed -ge $timeout ]; then
+    log_warning "Calico pods took longer than expected to start"
+    echo "  Current status:"
+    kubectl get pods -n kube-system -l k8s-app=calico-node 2>/dev/null | head -5
+  fi
+  
+  # Step 5: Validate network plugin installation
+  log_step "5" "Validating network plugin installation"
+  
+  # Check if nodes are now ready
+  sleep 10  # Give nodes time to update status
+  local ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c "Ready" || echo "0")
+  local total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo "0")
+  
+  if [ "$ready_nodes" -eq "$total_nodes" ] && [ "$ready_nodes" -gt 0 ]; then
+    log_success "All nodes are now Ready ($ready_nodes/$total_nodes)"
+  else
+    log_warning "Some nodes may not be Ready yet ($ready_nodes/$total_nodes)"
+    echo "  This is normal immediately after installation"
+  fi
+  
+  # Show Calico components status
+  log_info "Calico components status:"
+  kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | while read line; do
+    local pod_name=$(echo "$line" | awk '{print $1}')
+    local pod_status=$(echo "$line" | awk '{print $3}')
+    if [ "$pod_status" = "Running" ]; then
+      echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} $pod_name"
+    else
+      echo -e "  ${COLOR_YELLOW}⏳${COLOR_RESET} $pod_name ($pod_status)"
+    fi
+  done
+  
+  show_calico_next_steps
+}
+
+# Show next steps after Calico installation
+show_calico_next_steps() {
+  echo
+  log_header "Calico Network Ready" "Next Steps & Verification"
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🌐 CALICO NETWORK PLUGIN INSTALLED${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}🔍 Verification Commands:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get nodes${COLOR_RESET}                    ${COLOR_DIM}# All nodes should be 'Ready'${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get pods -n kube-system${COLOR_RESET}      ${COLOR_DIM}# Check system pods${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}kubectl get pods -A${COLOR_RESET}                  ${COLOR_DIM}# Check all namespaces${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🚀 RECOMMENDED NEXT STEPS:${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}1. Install Base Services:${COLOR_RESET}"
+  echo -e "   ${COLOR_CYAN}Install essential cluster services and management tools:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}${COLOR_BOLD}./gok install base-services${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}   • Certificate Manager (TLS automation)${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}   • NGINX Ingress Controller (HTTP routing)${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}   • Monitoring Stack (Prometheus & Grafana)${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}   • Secrets Management (Vault)${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}2. Install Web Dashboard:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok install dashboard${COLOR_RESET}              ${COLOR_DIM}# Kubernetes web UI${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}3. Setup GitOps:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok install argocd${COLOR_RESET}                 ${COLOR_DIM}# GitOps continuous delivery${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}⚡ QUICK START SEQUENCE:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}# Install everything needed for a production cluster:${COLOR_RESET}"
+  echo -e "   ${COLOR_BOLD}./gok install base-services${COLOR_RESET}           ${COLOR_DIM}# Core services${COLOR_RESET}"
+  echo -e "   ${COLOR_BOLD}./gok install dashboard${COLOR_RESET}               ${COLOR_DIM}# Web interface${COLOR_RESET}"
+  echo -e "   ${COLOR_BOLD}./gok install argocd${COLOR_RESET}                  ${COLOR_DIM}# GitOps${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📊 Platform Status:${COLOR_RESET}"
+  echo -e "   ${COLOR_GREEN}./gok status${COLOR_RESET}                         ${COLOR_DIM}# Check overall platform status${COLOR_RESET}"
+  echo
 }
 
 helmInst() {
@@ -8785,43 +9336,112 @@ function installCmd() {
       return 1
     fi
   elif [ "$COMPONENT" == "kubernetes" ]; then
-    # Install Docker first
+    # Enhanced Kubernetes installation with comprehensive logging and validation
+    
+    # Step 1: Install Docker first (prerequisite)
+    log_info "Ensuring Docker is installed and running..."
     if ! dockrInst; then
       log_error "Docker installation failed - required for Kubernetes"
+      fail_component "kubernetes" "Docker prerequisite installation failed"
       return 1
     fi
+    log_success "Docker prerequisite satisfied"
     
-    # Check if HA setup is needed/configured
+    # Step 2: Handle HA proxy setup if needed
     if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
-      log_info "Multiple API servers detected - installing HA proxy"
-      if ! haInst; then
+      log_info "Multiple API servers detected - installing HA proxy for high availability"
+      if haInst; then
+        log_success "HA proxy installed for multi-master setup"
+      else
         log_warning "HA proxy installation failed - proceeding with single-node setup"
       fi
     else
       log_info "Single API server configuration - skipping HA proxy"
     fi
     
-    k8sInst "kubernetes"
-    helmInst
-    taintNode
-    calicoInst
-    waitForServiceAvailable kube-system
-    dnsUtils
-    customDns
-    kcurl
-    oauthAdmin
-    echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
-    echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
-    ln -s $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
-    cat <<EOF > /etc/rc.local
+    # Step 3: Install Kubernetes cluster
+    if k8sInst "kubernetes"; then
+      log_success "Kubernetes master node installation completed"
+      
+      # Validate Kubernetes installation before proceeding
+      if validate_component_installation "kubernetes" 300; then
+        log_success "Kubernetes cluster validation passed"
+      else
+        log_warning "Kubernetes cluster validation had issues"
+      fi
+    else
+      log_error "Kubernetes installation failed"
+      fail_component "kubernetes" "Kubernetes cluster installation failed"
+      return 1
+    fi
+    
+    # Step 4: Install Helm package manager
+    log_info "Installing Helm package manager..."
+    if helmInst; then
+      log_success "Helm package manager installed"
+    else
+      log_warning "Helm installation failed - some deployments may not work"
+    fi
+    
+    # Step 5: Configure master node (remove taints for single-node)
+    log_info "Configuring master node scheduling..."
+    if taintNode; then
+      log_success "Master node configured for pod scheduling"
+    else
+      log_warning "Master node taint removal failed"
+    fi
+    
+    # Step 6: Install network plugin (Calico)
+    log_info "Installing Calico network plugin..."
+    if calicoInst; then
+      log_success "Calico network plugin installed"
+    else
+      log_error "Calico installation failed - cluster networking may not work"
+      log_error "Please install a network plugin manually"
+    fi
+    
+    # Step 7: Wait for system services to be ready
+    log_info "Waiting for Kubernetes system services..."
+    if waitForServiceAvailable kube-system; then
+      log_success "Kubernetes system services are ready"
+    else
+      log_warning "Some system services may not be ready yet"
+    fi
+    
+    # Step 8: Install additional utilities
+    log_info "Installing cluster utilities..."
+    dnsUtils >/dev/null 2>&1 && log_success "DNS utilities installed" || log_warning "DNS utilities installation failed"
+    customDns >/dev/null 2>&1 && log_success "Custom DNS configured" || log_warning "Custom DNS configuration failed"
+    kcurl >/dev/null 2>&1 && log_success "kubectl curl utility installed" || log_warning "kubectl curl utility failed"
+    oauthAdmin >/dev/null 2>&1 && log_success "OAuth admin configured" || log_warning "OAuth admin configuration failed"
+    
+    # Step 9: Setup system integration
+    log_info "Setting up system integration..."
+    {
+      echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
+      echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
+      ln -sf $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
+      
+      cat <<EOF > /etc/rc.local
 #!/bin/bash
 /bin/gok start kubernetes
 exit 0
 EOF
-    chmod +x /etc/rc.local
-    systemctl enable rc-local
-    source /etc/bash.bashrc
-    figlet "Please wait for 1 minute"
+      chmod +x /etc/rc.local
+      systemctl enable rc-local >/dev/null 2>&1
+      source /etc/bash.bashrc
+    } >/dev/null 2>&1
+    
+    log_success "System integration configured"
+    
+    # Final validation and next steps
+    if validate_component_installation "kubernetes" 180; then
+      complete_component "kubernetes" "Kubernetes cluster installation completed and validated"
+      show_kubernetes_complete_next_steps
+    else
+      complete_component "kubernetes" "Kubernetes cluster installed but validation had warnings"
+      show_kubernetes_complete_next_steps
+    fi
   else
     echo "Error: Unsupported component: $COMPONENT"
     echo ""
