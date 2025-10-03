@@ -72,7 +72,10 @@ vault:
             {{`{{- with secret "secret/rabbitmq" -}}`}}
             {
               "username": "{{`{{ .Data.username }}`}}",
-              "password": "{{`{{ .Data.password }}`}}"
+              "password": "{{`{{ .Data.password }}`}}",
+              "host": "{{`{{ .Data.host }}`}}",
+              "port": "{{`{{ .Data.port }}`}}",
+              "virtual_host": "{{`{{ .Data.virtual_host }}`}}"
             }
             {{`{{- end }}`}}
     

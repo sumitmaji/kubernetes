@@ -66,6 +66,11 @@ RABBITMQ_K8S_NAMESPACE="rabbitmq"  # Namespace to look for RabbitMQ resources
 DRY_RUN=false
 UPDATE_EXISTING=false
 DELETE_EXISTING=false
+TEST_ENABLED=false
+TEST_AGENT_ONLY=false
+TEST_CSI_ONLY=false
+TEST_API_ONLY=false
+CLEANUP_TEST_RESOURCES=false
 
 # Counters for summary
 TOTAL_SECRETS=0
@@ -196,6 +201,9 @@ OPTIONS:
     --update               Update existing secrets (default: skip if exists)
     --delete               Delete existing secrets and recreate
     --test                 Run comprehensive tests after secret creation
+    --test-agent           Test only Vault Agent Injector integration
+    --test-csi             Test only CSI Driver integration
+    --test-api             Test only Direct API integration
     --cleanup-tests        Clean up test resources created during testing
 
 EXAMPLES:
@@ -217,6 +225,11 @@ EXAMPLES:
 
     # Run comprehensive integration tests after secret creation
     ./create_gok_vault_secrets.sh --test
+
+    # Test only specific integration methods
+    ./create_gok_vault_secrets.sh --test-agent
+    ./create_gok_vault_secrets.sh --test-csi
+    ./create_gok_vault_secrets.sh --test-api
 
     # Run tests with automatic cleanup of test resources
     ./create_gok_vault_secrets.sh --test --cleanup-tests
@@ -287,6 +300,18 @@ parse_args() {
                 ;;
             --test)
                 TEST_ENABLED=true
+                shift
+                ;;
+            --test-agent)
+                TEST_AGENT_ONLY=true
+                shift
+                ;;
+            --test-csi)
+                TEST_CSI_ONLY=true
+                shift
+                ;;
+            --test-api)
+                TEST_API_ONLY=true
                 shift
                 ;;
             --cleanup-tests)
@@ -924,6 +949,15 @@ show_configuration() {
     echo "  Update Existing: $UPDATE_EXISTING"
     echo "  Delete Existing: $DELETE_EXISTING"
     echo "  Run Tests: $TEST_ENABLED"
+    if [[ "$TEST_AGENT_ONLY" == "true" ]]; then
+        echo "  Test Mode: Agent Injector Only"
+    elif [[ "$TEST_CSI_ONLY" == "true" ]]; then
+        echo "  Test Mode: CSI Driver Only"
+    elif [[ "$TEST_API_ONLY" == "true" ]]; then
+        echo "  Test Mode: Direct API Only"
+    elif [[ "$TEST_ENABLED" == "true" ]]; then
+        echo "  Test Mode: Comprehensive (All Methods)"
+    fi
     echo "  Cleanup Tests: $CLEANUP_TEST_RESOURCES"
     echo
     echo -e "${BOLD}Vault Configuration:${NC}"
@@ -1768,11 +1802,20 @@ cleanup_test_resources() {
 
 # Run comprehensive tests
 run_comprehensive_tests() {
-    if [[ "$TEST_ENABLED" != "true" ]]; then
+    # Check if any test option is enabled
+    if [[ "$TEST_ENABLED" != "true" && "$TEST_AGENT_ONLY" != "true" && "$TEST_CSI_ONLY" != "true" && "$TEST_API_ONLY" != "true" ]]; then
         return 0
     fi
     
-    log_header "Running Comprehensive Vault Integration Tests"
+    if [[ "$TEST_ENABLED" == "true" ]]; then
+        log_header "Running Comprehensive Vault Integration Tests"
+    elif [[ "$TEST_AGENT_ONLY" == "true" ]]; then
+        log_header "Running Vault Agent Injector Tests"
+    elif [[ "$TEST_CSI_ONLY" == "true" ]]; then
+        log_header "Running Vault CSI Driver Tests"
+    elif [[ "$TEST_API_ONLY" == "true" ]]; then
+        log_header "Running Vault Direct API Tests"
+    fi
     
     init_test_tracking
     
@@ -1807,29 +1850,52 @@ run_comprehensive_tests() {
         update_test_result "controller_service_account" "FAILED"
     fi
     
-    # Test Agent Injector method for all secrets
-    log_info "Testing Agent Injector method..."
-    test_agent_injector "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "agent_injector_rabbitmq"
-    test_agent_injector "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "agent_injector_agent_config"
-    test_agent_injector "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "agent_injector_controller_config"
-    
-    # Test CSI Driver method for all secrets
-    log_info "Testing CSI Driver method..."
-    test_csi_driver "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "csi_rabbitmq"
-    test_csi_driver "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "csi_agent_config"
-    test_csi_driver "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "csi_controller_config"
-    
-    # Test API method for all secrets
-    log_info "Testing API method..."
-    test_api_method "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "api_rabbitmq"
-    test_api_method "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "api_agent_config"
-    test_api_method "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "api_controller_config"
+    # Run tests based on selected mode
+    if [[ "$TEST_ENABLED" == "true" ]]; then
+        # Run all tests (comprehensive mode)
+        run_agent_injector_tests
+        run_csi_driver_tests
+        run_api_method_tests
+    elif [[ "$TEST_AGENT_ONLY" == "true" ]]; then
+        # Run only Agent Injector tests
+        run_agent_injector_tests
+    elif [[ "$TEST_CSI_ONLY" == "true" ]]; then
+        # Run only CSI Driver tests
+        run_csi_driver_tests
+    elif [[ "$TEST_API_ONLY" == "true" ]]; then
+        # Run only API method tests
+        run_api_method_tests
+    fi
     
     # Show test results
     show_test_results
     
     # Cleanup test resources if requested
     cleanup_test_resources
+}
+
+# Run Agent Injector tests
+run_agent_injector_tests() {
+    log_info "Testing Agent Injector method..."
+    test_agent_injector "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "agent_injector_rabbitmq"
+    test_agent_injector "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "agent_injector_agent_config"
+    test_agent_injector "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "agent_injector_controller_config"
+}
+
+# Run CSI Driver tests
+run_csi_driver_tests() {
+    log_info "Testing CSI Driver method..."
+    test_csi_driver "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "csi_rabbitmq"
+    test_csi_driver "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "csi_agent_config"
+    test_csi_driver "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "csi_controller_config"
+}
+
+# Run API method tests
+run_api_method_tests() {
+    log_info "Testing API method..."
+    test_api_method "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/rabbitmq" "api_rabbitmq"
+    test_api_method "$TEST_NAMESPACE_AGENT" "$TEST_SERVICE_ACCOUNT_AGENT" "secret/gok-agent/config" "api_agent_config"
+    test_api_method "$TEST_NAMESPACE_CONTROLLER" "$TEST_SERVICE_ACCOUNT_CONTROLLER" "secret/gok-controller/config" "api_controller_config"
 }
 
 # Show test results

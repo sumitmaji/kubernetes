@@ -79,8 +79,8 @@ vault:
           template: |
             {{`{{- with secret "secret/gok-controller/config" -}}`}}
             {
-              "oauth_client_secret": "{{`{{ .Data.oauth_client_secret }}`}}",
-              "static_config": "{{`{{ .Data.static_config }}`}}"
+              "oauth_client_secret": "{{`{{ .oauth_client_secret }}`}}",
+              "static_config": "{{`{{ .static_config }}`}}"
             }
             {{`{{- end }}`}}
         # RabbitMQ credentials (can be used as fallback)
@@ -90,7 +90,10 @@ vault:
             {{`{{- with secret "secret/rabbitmq" -}}`}}
             {
               "username": "{{`{{ .Data.username }}`}}",
-              "password": "{{`{{ .Data.password }}`}}"
+              "password": "{{`{{ .Data.password }}`}}",
+              "host": "{{`{{ .Data.host }}`}}",
+              "port": "{{`{{ .Data.port }}`}}",
+              "virtual_host": "{{`{{ .Data.virtual_host }}`}}"
             }
             {{`{{- end }}`}}
     
