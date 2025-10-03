@@ -2040,53 +2040,404 @@ chartInst() {
 }
 
 dockrInst() {
-
-  echo "Installing docker"
-  apt-get install -y \
+  log_section "Docker Container Runtime Installation" "$EMOJI_PACKAGE"
+  
+  # Pre-installation validation
+  log_step "1" "Validating system requirements for Docker"
+  
+  # Check if running as root or with sudo
+  if [[ $EUID -ne 0 ]]; then
+    log_error "Docker installation requires root privileges"
+    return 1
+  fi
+  
+  # Check system compatibility
+  local os_info=$(lsb_release -d 2>/dev/null | cut -f2 || echo "Unknown")
+  log_info "Operating System: $os_info"
+  
+  # Check if Docker is already installed
+  if command -v docker >/dev/null 2>&1; then
+    local docker_version=$(docker --version 2>/dev/null | cut -d' ' -f3 | cut -d',' -f1)
+    log_warning "Docker is already installed (version: $docker_version)"
+    
+    # Validate existing installation
+    if validate_docker_installation; then
+      log_success "Existing Docker installation is working correctly"
+      show_docker_next_steps
+      return 0
+    else
+      log_warning "Existing Docker installation has issues, proceeding with reinstallation"
+    fi
+  fi
+  
+  # Step 2: Install prerequisites
+  log_step "2" "Installing Docker prerequisites and dependencies"
+  log_substep "Installing required packages"
+  
+  if ! apt-get update; then
+    log_error "Failed to update package list"
+    return 1
+  fi
+  
+  if ! apt-get install -y \
     apt-transport-https \
     ca-certificates \
     curl \
-    software-properties-common
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-  sudo install -m 0755 -d /etc/apt/keyrings
-  sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-  sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-  # Add the repository to Apt sources:
-  echo \
+    software-properties-common \
+    gnupg \
+    lsb-release; then
+    log_error "Failed to install prerequisite packages"
+    return 1
+  fi
+  
+  log_success "Prerequisites installed successfully"
+  
+  # Step 3: Add Docker repository
+  log_step "3" "Adding Docker official repository"
+  
+  log_substep "Creating keyrings directory"
+  if ! sudo install -m 0755 -d /etc/apt/keyrings; then
+    log_error "Failed to create keyrings directory"
+    return 1
+  fi
+  
+  log_substep "Adding Docker GPG key"
+  if ! sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc; then
+    log_error "Failed to download Docker GPG key"
+    return 1
+  fi
+  
+  if ! sudo chmod a+r /etc/apt/keyrings/docker.asc; then
+    log_error "Failed to set permissions on Docker GPG key"
+    return 1
+  fi
+  
+  log_substep "Adding Docker repository to sources"
+  if ! echo \
     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
     $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  sudo apt-get update
-
-  apt-get update && apt-get install -y \
-    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-  # Create required directories
-  sudo mkdir -p /etc/systemd/system/docker.service.d
-
-  # Create daemon json config file
-  sudo tee /etc/docker/daemon.json <<EOF
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null; then
+    log_error "Failed to add Docker repository"
+    return 1
+  fi
+  
+  log_substep "Updating package list with Docker repository"
+  if ! sudo apt-get update; then
+    log_error "Failed to update package list after adding Docker repository"
+    return 1
+  fi
+  
+  log_success "Docker repository added successfully"
+  
+  # Step 4: Install Docker Engine
+  log_step "4" "Installing Docker Engine and components"
+  
+  local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+  log_substep "Installing: $docker_packages"
+  
+  if ! apt-get install -y $docker_packages; then
+    log_error "Failed to install Docker packages"
+    return 1
+  fi
+  
+  log_success "Docker Engine installed successfully"
+  
+  # Step 5: Configure Docker daemon
+  log_step "5" "Configuring Docker daemon for Kubernetes compatibility"
+  
+  log_substep "Creating systemd service directory"
+  if ! sudo mkdir -p /etc/systemd/system/docker.service.d; then
+    log_error "Failed to create Docker systemd directory"
+    return 1
+  fi
+  
+  log_substep "Creating Docker daemon configuration"
+  if ! sudo tee /etc/docker/daemon.json <<EOF
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
   "log-driver": "json-file",
   "log-opts": {
-    "max-size": "100m"
+    "max-size": "100m",
+    "max-file": "3"
   },
-  "storage-driver": "overlay2"
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true"
+  ],
+  "live-restore": true,
+  "default-address-pools": [
+    {
+      "base": "172.17.0.0/12",
+      "size": 24
+    }
+  ]
 }
 EOF
+  then
+    log_error "Failed to create Docker daemon configuration"
+    return 1
+  fi
+  
+  log_success "Docker daemon configured for Kubernetes"
+  
+  # Step 6: Configure and start services
+  log_step "6" "Starting and enabling Docker services"
+  
+  log_substep "Reloading systemd daemon"
+  if ! sudo systemctl daemon-reload; then
+    log_error "Failed to reload systemd daemon"
+    return 1
+  fi
+  
+  log_substep "Starting Docker service"
+  if ! sudo systemctl start docker; then
+    log_error "Failed to start Docker service"
+    return 1
+  fi
+  
+  log_substep "Enabling Docker service for auto-start"
+  if ! sudo systemctl enable docker; then
+    log_error "Failed to enable Docker service"
+    return 1
+  fi
+  
+  # Configure containerd
+  log_substep "Configuring containerd for Kubernetes"
+  
+  if ! sudo systemctl enable containerd; then
+    log_error "Failed to enable containerd service"
+    return 1
+  fi
+  
+  if ! sudo systemctl start containerd; then
+    log_error "Failed to start containerd service"
+    return 1
+  fi
+  
+  # Remove default containerd config to use defaults
+  if [[ -f /etc/containerd/config.toml ]]; then
+    log_substep "Removing default containerd configuration"
+    sudo rm /etc/containerd/config.toml
+    sudo systemctl restart containerd
+  fi
+  
+  log_success "Docker and containerd services started successfully"
+  
+  # Step 7: Post-installation validation
+  log_step "7" "Validating Docker installation"
+  
+  if validate_docker_installation; then
+    log_success "Docker installation validation passed"
+  else
+    log_error "Docker installation validation failed"
+    return 1
+  fi
+  
+  # Step 8: Set up user permissions (if not root)
+  if [[ -n "$SUDO_USER" ]]; then
+    log_step "8" "Configuring user permissions for Docker"
+    log_substep "Adding user $SUDO_USER to docker group"
+    
+    if ! sudo usermod -aG docker "$SUDO_USER"; then
+      log_warning "Failed to add user to docker group - manual setup may be required"
+    else
+      log_success "User $SUDO_USER added to docker group"
+      log_info "User $SUDO_USER will need to log out and back in for group membership to take effect"
+    fi
+  fi
+  
+  # Show Docker information
+  local docker_version=$(docker --version | cut -d' ' -f3 | cut -d',' -f1)
+  local containerd_version=$(containerd --version | cut -d' ' -f3)
+  
+  log_success "Docker installation completed successfully!"
+  log_info "Docker version: $docker_version"
+  log_info "Containerd version: $containerd_version"
+  
+  # Show next steps
+  show_docker_next_steps
+  
+  return 0
+}
 
-  # Start and enable Services
-  sudo systemctl daemon-reload
-  sudo systemctl restart docker
-  sudo systemctl enable docker
+# Docker installation validation function
+validate_docker_installation() {
+  log_substep "Checking Docker daemon status"
+  if ! sudo systemctl is-active --quiet docker; then
+    log_error "Docker service is not running"
+    return 1
+  fi
+  
+  log_substep "Checking containerd status"
+  if ! sudo systemctl is-active --quiet containerd; then
+    log_error "Containerd service is not running"
+    return 1
+  fi
+  
+  log_substep "Testing Docker functionality"
+  if ! docker info >/dev/null 2>&1; then
+    log_error "Docker daemon is not responding properly"
+    return 1
+  fi
+  
+  log_substep "Testing container creation"
+  if ! timeout 30 docker run --rm hello-world >/dev/null 2>&1; then
+    log_warning "Docker hello-world test failed - may need internet connectivity"
+  else
+    log_substep "Container test passed"
+  fi
+  
+  log_substep "Checking Docker configuration"
+  local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
+  if [[ "$cgroup_driver" != "systemd" ]]; then
+    log_warning "Docker cgroup driver is not set to systemd (current: $cgroup_driver)"
+  else
+    log_substep "Cgroup driver correctly set to systemd"
+  fi
+  
+  return 0
+}
 
-  # Start and enable containerd services
-  sudo systemctl enable containerd
-  sudo systemctl start containerd
-  sudo rm /etc/containerd/config.toml
-  sudo systemctl restart containerd
+# Show Docker next steps
+show_docker_next_steps() {
+  log_next_steps "Docker Installation Complete" \
+    "Test Docker functionality: docker run hello-world" \
+    "Check Docker service status: systemctl status docker" \
+    "View Docker system information: docker info" \
+    "Verify container runtime: docker version" \
+    "Install Kubernetes cluster: gok install kubernetes"
+  
+  log_urls "Docker Resources & Documentation" \
+    "Docker Documentation: https://docs.docker.com/" \
+    "Docker Hub Registry: https://hub.docker.com/" \
+    "Kubernetes Container Runtime Guide: https://kubernetes.io/docs/setup/production-environment/container-runtimes/" \
+    "Docker Best Practices: https://docs.docker.com/develop/best-practices/"
+  
+  log_credentials "Docker Management" "Current User" \
+    "Docker group membership: Required for non-root access" \
+    "Restart required: Log out and back in to apply group changes" \
+    "Test access: docker ps (should work without sudo)"
+  
+  # Enhanced HA proxy detection and recommendation
+  check_and_suggest_ha_setup
+  
+  log_info "Docker container runtime is now ready for Kubernetes installation"
+  
+  # Show Docker system status
+  show_docker_system_status
+}
+
+# Enhanced HA setup detection and suggestions
+check_and_suggest_ha_setup() {
+  local suggest_ha=false
+  local ha_reason=""
+  
+  # Check for multiple API servers configuration
+  if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
+    suggest_ha=true
+    local server_count=$(echo "$API_SERVERS" | tr ',' '\n' | wc -l)
+    ha_reason="Multiple API servers detected ($server_count servers) in API_SERVERS configuration"
+  fi
+  
+  # Check for multiple network interfaces (potential multi-node setup)
+  local interface_count=$(ip route | grep -E "^[0-9]" | wc -l)
+  if [[ $interface_count -gt 2 ]]; then
+    suggest_ha=true
+    ha_reason="${ha_reason:+$ha_reason; }Multiple network interfaces detected (potential multi-node setup)"
+  fi
+  
+  # Check available RAM (high RAM might indicate server-class machine)
+  local total_ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+  if [[ $total_ram_gb -gt 8 ]]; then
+    suggest_ha=true
+    ha_reason="${ha_reason:+$ha_reason; }High RAM detected (${total_ram_gb}GB) - suitable for HA setup"
+  fi
+  
+  if [[ "$suggest_ha" == "true" ]]; then
+    echo
+    log_header "High Availability Recommendation" "Multi-Master Kubernetes Setup Detected"
+    
+    log_warning "HA setup recommended: $ha_reason"
+    
+    log_next_steps "High Availability Container Setup" \
+      "Set up API servers: export API_SERVERS='192.168.1.10:master1,192.168.1.11:master2,192.168.1.12:master3'" \
+      "Configure HA proxy port: export HA_PROXY_PORT=8443 (optional, defaults to 8443)" \
+      "Install HA proxy container: Call haInst() function or use manual setup" \
+      "Verify HA proxy: docker ps | grep master-proxy" \
+      "Proceed with Kubernetes: gok install kubernetes (will use HA endpoint)"
+    
+    log_urls "HA Container Management" \
+      "HA Proxy Configuration: /opt/haproxy.cfg" \
+      "Container Logs: docker logs master-proxy" \
+      "HA Endpoint: https://localhost:\${HA_PROXY_PORT:-8443}"
+    
+    log_info "HA proxy container will provide load balancing and failover for Kubernetes API servers"
+    
+    # Show how to call haInst function
+    echo
+    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 Ready to set up HA proxy container?${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}Run the following commands:${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_GREEN}${COLOR_BOLD}# Configure your API servers${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}export API_SERVERS='192.168.1.10:master1,192.168.1.11:master2,192.168.1.12:master3'${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_GREEN}${COLOR_BOLD}# Set up HA proxy container${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}haInst  # Call the HA installation function directly${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_GREEN}${COLOR_BOLD}# Or configure manually and install Kubernetes${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}gok install kubernetes  # Will detect HA setup automatically${COLOR_RESET}"
+    echo
+  else
+    log_info "Single-node setup detected - HA proxy not required for basic installation"
+    
+    if [[ -z "$API_SERVERS" ]]; then
+      log_info "To enable HA setup later, configure: export API_SERVERS='ip1:node1,ip2:node2'"
+    fi
+  fi
+}
+
+# Show Docker system status
+show_docker_system_status() {
+  echo
+  log_section "Docker System Status" "$EMOJI_CHECKMARK"
+  
+  # Docker daemon status
+  if systemctl is-active --quiet docker; then
+    log_success "Docker daemon: Running"
+  else
+    log_error "Docker daemon: Not running"
+  fi
+  
+  # Containerd status
+  if systemctl is-active --quiet containerd; then
+    log_success "Containerd: Running"
+  else
+    log_error "Containerd: Not running"
+  fi
+  
+  # Docker version info
+  local docker_version=$(docker --version 2>/dev/null | cut -d' ' -f3 | cut -d',' -f1)
+  local containerd_version=$(containerd --version 2>/dev/null | cut -d' ' -f3)
+  
+  log_info "Docker version: ${docker_version:-Unknown}"
+  log_info "Containerd version: ${containerd_version:-Unknown}"
+  
+  # Docker configuration check
+  local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
+  if [[ "$cgroup_driver" == "systemd" ]]; then
+    log_success "Cgroup driver: systemd (Kubernetes compatible)"
+  else
+    log_warning "Cgroup driver: $cgroup_driver (may need systemd for Kubernetes)"
+  fi
+  
+  # Storage driver check
+  local storage_driver=$(docker info 2>/dev/null | grep "Storage Driver" | cut -d: -f2 | tr -d ' ')
+  log_info "Storage driver: ${storage_driver:-Unknown}"
+  
+  # Container count
+  local running_containers=$(docker ps -q | wc -l)
+  local total_containers=$(docker ps -aq | wc -l)
+  log_info "Containers: $running_containers running, $total_containers total"
 }
 
 customDns() {
@@ -2571,55 +2922,283 @@ certManagerReset() {
 }
 
 haInst() {
-  docker stop master-proxy
-  docker rm master-proxy
-  cat <<EOF >/opt/haproxy.cfg
+  log_section "High Availability Proxy Installation" "$EMOJI_NETWORK"
+  
+  # Pre-installation validation
+  log_step "1" "Validating HA proxy requirements"
+  
+  # Check if Docker is installed and running
+  if ! command -v docker >/dev/null 2>&1; then
+    log_error "Docker is required for HA proxy but not installed"
+    log_info "Install Docker first: gok install docker"
+    return 1
+  fi
+  
+  if ! docker info >/dev/null 2>&1; then
+    log_error "Docker is installed but not running"
+    log_info "Start Docker: systemctl start docker"
+    return 1
+  fi
+  
+  log_success "Docker is available and running"
+  
+  # Check if API_SERVERS is configured
+  if [[ -z "$API_SERVERS" ]]; then
+    log_error "API_SERVERS environment variable is not set"
+    log_info "Set API_SERVERS with comma-separated master nodes: export API_SERVERS='192.168.1.10:master1,192.168.1.11:master2'"
+    return 1
+  fi
+  
+  # Validate API_SERVERS format and count
+  local server_count=$(echo "$API_SERVERS" | tr ',' '\n' | wc -l)
+  if [[ $server_count -lt 2 ]]; then
+    log_warning "Only $server_count API server configured - HA proxy is recommended for 2+ servers"
+    log_info "Current API_SERVERS: $API_SERVERS"
+  else
+    log_success "Multiple API servers detected ($server_count servers) - HA setup recommended"
+    log_info "API servers: $API_SERVERS"
+  fi
+  
+  # Set default HA proxy port if not specified
+  if [[ -z "$HA_PROXY_PORT" ]]; then
+    export HA_PROXY_PORT=8443
+    log_info "Using default HA proxy port: $HA_PROXY_PORT"
+  else
+    log_info "Using configured HA proxy port: $HA_PROXY_PORT"
+  fi
+  
+  # Step 2: Stop existing proxy if running
+  log_step "2" "Cleaning up existing HA proxy container"
+  
+  if docker ps -a --format "table {{.Names}}" | grep -q "master-proxy"; then
+    log_substep "Stopping existing master-proxy container"
+    docker stop master-proxy >/dev/null 2>&1 || true
+    
+    log_substep "Removing existing master-proxy container"
+    docker rm master-proxy >/dev/null 2>&1 || true
+    
+    log_success "Existing proxy container cleaned up"
+  else
+    log_info "No existing proxy container found"
+  fi
+  
+  # Step 3: Generate HAProxy configuration
+  log_step "3" "Generating HAProxy configuration"
+  
+  log_substep "Creating HAProxy configuration file at /opt/haproxy.cfg"
+  
+  if ! cat <<EOF >/opt/haproxy.cfg
 global
         log 127.0.0.1 local0
         log 127.0.0.1 local1 notice
         maxconn 4096
         maxpipes 1024
         daemon
+        user haproxy
+        group haproxy
+
 defaults
         log global
         mode tcp
         option tcplog
         option dontlognull
         option redispatch
-        option http-server-close
         retries 3
-        timeout connect 5000
-        timeout client 50000
-        timeout server 50000
-        frontend default_frontend
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+        
+frontend kubernetes-apiserver
         bind *:$HA_PROXY_PORT
-        default_backend master-cluster
-backend master-cluster
-$(#Install master nodes
+        mode tcp
+        option tcplog
+        default_backend kubernetes-apiserver
+
+backend kubernetes-apiserver
+        mode tcp
+        balance roundrobin
+        option tcp-check
+        option tcplog
+$(
+    # Generate backend servers from API_SERVERS
     IFS=','
     counter=0
-    cluster=""
     for worker in $API_SERVERS; do
       oifs=$IFS
       IFS=':'
       read -r ip node <<<"$worker"
-      if [ -z "$cluster" ]; then
-        cluster="$ip:6443"
-      else
-        cluster="$cluster,http://$ip:4001"
-      fi
       counter=$((counter + 1))
+      echo "        server $node $ip:6443 check fall 3 rise 2"
       IFS=$oifs
-      echo "        server master-$counter ${cluster} check"
-      cluster=""
     done
     unset IFS
-  )
+)
 EOF
-
-  docker run -d --name master-proxy \
+  then
+    log_error "Failed to create HAProxy configuration file"
+    return 1
+  fi
+  
+  log_success "HAProxy configuration generated"
+  
+  # Display configuration summary
+  log_info "Configuration summary:"
+  log_substep "Frontend port: $HA_PROXY_PORT"
+  log_substep "Backend servers:"
+  
+  IFS=','
+  counter=0
+  for worker in $API_SERVERS; do
+    oifs=$IFS
+    IFS=':'
+    read -r ip node <<<"$worker"
+    counter=$((counter + 1))
+    log_substep "  $counter. $node ($ip:6443)"
+    IFS=$oifs
+  done
+  unset IFS
+  
+  # Step 4: Pull HAProxy image
+  log_step "4" "Pulling HAProxy Docker image"
+  
+  if ! docker pull haproxy:latest; then
+    log_error "Failed to pull HAProxy Docker image"
+    return 1
+  fi
+  
+  log_success "HAProxy image pulled successfully"
+  
+  # Step 5: Start HAProxy container
+  log_step "5" "Starting HAProxy container"
+  
+  log_substep "Running HAProxy container with host networking"
+  
+  if ! docker run -d --name master-proxy \
+    --restart=unless-stopped \
     -v /opt/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
-    --net=host haproxy
+    --net=host \
+    haproxy:latest; then
+    log_error "Failed to start HAProxy container"
+    return 1
+  fi
+  
+  log_success "HAProxy container started successfully"
+  
+  # Step 6: Validate installation
+  log_step "6" "Validating HA proxy installation"
+  
+  # Wait a moment for container to start
+  sleep 3
+  
+  if validate_haproxy_installation; then
+    log_success "HA proxy installation validation passed"
+  else
+    log_error "HA proxy installation validation failed"
+    return 1
+  fi
+  
+  # Show next steps
+  show_haproxy_next_steps
+  
+  return 0
+}
+
+# HAProxy installation validation
+validate_haproxy_installation() {
+  log_substep "Checking HAProxy container status"
+  if ! docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q "master-proxy.*Up"; then
+    log_error "HAProxy container is not running"
+    docker logs master-proxy 2>&1 | tail -5 | while read line; do
+      log_error "Container log: $line"
+    done
+    return 1
+  fi
+  
+  log_substep "Checking HAProxy port binding"
+  if ! netstat -tlnp 2>/dev/null | grep -q ":$HA_PROXY_PORT.*LISTEN" && ! ss -tlnp 2>/dev/null | grep -q ":$HA_PROXY_PORT.*LISTEN"; then
+    log_error "HAProxy is not listening on port $HA_PROXY_PORT"
+    return 1
+  fi
+  
+  log_substep "Testing HAProxy configuration"
+  if ! docker exec master-proxy haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg >/dev/null 2>&1; then
+    log_error "HAProxy configuration validation failed"
+    return 1
+  fi
+  
+  log_substep "Checking backend server connectivity"
+  local healthy_backends=0
+  local total_backends=0
+  
+  IFS=','
+  for worker in $API_SERVERS; do
+    oifs=$IFS
+    IFS=':'
+    read -r ip node <<<"$worker"
+    total_backends=$((total_backends + 1))
+    
+    if timeout 5 nc -z "$ip" 6443 2>/dev/null; then
+      log_substep "  Backend $node ($ip:6443): ${EMOJI_SUCCESS} Reachable"
+      healthy_backends=$((healthy_backends + 1))
+    else
+      log_substep "  Backend $node ($ip:6443): ${EMOJI_WARNING} Not reachable (may not be ready yet)"
+    fi
+    IFS=$oifs
+  done
+  unset IFS
+  
+  if [[ $healthy_backends -eq 0 ]]; then
+    log_warning "No backend servers are currently reachable"
+    log_info "This is normal if Kubernetes masters are not yet installed"
+  else
+    log_success "$healthy_backends out of $total_backends backend servers are reachable"
+  fi
+  
+  return 0
+}
+
+# Show HAProxy next steps
+show_haproxy_next_steps() {
+  log_next_steps "HA Proxy Installation Complete" \
+    "Check proxy status: docker ps | grep master-proxy" \
+    "View proxy logs: docker logs master-proxy" \
+    "Test connectivity: curl -k https://localhost:$HA_PROXY_PORT/healthz" \
+    "Install Kubernetes masters using HA endpoint" \
+    "Configure kubectl to use HA endpoint: https://localhost:$HA_PROXY_PORT"
+  
+  log_urls "HA Proxy Access Points" \
+    "Load Balancer Endpoint: https://localhost:$HA_PROXY_PORT" \
+    "HAProxy Stats: http://localhost:$HA_PROXY_PORT/stats (if enabled)" \
+    "Configuration File: /opt/haproxy.cfg"
+  
+  log_credentials "HA Proxy Management" "docker" \
+    "Container name: master-proxy" \
+    "Restart: docker restart master-proxy" \
+    "Stop: docker stop master-proxy"
+  
+  log_info "HA proxy is now load balancing across $(($(echo "$API_SERVERS" | tr ',' '\n' | wc -l))) Kubernetes API servers"
+  
+  log_troubleshooting "HA Proxy" \
+    "Check container logs: docker logs master-proxy" \
+    "Verify port availability: netstat -tlnp | grep $HA_PROXY_PORT" \
+    "Test backend connectivity: nc -z <backend-ip> 6443" \
+    "Validate configuration: docker exec master-proxy haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg" \
+    "Restart proxy: docker restart master-proxy"
+  
+  echo
+  log_header "Kubernetes Installation with HA" "Ready for Multi-Master Setup"
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Your HA proxy is ready! Next steps:${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_CYAN}1. ${COLOR_BOLD}Install first Kubernetes master:${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}Use the HA proxy endpoint for --control-plane-endpoint${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_CYAN}2. ${COLOR_BOLD}Join additional masters:${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}Each additional master will connect through the HA proxy${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_CYAN}3. ${COLOR_BOLD}Configure kubectl:${COLOR_RESET}"
+  echo -e "   ${COLOR_DIM}Point kubectl to https://localhost:$HA_PROXY_PORT${COLOR_RESET}"
+  echo
 }
 
 startKubelet() {
@@ -7321,6 +7900,7 @@ function installCmd() {
     echo ""
     echo "Core Infrastructure:"
     echo "  docker            Docker container runtime"
+    echo "  haproxy           HA proxy container for load balancing (aliases: ha-proxy, ha)"
     echo "  kubernetes        Complete Kubernetes cluster with HA"
     echo "  kubernetes-worker Kubernetes worker node"
     echo "  cert-manager      Certificate management and TLS automation"
@@ -7581,9 +8161,35 @@ function installCmd() {
     k8sInst "kubernetes-worker"
   elif [ "$COMPONENT" == "base-services" ]; then
     installBaseServices
+  elif [ "$COMPONENT" == "haproxy" ] || [ "$COMPONENT" == "ha-proxy" ] || [ "$COMPONENT" == "ha" ]; then
+    if haInst; then
+      if validate_haproxy_installation; then
+        complete_component "haproxy" "HA proxy installation completed and validated"
+        show_haproxy_next_steps
+      else
+        complete_component "haproxy" "HA proxy installed but validation had warnings"
+      fi
+    else
+      fail_component "haproxy" "HA proxy installation failed"
+      return 1
+    fi
   elif [ "$COMPONENT" == "kubernetes" ]; then
-    dockrInst
-    haInst
+    # Install Docker first
+    if ! dockrInst; then
+      log_error "Docker installation failed - required for Kubernetes"
+      return 1
+    fi
+    
+    # Check if HA setup is needed/configured
+    if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
+      log_info "Multiple API servers detected - installing HA proxy"
+      if ! haInst; then
+        log_warning "HA proxy installation failed - proceeding with single-node setup"
+      fi
+    else
+      log_info "Single API server configuration - skipping HA proxy"
+    fi
+    
     k8sInst "kubernetes"
     helmInst
     taintNode
@@ -8228,7 +8834,7 @@ _gok_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
   local commands="install reset start deploy patch create generate bash desc logs status taint-node completion help"
-  local install_components="interactive wizard docker kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  local install_components="interactive wizard docker haproxy ha-proxy ha kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
   local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
   local start_components="kubernetes proxy kubelet"
   local deploy_components="app1"
