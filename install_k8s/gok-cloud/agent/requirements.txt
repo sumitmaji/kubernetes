@@ -1,3 +1,4 @@
 pika
 requests
 python-jose
+PyYAML
