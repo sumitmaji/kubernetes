@@ -318,17 +318,36 @@ execute_with_suppression() {
         return 0
     else
         local exit_code=$?
-        # On failure, display the error logs
+        echo
+        echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}${COLOR_BOLD}│ ${EMOJI_ERROR} COMMAND EXECUTION FAILED - DEBUGGING INFORMATION ${COLOR_RESET}${COLOR_RED}${COLOR_BOLD}│${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_GEAR} Failed Command:${COLOR_RESET}" >&2
+        echo -e "${COLOR_WHITE}  $*${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_CROSS} Exit Code: ${COLOR_RED}$exit_code${COLOR_RESET}" >&2
+        
+        # Show error output if available
         if [[ -s "$error_file" ]]; then
-            echo -e "${COLOR_RED}${COLOR_BOLD}${EMOJI_ERROR} Command failed with errors:${COLOR_RESET}" >&2
-            echo -e "${COLOR_RED}Command: $*${COLOR_RESET}" >&2
-            echo -e "${COLOR_RED}Error output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}${COLOR_BOLD}${EMOJI_ERROR} Error Output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
             cat "$error_file" >&2
+            echo -e "${COLOR_RED}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
         fi
+        
+        # Show standard output if available (may contain useful debugging info)
         if [[ -s "$temp_file" ]]; then
-            echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_WARNING} Additional output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_INFO} Standard Output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_YELLOW}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
             cat "$temp_file" >&2
+            echo -e "${COLOR_YELLOW}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
         fi
+        
+        echo -e "${COLOR_CYAN}${COLOR_BOLD}${EMOJI_LIGHTBULB} Debugging Tips:${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• Check system logs: journalctl -u kubelet${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• Verify resources: kubectl get all -A${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• Check events: kubectl get events --sort-by='.lastTimestamp'${COLOR_RESET}" >&2
+        echo
+        
         rm -f "$temp_file" "$error_file"
         return $exit_code
     fi
@@ -366,15 +385,39 @@ helm_install_with_summary() {
         return 0
     else
         local exit_code=$?
-        log_error "Helm installation failed for $component"
+        echo
+        echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}${COLOR_BOLD}│ ${EMOJI_ERROR} HELM INSTALLATION FAILED - DEBUGGING INFORMATION${COLOR_RESET}${COLOR_RED}${COLOR_BOLD} │${COLOR_RESET}" >&2  
+        echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_PACKAGE} Component: ${COLOR_WHITE}$component${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_NETWORK} Namespace: ${COLOR_WHITE}$namespace${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_CROSS} Exit Code: ${COLOR_RED}$exit_code${COLOR_RESET}" >&2
+        
+        # Show Helm-specific error details
         if [[ -s "$error_file" ]]; then
-            echo -e "${COLOR_RED}${COLOR_BOLD}Error details:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}${COLOR_BOLD}${EMOJI_ERROR} Helm Error Details:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
             cat "$error_file" >&2
+            echo -e "${COLOR_RED}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
         fi
+        
+        # Show full Helm output for debugging
         if [[ -s "$temp_file" ]]; then
-            echo -e "${COLOR_YELLOW}${COLOR_BOLD}Additional output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_INFO} Full Helm Output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_YELLOW}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
             cat "$temp_file" >&2
+            echo -e "${COLOR_YELLOW}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
         fi
+        
+        # Show helpful debugging commands
+        echo -e "${COLOR_CYAN}${COLOR_BOLD}${EMOJI_TOOLS} Debugging Commands:${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• helm list -A${COLOR_RESET} ${COLOR_DIM}(check all releases)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• helm status $component -n $namespace${COLOR_RESET} ${COLOR_DIM}(check release status)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• kubectl get pods -n $namespace${COLOR_RESET} ${COLOR_DIM}(check pods)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• kubectl describe pods -n $namespace${COLOR_RESET} ${COLOR_DIM}(pod details)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• kubectl logs -n $namespace -l app=$component${COLOR_RESET} ${COLOR_DIM}(application logs)${COLOR_RESET}" >&2
+        echo
+        
         rm -f "$temp_file" "$error_file"
         return $exit_code
     fi
@@ -401,11 +444,39 @@ helm_uninstall_with_summary() {
         return 0
     else
         local exit_code=$?
-        log_error "Helm uninstallation failed for $component"
+        echo
+        echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}${COLOR_BOLD}│ ${EMOJI_ERROR} HELM UNINSTALLATION FAILED - DEBUGGING INFORMATION ${COLOR_RESET}${COLOR_RED}${COLOR_BOLD}│${COLOR_RESET}" >&2  
+        echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_PACKAGE} Component: ${COLOR_WHITE}$component${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_NETWORK} Namespace: ${COLOR_WHITE}$namespace${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_CROSS} Exit Code: ${COLOR_RED}$exit_code${COLOR_RESET}" >&2
+        
+        # Show Helm uninstall error details
         if [[ -s "$error_file" ]]; then
-            echo -e "${COLOR_RED}${COLOR_BOLD}Error details:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}${COLOR_BOLD}${EMOJI_ERROR} Helm Error Details:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════${COLOR_RESET}" >&2
             cat "$error_file" >&2
+            echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════${COLOR_RESET}" >&2
         fi
+        
+        # Show Helm output if available
+        if [[ -s "$temp_file" ]]; then
+            echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_INFO} Helm Output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_YELLOW}══════════════════════════════════════════════════════════════${COLOR_RESET}" >&2
+            cat "$temp_file" >&2
+            echo -e "${COLOR_YELLOW}══════════════════════════════════════════════════════════════${COLOR_RESET}" >&2
+        fi
+        
+        # Show helpful debugging commands for uninstallation issues
+        echo -e "${COLOR_CYAN}${COLOR_BOLD}${EMOJI_TOOLS} Debugging Commands:${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• helm list -A${COLOR_RESET} ${COLOR_DIM}(check all releases)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• helm status $component -n $namespace${COLOR_RESET} ${COLOR_DIM}(check release status)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• kubectl get all -n $namespace${COLOR_RESET} ${COLOR_DIM}(check remaining resources)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• kubectl delete namespace $namespace --force --grace-period=0${COLOR_RESET} ${COLOR_DIM}(force namespace deletion)${COLOR_RESET}" >&2
+        echo -e "  ${COLOR_CYAN}• helm uninstall $component -n $namespace --no-hooks${COLOR_RESET} ${COLOR_DIM}(skip hooks)${COLOR_RESET}" >&2
+        echo
+        
         rm -f "$temp_file" "$error_file"
         return $exit_code
     fi
@@ -436,11 +507,49 @@ kubectl_with_summary() {
         return 0
     else
         local exit_code=$?
-        log_error "kubectl $operation failed for $resource_type"
+        echo
+        echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}${COLOR_BOLD}│ ${EMOJI_ERROR} KUBECTL OPERATION FAILED - DEBUGGING INFORMATION${COLOR_RESET}${COLOR_RED}${COLOR_BOLD} │${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_GEAR} Operation: ${COLOR_WHITE}kubectl $operation${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_PACKAGE} Resource: ${COLOR_WHITE}$resource_type${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_CROSS} Exit Code: ${COLOR_RED}$exit_code${COLOR_RESET}" >&2
+        
+        # Show kubectl error details
         if [[ -s "$error_file" ]]; then
-            echo -e "${COLOR_RED}${COLOR_BOLD}Error details:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}${COLOR_BOLD}${EMOJI_ERROR} kubectl Error Details:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
             cat "$error_file" >&2
+            echo -e "${COLOR_RED}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
         fi
+        
+        # Show kubectl output if available
+        if [[ -s "$temp_file" ]]; then
+            echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_INFO} kubectl Output:${COLOR_RESET}" >&2
+            echo -e "${COLOR_YELLOW}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
+            cat "$temp_file" >&2
+            echo -e "${COLOR_YELLOW}═══════════════════════════════════════════════════════════${COLOR_RESET}" >&2
+        fi
+        
+        # Show helpful debugging commands based on operation type
+        echo -e "${COLOR_CYAN}${COLOR_BOLD}${EMOJI_TOOLS} Debugging Commands:${COLOR_RESET}" >&2
+        case "$operation" in
+            "apply"|"create")
+                echo -e "  ${COLOR_CYAN}• kubectl get events --sort-by='.lastTimestamp'${COLOR_RESET} ${COLOR_DIM}(recent events)${COLOR_RESET}" >&2
+                echo -e "  ${COLOR_CYAN}• kubectl describe $resource_type${COLOR_RESET} ${COLOR_DIM}(resource details)${COLOR_RESET}" >&2
+                ;;
+            "delete")
+                echo -e "  ${COLOR_CYAN}• kubectl get $resource_type${COLOR_RESET} ${COLOR_DIM}(check if still exists)${COLOR_RESET}" >&2
+                echo -e "  ${COLOR_CYAN}• kubectl patch $resource_type <name> -p '{\"metadata\":{\"finalizers\":null}}'${COLOR_RESET} ${COLOR_DIM}(force delete)${COLOR_RESET}" >&2
+                ;;
+            *)
+                echo -e "  ${COLOR_CYAN}• kubectl get all -A${COLOR_RESET} ${COLOR_DIM}(check all resources)${COLOR_RESET}" >&2
+                echo -e "  ${COLOR_CYAN}• kubectl cluster-info${COLOR_RESET} ${COLOR_DIM}(cluster status)${COLOR_RESET}" >&2
+                ;;
+        esac
+        echo -e "  ${COLOR_CYAN}• kubectl version${COLOR_RESET} ${COLOR_DIM}(check kubectl/cluster versions)${COLOR_RESET}" >&2
+        echo
+        
         rm -f "$temp_file" "$error_file"
         return $exit_code
     fi
@@ -10286,14 +10395,22 @@ kubeloginInst(){
 }
 
 kyvernoInst(){
-  helm repo add kyverno https://kyverno.github.io/kyverno/
-  helm repo update
-  helm install kyverno --namespace kyverno kyverno/kyverno --create-namespace
-  waitForServiceAvailable kyverno
-  sleep 10
-
-  #grants the cluster-admin role to two specific ServiceAccounts
-cat <<EOF | kubectl apply -f -
+  log_component_start "kyverno" "Installing Kyverno policy engine for Kubernetes governance"
+  
+  log_step "1" "Adding Kyverno Helm repository"
+  execute_with_suppression helm repo add kyverno https://kyverno.github.io/kyverno/
+  execute_with_suppression helm repo update
+  
+  log_step "2" "Installing Kyverno via Helm"
+  if helm_install_with_summary "kyverno" "kyverno" \
+    kyverno --namespace kyverno kyverno/kyverno --create-namespace; then
+    
+    log_step "3" "Waiting for Kyverno services to be ready"
+    waitForServiceAvailable kyverno
+    log_success "Kyverno services are now operational"
+    
+    log_step "4" "Configuring cluster-admin permissions"
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -10310,9 +10427,14 @@ subjects:
   name: kyverno-background-controller
   namespace: kyverno
 EOF
+    if [[ $? -eq 0 ]]; then
+      log_success "Cluster-admin permissions configured for Kyverno"
+    else
+      log_warning "Cluster-admin permissions may already exist"
+    fi
 
-
-cat <<EOF | kubectl apply -f -
+    log_step "5" "Creating secret synchronization policies"
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -10365,12 +10487,44 @@ spec:
         namespace: kube-system
         name: opensearch-secrets
 EOF
+    if [[ $? -eq 0 ]]; then
+      log_success "Secret synchronization policies created"
+    else
+      log_warning "Secret synchronization policies may already exist"
+    fi
+    
+    show_installation_summary "kyverno" "kyverno" "Policy engine with secret synchronization and governance policies"
+    log_component_success "kyverno" "Kyverno policy engine installed successfully"
+    
+    # Call next module suggestion
+    suggest_and_install_next_module "kyverno"
+  else
+    log_error "Kyverno installation failed"
+    return 1
+  fi
 }
 
 kyvernoReset(){
-  helm uninstall kyverno -n kyverno
-  kubectl delete ns kyverno
-  kubectl delete clusterpolicy --all
+  log_component_start "kyverno-reset" "Removing Kyverno policy engine and policies"
+  
+  log_step "1" "Removing cluster policies"
+  if execute_with_suppression kubectl delete clusterpolicy --all; then
+    log_success "All cluster policies removed"
+  fi
+  
+  log_step "2" "Uninstalling Kyverno Helm release"
+  if helm_uninstall_with_summary "kyverno" "kyverno" kyverno -n kyverno; then
+    log_success "Kyverno Helm release removed"
+  fi
+  
+  log_step "3" "Removing Kyverno namespace"
+  if kubectl_with_summary delete "namespace" delete ns kyverno; then
+    show_installation_summary "kyverno" "kyverno" "Policy engine and governance system removed"
+    log_component_success "kyverno-reset" "Kyverno has been completely removed from the cluster"
+  else
+    log_error "Failed to remove Kyverno namespace"
+    return 1
+  fi
 }
 
 help(){
