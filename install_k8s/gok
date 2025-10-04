@@ -6967,9 +6967,6 @@ certmanagerInst() {
     
     show_installation_summary "cert-manager" "cert-manager" "TLS certificate management system"
     log_component_success "cert-manager" "Certificate management system installed successfully"
-    
-    # Call next module suggestion
-    suggest_and_install_next_module "cert-manager"
   else
     log_error "cert-manager installation failed"
     return 1
