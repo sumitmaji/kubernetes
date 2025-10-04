@@ -3288,6 +3288,236 @@ ingressInst() {
   waitForServiceAvailable ingress-nginx
 }
 
+# Show comprehensive NGINX Ingress Controller installation summary
+ingressSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                    NGINX INGRESS CONTROLLER SUMMARY                         ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  # Check if we can connect to cluster
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Ingress Controller Installation Status
+  log_step "1" "Installation Status"
+  
+  if [[ "$cluster_accessible" == "true" ]]; then
+    # Check if ingress-nginx namespace exists
+    if kubectl get namespace ingress-nginx >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: ingress-nginx exists${COLOR_RESET}"
+      
+      # Check Helm installation
+      local helm_status=$(helm list -n ingress-nginx --output json 2>/dev/null | jq -r '.[] | select(.name=="ingress-nginx") | .status' 2>/dev/null || echo "not-found")
+      if [[ "$helm_status" == "deployed" ]]; then
+        local chart_version=$(helm list -n ingress-nginx --output json 2>/dev/null | jq -r '.[] | select(.name=="ingress-nginx") | .chart' 2>/dev/null || echo "unknown")
+        echo -e "  ${COLOR_GREEN}✓ Helm Chart: $chart_version (deployed)${COLOR_RESET}"
+      elif [[ "$helm_status" == "failed" ]]; then
+        echo -e "  ${COLOR_RED}✗ Helm Chart: deployment failed${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ Helm Chart: not installed via Helm${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: ingress-nginx not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}Run: gok k8sInst to install Kubernetes first${COLOR_RESET}"
+  fi
+  
+  echo ""
+  
+  # 2. Controller Pods Status
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "Controller Pods"
+    
+    local ingress_pods=$(kubectl get pods -n ingress-nginx --no-headers 2>/dev/null)
+    if [[ -n "$ingress_pods" ]]; then
+      echo "$ingress_pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local restarts=$(echo "$line" | awk '{print $4}')
+        local age=$(echo "$line" | awk '{print $5}')
+        
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status}) - ${age}${COLOR_RESET}"
+        elif [[ "$pod_status" == "Pending" ]]; then
+          echo -e "    ${COLOR_YELLOW}⚠ ${pod_name}: ${pod_status} (${ready_status}) - ${age}${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status}) - ${age}${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No ingress controller pods found${COLOR_RESET}"
+    fi
+    
+    echo ""
+  fi
+  
+  # 3. Service Configuration
+  log_step "3" "Service Configuration"
+  
+  if [[ "$cluster_accessible" == "true" ]]; then
+    # Check ingress controller service
+    if kubectl get service ingress-nginx-controller -n ingress-nginx >/dev/null 2>&1; then
+      local service_type=$(kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.type}' 2>/dev/null)
+      local http_port=$(kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null)
+      local https_port=$(kubectl get service ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}' 2>/dev/null)
+      
+      echo -e "  ${COLOR_GREEN}✓ Service: ingress-nginx-controller${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Type: ${service_type}${COLOR_RESET}"
+      if [[ -n "$http_port" ]]; then
+        echo -e "    ${COLOR_DIM}• HTTP NodePort: ${http_port}${COLOR_RESET}"
+      fi
+      if [[ -n "$https_port" ]]; then
+        echo -e "    ${COLOR_DIM}• HTTPS NodePort: ${https_port}${COLOR_RESET}"
+      fi
+      
+      # Check service endpoints
+      local endpoints=$(kubectl get endpoints ingress-nginx-controller -n ingress-nginx -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+      if [[ -n "$endpoints" ]]; then
+        echo -e "    ${COLOR_DIM}• Endpoints: ${endpoints}${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Service: ingress-nginx-controller not found${COLOR_RESET}"
+    fi
+    
+    # Check default backend
+    if kubectl get service ingress-nginx-defaultbackend -n ingress-nginx >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Default Backend: available${COLOR_RESET}"
+    else
+      echo -e "  ${COLOR_YELLOW}⚠ Default Backend: not configured${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Service status: cluster not accessible${COLOR_RESET}"
+  fi
+  
+  echo ""
+  
+  # 4. Ingress Classes
+  log_step "4" "Ingress Classes"
+  
+  if [[ "$cluster_accessible" == "true" ]]; then
+    local ingress_classes=$(kubectl get ingressclass --no-headers 2>/dev/null)
+    if [[ -n "$ingress_classes" ]]; then
+      echo "$ingress_classes" | while read -r line; do
+        local class_name=$(echo "$line" | awk '{print $1}')
+        local controller=$(echo "$line" | awk '{print $2}')
+        local is_default=$(echo "$line" | awk '{print $3}')
+        
+        if [[ "$is_default" == "<default>" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${class_name}: ${controller} (default)${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_CYAN}• ${class_name}: ${controller}${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No ingress classes found${COLOR_RESET}"
+    fi
+  else
+    echo -e "    ${COLOR_RED}✗ Ingress classes: cluster not accessible${COLOR_RESET}"
+  fi
+  
+  echo ""
+  
+  # 5. Active Ingress Resources
+  log_step "5" "Active Ingress Resources"
+  
+  if [[ "$cluster_accessible" == "true" ]]; then
+    local ingress_resources=$(kubectl get ingress --all-namespaces --no-headers 2>/dev/null)
+    if [[ -n "$ingress_resources" ]]; then
+      echo "$ingress_resources" | while read -r line; do
+        local namespace=$(echo "$line" | awk '{print $1}')
+        local ingress_name=$(echo "$line" | awk '{print $2}')
+        local class_name=$(echo "$line" | awk '{print $3}')
+        local hosts=$(echo "$line" | awk '{print $4}')
+        local address=$(echo "$line" | awk '{print $5}')
+        local age=$(echo "$line" | awk '{print $6}')
+        
+        if [[ -n "$address" && "$address" != "<none>" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${namespace}/${ingress_name}: ${hosts} → ${address} (${age})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_YELLOW}⚠ ${namespace}/${ingress_name}: ${hosts} (pending address) (${age})${COLOR_RESET}"
+        fi
+        if [[ -n "$class_name" && "$class_name" != "<none>" ]]; then
+          echo -e "      ${COLOR_DIM}Class: ${class_name}${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_CYAN}• No ingress resources found${COLOR_RESET}"
+      echo -e "      ${COLOR_DIM}Create ingress resources to route external traffic${COLOR_RESET}"
+    fi
+  else
+    echo -e "    ${COLOR_RED}✗ Ingress resources: cluster not accessible${COLOR_RESET}"
+  fi
+  
+  echo ""
+  
+  # 6. Configuration Summary
+  log_step "6" "Configuration Summary"
+  
+  if [[ "$cluster_accessible" == "true" ]]; then
+    # Get current configuration from the deployment
+    local controller_image=$(kubectl get deployment ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "unknown")
+    
+    echo -e "  ${COLOR_CYAN}Controller Configuration:${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}• Image: ${controller_image}${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}• Service Type: NodePort${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}• HTTP Port: 80 → NodePort${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}• HTTPS Port: 443 → NodePort${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}• Default Backend: Enabled${COLOR_RESET}"
+    
+    # Check for custom configurations
+    local config_map=$(kubectl get configmap ingress-nginx-controller -n ingress-nginx -o jsonpath='{.data}' 2>/dev/null)
+    if [[ -n "$config_map" && "$config_map" != "{}" ]]; then
+      echo -e "    ${COLOR_DIM}• Custom ConfigMap: configured${COLOR_RESET}"
+    else
+      echo -e "    ${COLOR_DIM}• Custom ConfigMap: default settings${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Configuration: cluster not accessible${COLOR_RESET}"
+  fi
+  
+  echo ""
+  
+  # 7. Next Steps
+  log_step "7" "Available Commands"
+  
+  echo -e "  ${COLOR_CYAN}Ingress Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok ingressInst                 # Install/reinstall NGINX Ingress Controller${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok ingressSummary              # Show ingress summary (this command)${COLOR_RESET}"
+  
+  echo -e "  ${COLOR_CYAN}Testing & Verification:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get pods -n ingress-nginx              # Check controller pods${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get svc -n ingress-nginx               # Check services${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get ingress --all-namespaces           # List all ingress resources${COLOR_RESET}"
+  
+  echo -e "  ${COLOR_CYAN}Configuration:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get ingressclass                       # List ingress classes${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl describe ingress <name> -n <namespace> # Inspect ingress resource${COLOR_RESET}"
+  
+  if [[ "$cluster_accessible" == "true" ]]; then
+    local node_ip=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null)
+    if [[ -n "$node_ip" ]]; then
+      echo -e "  ${COLOR_CYAN}Access Information:${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Node IP: ${node_ip}${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Access your services via: http://<domain>:NodePort${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Configure your DNS or /etc/hosts to point domains to ${node_IP}${COLOR_RESET}"
+    fi
+  fi
+  
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
 resetChart(){
   echo "Resetting ChartMuseum installation..."
   helm uninstall chartmuseum --namespace chartmuseum
@@ -9769,6 +9999,7 @@ function describeAllMethods() {
   echo "dockrInst() - Docker installation and configuration"
   echo "k8sInst(\$TYPE) - Kubernetes cluster setup (\$TYPE: kubernetes|kubernetes-worker)"
   echo "k8sSummary() - Comprehensive Kubernetes installation status and summary"
+  echo "ingressSummary() - Comprehensive NGINX Ingress Controller status and summary"
   echo "haInst() - High availability proxy installation"
   echo "helmInst() - Helm package manager installation"
   echo "calicoInst() - Calico network plugin installation"
@@ -11915,7 +12146,7 @@ _gok_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
   # Main commands
-  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
   
   # Install components
   local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
@@ -11988,7 +12219,7 @@ _gok_completion() {
           COMPREPLY=($(compgen -W "methods" -- ${cur}))
           return 0
           ;;
-        k8sSummary|k8sInst|calicoInst)
+        k8sSummary|ingressSummary|k8sInst|calicoInst)
           COMPREPLY=($(compgen -W "--verbose -v" -- ${cur}))
           return 0
           ;;
