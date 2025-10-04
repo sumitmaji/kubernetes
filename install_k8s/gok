@@ -12215,8 +12215,8 @@ function installCmd() {
     # Step 8: Setup system integration
     log_info "Setting up system integration..."
     {
-      echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
-      echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
+      grep -qxF "source $MOUNT_PATH/kubernetes/install_k8s/util" /etc/bash.bashrc || echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
+      grep -qxF "source $MOUNT_PATH/kubernetes/install_k8s/gok" /etc/bash.bashrc || echo "source $MOUNT_PATH/kubernetes/install_k8s/gok" >> /etc/bash.bashrc
       ln -sf $MOUNT_PATH/kubernetes/install_k8s/gok /bin/gok
       
       cat <<EOF > /etc/rc.local
