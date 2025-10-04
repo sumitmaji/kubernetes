@@ -12118,14 +12118,14 @@ COMPLETION_EOF
   rm -f /tmp/gok_completion
 }
 
-# Auto-enable completion if this script is being sourced
+# Handle sourced vs executed scenarios differently
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  # Script is being sourced - enable completion and use old-style dispatcher
   complete -F _gok_completion gok 2>/dev/null || true
-fi
-
-# Call the appropriate function based on the command
-if [ -z "$CMD" ] || [ "$CMD" == "help" ] || [ "$CMD" == "--help" ] || [ "$CMD" == "-h" ]; then
-  helpCmd
+  
+  # Old-style command dispatcher for when script is sourced
+  if [ -z "$CMD" ] || [ "$CMD" == "help" ] || [ "$CMD" == "--help" ] || [ "$CMD" == "-h" ]; then
+    helpCmd
 elif [ "$CMD" == "bash" ]; then
   bashCmd
 elif [ "$CMD" == "desc" ]; then
@@ -12428,7 +12428,7 @@ elif [ "$CMD" == "completion" ]; then
       echo "  gok completion setup     # Permanent installation"
       ;;
   esac
-fi
+fi  # End of old-style dispatcher (when sourced)
 
 # Command dispatcher - execute function if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -12479,4 +12479,5 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # No arguments provided, show help
     helpCmd
   fi
+fi  # End of new-style dispatcher (when executed directly)
 fi
