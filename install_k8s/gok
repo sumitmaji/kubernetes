@@ -10335,73 +10335,101 @@ function installCmd() {
         ha_reason="Custom HA proxy port configured: $HA_PROXY_PORT"
     fi
     
-    if [[ "$ha_required" == "true" ]]; then
-        log_info "HA setup required: $ha_reason"
-        
-        # Check if we have remote configuration for HA installation
-        if load_default_remote_config; then
-            log_info "Remote configuration found - installing HA proxy on remote host ($DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST)"
-            
-            # Try to install HA proxy on remote host
-            if simple_remote_exec "cd /home/$DEFAULT_REMOTE_USER/Documents/repository/kubernetes/install_k8s && sudo ./gok install haproxy"; then
-                log_success "HA proxy installed successfully on remote host for multi-master setup"
-            else
-                log_error "HA proxy installation failed on remote host - cannot proceed with Kubernetes installation"
-                echo -e ""
-                echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
-                echo -e "${COLOR_RED}High Availability setup is required but remote installation failed.${COLOR_RESET}"
-                echo -e ""
-                echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}1. Check remote Docker status: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'systemctl status docker'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}2. Verify remote API_SERVERS: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'echo \$API_SERVERS'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}3. Manual remote HA install: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'cd /home/$DEFAULT_REMOTE_USER/Documents/repository/kubernetes/install_k8s && sudo ./gok install haproxy'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}4. Check remote HA logs: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'docker logs master-proxy'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}5. Retry Kubernetes installation after fixing remote issues${COLOR_RESET}"
-                echo -e ""
-                fail_component "kubernetes" "HA proxy remote installation failed - required for multi-master setup"
-                return 1
-            fi
-            
-            # Validate the remote HA proxy installation
-            log_info "Validating remote HA proxy installation..."
-            if ! simple_remote_exec "cd /home/$DEFAULT_REMOTE_USER/Documents/repository/kubernetes/install_k8s && source gok && validate_ha_dependency_for_kubernetes --verbose"; then
-                log_error "Remote HA proxy validation failed after installation"
-                echo -e ""
-                echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
-                echo -e "${COLOR_RED}HA proxy was installed on remote host but validation failed.${COLOR_RESET}"
-                echo -e ""
-                echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 TROUBLESHOOTING:${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}1. Check remote container status: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'docker ps | grep master-proxy'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}2. Check remote container logs: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'docker logs master-proxy'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}3. Verify remote port binding: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'netstat -tlnp | grep :${HA_PROXY_PORT:-6643}'${COLOR_RESET}"
-                echo -e "${COLOR_YELLOW}4. Test remote connectivity: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'nc -z localhost ${HA_PROXY_PORT:-6643}'${COLOR_RESET}"
-                echo -e ""
-                fail_component "kubernetes" "Remote HA proxy validation failed after installation"
-                return 1
-            fi
-            
-            log_success "Remote HA proxy validation passed - proceeding with Kubernetes installation"
+    # Check if HA is already installed and working
+    local ha_already_installed=false
+    if validate_ha_proxy_installation "$verbose_flag" >/dev/null 2>&1; then
+        ha_already_installed=true
+        log_success "HA proxy is already installed and running"
+    fi
+    
+    if [[ "$ha_required" == "true" ]] || [[ "$ha_already_installed" == "false" ]]; then
+        if [[ "$ha_required" == "true" ]]; then
+            log_info "HA setup required: $ha_reason"
         else
-            log_error "HA setup required but no remote configuration found"
-            echo -e ""
-            echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
-            echo -e "${COLOR_RED}High Availability setup is required but no remote host configured for installation.${COLOR_RESET}"
-            echo -e ""
-            echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
-            echo -e "${COLOR_YELLOW}1. Set up remote host configuration: ${COLOR_BOLD}gok remote setup <host> <user>${COLOR_RESET}"
-            echo -e "${COLOR_YELLOW}2. Example: ${COLOR_BOLD}gok remote setup 10.0.0.244 sumit${COLOR_RESET}"
-            echo -e "${COLOR_YELLOW}3. Or manually install HA proxy on target host: ${COLOR_BOLD}gok install haproxy${COLOR_RESET}"
-            echo -e "${COLOR_YELLOW}4. Then retry Kubernetes installation${COLOR_RESET}"
-            echo -e ""
-            echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}💡 WHY REMOTE INSTALLATION?${COLOR_RESET}"
-            echo -e "${COLOR_CYAN}HA proxy should be installed on the actual Kubernetes master node(s),${COLOR_RESET}"
-            echo -e "${COLOR_CYAN}not on your local development machine.${COLOR_RESET}"
-            echo -e ""
-            fail_component "kubernetes" "HA proxy installation required but no remote host configured"
-            return 1
+            log_info "HA proxy not detected - installing for Kubernetes cluster stability"
+        fi
+        
+        # If HA is not already installed, install it
+        if [[ "$ha_already_installed" == "false" ]]; then
+            # Check if we have remote configuration for HA installation
+            if load_default_remote_config; then
+                log_info "Remote configuration found - installing HA proxy on remote host ($DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST)"
+                
+                # Try to install HA proxy on remote host
+                if simple_remote_exec "cd /home/$DEFAULT_REMOTE_USER/Documents/repository/kubernetes/install_k8s && sudo ./gok install haproxy"; then
+                    log_success "HA proxy installed successfully on remote host for multi-master setup"
+                else
+                    log_error "HA proxy installation failed on remote host - cannot proceed with Kubernetes installation"
+                    echo -e ""
+                    echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
+                    echo -e "${COLOR_RED}High Availability setup is required but remote installation failed.${COLOR_RESET}"
+                    echo -e ""
+                    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}1. Check remote Docker status: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'systemctl status docker'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}2. Verify remote API_SERVERS: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'echo \$API_SERVERS'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}3. Manual remote HA install: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'cd /home/$DEFAULT_REMOTE_USER/Documents/repository/kubernetes/install_k8s && sudo ./gok install haproxy'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}4. Check remote HA logs: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'docker logs master-proxy'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}5. Retry Kubernetes installation after fixing remote issues${COLOR_RESET}"
+                    echo -e ""
+                    fail_component "kubernetes" "HA proxy remote installation failed - required for multi-master setup"
+                    return 1
+                fi
+                
+                # Validate the remote HA proxy installation
+                log_info "Validating remote HA proxy installation..."
+                if ! simple_remote_exec "cd /home/$DEFAULT_REMOTE_USER/Documents/repository/kubernetes/install_k8s && source gok && validate_ha_dependency_for_kubernetes --verbose"; then
+                    log_error "Remote HA proxy validation failed after installation"
+                    echo -e ""
+                    echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
+                    echo -e "${COLOR_RED}HA proxy was installed on remote host but validation failed.${COLOR_RESET}"
+                    echo -e ""
+                    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 TROUBLESHOOTING:${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}1. Check remote container status: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'docker ps | grep master-proxy'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}2. Check remote container logs: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'docker logs master-proxy'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}3. Verify remote port binding: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'netstat -tlnp | grep :${HA_PROXY_PORT:-6643}'${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}4. Test remote connectivity: ${COLOR_BOLD}ssh $DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST 'nc -z localhost ${HA_PROXY_PORT:-6643}'${COLOR_RESET}"
+                    echo -e ""
+                    fail_component "kubernetes" "Remote HA proxy validation failed after installation"
+                    return 1
+                fi
+                
+                log_success "Remote HA proxy validation passed - proceeding with Kubernetes installation"
+            else
+                # No remote configuration - attempt local HA installation
+                log_warning "No remote configuration found - attempting local HA proxy installation"
+                log_info "Installing HA proxy locally for Kubernetes cluster"
+                
+                if haInst; then
+                    log_success "HA proxy installed successfully locally"
+                    
+                    # Validate local HA installation
+                    if validate_ha_proxy_installation "$verbose_flag"; then
+                        log_success "Local HA proxy validation passed - proceeding with Kubernetes installation"
+                    else
+                        log_error "Local HA proxy validation failed after installation"
+                        fail_component "kubernetes" "Local HA proxy validation failed after installation"
+                        return 1
+                    fi
+                else
+                    log_error "Local HA proxy installation failed"
+                    echo -e ""
+                    echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
+                    echo -e "${COLOR_RED}HA proxy installation failed and is required for Kubernetes.${COLOR_RESET}"
+                    echo -e ""
+                    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}1. Check Docker status: ${COLOR_BOLD}systemctl status docker${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}2. Verify configuration: ${COLOR_BOLD}echo \$API_SERVERS${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}3. Manual HA install: ${COLOR_BOLD}gok install haproxy${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}4. Set up remote host: ${COLOR_BOLD}gok remote setup <host> <user>${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}5. Retry Kubernetes installation${COLOR_RESET}"
+                    echo -e ""
+                    fail_component "kubernetes" "HA proxy installation required but local installation failed"
+                    return 1
+                fi
+            fi
         fi
     else
-        log_info "Single API server configuration - skipping HA proxy setup"
+        log_info "HA proxy already running - proceeding with Kubernetes installation"
     fi
     
     # Step 3: Install Kubernetes cluster
