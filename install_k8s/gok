@@ -4061,11 +4061,12 @@ EOF
   fi
   
   # Show installed versions
-  local kubectl_version=$(kubectl version --client --short 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+  local kubectl_version=$(kubectl version --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
   local kubeadm_version=$(kubeadm version -o short 2>/dev/null || echo "unknown")
+  local kubelet_version=$(kubelet --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
   echo -e "  ${COLOR_GREEN}✓ kubectl: ${kubectl_version}${COLOR_RESET}"
   echo -e "  ${COLOR_GREEN}✓ kubeadm: ${kubeadm_version}${COLOR_RESET}"
-  echo -e "  ${COLOR_GREEN}✓ kubelet: ${kubectl_version}${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}✓ kubelet: ${kubelet_version}${COLOR_RESET}"
   
   # Step 6: Cluster Initialization (Master) or Worker Setup
   if [ "$k8s_type" == "kubernetes" ]; then
@@ -10693,10 +10694,36 @@ function installCmd() {
     
     # Step 7: Install additional utilities
     log_info "Installing cluster utilities..."
-    dnsUtils >/dev/null 2>&1 && log_success "DNS utilities installed" || log_warning "DNS utilities installation failed"
-    customDns >/dev/null 2>&1 && log_success "Custom DNS configured" || log_warning "Custom DNS configuration failed"
-    kcurl >/dev/null 2>&1 && log_success "kubectl curl utility installed" || log_warning "kubectl curl utility failed"
-    oauthAdmin >/dev/null 2>&1 && log_success "OAuth admin configured" || log_warning "OAuth admin configuration failed"
+    if dnsUtils >/dev/null 2>&1; then
+      log_success "DNS utilities installed"
+      echo -e "    ${COLOR_DIM}• Pod: dnsutils (jessie-dnsutils:1.3) in default namespace${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Usage: gok checkDns <domain> for DNS resolution testing${COLOR_RESET}"
+    else
+      log_warning "DNS utilities installation failed"
+    fi
+    if customDns >/dev/null 2>&1; then
+      log_success "Custom DNS configured"
+      echo -e "    ${COLOR_DIM}• CoreDNS custom zones: cloud.com, gokcloud.com → ${MASTER_HOST_IP:-<master-ip>}${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Kubernetes internal DNS: cloud.uat domain with 30s TTL${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Fallback DNS: /etc/resolv.conf (max 1000 concurrent)${COLOR_RESET}"
+    else
+      log_warning "Custom DNS configuration failed"
+    fi
+    if kcurl >/dev/null 2>&1; then
+      log_success "kubectl curl utility installed"
+      echo -e "    ${COLOR_DIM}• Pod: curl (curlimages/curl) in default namespace${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Usage: gok checkCurl <url> for HTTP testing within cluster${COLOR_RESET}"
+    else
+      log_warning "kubectl curl utility failed"
+    fi
+    if oauthAdmin >/dev/null 2>&1; then
+      log_success "OAuth admin configured"
+      echo -e "    ${COLOR_DIM}• ClusterRoleBinding: oauth-cluster-admin${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Role: cluster-admin (full cluster access)${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Subject: Group 'administrators' (OAuth group mapping)${COLOR_RESET}"
+    else
+      log_warning "OAuth admin configuration failed"
+    fi
     
     # Step 8: Setup system integration
     log_info "Setting up system integration..."
