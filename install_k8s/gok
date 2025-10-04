@@ -3065,24 +3065,42 @@ remove_kubernetes_packages() {
     # List of Kubernetes packages to remove
     local k8s_packages=("kubeadm" "kubectl" "kubelet" "kubernetes-cni" "cri-tools")
     
+    # Check if any packages are actually installed
+    local installed_packages=()
+    for package in "${k8s_packages[@]}"; do
+        if dpkg -l | grep -q "^ii.*$package" 2>/dev/null; then
+            installed_packages+=("$package")
+        fi
+    done
+    
+    # If no packages are installed, exit gracefully
+    if [[ ${#installed_packages[@]} -eq 0 ]]; then
+        log_info "No Kubernetes packages found to remove."
+        return 0
+    fi
+    
     if is_verbose_mode "$verbose_flag"; then
         log_info "Verbose mode: Showing detailed package removal output"
         
         # Check which packages are installed first
         log_info "Checking installed Kubernetes packages..."
         for package in "${k8s_packages[@]}"; do
-            if dpkg -l | grep -q "^ii.*$package"; then
+            if dpkg -l | grep -q "^ii.*$package" 2>/dev/null; then
                 echo -e "${COLOR_DIM}  • $package: installed${COLOR_RESET}"
             else
                 echo -e "${COLOR_DIM}  • $package: not installed${COLOR_RESET}"
             fi
         done
         
-        # Remove packages with verbose output
-        log_info "Removing Kubernetes packages..."
-        sudo apt-get remove --purge -y "${k8s_packages[@]}" 2>&1 | while read line; do
-            echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
-        done
+        # Remove only installed packages with verbose output
+        log_info "Removing installed Kubernetes packages..."
+        if [[ ${#installed_packages[@]} -gt 0 ]]; then
+            sudo apt-get remove --purge -y "${installed_packages[@]}" 2>&1 | while read line; do
+                echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
+            done
+        else
+            echo -e "${COLOR_DIM}  No packages to remove${COLOR_RESET}"
+        fi
         
         # Clean up package cache
         log_info "Cleaning up package cache..."
@@ -3095,9 +3113,11 @@ remove_kubernetes_packages() {
         done
         
     else
-        # Silent removal with progress indication
+        # Silent removal with progress indication - only remove installed packages
         {
-            sudo apt-get remove --purge -y "${k8s_packages[@]}" >/dev/null 2>&1
+            if [[ ${#installed_packages[@]} -gt 0 ]]; then
+                sudo apt-get remove --purge -y "${installed_packages[@]}" >/dev/null 2>&1
+            fi
             sudo apt-get autoremove -y >/dev/null 2>&1
             sudo apt-get autoclean >/dev/null 2>&1
         } &
@@ -11420,21 +11440,58 @@ function resetCmd() {
   if [ "$COMPONENT" == "kubernetes" ]; then
     track_reset_progress "Starting Kubernetes cluster reset..."
     
+    # Check if any Kubernetes components are installed
+    local kubeadm_installed=false
+    local kubectl_installed=false
+    local kubelet_installed=false
+    
+    if command -v kubeadm >/dev/null 2>&1; then
+      kubeadm_installed=true
+    fi
+    
+    if command -v kubectl >/dev/null 2>&1; then
+      kubectl_installed=true
+    fi
+    
+    if command -v kubelet >/dev/null 2>&1; then
+      kubelet_installed=true
+    fi
+    
+    # If no Kubernetes components are found, exit gracefully
+    if [[ "$kubeadm_installed" == "false" && "$kubectl_installed" == "false" && "$kubelet_installed" == "false" ]]; then
+      log_info "No Kubernetes components found to reset."
+      log_info "Kubernetes appears to be not installed - nothing to reset."
+      return 0
+    fi
+    
+    # Show what components were found
+    if [[ "$verbose_flag" == "--verbose" ]]; then
+      log_info "Found Kubernetes components:"
+      [[ "$kubeadm_installed" == "true" ]] && echo -e "  ${COLOR_GREEN}✓ kubeadm${COLOR_RESET}" || echo -e "  ${COLOR_DIM}- kubeadm (not found)${COLOR_RESET}"
+      [[ "$kubectl_installed" == "true" ]] && echo -e "  ${COLOR_GREEN}✓ kubectl${COLOR_RESET}" || echo -e "  ${COLOR_DIM}- kubectl (not found)${COLOR_RESET}"
+      [[ "$kubelet_installed" == "true" ]] && echo -e "  ${COLOR_GREEN}✓ kubelet${COLOR_RESET}" || echo -e "  ${COLOR_DIM}- kubelet (not found)${COLOR_RESET}"
+    fi
+    
     # Get user confirmation
     if ! confirm_reset "Kubernetes cluster" "This will completely remove the Kubernetes cluster and all data"; then
       echo "Kubernetes reset cancelled by user."
       return 0
     fi
     
-    track_reset_progress "Performing kubeadm reset..."
-    if [[ "$verbose_flag" == "--verbose" ]]; then
-      kubeadm reset <<EOF
+    # Only run kubeadm reset if kubeadm is installed
+    if [[ "$kubeadm_installed" == "true" ]]; then
+      track_reset_progress "Performing kubeadm reset..."
+      if [[ "$verbose_flag" == "--verbose" ]]; then
+        kubeadm reset <<EOF
 y
 EOF
+      else
+        kubeadm reset <<EOF 2>/dev/null || { log_warning "kubeadm reset failed, continuing with cleanup"; }
+y
+EOF
+      fi
     else
-      kubeadm reset <<EOF 2>/dev/null || { log_error "kubeadm reset failed"; return 1; }
-y
-EOF
+      track_reset_progress "Skipping kubeadm reset (kubeadm not found)..."
     fi
     
     track_reset_progress "Removing Kubernetes packages..."
