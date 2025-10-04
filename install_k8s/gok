@@ -11314,15 +11314,23 @@ cleanup_kubernetes_files() {
     
     # Clean up network interfaces
     log_info "Cleaning up network interfaces..."
-    local interfaces=$(ip link show | grep -E "(cni|flannel|calico|weave)" | awk -F: '{print $2}' | tr -d ' ')
-    for iface in $interfaces; do
-        if [ -n "$iface" ]; then
-            if [[ "$is_verbose" == "true" ]]; then
-                log_substep "Removing network interface: $iface"
+    local interfaces
+    interfaces=$(ip link show 2>/dev/null | grep -E "(cni|flannel|calico|weave)" | awk -F: '{print $2}' | tr -d ' ' | grep -v '^$')
+    
+    if [[ -n "$interfaces" ]]; then
+        while IFS= read -r iface; do
+            if [[ -n "$iface" && "$iface" != "ee" ]]; then  # Skip invalid interface names
+                if [[ "$is_verbose" == "true" ]]; then
+                    log_substep "Removing network interface: $iface"
+                fi
+                ip link delete "$iface" 2>/dev/null || log_warning "Failed to remove interface $iface"
             fi
-            ip link delete "$iface" 2>/dev/null || log_warning "Failed to remove interface $iface"
+        done <<< "$interfaces"
+    else
+        if [[ "$is_verbose" == "true" ]]; then
+            log_substep "No network interfaces to clean up"
         fi
-    done
+    fi
     
     log_success "Kubernetes file cleanup completed"
 }
@@ -12429,15 +12437,44 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     command="$1"
     shift
     
-    # Check if the command is a valid function
-    if declare -f "$command" >/dev/null 2>&1; then
-      # Execute the function with remaining arguments
-      "$command" "$@"
-    else
-      echo "Error: Unknown command '$command'"
-      echo "Run 'gok help' for available commands"
-      exit 1
-    fi
+    # Handle command aliases that map to different function names
+    case "$command" in
+      install)
+        installCmd "$@"
+        ;;
+      reset)
+        resetCmd "$@"
+        ;;
+      start)
+        startCmd "$@"
+        ;;
+      deploy)
+        deployCmd "$@"
+        ;;
+      patch)
+        patchCmd "$@"
+        ;;
+      create)
+        createCmd "$@"
+        ;;
+      generate)
+        generateCmd "$@"
+        ;;
+      help)
+        helpCmd "$@"
+        ;;
+      *)
+        # Check if the command is a valid function
+        if declare -f "$command" >/dev/null 2>&1; then
+          # Execute the function with remaining arguments
+          "$command" "$@"
+        else
+          echo "Error: Unknown command '$command'"
+          echo "Run 'gok help' for available commands"
+          exit 1
+        fi
+        ;;
+    esac
   else
     # No arguments provided, show help
     helpCmd
