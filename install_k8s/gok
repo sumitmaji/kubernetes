@@ -3518,6 +3518,217 @@ ingressSummary() {
   echo ""
 }
 
+# Comprehensive NGINX Ingress Controller reset function
+ingressReset() {
+  log_info "Resetting NGINX Ingress Controller..."
+  
+  # Check if cluster is accessible
+  if ! kubectl cluster-info >/dev/null 2>&1; then
+    log_warning "Cluster not accessible - cannot perform ingress reset"
+    log_info "Start your Kubernetes cluster first: gok start kubernetes"
+    return 1
+  fi
+  
+  log_step "1" "Checking ingress controller installation"
+  
+  # Check if ingress-nginx namespace exists
+  if ! kubectl get namespace ingress-nginx >/dev/null 2>&1; then
+    log_info "NGINX Ingress Controller namespace not found - nothing to reset"
+    return 0
+  fi
+  
+  log_success "Found ingress-nginx namespace"
+  
+  # Show what will be reset
+  log_step "2" "Components to be reset"
+  
+  echo -e "  ${COLOR_YELLOW}📦 Helm Release:${COLOR_RESET}"
+  local helm_status=$(helm list -n ingress-nginx --output json 2>/dev/null | jq -r '.[] | select(.name=="ingress-nginx") | .status' 2>/dev/null || echo "not-found")
+  if [[ "$helm_status" != "not-found" ]]; then
+    echo -e "    • ingress-nginx (status: $helm_status)"
+  else
+    echo -e "    • No Helm release found"
+  fi
+  
+  echo -e "  ${COLOR_YELLOW}🗂️ Namespace:${COLOR_RESET}"
+  echo -e "    • ingress-nginx (all resources will be deleted)"
+  
+  echo -e "  ${COLOR_YELLOW}🔗 Ingress Resources:${COLOR_RESET}"
+  local ingress_count=$(kubectl get ingress --all-namespaces --no-headers 2>/dev/null | wc -l || echo "0")
+  if [[ "$ingress_count" -gt 0 ]]; then
+    echo -e "    • $ingress_count ingress resource(s) will be orphaned"
+    echo -e "    • ${COLOR_DIM}Note: Existing ingress resources will remain but lose their controller${COLOR_RESET}"
+  else
+    echo -e "    • No active ingress resources found"
+  fi
+  
+  echo -e "  ${COLOR_YELLOW}📋 Configuration:${COLOR_RESET}"
+  if kubectl get ingressclass nginx >/dev/null 2>&1; then
+    echo -e "    • IngressClass 'nginx' will be removed"
+  fi
+  if kubectl get ingressclass ingress-nginx >/dev/null 2>&1; then
+    echo -e "    • IngressClass 'ingress-nginx' will be removed"
+  fi
+  
+  echo ""
+  
+  # Confirmation prompt
+  log_warning "This will permanently remove the NGINX Ingress Controller"
+  echo -e "${COLOR_RED}⚠️  Impact:${COLOR_RESET}"
+  echo -e "  • All external traffic routing will stop"
+  echo -e "  • Existing ingress resources will become inactive"
+  echo -e "  • SSL/TLS termination will be unavailable"
+  echo -e "  • LoadBalancer and NodePort services will still work"
+  echo ""
+  
+  read -p "Are you sure you want to reset NGINX Ingress Controller? (y/N): " -r confirm
+  if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+    log_info "Reset cancelled by user"
+    return 0
+  fi
+  
+  echo ""
+  log_step "3" "Removing ingress controller components"
+  
+  # Step 1: Uninstall Helm release
+  log_substep "Uninstalling Helm release"
+  if helm list -n ingress-nginx --output json 2>/dev/null | jq -e '.[] | select(.name=="ingress-nginx")' >/dev/null; then
+    if helm uninstall ingress-nginx -n ingress-nginx >/dev/null 2>&1; then
+      log_success "Helm release uninstalled successfully"
+    else
+      log_warning "Failed to uninstall Helm release (may not exist)"
+    fi
+  else
+    log_info "No Helm release found to uninstall"
+  fi
+  
+  # Step 2: Clean up any remaining resources
+  log_substep "Cleaning up remaining resources"
+  
+  # Delete any remaining pods forcefully
+  local remaining_pods=$(kubectl get pods -n ingress-nginx --no-headers 2>/dev/null | wc -l || echo "0")
+  if [[ "$remaining_pods" -gt 0 ]]; then
+    log_info "Removing $remaining_pods remaining pod(s)"
+    kubectl delete pods --all -n ingress-nginx --force --grace-period=0 >/dev/null 2>&1
+  fi
+  
+  # Delete any remaining services
+  local remaining_services=$(kubectl get services -n ingress-nginx --no-headers 2>/dev/null | wc -l || echo "0")
+  if [[ "$remaining_services" -gt 0 ]]; then
+    log_info "Removing $remaining_services remaining service(s)"
+    kubectl delete services --all -n ingress-nginx >/dev/null 2>&1
+  fi
+  
+  # Delete any remaining deployments
+  local remaining_deployments=$(kubectl get deployments -n ingress-nginx --no-headers 2>/dev/null | wc -l || echo "0")
+  if [[ "$remaining_deployments" -gt 0 ]]; then
+    log_info "Removing $remaining_deployments remaining deployment(s)"
+    kubectl delete deployments --all -n ingress-nginx >/dev/null 2>&1
+  fi
+  
+  # Delete any remaining configmaps
+  local remaining_configmaps=$(kubectl get configmaps -n ingress-nginx --no-headers 2>/dev/null | wc -l || echo "0")
+  if [[ "$remaining_configmaps" -gt 0 ]]; then
+    log_info "Removing $remaining_configmaps remaining configmap(s)"
+    kubectl delete configmaps --all -n ingress-nginx >/dev/null 2>&1
+  fi
+  
+  # Delete any remaining secrets
+  local remaining_secrets=$(kubectl get secrets -n ingress-nginx --no-headers 2>/dev/null | grep -v default-token | wc -l || echo "0")
+  if [[ "$remaining_secrets" -gt 0 ]]; then
+    log_info "Removing $remaining_secrets remaining secret(s)"
+    kubectl delete secrets --all -n ingress-nginx >/dev/null 2>&1
+  fi
+  
+  log_success "Remaining resources cleaned up"
+  
+  # Step 3: Delete IngressClasses
+  log_substep "Removing IngressClasses"
+  
+  local ingress_classes=("nginx" "ingress-nginx")
+  for class_name in "${ingress_classes[@]}"; do
+    if kubectl get ingressclass "$class_name" >/dev/null 2>&1; then
+      if kubectl delete ingressclass "$class_name" >/dev/null 2>&1; then
+        log_info "IngressClass '$class_name' deleted"
+      else
+        log_warning "Failed to delete IngressClass '$class_name'"
+      fi
+    fi
+  done
+  
+  # Step 4: Delete namespace
+  log_substep "Removing namespace"
+  if kubectl delete namespace ingress-nginx >/dev/null 2>&1; then
+    log_success "Namespace 'ingress-nginx' deleted successfully"
+  else
+    log_warning "Failed to delete namespace (may not exist)"
+  fi
+  
+  # Step 5: Wait for namespace to be fully deleted
+  log_substep "Waiting for namespace cleanup"
+  local timeout=30
+  local elapsed=0
+  while kubectl get namespace ingress-nginx >/dev/null 2>&1 && [[ $elapsed -lt $timeout ]]; do
+    sleep 2
+    elapsed=$((elapsed + 2))
+    if [[ $((elapsed % 10)) -eq 0 ]]; then
+      log_info "Still waiting for namespace cleanup... (${elapsed}s/${timeout}s)"
+    fi
+  done
+  
+  if kubectl get namespace ingress-nginx >/dev/null 2>&1; then
+    log_warning "Namespace still exists after ${timeout}s - may need manual cleanup"
+  else
+    log_success "Namespace cleanup completed"
+  fi
+  
+  echo ""
+  log_step "4" "Reset Summary"
+  
+  # Check what's left
+  local orphaned_ingress=$(kubectl get ingress --all-namespaces --no-headers 2>/dev/null | wc -l || echo "0")
+  
+  echo -e "  ${COLOR_GREEN}✓ NGINX Ingress Controller uninstalled${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}✓ Helm release removed${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}✓ Namespace deleted${COLOR_RESET}"
+  echo -e "  ${COLOR_GREEN}✓ IngressClasses removed${COLOR_RESET}"
+  
+  if [[ "$orphaned_ingress" -gt 0 ]]; then
+    echo -e "  ${COLOR_YELLOW}⚠ $orphaned_ingress orphaned ingress resource(s) remain${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}These resources are inactive without a controller${COLOR_RESET}"
+  else
+    echo -e "  ${COLOR_GREEN}✓ No orphaned ingress resources${COLOR_RESET}"
+  fi
+  
+  echo ""
+  log_success "NGINX Ingress Controller reset completed successfully!"
+  
+  # Show next steps
+  echo ""
+  log_step "5" "Next Steps"
+  
+  echo -e "  ${COLOR_CYAN}📦 Reinstall Ingress Controller:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install ingress                     # Install NGINX Ingress Controller${COLOR_RESET}"
+  
+  echo -e "  ${COLOR_CYAN}🔍 Check Remaining Resources:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get ingress --all-namespaces    # List orphaned ingress resources${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get ingressclass                # Verify IngressClasses removed${COLOR_RESET}"
+  
+  if [[ "$orphaned_ingress" -gt 0 ]]; then
+    echo -e "  ${COLOR_CYAN}🗑️ Clean Up Orphaned Resources:${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}kubectl delete ingress <name> -n <namespace>  # Remove individual ingress${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}kubectl get ingress --all-namespaces          # List all ingress resources${COLOR_RESET}"
+  fi
+  
+  echo -e "  ${COLOR_CYAN}🔄 Alternative Solutions:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install istio                       # Install Istio service mesh${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}# Use LoadBalancer services directly     # Direct service exposure${COLOR_RESET}"
+  
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}🎉 Ingress reset complete!${COLOR_RESET} Your cluster is ready for a fresh ingress installation."
+  echo ""
+}
+
 resetChart(){
   echo "Resetting ChartMuseum installation..."
   helm uninstall chartmuseum --namespace chartmuseum
@@ -10000,6 +10211,7 @@ function describeAllMethods() {
   echo "k8sInst(\$TYPE) - Kubernetes cluster setup (\$TYPE: kubernetes|kubernetes-worker)"
   echo "k8sSummary() - Comprehensive Kubernetes installation status and summary"
   echo "ingressSummary() - Comprehensive NGINX Ingress Controller status and summary"
+  echo "ingressReset() - Comprehensive NGINX Ingress Controller reset and cleanup"
   echo "haInst() - High availability proxy installation"
   echo "helmInst() - Helm package manager installation"
   echo "calicoInst() - Calico network plugin installation"
@@ -10046,7 +10258,7 @@ function describeAllMethods() {
   echo "dashboardReset() - Kubernetes dashboard reset"
   echo "keycloakReset() - Keycloak identity management reset"
   echo "vaultReset() - Vault secrets management reset"
-  echo "ingressUnInst() - Ingress controller uninstallation"
+  echo "ingressReset() - NGINX Ingress Controller comprehensive reset"
   echo "resetChart() - Helm chart repository reset"
   echo "ldapReset() - LDAP service reset"
   echo "gokAgentReset() - GOK agent reset"
@@ -11828,7 +12040,7 @@ EOF
   elif [ "$COMPONENT" == "vault" ]; then
     vaultReset
   elif [ "$COMPONENT" == "ingress" ]; then
-    ingressUnInst
+    ingressReset
   elif [ "$COMPONENT" == "chart" ]; then
     resetChart
   elif [ "$COMPONENT" == "gok-login" ]; then
@@ -12146,7 +12358,7 @@ _gok_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
   # Main commands
-  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
   
   # Install components
   local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
@@ -12219,7 +12431,7 @@ _gok_completion() {
           COMPREPLY=($(compgen -W "methods" -- ${cur}))
           return 0
           ;;
-        k8sSummary|ingressSummary|k8sInst|calicoInst)
+        k8sSummary|ingressSummary|ingressReset|k8sInst|calicoInst)
           COMPREPLY=($(compgen -W "--verbose -v" -- ${cur}))
           return 0
           ;;
