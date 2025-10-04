@@ -12364,3 +12364,25 @@ elif [ "$CMD" == "completion" ]; then
       ;;
   esac
 fi
+
+# Command dispatcher - execute function if called directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  if [[ $# -gt 0 ]]; then
+    # Get the command (first argument)
+    command="$1"
+    shift
+    
+    # Check if the command is a valid function
+    if declare -f "$command" >/dev/null 2>&1; then
+      # Execute the function with remaining arguments
+      "$command" "$@"
+    else
+      echo "Error: Unknown command '$command'"
+      echo "Run 'gok help' for available commands"
+      exit 1
+    fi
+  else
+    # No arguments provided, show help
+    helpCmd
+  fi
+fi
