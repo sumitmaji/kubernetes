@@ -418,9 +418,56 @@ EOF
     log_success "Default remote configuration saved: $user@$host"
 }
 
-# Simple remote exec using default configuration
+# Check if command needs sudo privileges
+needs_sudo() {
+    local command="$1"
+    
+    # Commands that typically need root privileges
+    local sudo_commands=(
+        "systemctl" "service" "journalctl" "mount" "umount"
+        "apt" "apt-get" "yum" "dnf" "zypper" "pacman"
+        "docker" "kubectl" "kubeadm" "crictl"
+        "iptables" "ip" "ifconfig" "netstat" "ss"
+        "modprobe" "lsmod" "insmod" "rmmod"
+        "fdisk" "parted" "mkfs" "fsck" "lsblk"
+        "useradd" "userdel" "usermod" "groupadd" "passwd"
+        "chown" "chmod" "chgrp" "setfacl" "getfacl"
+        "crontab" "at" "batch"
+        "nano" "vim" "vi" "emacs" # when editing system files
+        "cat" "echo" "tee" # when writing to system locations
+        "cp" "mv" "rm" "mkdir" "rmdir" # when operating on system directories
+        "find" "locate" "updatedb"
+        "dmesg" "lscpu" "lsusb" "lspci" "hwinfo"
+        "./gok" "gok" # GOK commands often need sudo
+    )
+    
+    # Extract the first word (command) from the command string
+    local first_command=$(echo "$command" | awk '{print $1}' | sed 's|.*/||') # Remove path if present
+    
+    # Check if command is in sudo_commands list
+    for sudo_cmd in "${sudo_commands[@]}"; do
+        if [[ "$first_command" == "$sudo_cmd" ]]; then
+            return 0  # Needs sudo
+        fi
+    done
+    
+    # Check if command contains paths that typically need sudo
+    if [[ "$command" == *"/etc/"* ]] || [[ "$command" == *"/var/"* ]] || [[ "$command" == *"/usr/"* ]] || [[ "$command" == *"/opt/"* ]] || [[ "$command" == *"/sys/"* ]] || [[ "$command" == *"/proc/"* ]]; then
+        return 0  # Needs sudo
+    fi
+    
+    # Check if command already starts with sudo
+    if [[ "$command" == sudo* ]]; then
+        return 1  # Already has sudo
+    fi
+    
+    return 1  # Doesn't need sudo
+}
+
+# Simple remote exec using default configuration with automatic sudo
 simple_remote_exec() {
     local commands="$*"
+    local use_sudo="${GOK_REMOTE_SUDO:-auto}"  # auto, always, never
     
     # Load default configuration
     if ! load_default_remote_config; then
@@ -434,11 +481,19 @@ simple_remote_exec() {
         return 1
     fi
     
-    log_info "Executing on default remote ($DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST): $commands"
+    # Determine if sudo should be used
+    local final_commands="$commands"
+    if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$commands") ]]; then
+        if [[ "$commands" != sudo* ]]; then
+            final_commands="sudo $commands"
+        fi
+    fi
+    
+    log_info "Executing on default remote ($DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST): $final_commands"
     
     # Execute command using SSH
     ssh -i "$DEFAULT_REMOTE_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-        "$DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST" "$commands"
+        "$DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST" "$final_commands"
 }
 
 # Setup SSH keys for passwordless authentication
@@ -583,11 +638,12 @@ configure_remote_host() {
     log_success "Configured remote host: $alias ($user@$host)"
 }
 
-# Execute command on remote host
+# Execute command on remote host with automatic sudo
 remote_exec() {
     local alias="$1"
     shift
     local commands="$*"
+    local use_sudo="${GOK_REMOTE_SUDO:-auto}"  # auto, always, never
     
     if [[ -z "${REMOTE_HOSTS[$alias]}" ]]; then
         log_error "Remote host '$alias' not configured"
@@ -599,10 +655,18 @@ remote_exec() {
     local user="${REMOTE_USERS[$alias]}"
     local key_file="${REMOTE_KEYS[$alias]}"
     
-    log_info "Executing on $alias ($user@$host): $commands"
+    # Determine if sudo should be used
+    local final_commands="$commands"
+    if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$commands") ]]; then
+        if [[ "$commands" != sudo* ]]; then
+            final_commands="sudo $commands"
+        fi
+    fi
+    
+    log_info "Executing on $alias ($user@$host): $final_commands"
     
     ssh -i "$key_file" -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-        "$user@$host" "$commands"
+        "$user@$host" "$final_commands"
 }
 
 # Execute command on multiple remote hosts
@@ -4237,6 +4301,64 @@ initialize_kubernetes_master() {
         log_warning "Master node taint removal failed: $taint_output"
         log_info "Master node may not schedule pods. Manual fix: kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
       fi
+    fi
+  fi
+  
+  # Install Calico network plugin (integrated from calicoInst function)
+  log_info "Installing Calico network plugin..."
+  
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Installing container networking for pod communication...${COLOR_RESET}"
+  fi
+  
+  # Check if Calico is already installed
+  if kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -q "Running"; then
+    log_info "Calico appears to be already running - skipping installation"
+  else
+    # Install Calico network plugin
+    local calico_version="v3.25.1"
+    local calico_manifest="https://raw.githubusercontent.com/projectcalico/calico/$calico_version/manifests/calico.yaml"
+    
+    log_substep "Downloading Calico manifest (version: $calico_version)..."
+    if curl -s --connect-timeout 10 "$calico_manifest" >/dev/null 2>&1; then
+      log_substep "Calico manifest is accessible"
+    else
+      log_warning "Cannot access Calico manifest - check internet connectivity"
+      log_warning "Cluster networking may not work properly without CNI plugin"
+    fi
+    
+    log_substep "Applying Calico network plugin..."
+    local calico_apply_output
+    if [[ "$verbose_mode" == "true" ]]; then
+      echo -e "${COLOR_DIM}Executing: kubectl create -f $calico_manifest${COLOR_RESET}"
+      if calico_apply_output=$(kubectl create -f "$calico_manifest" 2>&1); then
+        log_success "Calico manifest applied successfully"
+        echo -e "${COLOR_DIM}$calico_apply_output${COLOR_RESET}"
+      else
+        log_warning "Failed to apply Calico manifest"
+        echo -e "${COLOR_YELLOW}Error details: $calico_apply_output${COLOR_RESET}"
+        log_warning "You may need to install a network plugin manually"
+      fi
+    else
+      if calico_apply_output=$(kubectl create -f "$calico_manifest" 2>&1); then
+        log_success "Calico manifest applied successfully"
+      else
+        log_warning "Failed to apply Calico manifest"
+        log_warning "You may need to install a network plugin manually"
+      fi
+    fi
+    
+    # Wait briefly for Calico pods to start
+    log_substep "Waiting for Calico pods to start..."
+    sleep 15
+    
+    local ready_pods=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+    local total_pods=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | wc -l || echo "0")
+    
+    if [ "$ready_pods" -gt 0 ]; then
+      log_success "Calico network plugin is starting ($ready_pods/$total_pods pods running)"
+    else
+      log_info "Calico pods are initializing (this may take 1-2 minutes)"
     fi
   fi
   
@@ -10558,14 +10680,8 @@ function installCmd() {
       log_warning "Helm installation failed - some deployments may not work"
     fi
     
-    # Step 5: Install network plugin (Calico)
-    log_info "Installing Calico network plugin..."
-    if calicoInst $verbose_flag; then
-      log_success "Calico network plugin installed"
-    else
-      log_error "Calico installation failed - cluster networking may not work"
-      log_error "Please install a network plugin manually"
-    fi
+    # Step 5: Network plugin (Calico) is now installed within k8sInst
+    log_info "Network plugin (Calico) was installed during cluster setup"
     
     # Step 6: Wait for system services to be ready
     log_info "Waiting for Kubernetes system services..."
@@ -10575,14 +10691,14 @@ function installCmd() {
       log_warning "Some system services may not be ready yet"
     fi
     
-    # Step 8: Install additional utilities
+    # Step 7: Install additional utilities
     log_info "Installing cluster utilities..."
     dnsUtils >/dev/null 2>&1 && log_success "DNS utilities installed" || log_warning "DNS utilities installation failed"
     customDns >/dev/null 2>&1 && log_success "Custom DNS configured" || log_warning "Custom DNS configuration failed"
     kcurl >/dev/null 2>&1 && log_success "kubectl curl utility installed" || log_warning "kubectl curl utility failed"
     oauthAdmin >/dev/null 2>&1 && log_success "OAuth admin configured" || log_warning "OAuth admin configuration failed"
     
-    # Step 9: Setup system integration
+    # Step 8: Setup system integration
     log_info "Setting up system integration..."
     {
       echo "source $MOUNT_PATH/kubernetes/install_k8s/util" >> /etc/bash.bashrc
@@ -11934,6 +12050,16 @@ elif [ "$CMD" == "remote" ]; then
       echo "  • Remote hosts configured automatically"
       echo "  • No manual setup steps required!"
       echo "  • Execute any root command without passwords!"
+      echo ""
+      echo "🔐 Sudo Configuration:"
+      echo "  export GOK_REMOTE_SUDO=auto     # Auto-detect sudo needs (default)"
+      echo "  export GOK_REMOTE_SUDO=always   # Always use sudo for all commands"
+      echo "  export GOK_REMOTE_SUDO=never    # Never use sudo automatically"
+      echo ""
+      echo "  Examples:"
+      echo "  gok remote exec \"systemctl status docker\"      # Auto-adds sudo"
+      echo "  gok remote exec \"kubectl get nodes\"            # Auto-adds sudo"
+      echo "  gok remote exec \"ls -la\"                       # No sudo added"
       ;;
   esac
 elif [ "$CMD" == "completion" ]; then
