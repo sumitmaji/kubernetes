@@ -12479,4 +12479,4 @@ if [[ $# -gt 0 ]]; then
     # No arguments provided, show help
     helpCmd
   fi
-fi  # End of unified dispatcher
+# End of unified dispatcher
