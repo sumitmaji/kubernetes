@@ -13246,6 +13246,18 @@ enable_gok_completion() {
   echo "   gok reset <TAB>       # Shows all resettable components"  
   echo "   gok create <TAB>      # Shows resource types"
   echo "   gok generate <TAB>    # Shows service types"
+  echo ""
+  echo "🔧 Testing completion..."
+  echo "   Try: gok ingr<TAB> (should complete to ingressSummary/ingressReset)"
+  echo "   Try: gok install cert<TAB> (should complete to cert-manager)"
+}
+
+# Simple completion setup for current session only
+quick_gok_completion() {
+  # Enable completion immediately without sourcing the whole file
+  complete -W "install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help" gok
+  echo "🚀 Quick GOK completion enabled for this session!"
+  echo "💡 Try: gok ingr<TAB>"
 }
 
 # Function to setup completion permanently
@@ -13265,8 +13277,13 @@ _gok_completion() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
-  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node completion help"
-  local install_components="interactive wizard docker helm haproxy ha-proxy ha kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  # Main commands
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
+  
+  # Install components
+  local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
+  
+  # Reset components  
   local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
   local start_components="kubernetes proxy kubelet"
   local deploy_components="app1"
@@ -13622,15 +13639,39 @@ elif [ "$CMD" == "completion" ]; then
     enable)
       enable_gok_completion
       ;;
+    quick)
+      quick_gok_completion
+      ;;
     setup)
       setup_gok_completion
       ;;
-    *)
-      echo "gok completion - Bash completion management"
+    standalone)
+      echo "🔧 Standalone completion script available at: $(dirname "$0")/gok-completion.sh"
+      echo "💡 Usage: source gok-completion.sh"
+      echo "   This provides basic tab completion without sourcing the full GOK file"
       echo ""
-      echo "Usage:"
-      echo "  gok completion enable    # Enable completion for current session"
-      echo "  gok completion setup     # Setup completion permanently"
+      if [ -f "$(dirname "$0")/gok-completion.sh" ]; then
+        echo "✅ File exists and is ready to use"
+      else
+        echo "❌ File not found - please ensure gok-completion.sh is in the same directory"
+      fi
+      ;;
+    *)
+      echo "🎯 GOK Tab Completion Management"
+      echo ""
+      echo "💡 If tab completion isn't working, try these solutions:"
+      echo ""
+      echo "Quick Fixes:"
+      echo "  source gok-completion.sh         # Use standalone script (recommended)"
+      echo "  gok completion quick             # Simple completion for current session"
+      echo ""
+      echo "Advanced Options:"
+      echo "  gok completion enable            # Full completion for current session"
+      echo "  gok completion setup             # Install completion permanently"
+      echo "  gok completion standalone        # Info about standalone script"
+      echo ""
+      echo "🚀 Recommended: Use the standalone script for most reliable completion:"
+      echo "   source gok-completion.sh && gok ingr<TAB>"
       echo ""
       echo "Examples:"
       echo "  gok completion enable    # Quick enable for testing"
