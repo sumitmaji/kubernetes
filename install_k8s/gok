@@ -2856,6 +2856,193 @@ verify_critical_dependencies() {
     return 0
 }
 
+# Comprehensive HA dependency validation for Kubernetes
+validate_ha_dependency_for_kubernetes() {
+    local verbose_flag="${1:-}"
+    
+    log_step "HA Dependency" "Validating High Availability requirements for Kubernetes"
+    
+    # Check if HA setup is required
+    local ha_required=false
+    local ha_reason=""
+    
+    # Method 1: Check API_SERVERS configuration
+    if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
+        ha_required=true
+        ha_reason="Multiple API servers configured in API_SERVERS: $API_SERVERS"
+    elif [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" != *":"* ]]; then
+        # API_SERVERS is set but malformed
+        log_error "API_SERVERS is malformed: '$API_SERVERS'"
+        log_error "Expected format: 'IP:hostname' or 'IP1:host1,IP2:host2'"
+        return 1
+    fi
+    
+    # Method 2: Check if kubeadm config expects HA endpoint
+    if [[ -f "$WORKING_DIR/config.yaml" ]]; then
+        local control_plane_endpoint=$(grep -E "controlPlaneEndpoint|loadBalancerDNS" "$WORKING_DIR/config.yaml" 2>/dev/null || true)
+        if [[ -n "$control_plane_endpoint" ]]; then
+            local ha_endpoint=$(echo "$control_plane_endpoint" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+' || true)
+            if [[ -n "$ha_endpoint" ]]; then
+                ha_required=true
+                ha_reason="Kubeadm config specifies HA endpoint: $ha_endpoint"
+            fi
+        fi
+    fi
+    
+    # Method 3: Check if HA_PROXY_PORT is configured
+    if [[ -n "$HA_PROXY_PORT" ]] && [[ "$HA_PROXY_PORT" != "6443" ]]; then
+        ha_required=true
+        ha_reason="Custom HA proxy port configured: $HA_PROXY_PORT"
+    fi
+    
+    # Method 4: Check system resources (high RAM might indicate HA setup intention)
+    local mem_gb=$(free -g | awk '/^Mem:/{print $2}')
+    local cpu_cores=$(nproc)
+    local network_interfaces=$(ip link show | grep -c "state UP" || echo 0)
+    
+    if [[ $mem_gb -gt 8 ]] && [[ $cpu_cores -gt 4 ]] && [[ $network_interfaces -gt 2 ]]; then
+        if [[ "$ha_required" == "false" ]]; then
+            log_warning "System resources suggest HA setup but no HA configuration detected"
+            log_info "System: ${mem_gb}GB RAM, ${cpu_cores} CPU cores, ${network_interfaces} network interfaces"
+        fi
+    fi
+    
+    if is_verbose_mode "$verbose_flag"; then
+        log_info "HA dependency analysis:"
+        echo -e "${COLOR_DIM}  • API_SERVERS: ${API_SERVERS:-'not set'}${COLOR_RESET}"
+        echo -e "${COLOR_DIM}  • HA_PROXY_PORT: ${HA_PROXY_PORT:-'not set'}${COLOR_RESET}"
+        echo -e "${COLOR_DIM}  • System resources: ${mem_gb}GB RAM, ${cpu_cores} cores${COLOR_RESET}"
+        echo -e "${COLOR_DIM}  • Network interfaces: ${network_interfaces}${COLOR_RESET}"
+        echo -e "${COLOR_DIM}  • HA required: ${ha_required}${COLOR_RESET}"
+        if [[ -n "$ha_reason" ]]; then
+            echo -e "${COLOR_DIM}  • Reason: ${ha_reason}${COLOR_RESET}"
+        fi
+    fi
+    
+    # If HA is not required, skip validation
+    if [[ "$ha_required" == "false" ]]; then
+        log_success "Single-node setup detected - HA proxy not required"
+        return 0
+    fi
+    
+    # HA is required - validate installation
+    log_info "HA setup required: $ha_reason"
+    
+    # Check if HA proxy is installed and running
+    if ! validate_ha_proxy_installation "$verbose_flag"; then
+        log_error "HA proxy validation failed but is required for Kubernetes"
+        echo -e ""
+        echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}💡 QUICK FIX:${COLOR_RESET}"
+        echo -e "${COLOR_YELLOW}Run this command to install HA proxy first:${COLOR_RESET}"
+        echo -e "${COLOR_BOLD}  gok install haproxy${COLOR_RESET}"
+        echo -e ""
+        return 1
+    fi
+    
+    log_success "HA dependency validation passed"
+    return 0
+}
+
+# Validate HA proxy installation comprehensively
+validate_ha_proxy_installation() {
+    local verbose_flag="${1:-}"
+    local validation_passed=true
+    
+    log_substep "Checking HA proxy container status"
+    
+    # Check if Docker is available for HA proxy
+    if ! command -v docker >/dev/null 2>&1; then
+        log_error "Docker not found - required for HA proxy container"
+        return 1
+    fi
+    
+    # Check if HA proxy container exists and is running
+    local ha_container=$(docker ps --filter "name=master-proxy" --format "{{.Names}}" 2>/dev/null || true)
+    if [[ -z "$ha_container" ]]; then
+        # Check if container exists but is stopped
+        local ha_container_stopped=$(docker ps -a --filter "name=master-proxy" --format "{{.Names}}" 2>/dev/null || true)
+        if [[ -n "$ha_container_stopped" ]]; then
+            log_error "HA proxy container 'master-proxy' exists but is not running"
+            if is_verbose_mode "$verbose_flag"; then
+                log_info "Container status:"
+                docker ps -a --filter "name=master-proxy" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+            fi
+            validation_passed=false
+        else
+            log_error "HA proxy container 'master-proxy' not found"
+            validation_passed=false
+        fi
+    else
+        log_success "HA proxy container 'master-proxy' is running"
+        
+        if is_verbose_mode "$verbose_flag"; then
+            log_info "HA proxy container details:"
+            docker ps --filter "name=master-proxy" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+        fi
+    fi
+    
+    # Check if HA proxy port is accessible
+    local ha_port="${HA_PROXY_PORT:-6643}"
+    local ha_host="${HA_PROXY_HOSTNAME:-localhost}"
+    
+    log_substep "Testing HA proxy connectivity on ${ha_host}:${ha_port}"
+    
+    # Test port connectivity
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z "$ha_host" "$ha_port" 2>/dev/null; then
+            log_success "HA proxy port ${ha_port} is accessible"
+        else
+            log_error "HA proxy port ${ha_port} is not accessible on ${ha_host}"
+            validation_passed=false
+        fi
+    elif command -v telnet >/dev/null 2>&1; then
+        if timeout 5 bash -c "</dev/tcp/${ha_host}/${ha_port}" 2>/dev/null; then
+            log_success "HA proxy port ${ha_port} is accessible"
+        else
+            log_error "HA proxy port ${ha_port} is not accessible on ${ha_host}"
+            validation_passed=false
+        fi
+    else
+        log_warning "Cannot test port connectivity (nc/telnet not available)"
+    fi
+    
+    # Check HA proxy configuration file
+    if [[ -f "/opt/haproxy.cfg" ]]; then
+        log_success "HA proxy configuration file exists"
+        
+        if is_verbose_mode "$verbose_flag"; then
+            log_info "HA proxy configuration summary:"
+            grep -E "(bind|server)" /opt/haproxy.cfg 2>/dev/null | head -5 | while read line; do
+                echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
+            done
+        fi
+    else
+        log_warning "HA proxy configuration file not found at /opt/haproxy.cfg"
+    fi
+    
+    # Show detailed diagnostics if validation failed
+    if [[ "$validation_passed" == "false" ]]; then
+        log_error "HA proxy installation validation failed"
+        
+        echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 HA PROXY DIAGNOSTICS:${COLOR_RESET}"
+        echo -e "${COLOR_YELLOW}• Container status:${COLOR_RESET}"
+        docker ps -a --filter "name=master-proxy" 2>/dev/null || echo "  No master-proxy container found"
+        
+        echo -e "${COLOR_YELLOW}• Docker containers:${COLOR_RESET}"
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -5 2>/dev/null || echo "  Cannot list containers"
+        
+        echo -e "${COLOR_YELLOW}• Network connectivity:${COLOR_RESET}"
+        echo "  Testing ${ha_host}:${ha_port}..."
+        
+        echo -e "${COLOR_YELLOW}• Port bindings:${COLOR_RESET}"
+        netstat -tlnp 2>/dev/null | grep ":${ha_port}" || echo "  Port ${ha_port} not bound"
+        
+        return 1
+    fi
+    
+    return 0
+}
+
 # Remove Kubernetes packages during reset
 remove_kubernetes_packages() {
     local verbose_flag="${1:-}"
@@ -10180,17 +10367,25 @@ function installCmd() {
     fi
     log_success "Docker prerequisite satisfied"
     
-    # Step 2: Handle HA proxy setup if needed
-    if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
-      log_info "Multiple API servers detected - installing HA proxy for high availability"
-      if haInst; then
-        log_success "HA proxy installed for multi-master setup"
-      else
-        log_warning "HA proxy installation failed - proceeding with single-node setup"
-      fi
-    else
-      log_info "Single API server configuration - skipping HA proxy"
+    # Step 2: Validate HA dependency requirements for Kubernetes
+    log_info "Validating High Availability requirements for Kubernetes installation"
+    if ! validate_ha_dependency_for_kubernetes "$verbose_flag"; then
+      log_error "HA dependency validation failed - cannot proceed with Kubernetes installation"
+      echo -e ""
+      echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
+      echo -e "${COLOR_RED}High Availability setup is required but not properly configured.${COLOR_RESET}"
+      echo -e ""
+      echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}1. Install HA proxy first: ${COLOR_BOLD}gok install haproxy${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}2. Verify HA proxy is running: ${COLOR_BOLD}docker ps | grep master-proxy${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}3. Check HA proxy logs: ${COLOR_BOLD}docker logs master-proxy${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}4. Ensure API_SERVERS is correctly configured${COLOR_RESET}"
+      echo -e "${COLOR_YELLOW}5. Retry Kubernetes installation after HA proxy is working${COLOR_RESET}"
+      echo -e ""
+      fail_component "kubernetes" "HA dependency validation failed - HA proxy setup required but not properly configured"
+      return 1
     fi
+    log_success "HA dependency validation passed - proceeding with Kubernetes installation"
     
     # Step 3: Install Kubernetes cluster
     if k8sInst "kubernetes" "$verbose_flag"; then
