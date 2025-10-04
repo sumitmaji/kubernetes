@@ -10343,7 +10343,7 @@ cleanup_kubernetes_files() {
     local services=("kubelet" "kube-proxy" "docker" "containerd")
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service" 2>/dev/null; then
-            log_detail "Stopping $service service"
+            log_substep "Stopping $service service"
             systemctl stop "$service" 2>/dev/null || log_warning "Failed to stop $service"
         fi
     done
@@ -10352,7 +10352,7 @@ cleanup_kubernetes_files() {
     log_info "Removing Kubernetes directories..."
     for dir in "${k8s_dirs[@]}"; do
         if [ -d "$dir" ]; then
-            log_detail "Removing directory: $dir"
+            log_substep "Removing directory: $dir"
             rm -rf "$dir" 2>/dev/null || log_warning "Failed to remove $dir"
         fi
     done
@@ -10361,11 +10361,11 @@ cleanup_kubernetes_files() {
     log_info "Cleaning up kubeconfig files..."
     for config in "${user_configs[@]}"; do
         if [ -d "$config" ]; then
-            log_detail "Backing up and removing: $config"
+            log_substep "Backing up and removing: $config"
             # Create backup before removing
             if [ -f "$config/config" ]; then
                 cp "$config/config" "$config/config.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
-                log_detail "Created backup: $config/config.backup.$(date +%Y%m%d_%H%M%S)"
+                log_substep "Created backup: $config/config.backup.$(date +%Y%m%d_%H%M%S)"
             fi
             rm -rf "$config" 2>/dev/null || log_warning "Failed to remove $config"
         fi
@@ -10375,7 +10375,7 @@ cleanup_kubernetes_files() {
     log_info "Cleaning up network configurations..."
     for net_path in "${network_files[@]}"; do
         if ls $net_path 1> /dev/null 2>&1; then
-            log_detail "Removing network files: $net_path"
+            log_substep "Removing network files: $net_path"
             rm -rf $net_path 2>/dev/null || log_warning "Failed to remove $net_path"
         fi
     done
@@ -10386,7 +10386,7 @@ cleanup_kubernetes_files() {
         
         # Stop and remove all containers
         if command -v docker &> /dev/null; then
-            log_detail "Stopping and removing Docker containers"
+            log_substep "Stopping and removing Docker containers"
             docker stop $(docker ps -aq) 2>/dev/null || true
             docker rm $(docker ps -aq) 2>/dev/null || true
             docker system prune -af 2>/dev/null || true
@@ -10394,7 +10394,7 @@ cleanup_kubernetes_files() {
         
         # Clean containerd
         if command -v ctr &> /dev/null; then
-            log_detail "Cleaning containerd containers and images"
+            log_substep "Cleaning containerd containers and images"
             ctr -n k8s.io containers rm $(ctr -n k8s.io containers list -q) 2>/dev/null || true
             ctr -n k8s.io images rm $(ctr -n k8s.io images list -q) 2>/dev/null || true
         fi
@@ -10402,7 +10402,7 @@ cleanup_kubernetes_files() {
         # Clean container directories
         for dir in "${container_dirs[@]}"; do
             if [ -d "$dir" ]; then
-                log_detail "Cleaning container directory: $dir"
+                log_substep "Cleaning container directory: $dir"
                 find "$dir" -type f -name "*.pid" -delete 2>/dev/null || true
                 find "$dir" -type f -name "*.lock" -delete 2>/dev/null || true
             fi
@@ -10420,13 +10420,13 @@ cleanup_kubernetes_files() {
     
     for file in "${systemd_files[@]}"; do
         if [ -e "$file" ]; then
-            log_detail "Removing systemd file: $file"
+            log_substep "Removing systemd file: $file"
             rm -rf "$file" 2>/dev/null || log_warning "Failed to remove $file"
         fi
     done
     
     # Reload systemd daemon
-    log_detail "Reloading systemd daemon"
+    log_substep "Reloading systemd daemon"
     systemctl daemon-reload 2>/dev/null || log_warning "Failed to reload systemd daemon"
     
     # Clean up iptables rules (optional)
@@ -10440,7 +10440,7 @@ cleanup_kubernetes_files() {
     local interfaces=$(ip link show | grep -E "(cni|flannel|calico|weave)" | awk -F: '{print $2}' | tr -d ' ')
     for iface in $interfaces; do
         if [ -n "$iface" ]; then
-            log_detail "Removing network interface: $iface"
+            log_substep "Removing network interface: $iface"
             ip link delete "$iface" 2>/dev/null || log_warning "Failed to remove interface $iface"
         fi
     done
