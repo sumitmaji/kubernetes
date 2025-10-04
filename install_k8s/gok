@@ -10295,7 +10295,12 @@ confirm_reset() {
 
 # Enhanced cleanup function for Kubernetes files and directories
 cleanup_kubernetes_files() {
-    local cleanup_type="${1:-full}"
+    local verbose_mode="$1"
+    local is_verbose=false
+    
+    if [[ "$verbose_mode" == "--verbose" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
+        is_verbose=true
+    fi
     
     log_step 1 "Cleaning up Kubernetes configuration files"
     
@@ -10343,7 +10348,9 @@ cleanup_kubernetes_files() {
     local services=("kubelet" "kube-proxy" "docker" "containerd")
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service" 2>/dev/null; then
-            log_substep "Stopping $service service"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Stopping $service service"
+            fi
             systemctl stop "$service" 2>/dev/null || log_warning "Failed to stop $service"
         fi
     done
@@ -10352,7 +10359,9 @@ cleanup_kubernetes_files() {
     log_info "Removing Kubernetes directories..."
     for dir in "${k8s_dirs[@]}"; do
         if [ -d "$dir" ]; then
-            log_substep "Removing directory: $dir"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing directory: $dir"
+            fi
             rm -rf "$dir" 2>/dev/null || log_warning "Failed to remove $dir"
         fi
     done
@@ -10361,11 +10370,15 @@ cleanup_kubernetes_files() {
     log_info "Cleaning up kubeconfig files..."
     for config in "${user_configs[@]}"; do
         if [ -d "$config" ]; then
-            log_substep "Backing up and removing: $config"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Backing up and removing: $config"
+            fi
             # Create backup before removing
             if [ -f "$config/config" ]; then
                 cp "$config/config" "$config/config.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
-                log_substep "Created backup: $config/config.backup.$(date +%Y%m%d_%H%M%S)"
+                if [[ "$is_verbose" == "true" ]]; then
+                    log_substep "Created backup: $config/config.backup.$(date +%Y%m%d_%H%M%S)"
+                fi
             fi
             rm -rf "$config" 2>/dev/null || log_warning "Failed to remove $config"
         fi
@@ -10375,18 +10388,21 @@ cleanup_kubernetes_files() {
     log_info "Cleaning up network configurations..."
     for net_path in "${network_files[@]}"; do
         if ls $net_path 1> /dev/null 2>&1; then
-            log_substep "Removing network files: $net_path"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing network files: $net_path"
+            fi
             rm -rf $net_path 2>/dev/null || log_warning "Failed to remove $net_path"
         fi
     done
     
-    # Clean container runtime if full cleanup
-    if [ "$cleanup_type" = "full" ]; then
-        log_info "Performing full container runtime cleanup..."
+    # Clean container runtime (always do full cleanup for kubernetes reset)
+    log_info "Performing container runtime cleanup..."
         
         # Stop and remove all containers
         if command -v docker &> /dev/null; then
-            log_substep "Stopping and removing Docker containers"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Stopping and removing Docker containers"
+            fi
             docker stop $(docker ps -aq) 2>/dev/null || true
             docker rm $(docker ps -aq) 2>/dev/null || true
             docker system prune -af 2>/dev/null || true
@@ -10394,7 +10410,9 @@ cleanup_kubernetes_files() {
         
         # Clean containerd
         if command -v ctr &> /dev/null; then
-            log_substep "Cleaning containerd containers and images"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Cleaning containerd containers and images"
+            fi
             ctr -n k8s.io containers rm $(ctr -n k8s.io containers list -q) 2>/dev/null || true
             ctr -n k8s.io images rm $(ctr -n k8s.io images list -q) 2>/dev/null || true
         fi
@@ -10402,12 +10420,13 @@ cleanup_kubernetes_files() {
         # Clean container directories
         for dir in "${container_dirs[@]}"; do
             if [ -d "$dir" ]; then
-                log_substep "Cleaning container directory: $dir"
+                if [[ "$is_verbose" == "true" ]]; then
+                    log_substep "Cleaning container directory: $dir"
+                fi
                 find "$dir" -type f -name "*.pid" -delete 2>/dev/null || true
                 find "$dir" -type f -name "*.lock" -delete 2>/dev/null || true
             fi
         done
-    fi
     
     # Clean systemd files
     log_info "Cleaning up systemd service files..."
@@ -10420,13 +10439,17 @@ cleanup_kubernetes_files() {
     
     for file in "${systemd_files[@]}"; do
         if [ -e "$file" ]; then
-            log_substep "Removing systemd file: $file"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing systemd file: $file"
+            fi
             rm -rf "$file" 2>/dev/null || log_warning "Failed to remove $file"
         fi
     done
     
     # Reload systemd daemon
-    log_substep "Reloading systemd daemon"
+    if [[ "$is_verbose" == "true" ]]; then
+        log_substep "Reloading systemd daemon"
+    fi
     systemctl daemon-reload 2>/dev/null || log_warning "Failed to reload systemd daemon"
     
     # Clean up iptables rules (optional)
@@ -10440,7 +10463,9 @@ cleanup_kubernetes_files() {
     local interfaces=$(ip link show | grep -E "(cni|flannel|calico|weave)" | awk -F: '{print $2}' | tr -d ' ')
     for iface in $interfaces; do
         if [ -n "$iface" ]; then
-            log_substep "Removing network interface: $iface"
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing network interface: $iface"
+            fi
             ip link delete "$iface" 2>/dev/null || log_warning "Failed to remove interface $iface"
         fi
     done
@@ -10462,7 +10487,11 @@ function resetCmd() {
   if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
     echo "gok reset - Reset and uninstall Kubernetes components and services"
     echo ""
-    echo "Usage: gok reset <component>"
+    echo "Usage: gok reset <component> [--verbose|-v]"
+    echo ""
+    echo "Options:"
+    echo "  --verbose, -v     Show detailed reset output (default: progress indicators)"
+    echo "  GOK_VERBOSE=true  Environment variable to enable verbose mode globally"
     echo ""
     echo "Core Infrastructure:"
     echo "  kubernetes        Complete Kubernetes cluster reset"
@@ -10537,6 +10566,13 @@ function resetCmd() {
     return 0
   fi
   
+  # Check for verbose flag in component arguments
+  local verbose_flag=""
+  if [[ "$2" == "--verbose" ]] || [[ "$2" == "-v" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
+    verbose_flag="--verbose"
+    log_info "Verbose logging enabled for reset operation"
+  fi
+  
   if [ "$COMPONENT" == "kubernetes" ]; then
     track_reset_progress "Starting Kubernetes cluster reset..."
     
@@ -10547,12 +10583,18 @@ function resetCmd() {
     fi
     
     track_reset_progress "Performing kubeadm reset..."
-    kubeadm reset <<EOF
+    if [[ "$verbose_flag" == "--verbose" ]]; then
+      kubeadm reset <<EOF
 y
 EOF
+    else
+      kubeadm reset <<EOF 2>/dev/null || { log_error "kubeadm reset failed"; return 1; }
+y
+EOF
+    fi
     
     track_reset_progress "Cleaning up Kubernetes files and configurations..."
-    cleanup_kubernetes_files
+    cleanup_kubernetes_files "$verbose_flag"
     
     track_reset_progress "Kubernetes reset completed successfully."
   elif [ "$COMPONENT" == "monitoring" ]; then
