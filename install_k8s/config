@@ -4,13 +4,13 @@ export CLUSTER_NAME=cloud.com
 export DNS_DOMAIN=cloud.uat
 export CERTIFICATE_PATH=/etc/kubernetes/pki
 export SERVER_DNS=master.cloud.com,node01.cloud.com,kubernetes.default.svc,kubernetes.default,kubernetes,kubernetes.default.svc.cloud,kubernetes.default.svc.cloud.uat,localhost,master,node01
-export SERVER_IP="$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')",127.0.0.1,"${MASTER_HOST_IP}"
+export SERVER_IP="$(ip addr show | awk '/inet 11\.0\.0\.[0-9]+/ {print $2}' | cut -d'/' -f1 | head -1 || ip addr show | awk '/inet 192\.168\.[0-9]+\.[0-9]+/ {print $2}' | cut -d'/' -f1 | head -1 || ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' | head -1)",127.0.0.1,"${MASTER_HOST_IP}"
 export HA_PROXY_PORT=6643
 export HA_PROXY_HOSTNAME=${MASTER_HOST_IP}
 export LOAD_BALANCER_URL=${HA_PROXY_HOSTNAME}:${HA_PROXY_PORT}
 export APP_HOST=master.cloud.com
 export GRAFANA_HOST=grafana.cloud.com
-export API_SERVERS="$(ifconfig eth0 2>/dev/null|awk '/inet / {print $2}'|sed 's/addr://')":master.cloud.com
+export API_SERVERS="$(ip addr show | awk '/inet 11\.0\.0\.[0-9]+/ {print $2}' | cut -d'/' -f1 | head -1 || ip addr show | awk '/inet 192\.168\.[0-9]+\.[0-9]+/ {print $2}' | cut -d'/' -f1 | head -1 || ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' | head -1)":master.cloud.com
 #keycloak,oauth0
 export IDENTITY_PROVIDER=keycloak
 export GOK_ROOT_DOMAIN=gokcloud.com
