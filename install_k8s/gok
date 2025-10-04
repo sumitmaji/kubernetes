@@ -299,6 +299,169 @@ log_component_success() {
     echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
 }
 
+# ============================================================================
+# LOG SUPPRESSION AND SUMMARY FUNCTIONS
+# ============================================================================
+
+# Execute a command with suppressed output and return status
+execute_with_suppression() {
+    local temp_file=$(mktemp)
+    local error_file=$(mktemp)
+    
+    # Execute command with both stdout and stderr captured
+    if "$@" >"$temp_file" 2>"$error_file"; then
+        rm -f "$temp_file" "$error_file"
+        return 0
+    else
+        local exit_code=$?
+        # On failure, display the error logs
+        if [[ -s "$error_file" ]]; then
+            echo -e "${COLOR_RED}${COLOR_BOLD}${EMOJI_ERROR} Command failed with errors:${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}Command: $*${COLOR_RESET}" >&2
+            echo -e "${COLOR_RED}Error output:${COLOR_RESET}" >&2
+            cat "$error_file" >&2
+        fi
+        if [[ -s "$temp_file" ]]; then
+            echo -e "${COLOR_YELLOW}${COLOR_BOLD}${EMOJI_WARNING} Additional output:${COLOR_RESET}" >&2
+            cat "$temp_file" >&2
+        fi
+        rm -f "$temp_file" "$error_file"
+        return $exit_code
+    fi
+}
+
+# Execute helm install with log suppression and summary
+helm_install_with_summary() {
+    local component="$1"
+    local namespace="${2:-default}"
+    shift 2
+    
+    log_info "Installing $component via Helm..."
+    local temp_file=$(mktemp)
+    local error_file=$(mktemp)
+    local start_time=$(date +%s)
+    
+    if helm install "$@" >"$temp_file" 2>"$error_file"; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        
+        # Extract useful information from output
+        local release_info=$(grep -E "NAME:|NAMESPACE:|STATUS:|REVISION:" "$temp_file" 2>/dev/null || echo "")
+        
+        log_success "Helm installation completed for $component"
+        echo -e "${COLOR_CYAN}${COLOR_BOLD}📋 Installation Summary:${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}• Component: ${COLOR_BOLD}$component${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}• Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}• Duration: ${COLOR_BOLD}${duration}s${COLOR_RESET}"
+        if [[ -n "$release_info" ]]; then
+            echo -e "  ${COLOR_GREEN}• Release Info:${COLOR_RESET}"
+            echo "$release_info" | sed 's/^/    /'
+        fi
+        
+        rm -f "$temp_file" "$error_file"
+        return 0
+    else
+        local exit_code=$?
+        log_error "Helm installation failed for $component"
+        if [[ -s "$error_file" ]]; then
+            echo -e "${COLOR_RED}${COLOR_BOLD}Error details:${COLOR_RESET}" >&2
+            cat "$error_file" >&2
+        fi
+        if [[ -s "$temp_file" ]]; then
+            echo -e "${COLOR_YELLOW}${COLOR_BOLD}Additional output:${COLOR_RESET}" >&2
+            cat "$temp_file" >&2
+        fi
+        rm -f "$temp_file" "$error_file"
+        return $exit_code
+    fi
+}
+
+# Execute helm uninstall with log suppression and summary
+helm_uninstall_with_summary() {
+    local component="$1"
+    local namespace="${2:-default}"
+    shift 2
+    
+    log_info "Uninstalling $component via Helm..."
+    local temp_file=$(mktemp)
+    local error_file=$(mktemp)
+    
+    if helm uninstall "$@" >"$temp_file" 2>"$error_file"; then
+        log_success "Helm uninstallation completed for $component"
+        echo -e "${COLOR_CYAN}${COLOR_BOLD}📋 Uninstallation Summary:${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}• Component: ${COLOR_BOLD}$component${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}• Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}• Status: ${COLOR_BOLD}Successfully removed${COLOR_RESET}"
+        
+        rm -f "$temp_file" "$error_file"
+        return 0
+    else
+        local exit_code=$?
+        log_error "Helm uninstallation failed for $component"
+        if [[ -s "$error_file" ]]; then
+            echo -e "${COLOR_RED}${COLOR_BOLD}Error details:${COLOR_RESET}" >&2
+            cat "$error_file" >&2
+        fi
+        rm -f "$temp_file" "$error_file"
+        return $exit_code
+    fi
+}
+
+# Execute kubectl operations with log suppression and summary
+kubectl_with_summary() {
+    local operation="$1"
+    local resource_type="${2:-resource}"
+    shift 2
+    
+    local temp_file=$(mktemp)
+    local error_file=$(mktemp)
+    
+    if kubectl "$operation" "$@" >"$temp_file" 2>"$error_file"; then
+        case "$operation" in
+            "apply"|"create")
+                log_success "Successfully applied $resource_type"
+                ;;
+            "delete")
+                log_success "Successfully deleted $resource_type"
+                ;;
+            *)
+                log_success "Successfully executed kubectl $operation"
+                ;;
+        esac
+        rm -f "$temp_file" "$error_file"
+        return 0
+    else
+        local exit_code=$?
+        log_error "kubectl $operation failed for $resource_type"
+        if [[ -s "$error_file" ]]; then
+            echo -e "${COLOR_RED}${COLOR_BOLD}Error details:${COLOR_RESET}" >&2
+            cat "$error_file" >&2
+        fi
+        rm -f "$temp_file" "$error_file"
+        return $exit_code
+    fi
+}
+
+# Display installation summary
+show_installation_summary() {
+    local component="$1"
+    local namespace="${2:-default}"
+    local additional_info="${3:-}"
+    
+    echo
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}│ ${EMOJI_PACKAGE} $component Installation Complete${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}├─────────────────────────────────────────────────────────────────┤${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}│ ${EMOJI_CHECKMARK} Component: ${COLOR_BOLD}$component${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}│ ${EMOJI_NETWORK} Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}│ ${EMOJI_CLOCK} Completed: ${COLOR_BOLD}$(date '+%Y-%m-%d %H:%M:%S')${COLOR_RESET}"
+    if [[ -n "$additional_info" ]]; then
+        echo -e "${COLOR_CYAN}│ ${EMOJI_INFO} Info: ${COLOR_BOLD}$additional_info${COLOR_RESET}"
+    fi
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
+    echo
+}
+
 log_component_error() {
     local component="$1"
     local message="${2:-Installation failed}"
@@ -1411,25 +1574,33 @@ suggest_and_install_next_module() {
     # Define the logical installation dependency chain
     declare -A NEXT_MODULE_MAP
     NEXT_MODULE_MAP["docker"]="kubernetes"
-    NEXT_MODULE_MAP["kubernetes"]="cert-manager"
-    NEXT_MODULE_MAP["cert-manager"]="ingress"
-    NEXT_MODULE_MAP["ingress"]="monitoring"
-    NEXT_MODULE_MAP["monitoring"]="vault"
-    NEXT_MODULE_MAP["vault"]="keycloak"
-    NEXT_MODULE_MAP["keycloak"]="oauth2"
-    NEXT_MODULE_MAP["oauth2"]="argocd"
+    NEXT_MODULE_MAP["kubernetes"]="ingress"
+    NEXT_MODULE_MAP["ingress"]="cert-manager"
+    NEXT_MODULE_MAP["cert-manager"]="kyverno"
+    NEXT_MODULE_MAP["kyverno"]="registry"
+    NEXT_MODULE_MAP["registry"]="base"
+    NEXT_MODULE_MAP["base"]="ldap"
+    NEXT_MODULE_MAP["ldap"]="oauth2"
+    NEXT_MODULE_MAP["oauth2"]="rabbitmq"
+    NEXT_MODULE_MAP["rabbitmq"]="vault"
+    NEXT_MODULE_MAP["vault"]="monitoring"
     NEXT_MODULE_MAP["helm"]="kubernetes"
     
     # Define component descriptions
     declare -A MODULE_DESCRIPTIONS
     MODULE_DESCRIPTIONS["docker"]="Container runtime engine"
     MODULE_DESCRIPTIONS["kubernetes"]="Container orchestration platform"
-    MODULE_DESCRIPTIONS["cert-manager"]="Automated TLS certificate management"
     MODULE_DESCRIPTIONS["ingress"]="HTTP/HTTPS traffic routing and load balancing"
-    MODULE_DESCRIPTIONS["monitoring"]="Prometheus & Grafana observability stack"
-    MODULE_DESCRIPTIONS["vault"]="Secrets management and secure storage"
-    MODULE_DESCRIPTIONS["keycloak"]="Identity and access management"
+    MODULE_DESCRIPTIONS["cert-manager"]="Automated TLS certificate management"
+    MODULE_DESCRIPTIONS["kyverno"]="Policy engine for Kubernetes security and governance"
+    MODULE_DESCRIPTIONS["registry"]="Container image registry for storing and managing images"
+    MODULE_DESCRIPTIONS["base"]="Core platform services and base infrastructure"
+    MODULE_DESCRIPTIONS["ldap"]="LDAP directory service for user and group management"
     MODULE_DESCRIPTIONS["oauth2"]="Authentication proxy and SSO"
+    MODULE_DESCRIPTIONS["rabbitmq"]="Message broker for asynchronous communication"
+    MODULE_DESCRIPTIONS["vault"]="Secrets management and secure storage"
+    MODULE_DESCRIPTIONS["monitoring"]="Prometheus & Grafana observability stack"
+    MODULE_DESCRIPTIONS["keycloak"]="Identity and access management"
     MODULE_DESCRIPTIONS["argocd"]="GitOps continuous delivery"
     MODULE_DESCRIPTIONS["jenkins"]="CI/CD automation and pipeline management"
     MODULE_DESCRIPTIONS["jupyter"]="Interactive data science and development"
@@ -1452,23 +1623,38 @@ suggest_and_install_next_module() {
         "kubernetes")
             kubectl get nodes >/dev/null 2>&1 && is_installed=true
             ;;
-        "cert-manager")
-            kubectl get deployment cert-manager -n cert-manager >/dev/null 2>&1 && is_installed=true
-            ;;
         "ingress")
             kubectl get deployment ingress-nginx-controller -n ingress-nginx >/dev/null 2>&1 && is_installed=true
             ;;
-        "monitoring")
-            kubectl get deployment -n monitoring prometheus-operator >/dev/null 2>&1 && is_installed=true
+        "cert-manager")
+            kubectl get deployment cert-manager -n cert-manager >/dev/null 2>&1 && is_installed=true
+            ;;
+        "kyverno")
+            kubectl get deployment kyverno -n kyverno >/dev/null 2>&1 && is_installed=true
+            ;;
+        "registry")
+            kubectl get deployment registry -n registry >/dev/null 2>&1 && is_installed=true
+            ;;
+        "base")
+            kubectl get configmap base-config -n kube-system >/dev/null 2>&1 && is_installed=true
+            ;;
+        "ldap")
+            kubectl get deployment ldap -n ldap >/dev/null 2>&1 && is_installed=true
+            ;;
+        "oauth2")
+            kubectl get deployment oauth2proxy -n oauth2 >/dev/null 2>&1 && is_installed=true
+            ;;
+        "rabbitmq")
+            kubectl get statefulset rabbitmq -n rabbitmq >/dev/null 2>&1 && is_installed=true
             ;;
         "vault")
             kubectl get statefulset -n vault vault >/dev/null 2>&1 && is_installed=true
             ;;
+        "monitoring")
+            kubectl get deployment -n monitoring prometheus-operator >/dev/null 2>&1 && is_installed=true
+            ;;
         "keycloak")
             kubectl get deployment -n keycloak keycloak >/dev/null 2>&1 && is_installed=true
-            ;;
-        "oauth2")
-            kubectl get deployment -n oauth2 oauth2proxy >/dev/null 2>&1 && is_installed=true
             ;;
         "argocd")
             kubectl get deployment -n argocd argocd-server >/dev/null 2>&1 && is_installed=true
@@ -1500,47 +1686,75 @@ suggest_and_install_next_module() {
     
     # Show why this is recommended after the current component
     case "$current_component -> $next_module" in
-        "kubernetes -> cert-manager")
-            echo -e "${COLOR_YELLOW}📋 Why install cert-manager next?${COLOR_RESET}"
-            echo -e "  • Provides automated TLS certificate management"
-            echo -e "  • Required for secure HTTPS ingress traffic"
-            echo -e "  • Integrates with Let's Encrypt for free certificates"
-            echo -e "  • Foundation for secure service mesh and applications"
-            ;;
-        "cert-manager -> ingress")
+        "kubernetes -> ingress")
             echo -e "${COLOR_YELLOW}📋 Why install ingress next?${COLOR_RESET}"
             echo -e "  • Enables external HTTP/HTTPS access to cluster services"
-            echo -e "  • Provides load balancing and SSL termination"
-            echo -e "  • Works with cert-manager for automatic TLS certificates"
-            echo -e "  • Required for web-based dashboards and applications"
+            echo -e "  • Provides load balancing and traffic routing"
+            echo -e "  • Essential for accessing web-based applications and dashboards"
+            echo -e "  • Foundation for exposing services to external users"
             ;;
-        "ingress -> monitoring")
-            echo -e "${COLOR_YELLOW}📋 Why install monitoring next?${COLOR_RESET}"
-            echo -e "  • Provides cluster observability with Prometheus & Grafana"
-            echo -e "  • Essential for production cluster health monitoring"
-            echo -e "  • Web dashboards accessible through ingress"
-            echo -e "  • Helps troubleshoot performance and resource issues"
+        "ingress -> cert-manager")
+            echo -e "${COLOR_YELLOW}📋 Why install cert-manager next?${COLOR_RESET}"
+            echo -e "  • Provides automated TLS certificate management"
+            echo -e "  • Secures ingress traffic with HTTPS encryption"
+            echo -e "  • Integrates with Let's Encrypt for free certificates"
+            echo -e "  • Required for production-grade secure communications"
             ;;
-        "monitoring -> vault")
+        "cert-manager -> kyverno")
+            echo -e "${COLOR_YELLOW}📋 Why install kyverno next?${COLOR_RESET}"
+            echo -e "  • Policy engine for Kubernetes security and governance"
+            echo -e "  • Enforces security policies and best practices"
+            echo -e "  • Validates and mutates Kubernetes resources"
+            echo -e "  • Essential for compliance and security hardening"
+            ;;
+        "kyverno -> registry")
+            echo -e "${COLOR_YELLOW}📋 Why install registry next?${COLOR_RESET}"
+            echo -e "  • Private container image registry for your applications"
+            echo -e "  • Secure storage and management of container images"
+            echo -e "  • Required for deploying custom applications"
+            echo -e "  • Integrates with CI/CD pipelines for image distribution"
+            ;;
+        "registry -> base")
+            echo -e "${COLOR_YELLOW}📋 Why install base next?${COLOR_RESET}"
+            echo -e "  • Core platform services and base infrastructure"
+            echo -e "  • Provides shared services and configurations"
+            echo -e "  • Foundation for other platform components"
+            echo -e "  • Sets up common utilities and base services"
+            ;;
+        "base -> ldap")
+            echo -e "${COLOR_YELLOW}📋 Why install ldap next?${COLOR_RESET}"
+            echo -e "  • LDAP directory service for centralized user management"
+            echo -e "  • Provides user and group authentication"
+            echo -e "  • Foundation for enterprise identity integration"
+            echo -e "  • Required for OAuth2 and SSO functionality"
+            ;;
+        "ldap -> oauth2")
+            echo -e "${COLOR_YELLOW}📋 Why install oauth2 next?${COLOR_RESET}"
+            echo -e "  • Authentication proxy for securing applications"
+            echo -e "  • Integrates with LDAP for user authentication"
+            echo -e "  • Provides single sign-on (SSO) across services"
+            echo -e "  • Protects cluster resources and dashboards"
+            ;;
+        "oauth2 -> rabbitmq")
+            echo -e "${COLOR_YELLOW}📋 Why install rabbitmq next?${COLOR_RESET}"
+            echo -e "  • Message broker for asynchronous communication"
+            echo -e "  • Enables event-driven architecture patterns"
+            echo -e "  • Provides reliable message queuing and routing"
+            echo -e "  • Essential for microservices communication"
+            ;;
+        "rabbitmq -> vault")
             echo -e "${COLOR_YELLOW}📋 Why install vault next?${COLOR_RESET}"
             echo -e "  • Secure secrets management for applications"
             echo -e "  • Centralized storage for API keys, passwords, certificates"
+            echo -e "  • Integrates with RabbitMQ for secure credential storage"
             echo -e "  • Required for production-grade security"
-            echo -e "  • Integrates with Kubernetes service accounts"
             ;;
-        "vault -> keycloak")
-            echo -e "${COLOR_YELLOW}📋 Why install keycloak next?${COLOR_RESET}"
-            echo -e "  • Identity and access management for all services"
-            echo -e "  • Single sign-on (SSO) across applications"
-            echo -e "  • User authentication and authorization"
-            echo -e "  • Integrates with vault for secure credential storage"
-            ;;
-        "keycloak -> oauth2")
-            echo -e "${COLOR_YELLOW}📋 Why install oauth2 next?${COLOR_RESET}"
-            echo -e "  • Authentication proxy for securing applications"
-            echo -e "  • Enforces authentication before accessing services"
-            echo -e "  • Works with Keycloak for seamless SSO experience"
-            echo -e "  • Protects cluster resources and dashboards"
+        "vault -> monitoring")
+            echo -e "${COLOR_YELLOW}📋 Why install monitoring next?${COLOR_RESET}"
+            echo -e "  • Comprehensive cluster observability with Prometheus & Grafana"
+            echo -e "  • Essential for production cluster health monitoring"
+            echo -e "  • Monitors all previously installed components"
+            echo -e "  • Provides alerting and performance insights"
             ;;
     esac
     echo ""
@@ -3908,11 +4122,24 @@ ingressReset() {
 }
 
 resetChart(){
-  echo "Resetting ChartMuseum installation..."
-  helm uninstall chartmuseum --namespace chartmuseum
+  log_component_start "chartmuseum-reset" "Removing ChartMuseum installation"
+  
+  log_step "1" "Uninstalling ChartMuseum Helm release"
+  if helm_uninstall_with_summary "chartmuseum" "chartmuseum" chartmuseum --namespace chartmuseum; then
+    log_success "ChartMuseum Helm release removed"
+  fi
+  
+  log_step "2" "Cleaning up storage"
   emptyLocalFsStorage "ChartMuseum" "chart-pv" "chart-storage" "/data/volumes/chart-storage"
-  kubectl delete namespace chartmuseum
-  echo "ChartMuseum has been reset successfully."
+  
+  log_step "3" "Removing namespace"
+  if kubectl_with_summary delete "namespace" delete namespace chartmuseum; then
+    show_installation_summary "chartmuseum" "chartmuseum" "Helm chart repository removed"
+    log_component_success "chartmuseum-reset" "ChartMuseum has been reset successfully"
+  else
+    log_error "Failed to remove ChartMuseum namespace"
+    return 1
+  fi
 }
 
 baseInst(){
@@ -3926,45 +4153,60 @@ baseInst(){
 
 
 chartInst() {
-  # Step 1: Create a namespace for ChartMuseum
-  kubectl create namespace chartmuseum || echo "Namespace chartmuseum already exists"
-
-  # Step 2: Install ChartMuseum using Helm
-  helm repo add chartmuseum https://chartmuseum.github.io/charts
-  helm repo update
+  log_component_start "chartmuseum" "Installing ChartMuseum Helm repository"
   
+  log_step "1" "Creating namespace and storage"
+  kubectl_with_summary create "namespace" create namespace chartmuseum || log_info "Namespace chartmuseum already exists"
   createLocalStorageClassAndPV "chart-storage" "chart-pv" "/data/volumes/chart-storage"
 
-  # Install ChartMuseum with persistent storage
-  helm install chartmuseum chartmuseum/chartmuseum \
+  log_step "2" "Adding ChartMuseum Helm repository"
+  execute_with_suppression helm repo add chartmuseum https://chartmuseum.github.io/charts
+  execute_with_suppression helm repo update
+  
+  log_step "3" "Installing ChartMuseum via Helm"
+  if helm_install_with_summary "chartmuseum" "chartmuseum" \
+    chartmuseum chartmuseum/chartmuseum \
     --namespace chartmuseum \
     --set persistence.enabled=true \
     --set persistence.size=10Gi \
     --set persistence.storageClass="chart-storage" \
     --set env.open.STORAGE="local" \
     --set env.open.STORAGE_LOCAL_ROOTDIR="/charts" \
-    --values "$MOUNT_PATH"/kubernetes/install_k8s/chart-registry/values.yaml
+    --values "$MOUNT_PATH"/kubernetes/install_k8s/chart-registry/values.yaml; then
+    
+    log_step "4" "Configuring ingress"
+    gok patch ingress chartmuseum chartmuseum letsencrypt chart
 
-  gok patch ingress chartmuseum chartmuseum letsencrypt chart
+    log_step "5" "Waiting for ChartMuseum to be ready"
+    log_info "Waiting for ChartMuseum to be ready (timeout: 120s)..."
+    if kubectl --namespace chartmuseum wait --for=condition=Ready pods --all --timeout=120s >/dev/null 2>&1; then
+      log_success "ChartMuseum is now up and running!"
+      log_info "Access it at: https://chartmuseum.gokcloud.com"
+      
+      log_step "6" "Installing Helm push plugin"
+      if execute_with_suppression helm plugin install https://github.com/chartmuseum/helm-push; then
+        log_success "Helm push plugin installed"
+      fi
 
-  # Step 4: Verify ChartMuseum Installation
-  echo "Waiting for ChartMuseum to be ready..."
-  kubectl --namespace chartmuseum wait --for=condition=Ready pods --all --timeout=120s
-  if [[ $? -eq 0 ]]; then
-    echo "ChartMuseum is now up and running!"
-    echo "Access it at: https://chartmuseum.gokcloud.com"
+      log_step "7" "Adding repository to Helm"
+      if execute_with_suppression helm repo add gok https://chart.gokcloud.com --username sumit --password abcdef; then
+        execute_with_suppression helm repo update
+        log_success "ChartMuseum repository added to Helm"
+      fi
+      
+      show_installation_summary "chartmuseum" "chartmuseum" "Helm chart repository with persistent storage"
+      log_component_success "chartmuseum" "ChartMuseum installed successfully"
+      
+      # Call next module suggestion
+      suggest_and_install_next_module "chartmuseum"
+    else
+      log_error "ChartMuseum setup timed out. Please check the logs."
+      return 1
+    fi
   else
-    echo "ChartMuseum setup timed out. Please check the logs."
+    log_error "ChartMuseum installation failed"
     return 1
   fi
-
-  helm plugin install https://github.com/chartmuseum/helm-push
-
-  # Step 5: Add the ChartMuseum Repository to Helm
-  helm repo add gok https://chart.gokcloud.com --username sumit --password abcdef
-  helm repo update
-  #helm cm-push ldap-0.1.0.tgz gok
-  echo "Helm repository added successfully!"
 }
 
 dockrInst() {
@@ -5888,22 +6130,37 @@ show_helm_next_steps() {
 }
 
 certmanagerInst() {
-  helm repo add jetstack https://charts.jetstack.io
-  helm repo update
+  log_component_start "cert-manager" "Installing certificate management system"
+  
+  log_step "1" "Adding Jetstack Helm repository"
+  execute_with_suppression helm repo add jetstack https://charts.jetstack.io
+  execute_with_suppression helm repo update
+  
+  log_step "2" "Installing cert-manager via Helm"
   #kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
 
   #--set serviceAccount.automountServiceAccountToken=false \
   #--set webhook.timeoutSeconds=30
   #--set startupapicheck.timeout=10m
   # --debug
-  helm install \
+  if helm_install_with_summary "cert-manager" "cert-manager" \
     cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
     --set installCRDs=true \
     --set global.leaderElection.namespace=cert-manager \
     --version v1.14.5 \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/cert-manager/values.yaml
+    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/cert-manager/values.yaml; then
+    
+    show_installation_summary "cert-manager" "cert-manager" "TLS certificate management system"
+    log_component_success "cert-manager" "Certificate management system installed successfully"
+    
+    # Call next module suggestion
+    suggest_and_install_next_module "cert-manager"
+  else
+    log_error "cert-manager installation failed"
+    return 1
+  fi
 }
 
 subDomain(){
@@ -6185,10 +6442,32 @@ echoWarning "Selfsigned certificate is added to root ca, please reboot the syste
 }
 
 certManagerReset() {
-  kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces
-  if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then godaddyWebhookReset; fi
-  helm --namespace cert-manager delete cert-manager
-  kubectl delete namespace cert-manager
+  log_component_start "cert-manager-reset" "Removing cert-manager and related resources"
+  
+  log_step "1" "Cleaning up cert-manager resources"
+  if execute_with_suppression kubectl delete Issuers,ClusterIssuers,Certificates,CertificateRequests,Orders,Challenges --all --all-namespaces; then
+    log_success "Cert-manager resources cleaned up"
+  fi
+  
+  log_step "2" "Removing DNS challenge webhook (if configured)"
+  if [[ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]]; then 
+    godaddyWebhookReset
+    log_success "DNS challenge webhook removed"
+  fi
+  
+  log_step "3" "Uninstalling cert-manager Helm release"
+  if helm_uninstall_with_summary "cert-manager" "cert-manager" --namespace cert-manager cert-manager; then
+    log_success "Cert-manager Helm release removed"
+  fi
+  
+  log_step "4" "Removing cert-manager namespace"
+  if kubectl_with_summary delete "namespace" delete namespace cert-manager; then
+    show_installation_summary "cert-manager" "cert-manager" "Certificate management system removed"
+    log_component_success "cert-manager-reset" "cert-manager successfully removed from cluster"
+  else
+    log_error "Failed to remove cert-manager namespace"
+    return 1
+  fi
 }
 
 haInst() {
@@ -6632,35 +6911,59 @@ prometheusGrafanaInstv2(){
 }
 
 prometheusGrafanaInst() {
-
-  helm repo add prometheus-community \
+  log_component_start "monitoring" "Installing Prometheus & Grafana monitoring stack"
+  
+  log_step "1" "Adding Prometheus Helm repository"
+  execute_with_suppression helm repo add prometheus-community \
     https://prometheus-community.github.io/helm-charts
-  helm repo update
-  helm install monitoring \
-    prometheus-community/kube-prometheus-stack \
+  execute_with_suppression helm repo update
+  
+  log_step "2" "Installing Prometheus monitoring stack"
+  if helm_install_with_summary "monitoring" "monitoring" \
+    monitoring prometheus-community/kube-prometheus-stack \
     --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/values.yaml \
     --version 39.6.0 \
     --namespace monitoring \
-    --create-namespace
-
+    --create-namespace; then
+    
+    log_step "3" "Configuring kube-proxy metrics"
 #  kubectl -n kube-system get cm kube-proxy-config -o yaml | sed \
 #    's/metricsBindAddress: 127.0.0.1:10249/metricsBindAddress: 0.0.0.0:10249' \
 #    kubectl apply -f -
 
-  kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl apply -f -
+    if kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl_with_summary apply "kube-proxy config"; then
+      log_success "kube-proxy metrics configured"
+    fi
 
-  kubectl -n kube-system patch ds kube-proxy -p \
-    '{"spec":{"template":{"metadata":{"labels":{"updateTime":"'`date +'%s'`'"}}}}}'
+    if execute_with_suppression kubectl -n kube-system patch ds kube-proxy -p \
+      '{"spec":{"template":{"metadata":{"labels":{"updateTime":"'`date +'%s'`'"}}}}}'; then
+      log_success "kube-proxy daemonset updated"
+    fi
 
-  helm repo add bitnami https://charts.bitnami.com/bitnami
-  helm repo update
-  helm install postgres \
-    bitnami/postgresql \
-    --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/postgres-values.yaml \
-    --version 11.7.1 \
-    --namespace db \
-    --create-namespace
-
+    log_step "4" "Installing PostgreSQL database"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
+    
+    if helm_install_with_summary "postgres" "db" \
+      postgres bitnami/postgresql \
+      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/prometheus-grafana/postgres-values.yaml \
+      --version 11.7.1 \
+      --namespace db \
+      --create-namespace; then
+      
+      show_installation_summary "monitoring" "monitoring" "Prometheus, Grafana & PostgreSQL stack"
+      log_component_success "monitoring" "Complete monitoring stack installed successfully"
+      
+      # Call next module suggestion
+      suggest_and_install_next_module "monitoring"
+    else
+      log_error "PostgreSQL installation failed"
+      return 1
+    fi
+  else
+    log_error "Prometheus monitoring stack installation failed"
+    return 1
+  fi
 }
 
 dashboardReset() {
@@ -6946,16 +7249,21 @@ EOF
 }
 
 jenkinsInst() {
-  helm repo add jenkins https://charts.jenkins.io
-  helm repo update
-  kubectl create ns jenkins
+  log_component_start "jenkins" "Installing Jenkins CI/CD automation server"
+  
+  log_step "1" "Adding Jenkins Helm repository"
+  execute_with_suppression helm repo add jenkins https://charts.jenkins.io
+  execute_with_suppression helm repo update
+  
+  log_step "2" "Creating namespace and configuring secrets"
+  kubectl_with_summary create "namespace" create ns jenkins
 
-  kubectl create configmap jenkins-logging-config \
+  execute_with_suppression kubectl create configmap jenkins-logging-config \
   --from-file=${MOUNT_PATH}/kubernetes/install_k8s/jenkins/logging.properties \
   -n jenkins
 
   ADMIN_PASSWORD=$(promptSecret "Enter Jenkins Admin Password: ")
-  kubectl create secret generic jenkins-admin-password \
+  execute_with_suppression kubectl create secret generic jenkins-admin-password \
     --from-literal=jenkins-admin-password="${ADMIN_PASSWORD}" -n jenkins
 
   CLIENT_SECRET=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)
@@ -6963,41 +7271,63 @@ jenkinsInst() {
   keycloakUrl="https://$(fullKeycloakUrl)"
   REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
 
-
-  kubectl create secret generic oic-auth \
+  execute_with_suppression kubectl create secret generic oic-auth \
   --from-literal=clientID="${CLIENT_ID}" \
   --from-literal=clientSecret="${CLIENT_SECRET}" \
   --from-literal=keycloakUrl=${keycloakUrl} \
   --from-literal=realm=${REALM} \
   --namespace jenkins
+  
+  log_step "3" "Configuring Docker build support"
   DOCKER_BUILD_ENABLED=true
   if [ "$DOCKER_BUILD_ENABLED" == "true" ]; then
     # kubectl create secret generic kaniko-docker-config \
     #   --from-file=/root/.docker/config.json \
     #   -n jenkins
 
-    kubectl create secret generic docker-credentials \
+    execute_with_suppression kubectl create secret generic docker-credentials \
     --from-file=.dockerconfigjson=/root/.docker/config.json \
     --type=kubernetes.io/dockerconfigjson \
     -n jenkins
 
-    kubectl create secret generic registry-credentials \
+    execute_with_suppression kubectl create secret generic registry-credentials \
     --from-file=config.json=/root/.docker/config.json \
     -n jenkins
+    log_success "Docker build support configured"
   fi
 
-  helm install jenkins \
+  log_step "4" "Installing Jenkins via Helm"
+  if helm_install_with_summary "jenkins" "jenkins" \
+    jenkins \
     --namespace jenkins \
     --set dockerBuildEnabled=$DOCKER_BUILD_ENABLED \
     --values $MOUNT_PATH/kubernetes/install_k8s/jenkins/values-mod.yaml \
-    jenkins/jenkins
-
-  createLocalStorageClassAndPV "jenkins-storage" "jenkins-pv" "/data/volumes/jenkins"
-  gok patch ingress jenkins jenkins letsencrypt jenkins
-  echo "Waiting for Jenkins services to be up!!!!"
-  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace jenkins
-  [[ $? -eq 0 ]] && echoSuccess "Jenkins services are now up!" || echoFailed "Jenkins services timed-out, please check!!"
-  checkCurl curl -XGET http://jenkins.jenkins.svc:8080 -u "admin:${ADMIN_PASSWORD}" --insecure
+    jenkins/jenkins; then
+    
+    log_step "5" "Configuring storage and ingress"
+    createLocalStorageClassAndPV "jenkins-storage" "jenkins-pv" "/data/volumes/jenkins"
+    gok patch ingress jenkins jenkins letsencrypt jenkins
+    
+    log_step "6" "Waiting for Jenkins services to be ready"
+    log_info "Waiting for Jenkins services to be up (timeout: 120s)..."
+    if kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace jenkins >/dev/null 2>&1; then
+      log_success "Jenkins services are now up!"
+      log_step "7" "Verifying Jenkins connectivity"
+      checkCurl curl -XGET http://jenkins.jenkins.svc:8080 -u "admin:${ADMIN_PASSWORD}" --insecure
+      
+      show_installation_summary "jenkins" "jenkins" "CI/CD automation server with Docker build support"
+      log_component_success "jenkins" "Jenkins CI/CD server installed successfully"
+      
+      # Call next module suggestion
+      suggest_and_install_next_module "jenkins"
+    else
+      log_error "Jenkins services timed-out, please check the installation!"
+      return 1
+    fi
+  else
+    log_error "Jenkins installation failed"
+    return 1
+  fi
 }
 
 opensearchInst(){
@@ -8244,11 +8574,16 @@ keycloakReset(){
 }
 
 keycloakInst(){
+  log_component_start "keycloak" "Installing Keycloak identity management system"
+  
   #Admin user is "user" and password is fetched from secret keycloak with key "admin-password"
   #Hence removing the below 2 lines
   #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
   #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
-  kubectl create ns keycloak
+  
+  log_step "1" "Creating namespace and collecting configuration"
+  kubectl_with_summary create "namespace" create ns keycloak
+  
   : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
   : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
   
@@ -8278,27 +8613,39 @@ keycloakInst(){
   : "${OIDC_CLIENT_ID:=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")}"
   : "${REALM:=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")}"
 
-  kubectl create ns keycloak
-  kubectl create secret generic keycloak-secrets \
+  log_step "2" "Creating secrets for Keycloak and PostgreSQL"
+  execute_with_suppression kubectl create secret generic keycloak-secrets \
     --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
     --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
     --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
     --from-literal=OAUTH_REALM="${REALM}"  -n keycloak \
     --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak
 
-  kubectl create secret generic keycloak-postgresql \
+  execute_with_suppression kubectl create secret generic keycloak-postgresql \
     --from-literal=username="${POSTGRESQL_USERNAME}" \
     --from-literal=password="${POSTGRESQL_PASSWORD}" \
     --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak
 
+  log_step "3" "Installing Keycloak via Helm"
   hostname="$(subDomain 'keycloak').$(rootDomain)"
 
-  helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
+  if helm_install_with_summary "keycloak" "keycloak" \
+    keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
         --namespace keycloak \
         --set ingress.hostname="$hostname" \
         --set auth.adminUser="$KEYCLOAK_ADMIN_USERNAME" \
         --set auth.adminPassword="$KEYCLOAK_ADMIN_PASSWORD" \
-        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml
+        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml; then
+    
+    show_installation_summary "keycloak" "keycloak" "Identity management system at https://$hostname"
+    log_component_success "keycloak" "Keycloak identity management system installed successfully"
+    
+    # Call next module suggestion
+    suggest_and_install_next_module "keycloak"
+  else
+    log_error "Keycloak installation failed"
+    return 1
+  fi
 }
 
 
@@ -9297,24 +9644,29 @@ resetEclipseChe(){
 }
 
 oauth2ProxyInst(){
-
+  log_component_start "oauth2-proxy" "Installing OAuth2 Proxy authentication system"
+  
+  log_step "1" "Creating namespace and storage"
   createLocalStorageClassAndPV "oauth-storage" "oauth-pv" "/data/volumes/pv6"
-  kubectl create ns oauth2
+  kubectl_with_summary create "namespace" create ns oauth2
 
+  log_step "2" "Configuring OAuth2 settings"
   OAUTH2_PROXY_CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
   REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
   OAUTH2_HOST="$(fullKeycloakUrl)"
   OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)"
 
-  kubectl create configmap oauth2-proxy-config \
+  execute_with_suppression kubectl create configmap oauth2-proxy-config \
       --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
       --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
       --from-literal=redirectUrl=oauth2/callback \
       -n oauth2
 
-  kubectl create configmap oauth2-ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n oauth2
+  execute_with_suppression kubectl create configmap oauth2-ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n oauth2
 
-  helm install oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
+  log_step "3" "Installing OAuth2 Proxy via Helm"
+  if helm_install_with_summary "oauth2-proxy" "oauth2" \
+    oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
     --set "extraArgs[0]=--provider=oidc" \
     --set "extraArgs[1]=--login-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
@@ -9344,9 +9696,23 @@ oauth2ProxyInst(){
     --set "extraArgs[25]=--set-xauthrequest=true" \
     --set "extraArgs[26]=--skip-jwt-bearer-tokens=true" \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
-    --create-namespace
-  gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
-  waitForServiceAvailable oauth2
+    --create-namespace; then
+    
+    log_step "4" "Configuring ingress"
+    gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
+    
+    log_step "5" "Waiting for service to be available"
+    waitForServiceAvailable oauth2
+    
+    show_installation_summary "oauth2-proxy" "oauth2" "Authentication proxy with Keycloak integration"
+    log_component_success "oauth2-proxy" "OAuth2 Proxy authentication system installed successfully"
+    
+    # Call next module suggestion
+    suggest_and_install_next_module "oauth2"
+  else
+    log_error "OAuth2 Proxy installation failed"
+    return 1
+  fi
 }
 
 waitForServiceAvailable(){
