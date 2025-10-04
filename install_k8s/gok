@@ -3213,18 +3213,78 @@ EOF
 }
 
 ingressInst() {
-  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-  helm repo update
-  helm install \
+  log_info "Installing NGINX Ingress Controller..."
+  
+  # Add helm repository quietly
+  log_step "Adding NGINX ingress Helm repository"
+  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1
+  helm repo update >/dev/null 2>&1
+  
+  # Install ingress with clean output
+  log_step "Installing NGINX Ingress Controller v4.12.1"
+  
+  # Capture helm install output to temporary file
+  local temp_log="/tmp/helm_ingress_install.log"
+  local install_success=false
+  
+  if helm install \
     ingress-nginx ingress-nginx/ingress-nginx --version 4.12.1 \
     --namespace ingress-nginx \
     --create-namespace \
     --set controller.service.nodePorts.http=80 \
     --set controller.service.nodePorts.https=443 \
     --set controller.service.type=NodePort \
-    --set defaultBackend.enabled=true
-  #    -f charts/values.yaml
-
+    --set defaultBackend.enabled=true \
+    > "$temp_log" 2>&1; then
+    install_success=true
+  fi
+  
+  # Extract and show summary information
+  if [[ "$install_success" == "true" ]]; then
+    log_success "NGINX Ingress Controller installed successfully"
+    
+    # Show key configuration summary
+    echo ""
+    log_header "📋 Installation Summary" "NGINX Ingress Controller"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Version:${COLOR_RESET} 4.12.1"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Namespace:${COLOR_RESET} ingress-nginx"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Service Type:${COLOR_RESET} NodePort"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}HTTP Port:${COLOR_RESET} 80"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}HTTPS Port:${COLOR_RESET} 443"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Default Backend:${COLOR_RESET} Enabled"
+    echo ""
+    
+    # Extract useful information from helm output
+    if grep -q "STATUS: deployed" "$temp_log"; then
+      echo -e "${COLOR_GREEN}📦 Deployment Status:${COLOR_RESET} Successfully deployed"
+    fi
+    
+    # Show next steps
+    echo -e "${COLOR_CYAN}🚀 Next Steps:${COLOR_RESET}"
+    echo -e "   • Ingress controller will be available shortly"
+    echo -e "   • Check status: ${COLOR_BOLD}kubectl get pods -n ingress-nginx${COLOR_RESET}"
+    echo -e "   • Create ingress resources to route traffic"
+    echo ""
+  else
+    log_error "NGINX Ingress Controller installation failed"
+    echo ""
+    echo -e "${COLOR_RED}📋 Error Details:${COLOR_RESET}"
+    # Show only relevant error information
+    if grep -i "error\|failed\|timeout" "$temp_log" >/dev/null; then
+      grep -i "error\|failed\|timeout" "$temp_log" | head -5 | sed 's/^/   • /'
+    else
+      echo "   • Check helm status and cluster resources"
+    fi
+    echo ""
+    rm -f "$temp_log"
+    return 1
+  fi
+  
+  # Clean up temporary file
+  rm -f "$temp_log"
+  
+  # Wait for service to be available
+  log_step "Waiting for ingress controller to be ready"
   waitForServiceAvailable ingress-nginx
 }
 
