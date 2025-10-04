@@ -4946,7 +4946,7 @@ resetChart(){
   emptyLocalFsStorage "ChartMuseum" "chart-pv" "chart-storage" "/data/volumes/chart-storage"
   
   log_step "3" "Removing namespace"
-  if kubectl_with_summary delete "namespace" delete namespace chartmuseum; then
+  if kubectl_with_summary delete "namespace" namespace chartmuseum; then
     show_installation_summary "chartmuseum" "chartmuseum" "Helm chart repository removed"
     log_component_success "chartmuseum-reset" "ChartMuseum has been reset successfully"
   else
@@ -7274,7 +7274,7 @@ certManagerReset() {
   fi
   
   log_step "4" "Removing cert-manager namespace"
-  if kubectl_with_summary delete "namespace" delete namespace cert-manager; then
+  if kubectl_with_summary delete "namespace" namespace cert-manager; then
     show_installation_summary "cert-manager" "cert-manager" "Certificate management system removed"
     log_component_success "cert-manager-reset" "cert-manager successfully removed from cluster"
   else
@@ -11216,7 +11216,7 @@ kyvernoReset(){
   fi
   
   log_step "3" "Removing Kyverno namespace"
-  if kubectl_with_summary delete "namespace" delete ns kyverno; then
+  if kubectl_with_summary delete "namespace" namespace kyverno; then
     show_installation_summary "kyverno" "kyverno" "Policy engine and governance system removed"
     log_component_success "kyverno-reset" "Kyverno has been completely removed from the cluster"
   else
