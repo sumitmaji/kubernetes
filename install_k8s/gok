@@ -3459,6 +3459,16 @@ k8sInst() {
     verbose_mode="true"
   fi
   
+  # Debug: Show verbose mode status
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_BRIGHT_GREEN}[DEBUG] k8sInst: Verbose mode is ENABLED${COLOR_RESET}"
+  else
+    echo -e "${COLOR_BRIGHT_YELLOW}[DEBUG] k8sInst: Verbose mode is DISABLED${COLOR_RESET}"
+    echo -e "${COLOR_DIM}Arguments received: $@${COLOR_RESET}"
+    echo -e "${COLOR_DIM}GOK_VERBOSE: ${GOK_VERBOSE}${COLOR_RESET}"
+    echo -e "${COLOR_DIM}First arg: '$1', Second arg: '$2'${COLOR_RESET}"
+  fi
+  
   log_header "Kubernetes Cluster" "Starting ${k8s_type} Installation"
   
   echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🚀 KUBERNETES CLUSTER INSTALLATION${COLOR_RESET}"
@@ -9836,11 +9846,21 @@ function installCmd() {
   # Initialize component tracking
   init_component_tracking "$COMPONENT" "Installing $COMPONENT component"
   
-  # Check for verbose flag in component arguments
+  # Check for verbose flag in all arguments
   local verbose_flag=""
-  if [[ "$2" == "--verbose" ]] || [[ "$2" == "-v" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == "--verbose" ]] || [[ "$arg" == "-v" ]]; then
+      verbose_flag="--verbose"
+      export GOK_VERBOSE="true"
+      log_info "Verbose logging enabled"
+      break
+    fi
+  done
+  
+  # Also check environment variable
+  if [[ "$GOK_VERBOSE" == "true" ]] && [[ "$verbose_flag" == "" ]]; then
     verbose_flag="--verbose"
-    log_info "Verbose logging enabled"
+    log_info "Verbose logging enabled via GOK_VERBOSE"
   fi
   
   # Start component installation with enhanced logging
@@ -10038,7 +10058,7 @@ function installCmd() {
     baseInst
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst $verbose_flag
-    k8sInst "kubernetes-worker" $verbose_flag
+    k8sInst "kubernetes-worker" "$verbose_flag"
   elif [ "$COMPONENT" == "base-services" ]; then
     installBaseServices
   elif [ "$COMPONENT" == "haproxy" ] || [ "$COMPONENT" == "ha-proxy" ] || [ "$COMPONENT" == "ha" ]; then
@@ -10078,7 +10098,7 @@ function installCmd() {
     fi
     
     # Step 3: Install Kubernetes cluster
-    if k8sInst "kubernetes" $verbose_flag; then
+    if k8sInst "kubernetes" "$verbose_flag"; then
       log_success "Kubernetes master node installation completed"
       
       # Validate Kubernetes installation before proceeding
@@ -10566,11 +10586,21 @@ function resetCmd() {
     return 0
   fi
   
-  # Check for verbose flag in component arguments
+  # Check for verbose flag in all arguments
   local verbose_flag=""
-  if [[ "$2" == "--verbose" ]] || [[ "$2" == "-v" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" == "--verbose" ]] || [[ "$arg" == "-v" ]]; then
+      verbose_flag="--verbose"
+      export GOK_VERBOSE="true"
+      log_info "Verbose logging enabled for reset operation"
+      break
+    fi
+  done
+  
+  # Also check environment variable
+  if [[ "$GOK_VERBOSE" == "true" ]] && [[ "$verbose_flag" == "" ]]; then
     verbose_flag="--verbose"
-    log_info "Verbose logging enabled for reset operation"
+    log_info "Verbose logging enabled for reset operation via GOK_VERBOSE"
   fi
   
   if [ "$COMPONENT" == "kubernetes" ]; then
@@ -11213,13 +11243,13 @@ elif [ "$CMD" == "status" ]; then
 elif [ "$CMD" == "taint-node" ]; then
   taintNodeCmd
 elif [ "$CMD" == "install" ]; then
-  installCmd "$2"
+  installCmd "$2" "$3"
 elif [ "$CMD" == "fix" ]; then
   fixCmd "$2"
 elif [ "$CMD" == "start" ]; then
   startCmd "$2"
 elif [ "$CMD" == "reset" ]; then
-  resetCmd "$2"
+  resetCmd "$2" "$3"
 elif [ "$CMD" == "deploy" ]; then
   deployCmd "$2"
 elif [ "$CMD" == "patch" ]; then
