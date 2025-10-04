@@ -2856,6 +2856,101 @@ verify_critical_dependencies() {
     return 0
 }
 
+# Remove Kubernetes packages during reset
+remove_kubernetes_packages() {
+    local verbose_flag="${1:-}"
+    
+    log_substep "Removing Kubernetes packages (kubeadm, kubectl, kubelet)"
+    
+    # List of Kubernetes packages to remove
+    local k8s_packages=("kubeadm" "kubectl" "kubelet" "kubernetes-cni" "cri-tools")
+    
+    if is_verbose_mode "$verbose_flag"; then
+        log_info "Verbose mode: Showing detailed package removal output"
+        
+        # Check which packages are installed first
+        log_info "Checking installed Kubernetes packages..."
+        for package in "${k8s_packages[@]}"; do
+            if dpkg -l | grep -q "^ii.*$package"; then
+                echo -e "${COLOR_DIM}  • $package: installed${COLOR_RESET}"
+            else
+                echo -e "${COLOR_DIM}  • $package: not installed${COLOR_RESET}"
+            fi
+        done
+        
+        # Remove packages with verbose output
+        log_info "Removing Kubernetes packages..."
+        sudo apt-get remove --purge -y "${k8s_packages[@]}" 2>&1 | while read line; do
+            echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
+        done
+        
+        # Clean up package cache
+        log_info "Cleaning up package cache..."
+        sudo apt-get autoremove -y 2>&1 | while read line; do
+            echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
+        done
+        
+        sudo apt-get autoclean 2>&1 | while read line; do
+            echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
+        done
+        
+    else
+        # Silent removal with progress indication
+        {
+            sudo apt-get remove --purge -y "${k8s_packages[@]}" >/dev/null 2>&1
+            sudo apt-get autoremove -y >/dev/null 2>&1
+            sudo apt-get autoclean >/dev/null 2>&1
+        } &
+        
+        local pid=$!
+        local dots=""
+        while kill -0 $pid 2>/dev/null; do
+            printf "\r    Removing Kubernetes packages${dots}"
+            dots="${dots}."
+            if [[ ${#dots} -gt 3 ]]; then dots=""; fi
+            sleep 0.5
+        done
+        
+        wait $pid
+        local exit_code=$?
+        
+        if [[ $exit_code -eq 0 ]]; then
+            printf "\r    ✓ Kubernetes packages removed successfully\n"
+        else
+            printf "\r    ⚠ Package removal completed with warnings\n"
+            log_warning "Some packages may not have been removed completely"
+        fi
+    fi
+    
+    # Remove Kubernetes repository configuration
+    log_substep "Removing Kubernetes repository configuration"
+    
+    if is_verbose_mode "$verbose_flag"; then
+        log_info "Removing repository files..."
+        if [[ -f /etc/apt/sources.list.d/kubernetes.list ]]; then
+            echo -e "${COLOR_DIM}  • Removing /etc/apt/sources.list.d/kubernetes.list${COLOR_RESET}"
+            sudo rm -f /etc/apt/sources.list.d/kubernetes.list
+        fi
+        
+        if [[ -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg ]]; then
+            echo -e "${COLOR_DIM}  • Removing /etc/apt/keyrings/kubernetes-apt-keyring.gpg${COLOR_RESET}"
+            sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        fi
+        
+        log_info "Updating package lists..."
+        sudo apt-get update 2>&1 | while read line; do
+            echo -e "${COLOR_DIM}  $line${COLOR_RESET}"
+        done
+    else
+        sudo rm -f /etc/apt/sources.list.d/kubernetes.list
+        sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        sudo apt-get update >/dev/null 2>&1
+        log_success "Repository configuration removed"
+    fi
+    
+    log_success "Kubernetes packages and repository removed successfully"
+}
+
 ingressUnInst() {
   output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length')
   if [ "$output" == "1" ]; then
@@ -10622,6 +10717,9 @@ EOF
 y
 EOF
     fi
+    
+    track_reset_progress "Removing Kubernetes packages..."
+    remove_kubernetes_packages "$verbose_flag"
     
     track_reset_progress "Cleaning up Kubernetes files and configurations..."
     cleanup_kubernetes_files "$verbose_flag"
