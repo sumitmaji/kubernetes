@@ -7722,7 +7722,7 @@ createLocalStorageClassAndPV() {
   local pvName=$2
   local volumePath=$3
 
-  cat << EOF | kubectl apply -f -
+  if execute_with_suppression kubectl apply -f - << EOF
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
@@ -7730,11 +7730,21 @@ metadata:
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 EOF
+  then
+    log_success "Storage class created (${storageClassName})"
+  else
+    log_error "Failed to create storage class"
+    return 1
+  fi
 
-  mkdir -p "${volumePath}"
-  chmod 777 "${volumePath}"
+  if execute_with_suppression mkdir -p "${volumePath}" && execute_with_suppression chmod 777 "${volumePath}"; then
+    log_success "Local storage directory prepared (${volumePath})"
+  else
+    log_error "Failed to prepare local storage directory"
+    return 1
+  fi
 
-  cat << EOF | kubectl apply -f -
+  if execute_with_suppression kubectl apply -f - << EOF
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -7757,6 +7767,12 @@ spec:
           values:
           - master.cloud.com
 EOF
+  then
+    log_success "Persistent volume created (${pvName}, 10Gi)"
+  else
+    log_error "Failed to create persistent volume"
+    return 1
+  fi
 }
 
 prometheusGrafanaResetv2(){
@@ -8457,13 +8473,22 @@ genRegistryPassword(){
   export DESTINATION_FOLDER=./registry-creds
 
   # Backup credentials to local files (in case you'll forget them later on)
-  mkdir -p ${DESTINATION_FOLDER}
-  echo ${REGISTRY_USER} > ${DESTINATION_FOLDER}/registry-user.txt
-  echo ${REGISTRY_PASS} > ${DESTINATION_FOLDER}/registry-pass.txt
+  if execute_with_suppression mkdir -p ${DESTINATION_FOLDER} && \
+     execute_with_suppression sh -c "echo '${REGISTRY_USER}' > ${DESTINATION_FOLDER}/registry-user.txt" && \
+     execute_with_suppression sh -c "echo '${REGISTRY_PASS}' > ${DESTINATION_FOLDER}/registry-pass.txt"; then
+    log_success "Registry credentials backed up to local files"
+  else
+    log_error "Failed to backup registry credentials"
+    return 1
+  fi
 
-  docker run --entrypoint htpasswd registry:2.7.0 \
-      -Bbn ${REGISTRY_USER} ${REGISTRY_PASS} \
-      > ${DESTINATION_FOLDER}/htpasswd
+  if execute_with_suppression docker run --entrypoint htpasswd registry:2.7.0 \
+      -Bbn ${REGISTRY_USER} ${REGISTRY_PASS} > ${DESTINATION_FOLDER}/htpasswd; then
+    log_success "Registry htpasswd authentication file generated"
+  else
+    log_error "Failed to generate registry htpasswd file"
+    return 1
+  fi
 
   unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
 }
@@ -8475,14 +8500,29 @@ imagePullSecrets(){
   DOCKER_EMAIL="skmaji@outlook.com"
 
   # Delete the secret if it already exists
-  kubectl get secret regcred -n kube-system 2>/dev/null && kubectl delete secret regcred -n kube-system
-  kubectl create secret docker-registry regcred \
+  if kubectl get secret regcred -n kube-system >/dev/null 2>&1; then
+    if execute_with_suppression kubectl delete secret regcred -n kube-system; then
+      log_success "Existing Docker registry secret removed"
+    fi
+  fi
+  
+  if execute_with_suppression kubectl create secret docker-registry regcred \
     --docker-server=$(fullRegistryUrl) \
     --docker-username=$DOCKER_USERNAME \
     --docker-password=$DOCKER_PASSWORD \
-    --docker-email=$DOCKER_EMAIL -n kube-system
+    --docker-email=$DOCKER_EMAIL -n kube-system; then
+    log_success "Docker registry secret created (user: $DOCKER_USERNAME)"
+  else
+    log_error "Failed to create Docker registry secret"
+    return 1
+  fi
 
-  genRegistryPassword $DOCKER_USERNAME $DOCKER_PASSWORD
+  if genRegistryPassword $DOCKER_USERNAME $DOCKER_PASSWORD; then
+    log_success "Registry authentication credentials generated"
+  else
+    log_error "Failed to generate registry authentication credentials"
+    return 1
+  fi
 }
 
 # https://blog.zachinachshon.com/docker-registry/
@@ -8505,10 +8545,28 @@ verifyRegistryInst(){
 
 # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
 dockerRegistryInst(){
-  imagePullSecrets
-  helm repo add twuni https://helm.twun.io
+  log_component_start "docker-registry" "Setting up container registry with authentication"
+  
+  log_step "1" "Configuring Docker registry authentication secrets"
+  if imagePullSecrets; then
+    log_success "Docker registry authentication configured"
+  else
+    log_error "Failed to configure Docker registry authentication"
+    return 1
+  fi
+  
+  log_step "2" "Adding Twuni Helm repository"
+  if execute_with_suppression helm repo add twuni https://helm.twun.io; then
+    log_success "Twuni Helm repository added"
+  else
+    log_error "Failed to add Twuni Helm repository"
+    return 1
+  fi
+  
+  log_step "3" "Installing Docker registry via Helm"
   export DESTINATION_FOLDER=./registry-creds
-  helm upgrade --install registry \
+  if helm_install_with_summary "registry" "registry" \
+      registry twuni/docker-registry \
       --namespace registry \
       --create-namespace \
       --set replicaCount=1 \
@@ -8517,9 +8575,12 @@ dockerRegistryInst(){
       --set persistence.deleteEnabled=true \
       --set persistence.storageClass=registry-storage \
       --set secrets.htpasswd="$(cat ${DESTINATION_FOLDER}/htpasswd)" \
-      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/values.yaml \
-      twuni/docker-registry
-
+      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/values.yaml; then
+    log_success "Docker registry deployed successfully"
+  else
+    log_error "Failed to deploy Docker registry"
+    return 1
+  fi
 }
 
 # It is used to generate both client/server certificate using
@@ -9597,27 +9658,78 @@ EOF
 }
 
 installRegistryWithCertMgr(){
-  createLocalStorageClassAndPV "registry-storage" "registry-pv" "/data/volumes/pv4"
-  dockerRegistryInst
-  # No need to generate the certificate.
-  # The certificate and secret will be directory issued the ingress annotation cert-manager.io/cluster-issuer
-  # gok create certificate registry registry
-  gok patch ingress registry-docker-registry registry letsencrypt $(registrySubdomain)
+  log_component_start "registry-install" "Installing container registry with certificate management"
+  
+  log_step "1" "Creating storage infrastructure"
+  if createLocalStorageClassAndPV "registry-storage" "registry-pv" "/data/volumes/pv4"; then
+    log_success "Storage class and persistent volume created (10Gi)"
+  else
+    log_error "Failed to create storage infrastructure"
+    return 1
+  fi
+  
+  log_step "2" "Deploying Docker registry"
+  if dockerRegistryInst; then
+    log_success "Docker registry deployment completed"
+  else
+    log_error "Failed to deploy Docker registry"
+    return 1
+  fi
+  
+  log_step "3" "Configuring TLS certificate and ingress"
+  # No need to generate the certificate manually.
+  # The certificate and secret will be directly issued via the ingress annotation cert-manager.io/cluster-issuer
+  if execute_with_suppression gok patch ingress registry-docker-registry registry letsencrypt $(registrySubdomain); then
+    log_success "TLS certificate and ingress configured ($(registrySubdomain).$(rootDomain))"
+  else
+    log_error "Failed to configure TLS certificate and ingress"
+    return 1
+  fi
 
+  log_step "4" "Installing registry certificates for Docker trust"
   # Let docker trust the self-signed certificates
   # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
-  #BEGIN
-  rm /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
-  mkdir -p /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/
-  kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
-  kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['ca\.crt']}" | base64 --decode >> /etc/docker/certs.d/$(registrySubdomain).$(rootDomain)/ca.crt
-  systemctl restart docker
-  #END
+  local cert_dir="/etc/docker/certs.d/$(registrySubdomain).$(rootDomain)"
+  
+  if execute_with_suppression rm -f "$cert_dir/ca.crt" && execute_with_suppression mkdir -p "$cert_dir"; then
+    log_success "Docker certificate directory prepared"
+  else
+    log_error "Failed to prepare Docker certificate directory"
+    return 1
+  fi
+  
+  if execute_with_suppression kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > "$cert_dir/ca.crt" && \
+     execute_with_suppression kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['ca\.crt']}" | base64 --decode >> "$cert_dir/ca.crt"; then
+    log_success "Registry certificates installed to Docker trust store"
+  else
+    log_error "Failed to install registry certificates"
+    return 1
+  fi
+  
+  log_step "5" "Restarting Docker service with new certificates"
+  if execute_with_suppression systemctl restart docker; then
+    log_success "Docker service restarted with registry trust"
+  else
+    log_error "Failed to restart Docker service"
+    return 1
+  fi
 
+  log_step "6" "Restarting load balancer proxy"
   # Restarting docker stops the haproxy, need to start it again
-  gok start proxy
-  docker login $(registrySubdomain).$(rootDomain)
-  [[ $? -eq 0 ]] && echoSuccess "OK" || echoFailed "FAILED"
+  if execute_with_suppression gok start proxy; then
+    log_success "Load balancer proxy restarted"
+  else
+    log_warning "Load balancer proxy restart may have failed"
+  fi
+  
+  log_step "7" "Verifying registry authentication"
+  if execute_with_suppression docker login $(registrySubdomain).$(rootDomain); then
+    log_success "Registry authentication verified - ready for use"
+    log_component_success "registry-install" "Container registry installation completed successfully"
+  else
+    log_error "Registry authentication failed"
+    return 1
+  fi
   openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)'
   [[ $? -eq 0 ]] && echoSuccess "Registry certificate verification succeeded" || echoFailed "Registry certificate verification failed"
   addPolicyToSyncSecrets
