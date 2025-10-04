@@ -17,7 +17,7 @@ _gok_enhanced_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     
     # Main commands
-    local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
+    local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary certManagerSummary kyvernoSummary registrySummary ldapSummary keycloakSummary oauth2ProxySummary rabbitmqSummary vaultSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
     
     # Install components
     local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
@@ -92,7 +92,7 @@ _gok_enhanced_completion() {
         case ${COMP_CWORD} in
             1)
                 # Fallback to basic main commands
-                COMPREPLY=($(compgen -W "install reset ingressSummary k8sSummary help" -- ${cur}))
+                COMPREPLY=($(compgen -W "install reset ingressSummary certManagerSummary kyvernoSummary registrySummary ldapSummary keycloakSummary oauth2ProxySummary rabbitmqSummary vaultSummary k8sSummary help" -- ${cur}))
                 ;;
         esac
     fi
@@ -126,7 +126,7 @@ _gok_auto_healing_completion() {
     if ! _gok_completion_watchdog; then
         # Emergency fallback - provide basic completion
         local cur="${COMP_WORDS[COMP_CWORD]}"
-        COMPREPLY=($(compgen -W "install reset ingressSummary k8sSummary help" -- ${cur}))
+        COMPREPLY=($(compgen -W "install reset ingressSummary certManagerSummary kyvernoSummary registrySummary ldapSummary keycloakSummary oauth2ProxySummary rabbitmqSummary vaultSummary k8sSummary help" -- ${cur}))
         return 0
     fi
     

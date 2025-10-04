@@ -4025,6 +4025,704 @@ ingressSummary() {
   echo ""
 }
 
+# Comprehensive cert-manager Summary function
+certManagerSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                      CERT-MANAGER SUMMARY                                   ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace cert-manager >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: cert-manager exists${COLOR_RESET}"
+      local helm_status=$(helm list -n cert-manager --output json 2>/dev/null | jq -r '.[] | select(.name=="cert-manager") | .status' 2>/dev/null || echo "not-found")
+      if [[ "$helm_status" == "deployed" ]]; then
+        local chart_version=$(helm list -n cert-manager --output json 2>/dev/null | jq -r '.[] | select(.name=="cert-manager") | .chart' 2>/dev/null || echo "unknown")
+        echo -e "  ${COLOR_GREEN}✓ Helm Chart: $chart_version (deployed)${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ Helm Chart: not deployed${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: cert-manager not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. Pods Status
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "cert-manager Pods"
+    local pods=$(kubectl get pods -n cert-manager --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No cert-manager pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Issuers and Certificates
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Certificate Issuers"
+    local issuers=$(kubectl get clusterissuers --no-headers 2>/dev/null)
+    if [[ -n "$issuers" ]]; then
+      echo "$issuers" | while read -r line; do
+        local issuer_name=$(echo "$line" | awk '{print $1}')
+        local ready=$(echo "$line" | awk '{print $2}')
+        if [[ "$ready" == "True" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ClusterIssuer: ${issuer_name} (Ready)${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_YELLOW}⚠ ClusterIssuer: ${issuer_name} (Not Ready)${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_CYAN}• No ClusterIssuers configured${COLOR_RESET}"
+    fi
+    
+    local certificates=$(kubectl get certificates --all-namespaces --no-headers 2>/dev/null)
+    if [[ -n "$certificates" ]]; then
+      echo -e "  ${COLOR_CYAN}Active Certificates:${COLOR_RESET}"
+      echo "$certificates" | head -5 | while read -r line; do
+        local namespace=$(echo "$line" | awk '{print $1}')
+        local cert_name=$(echo "$line" | awk '{print $2}')
+        local ready=$(echo "$line" | awk '{print $3}')
+        if [[ "$ready" == "True" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${namespace}/${cert_name}${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_YELLOW}⚠ ${namespace}/${cert_name}${COLOR_RESET}"
+        fi
+      done
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}cert-manager Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install cert-manager        # Install cert-manager${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok certManagerSummary          # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok certManagerReset            # Reset cert-manager${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# Comprehensive Kyverno Summary function
+kyvernoSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                        KYVERNO POLICY ENGINE SUMMARY                        ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace kyverno >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: kyverno exists${COLOR_RESET}"
+      local helm_status=$(helm list -n kyverno --output json 2>/dev/null | jq -r '.[] | select(.name=="kyverno") | .status' 2>/dev/null || echo "not-found")
+      if [[ "$helm_status" == "deployed" ]]; then
+        local chart_version=$(helm list -n kyverno --output json 2>/dev/null | jq -r '.[] | select(.name=="kyverno") | .chart' 2>/dev/null || echo "unknown")
+        echo -e "  ${COLOR_GREEN}✓ Helm Chart: $chart_version (deployed)${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ Helm Chart: not deployed${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: kyverno not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. Kyverno Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "Kyverno Pods"
+    local pods=$(kubectl get pods -n kyverno --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No Kyverno pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Policies
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Policy Status"
+    local policies=$(kubectl get clusterpolicies --no-headers 2>/dev/null)
+    if [[ -n "$policies" ]]; then
+      echo -e "  ${COLOR_CYAN}Cluster Policies:${COLOR_RESET}"
+      echo "$policies" | head -5 | while read -r line; do
+        local policy_name=$(echo "$line" | awk '{print $1}')
+        echo -e "    ${COLOR_GREEN}• ${policy_name}${COLOR_RESET}"
+      done
+    else
+      echo -e "    ${COLOR_CYAN}• No cluster policies configured${COLOR_RESET}"
+    fi
+    
+    local namespaced_policies=$(kubectl get policies --all-namespaces --no-headers 2>/dev/null)
+    if [[ -n "$namespaced_policies" ]]; then
+      echo -e "  ${COLOR_CYAN}Namespaced Policies:${COLOR_RESET}"
+      echo "$namespaced_policies" | head -3 | while read -r line; do
+        local namespace=$(echo "$line" | awk '{print $1}')
+        local policy_name=$(echo "$line" | awk '{print $2}')
+        echo -e "    ${COLOR_GREEN}• ${namespace}/${policy_name}${COLOR_RESET}"
+      done
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}Kyverno Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install kyverno             # Install Kyverno${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok kyvernoSummary              # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok kyvernoReset                # Reset Kyverno${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# Registry Summary function
+registrySummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                        CONTAINER REGISTRY SUMMARY                           ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace registry >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: registry exists${COLOR_RESET}"
+      local registry_deployment=$(kubectl get deployment registry -n registry --no-headers 2>/dev/null)
+      if [[ -n "$registry_deployment" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ Registry deployment found${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ Registry deployment not found${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: registry not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. Registry Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "Registry Pods"
+    local pods=$(kubectl get pods -n registry --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No registry pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Service and Access
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Service Configuration"
+    local registry_service=$(kubectl get service registry -n registry --no-headers 2>/dev/null)
+    if [[ -n "$registry_service" ]]; then
+      local service_type=$(kubectl get service registry -n registry -o jsonpath='{.spec.type}' 2>/dev/null)
+      local port=$(kubectl get service registry -n registry -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+      echo -e "  ${COLOR_GREEN}✓ Service: registry (Type: ${service_type}, Port: ${port})${COLOR_RESET}"
+      
+      if [[ "$service_type" == "NodePort" ]]; then
+        local nodeport=$(kubectl get service registry -n registry -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
+        echo -e "    ${COLOR_DIM}• NodePort: ${nodeport}${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Registry service not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}Registry Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install registry            # Install container registry${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok registrySummary             # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok reset registry              # Reset registry${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# LDAP Summary function
+ldapSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                           LDAP DIRECTORY SUMMARY                            ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace ldap >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: ldap exists${COLOR_RESET}"
+      local ldap_deployment=$(kubectl get deployment ldap -n ldap --no-headers 2>/dev/null)
+      if [[ -n "$ldap_deployment" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ LDAP deployment found${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ LDAP deployment not found${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: ldap not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. LDAP Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "LDAP Pods"
+    local pods=$(kubectl get pods -n ldap --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No LDAP pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Service Configuration
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Service Configuration"
+    local ldap_service=$(kubectl get service ldap -n ldap --no-headers 2>/dev/null)
+    if [[ -n "$ldap_service" ]]; then
+      local service_type=$(kubectl get service ldap -n ldap -o jsonpath='{.spec.type}' 2>/dev/null)
+      echo -e "  ${COLOR_GREEN}✓ Service: ldap (Type: ${service_type})${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• LDAP Port: 389${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• LDAPS Port: 636${COLOR_RESET}"
+    else
+      echo -e "  ${COLOR_RED}✗ LDAP service not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}LDAP Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install ldap                # Install LDAP directory${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok ldapSummary                 # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok reset ldap                  # Reset LDAP${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# Keycloak Summary function
+keycloakSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                      KEYCLOAK IDENTITY MANAGEMENT SUMMARY                   ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace keycloak >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: keycloak exists${COLOR_RESET}"
+      local keycloak_deployment=$(kubectl get deployment keycloak -n keycloak --no-headers 2>/dev/null)
+      if [[ -n "$keycloak_deployment" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ Keycloak deployment found${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ Keycloak deployment not found${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: keycloak not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. Keycloak Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "Keycloak Pods"
+    local pods=$(kubectl get pods -n keycloak --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No Keycloak pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Service and Access
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Service Configuration"
+    local keycloak_service=$(kubectl get service keycloak -n keycloak --no-headers 2>/dev/null)
+    if [[ -n "$keycloak_service" ]]; then
+      local service_type=$(kubectl get service keycloak -n keycloak -o jsonpath='{.spec.type}' 2>/dev/null)
+      local port=$(kubectl get service keycloak -n keycloak -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+      echo -e "  ${COLOR_GREEN}✓ Service: keycloak (Type: ${service_type}, Port: ${port})${COLOR_RESET}"
+      
+      # Check for ingress
+      local ingress=$(kubectl get ingress keycloak -n keycloak --no-headers 2>/dev/null)
+      if [[ -n "$ingress" ]]; then
+        local hosts=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)
+        echo -e "  ${COLOR_GREEN}✓ Ingress: ${hosts}${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Keycloak service not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}Keycloak Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install keycloak            # Install Keycloak${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok keycloakSummary             # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok reset keycloak              # Reset Keycloak${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# OAuth2 Proxy Summary function
+oauth2ProxySummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                        OAUTH2 PROXY SUMMARY                                 ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace oauth2 >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: oauth2 exists${COLOR_RESET}"
+      local oauth2_deployment=$(kubectl get deployment oauth2proxy -n oauth2 --no-headers 2>/dev/null)
+      if [[ -n "$oauth2_deployment" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ OAuth2 Proxy deployment found${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ OAuth2 Proxy deployment not found${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: oauth2 not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. OAuth2 Proxy Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "OAuth2 Proxy Pods"
+    local pods=$(kubectl get pods -n oauth2 --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No OAuth2 Proxy pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Service Configuration
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Service Configuration"
+    local oauth2_service=$(kubectl get service oauth2proxy -n oauth2 --no-headers 2>/dev/null)
+    if [[ -n "$oauth2_service" ]]; then
+      local service_type=$(kubectl get service oauth2proxy -n oauth2 -o jsonpath='{.spec.type}' 2>/dev/null)
+      local port=$(kubectl get service oauth2proxy -n oauth2 -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+      echo -e "  ${COLOR_GREEN}✓ Service: oauth2proxy (Type: ${service_type}, Port: ${port})${COLOR_RESET}"
+    else
+      echo -e "  ${COLOR_RED}✗ OAuth2 Proxy service not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}OAuth2 Proxy Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install oauth2              # Install OAuth2 Proxy${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok oauth2ProxySummary          # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok oauth2ProxyReset            # Reset OAuth2 Proxy${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# RabbitMQ Summary function
+rabbitmqSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                         RABBITMQ MESSAGE BROKER SUMMARY                     ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace rabbitmq >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: rabbitmq exists${COLOR_RESET}"
+      local rabbitmq_statefulset=$(kubectl get statefulset rabbitmq -n rabbitmq --no-headers 2>/dev/null)
+      if [[ -n "$rabbitmq_statefulset" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ RabbitMQ StatefulSet found${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ RabbitMQ StatefulSet not found${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: rabbitmq not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. RabbitMQ Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "RabbitMQ Pods"
+    local pods=$(kubectl get pods -n rabbitmq --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No RabbitMQ pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Service Configuration
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Service Configuration"
+    local rabbitmq_service=$(kubectl get service rabbitmq -n rabbitmq --no-headers 2>/dev/null)
+    if [[ -n "$rabbitmq_service" ]]; then
+      local service_type=$(kubectl get service rabbitmq -n rabbitmq -o jsonpath='{.spec.type}' 2>/dev/null)
+      echo -e "  ${COLOR_GREEN}✓ Service: rabbitmq (Type: ${service_type})${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• AMQP Port: 5672${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Management Port: 15672${COLOR_RESET}"
+    else
+      echo -e "  ${COLOR_RED}✗ RabbitMQ service not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}RabbitMQ Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install rabbitmq            # Install RabbitMQ${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok rabbitmqSummary             # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok reset rabbitmq              # Reset RabbitMQ${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
+# Vault Summary function
+vaultSummary() {
+  local verbose_mode="${1:-false}"
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                         HASHICORP VAULT SUMMARY                             ║"
+  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo -e "${COLOR_RESET}"
+  echo ""
+  
+  local cluster_accessible=false
+  if kubectl cluster-info >/dev/null 2>&1; then
+    cluster_accessible=true
+  fi
+  
+  # 1. Installation Status
+  log_step "1" "Installation Status"
+  if [[ "$cluster_accessible" == "true" ]]; then
+    if kubectl get namespace vault >/dev/null 2>&1; then
+      echo -e "  ${COLOR_GREEN}✓ Namespace: vault exists${COLOR_RESET}"
+      local vault_statefulset=$(kubectl get statefulset vault -n vault --no-headers 2>/dev/null)
+      if [[ -n "$vault_statefulset" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ Vault StatefulSet found${COLOR_RESET}"
+      else
+        echo -e "  ${COLOR_RED}✗ Vault StatefulSet not found${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ Namespace: vault not found${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 2. Vault Pods
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "2" "Vault Pods"
+    local pods=$(kubectl get pods -n vault --no-headers 2>/dev/null)
+    if [[ -n "$pods" ]]; then
+      echo "$pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+    else
+      echo -e "    ${COLOR_RED}✗ No Vault pods found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 3. Vault Status
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "3" "Vault Configuration"
+    local vault_service=$(kubectl get service vault -n vault --no-headers 2>/dev/null)
+    if [[ -n "$vault_service" ]]; then
+      local service_type=$(kubectl get service vault -n vault -o jsonpath='{.spec.type}' 2>/dev/null)
+      echo -e "  ${COLOR_GREEN}✓ Service: vault (Type: ${service_type})${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• API Port: 8200${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Cluster Port: 8201${COLOR_RESET}"
+    else
+      echo -e "  ${COLOR_RED}✗ Vault service not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 4. Available Commands
+  log_step "4" "Available Commands"
+  echo -e "  ${COLOR_CYAN}Vault Management:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install vault               # Install HashiCorp Vault${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok vaultSummary                # Show this summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok vaultReset                  # Reset Vault${COLOR_RESET}"
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo ""
+}
+
 # Comprehensive NGINX Ingress Controller reset function
 ingressReset() {
   log_info "Resetting NGINX Ingress Controller..."
@@ -13064,7 +13762,7 @@ _gok_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
   # Main commands
-  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary certManagerSummary kyvernoSummary registrySummary ldapSummary keycloakSummary oauth2ProxySummary rabbitmqSummary vaultSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
   
   # Install components
   local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
@@ -13137,7 +13835,7 @@ _gok_completion() {
           COMPREPLY=($(compgen -W "methods" -- ${cur}))
           return 0
           ;;
-        k8sSummary|ingressSummary|ingressReset|k8sInst|calicoInst)
+        k8sSummary|ingressSummary|certManagerSummary|kyvernoSummary|registrySummary|ldapSummary|keycloakSummary|oauth2ProxySummary|rabbitmqSummary|vaultSummary|ingressReset|k8sInst|calicoInst)
           COMPREPLY=($(compgen -W "--verbose -v" -- ${cur}))
           return 0
           ;;
@@ -13255,7 +13953,7 @@ enable_gok_completion() {
 # Simple completion setup for current session only
 quick_gok_completion() {
   # Enable completion immediately without sourcing the whole file
-  complete -W "install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help" gok
+  complete -W "install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary certManagerSummary kyvernoSummary registrySummary ldapSummary keycloakSummary oauth2ProxySummary rabbitmqSummary vaultSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help" gok
   echo "🚀 Quick GOK completion enabled for this session!"
   echo "💡 Try: gok ingr<TAB>"
 }
@@ -13278,7 +13976,7 @@ _gok_completion() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
   
   # Main commands
-  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
+  local commands="install fix reset start deploy patch create generate bash desc logs status taint-node k8sSummary ingressSummary certManagerSummary kyvernoSummary registrySummary ldapSummary keycloakSummary oauth2ProxySummary rabbitmqSummary vaultSummary ingressReset certManagerReset prometheusGrafanaReset dashboardReset vaultReset cloudshellReset consoleReset jupyterHubReset ttydReset resetChart jenkinsReset oauth2ProxyReset kyvernoReset k8sInst k8sReset calicoInst dnsUtils kcurl customDns oauthAdmin checkDns checkCurl completion help"
   
   # Install components
   local install_components="docker helm kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base base-services"
