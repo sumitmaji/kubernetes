@@ -12134,8 +12134,11 @@ COMPLETION_EOF
   rm -f /tmp/gok_completion
 }
 
-# Handle sourced vs executed scenarios differently
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+# =============================================================================
+# 🎯 UNIFIED COMMAND DISPATCHER  
+# =============================================================================
+
+# Simple unified dispatcher that works for both sourced and executed scenarios
   # Script is being sourced - enable completion and use old-style dispatcher
   complete -F _gok_completion gok 2>/dev/null || true
   
@@ -12444,17 +12447,17 @@ elif [ "$CMD" == "completion" ]; then
       echo "  gok completion setup     # Permanent installation"
       ;;
   esac
-fi  # End of old-style dispatcher (when sourced)
+fi  # End of complex dispatcher logic (disabled for now)
 
-# Command dispatcher - execute function if called directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]] || [[ "$0" =~ .*gok$ ]]; then
-  if [[ $# -gt 0 ]]; then
-    # Get the command (first argument)
-    command="$1"
-    shift
-    
-    # Handle command aliases that map to different function names
-    case "$command" in
+# Simple unified command dispatcher that always works
+# Handle both sourced and executed scenarios the same way
+if [[ $# -gt 0 ]]; then
+  # Get the command (first argument)
+  command="$1"
+  shift
+  
+  # Handle command aliases that map to different function names
+  case "$command" in
       install)
         installCmd "$@"
         ;;
