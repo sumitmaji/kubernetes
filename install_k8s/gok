@@ -278,18 +278,22 @@ log_progress() {
 log_component_start() {
     local component="$1"
     local description="${2:-Installing component}"
+    # Sanitize component name for variable names (replace hyphens with underscores)
+    local var_name=$(echo "${component^^}" | tr '-' '_')
     echo
     echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
     echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}│ ${EMOJI_PACKAGE} Starting: $component${COLOR_RESET}"
     echo -e "${COLOR_MAGENTA}│ $description${COLOR_RESET}"
     echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
-    export "GOK_${component^^}_START_TIME=$(date +%s)"
+    export "GOK_${var_name}_START_TIME=$(date +%s)"
 }
 
 log_component_success() {
     local component="$1"
     local message="${2:-Installation completed successfully}"
-    local start_var="GOK_${component^^}_START_TIME"
+    # Sanitize component name for variable names (replace hyphens with underscores)
+    local var_name=$(echo "${component^^}" | tr '-' '_')
+    local start_var="GOK_${var_name}_START_TIME"
     local elapsed=$(get_elapsed_time "${!start_var}")
     echo
     echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
@@ -465,7 +469,9 @@ show_installation_summary() {
 log_component_error() {
     local component="$1"
     local message="${2:-Installation failed}"
-    local start_var="GOK_${component^^}_START_TIME"
+    # Sanitize component name for variable names (replace hyphens with underscores)
+    local var_name=$(echo "${component^^}" | tr '-' '_')
+    local start_var="GOK_${var_name}_START_TIME"
     local elapsed=$(get_elapsed_time "${!start_var}")
     echo
     echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
