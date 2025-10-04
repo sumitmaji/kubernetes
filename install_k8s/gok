@@ -3638,39 +3638,69 @@ EOF
 }
 
 taintNode() {
-  echo "Going to taint node for scheduling in master"
+  log_info "Configuring master node for pod scheduling (removing NoSchedule taint)"
 
-  # Define a function to get IP address
-  getIP() {
-    ifconfig eth1 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://'
-  }
-
-  # Get the IP address
-  IP=$(getIP)
-
-  # If IP is empty, try another network interface
-  if [ -z "$IP" ]; then
-    IP=$(ifconfig enp1s0.100 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+  # Improved IP detection using multiple methods
+  local node_ip=""
+  
+  # Try multiple methods to get the node IP
+  if command -v ip >/dev/null 2>&1; then
+    # Modern approach using ip command
+    node_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' | head -1)
   fi
-
-  # If IP is still empty, print an error message and exit
-  if [ -z "$IP" ]; then
-    echo "Error: Could not determine IP address"
+  
+  # Fallback to ifconfig if ip command failed
+  if [[ -z "$node_ip" ]] && command -v ifconfig >/dev/null 2>&1; then
+    # Try common interface names
+    for interface in eth1 enp1s0.100 eth0 enp0s3 enp0s8; do
+      node_ip=$(ifconfig "$interface" 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+      [[ -n "$node_ip" ]] && break
+    done
+  fi
+  
+  # If still no IP, try getting from kubectl node info
+  if [[ -z "$node_ip" ]]; then
+    node_ip=$(kubectl get nodes -o wide --no-headers 2>/dev/null | awk '{print $6}' | head -1)
+  fi
+  
+  if [[ -z "$node_ip" ]]; then
+    log_warning "Could not determine node IP address - using hostname for node identification"
+    local node_name=$(kubectl get nodes --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
+  else
+    # Get the node name using IP address
+    local jsonpath="{.items[?(@.status.addresses[0].address == \"${node_ip}\")].metadata.name}"
+    local node_name=$(kubectl get nodes -o jsonpath="$jsonpath" 2>/dev/null)
+    
+    # If node name lookup by IP failed, try getting first node
+    if [[ -z "$node_name" ]]; then
+      node_name=$(kubectl get nodes --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
+    fi
+  fi
+  
+  if [[ -z "$node_name" ]]; then
+    log_error "Could not determine node name for taint removal"
+    log_info "Manual fix: kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
     return 1
   fi
-
-  # Get the node name
-  JSONPATH="{.items[?(@.status.addresses[0].address == \"${IP}\")].metadata.name}"
-  NODE_NAME="$(kubectl get nodes -o jsonpath="$JSONPATH")"
-
-  # If node name is empty, print an error message and exit
-  if [ -z "$NODE_NAME" ]; then
-    echo "Error: Could not determine node name"
-    return 1
+  
+  log_info "Node identified: $node_name (IP: ${node_ip:-unknown})"
+  
+  # Remove the taint to allow scheduling on master node
+  local taint_output
+  if taint_output=$(kubectl taint node "${node_name}" node-role.kubernetes.io/control-plane:NoSchedule- 2>&1); then
+    log_success "Master node configured for pod scheduling"
+    return 0
+  else
+    # Check if taint was already removed
+    if [[ "$taint_output" == *"not found"* ]]; then
+      log_info "Master node taint already removed - node ready for scheduling"
+      return 0
+    else
+      log_warning "Master node taint removal failed: $taint_output"
+      log_info "Manual fix: kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
+      return 1
+    fi
   fi
-
-  # Taint the node
-  kubectl taint node "${NODE_NAME}" node-role.kubernetes.io/control-plane:NoSchedule-
 }
 
 k8sInst() {
@@ -4135,6 +4165,78 @@ initialize_kubernetes_master() {
       log_error "Failed to setup kubectl configuration"
       echo -e "${COLOR_RED}Error details: $config_output${COLOR_RESET}"
       return 1
+    fi
+  fi
+  
+  # Configure master node (remove taints for single-node scheduling)
+  log_info "Configuring master node for pod scheduling..."
+  
+  # Integrate taintNode functionality directly
+  if [[ "$verbose_mode" == "true" ]]; then
+    echo -e "${COLOR_DIM}Removing NoSchedule taint from master node...${COLOR_RESET}"
+  fi
+  
+  # Define a function to get IP address (improved version)
+  local node_ip=""
+  
+  # Try multiple methods to get the node IP
+  if command -v ip >/dev/null 2>&1; then
+    # Modern approach using ip command
+    node_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' | head -1)
+  fi
+  
+  # Fallback to ifconfig if ip command failed
+  if [[ -z "$node_ip" ]] && command -v ifconfig >/dev/null 2>&1; then
+    # Try common interface names
+    for interface in eth1 enp1s0.100 eth0 enp0s3 enp0s8; do
+      node_ip=$(ifconfig "$interface" 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://')
+      [[ -n "$node_ip" ]] && break
+    done
+  fi
+  
+  # If still no IP, try getting from kubectl node info
+  if [[ -z "$node_ip" ]]; then
+    node_ip=$(kubectl get nodes -o wide --no-headers 2>/dev/null | awk '{print $6}' | head -1)
+  fi
+  
+  if [[ -z "$node_ip" ]]; then
+    log_warning "Could not determine node IP address - using hostname for node identification"
+    local node_name=$(kubectl get nodes --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
+  else
+    # Get the node name using IP address
+    local jsonpath="{.items[?(@.status.addresses[0].address == \"${node_ip}\")].metadata.name}"
+    local node_name=$(kubectl get nodes -o jsonpath="$jsonpath" 2>/dev/null)
+    
+    # If node name lookup by IP failed, try getting first node
+    if [[ -z "$node_name" ]]; then
+      node_name=$(kubectl get nodes --no-headers -o custom-columns=NAME:.metadata.name 2>/dev/null | head -1)
+    fi
+  fi
+  
+  if [[ -z "$node_name" ]]; then
+    log_error "Could not determine node name for taint removal"
+    log_warning "You may need to manually remove taints: kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
+  else
+    if [[ "$verbose_mode" == "true" ]]; then
+      echo -e "${COLOR_DIM}Node identified: $node_name (IP: ${node_ip:-unknown})${COLOR_RESET}"
+      echo -e "${COLOR_DIM}Executing: kubectl taint node ${node_name} node-role.kubernetes.io/control-plane:NoSchedule-${COLOR_RESET}"
+    fi
+    
+    # Remove the taint to allow scheduling on master node
+    local taint_output
+    if taint_output=$(kubectl taint node "${node_name}" node-role.kubernetes.io/control-plane:NoSchedule- 2>&1); then
+      log_success "Master node configured for pod scheduling"
+      if [[ "$verbose_mode" == "true" ]] && [[ -n "$taint_output" ]]; then
+        echo -e "${COLOR_DIM}Taint removal output: $taint_output${COLOR_RESET}"
+      fi
+    else
+      # Check if taint was already removed
+      if [[ "$taint_output" == *"not found"* ]]; then
+        log_info "Master node taint already removed - node ready for scheduling"
+      else
+        log_warning "Master node taint removal failed: $taint_output"
+        log_info "Master node may not schedule pods. Manual fix: kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
+      fi
     fi
   fi
   
@@ -9194,9 +9296,9 @@ function describeAllMethods() {
   echo ""
   
   echo "taintNode()"
-  echo "├─ Purpose: Apply node taints for scheduling control"
-  echo "├─ Called by: taintNodeCmd(), installCmd()"
-  echo "└─ Returns: Node taint application status"
+  echo "├─ Purpose: Remove NoSchedule taint from master node for pod scheduling"
+  echo "├─ Called by: taintNodeCmd(), k8sInst() (integrated)"
+  echo "└─ Returns: Node taint removal status"
   echo ""
   
   echo ""
@@ -10456,15 +10558,7 @@ function installCmd() {
       log_warning "Helm installation failed - some deployments may not work"
     fi
     
-    # Step 5: Configure master node (remove taints for single-node)
-    log_info "Configuring master node scheduling..."
-    if taintNode; then
-      log_success "Master node configured for pod scheduling"
-    else
-      log_warning "Master node taint removal failed"
-    fi
-    
-    # Step 6: Install network plugin (Calico)
+    # Step 5: Install network plugin (Calico)
     log_info "Installing Calico network plugin..."
     if calicoInst $verbose_flag; then
       log_success "Calico network plugin installed"
@@ -10473,7 +10567,7 @@ function installCmd() {
       log_error "Please install a network plugin manually"
     fi
     
-    # Step 7: Wait for system services to be ready
+    # Step 6: Wait for system services to be ready
     log_info "Waiting for Kubernetes system services..."
     if waitForServiceAvailable kube-system; then
       log_success "Kubernetes system services are ready"
