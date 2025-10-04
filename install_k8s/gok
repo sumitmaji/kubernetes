@@ -7110,9 +7110,11 @@ godaddyWebhookReset() {
 }
 
 setupCertiIssuers() {
+  log_component_start "cert-issuers" "Configuring certificate issuers and CA infrastructure"
 
 if [ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]; then
-  cat <<EOF | kubectl apply -f -
+  log_step "1" "Creating Let's Encrypt DNS challenge cluster issuer"
+  if execute_with_suppression kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -7139,12 +7141,31 @@ spec:
        - '$(defaultSubdomain).$(rootDomain)'
        - '*.$(rootDomain)'
 EOF
-  godaddyWebhook
-  addLetsEncryptStagingCertificates
+  then
+    log_success "Let's Encrypt DNS challenge issuer created ($(getClusterIssuerName))"
+  else
+    log_error "Failed to create Let's Encrypt DNS challenge issuer"
+    return 1
+  fi
+  
+  log_step "2" "Installing GoDaddy DNS webhook"
+  if godaddyWebhook; then
+    log_success "GoDaddy DNS webhook installed"
+  else
+    log_error "Failed to install GoDaddy DNS webhook"
+    return 1
+  fi
+  
+  log_step "3" "Adding Let's Encrypt staging certificates"
+  if addLetsEncryptStagingCertificates; then
+    log_success "Let's Encrypt staging certificates configured"
+  else
+    log_error "Failed to configure Let's Encrypt staging certificates"
+    return 1
+  fi
 elif [ $CERTMANAGER_CHALANGE_TYPE == 'http' ]; then
-    
-
-  cat <<EOF | kubectl apply -f -
+  log_step "1" "Creating Let's Encrypt HTTP challenge cluster issuer"
+  if execute_with_suppression kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -7161,13 +7182,29 @@ spec:
         ingress:
           ingressClassName: nginx
 EOF
-  addLetsEncryptStagingCertificates
+  then
+    log_success "Let's Encrypt HTTP challenge issuer created ($(getClusterIssuerName))"
+  else
+    log_error "Failed to create Let's Encrypt HTTP challenge issuer"
+    return 1
+  fi
+  
+  log_step "2" "Adding Let's Encrypt staging certificates"
+  if addLetsEncryptStagingCertificates; then
+    log_success "Let's Encrypt staging certificates configured"
+  else
+    log_error "Failed to configure Let's Encrypt staging certificates"
+    return 1
+  fi
 elif [ $CERTMANAGER_CHALANGE_TYPE == 'selfsigned' ]; then
   # https://medium.com/geekculture/a-simple-ca-setup-with-kubernetes-cert-manager-bc8ccbd9c2
   # https://gist.github.com/jakexks/c1de8238cbee247333f8c274dc0d6f0f
-  # Create self signed cluster issuer:
-  echo "Creating self-signed cluster-issuer..."
-  until cat <<EOYAML | kubectl apply -f -
+  
+  log_step "1" "Creating self-signed cluster issuer"
+  local retry_count=0
+  local max_retries=5
+  while [ $retry_count -lt $max_retries ]; do
+    if execute_with_suppression kubectl apply -f - <<EOYAML
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -7175,12 +7212,28 @@ metadata:
 spec:
   selfSigned: {}
 EOYAML
-  do sleep 1; done
-  kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io selfsigned-cluster-issuer
+    then
+      log_success "Self-signed cluster issuer created"
+      break
+    else
+      retry_count=$((retry_count + 1))
+      if [ $retry_count -eq $max_retries ]; then
+        log_error "Failed to create self-signed cluster issuer after $max_retries attempts"
+        return 1
+      fi
+      sleep 1
+    fi
+  done
 
-  # Create CA certificate. If you want to use it as a ClusterIssuer the secret must be in the cert-manager namespace:
-  echo "Creating self-signed certificate..."
-  cat <<EOYAML | kubectl apply -f -
+  if execute_with_suppression kubectl wait --timeout=10s --for=condition=Ready clusterissuers.cert-manager.io selfsigned-cluster-issuer; then
+    log_success "Self-signed cluster issuer is ready"
+  else
+    log_error "Self-signed cluster issuer failed to become ready"
+    return 1
+  fi
+
+  log_step "2" "Creating CA certificate authority"
+  if execute_with_suppression kubectl apply -f - <<EOYAML
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -7203,11 +7256,22 @@ spec:
     kind: ClusterIssuer
     group: cert-manager.io
 EOYAML
-  kubectl --timeout=10s -n cert-manager wait --for=condition=Ready certificates.cert-manager.io gokselfsign-ca
+  then
+    log_success "CA certificate created (GOK Inc. authority)"
+  else
+    log_error "Failed to create CA certificate"
+    return 1
+  fi
 
-  # Create clusterissuer
-  echo "Creating CA cluster issuer..."
-  cat <<EOYAML | kubectl apply -f -
+  if execute_with_suppression kubectl wait --timeout=10s -n cert-manager --for=condition=Ready certificates.cert-manager.io gokselfsign-ca; then
+    log_success "CA certificate is ready and issued"
+  else
+    log_error "CA certificate failed to become ready"
+    return 1
+  fi
+
+  log_step "3" "Creating production CA cluster issuer"
+  if execute_with_suppression kubectl apply -f - <<EOYAML
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -7216,20 +7280,46 @@ spec:
   ca:
     secretName: gokselfsign-ca
 EOYAML
-  kubectl --timeout=10s wait --for=condition=Ready clusterissuers.cert-manager.io "$(getClusterIssuerName)"
+  then
+    log_success "Production CA cluster issuer created ($(getClusterIssuerName))"
+  else
+    log_error "Failed to create production CA cluster issuer"
+    return 1
+  fi
 
-  # Add the self signed issuer(ca) certificate to authorized certificates
-  kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt
+  if execute_with_suppression kubectl wait --timeout=10s --for=condition=Ready clusterissuers.cert-manager.io "$(getClusterIssuerName)"; then
+    log_success "Production CA cluster issuer is ready"
+  else
+    log_error "Production CA cluster issuer failed to become ready"
+    return 1
+  fi
+
+  log_step "4" "Installing CA certificate to system trust store"
+  if execute_with_suppression kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt; then
+    log_success "CA certificate extracted from Kubernetes secret"
+  else
+    log_error "Failed to extract CA certificate"
+    return 1
+  fi
 
   # Add the issuer.crt to export directory so that the worker nodes can add the same to their trusted certificates.
-  mkdir -p /export/certs
-  cp /usr/local/share/ca-certificates/issuer.crt /export/certs/issuer.crt
-  update-ca-certificates
-  #Need to restart the container
+  if execute_with_suppression mkdir -p /export/certs && execute_with_suppression cp /usr/local/share/ca-certificates/issuer.crt /export/certs/issuer.crt; then
+    log_success "CA certificate copied to shared storage for worker nodes"
+  else
+    log_error "Failed to copy CA certificate to shared storage"
+    return 1
+  fi
+
+  if execute_with_suppression update-ca-certificates; then
+    log_success "System certificate store updated with GOK CA"
+  else
+    log_error "Failed to update system certificate store"
+    return 1
+  fi
 fi
 
-
-  cat <<EOF | kubectl apply -f -
+  log_step "5" "Creating default domain certificate"
+  if execute_with_suppression kubectl apply -f - <<EOF
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -7247,8 +7337,15 @@ spec:
     name: $(getClusterIssuerName)
     kind: ClusterIssuer
 EOF
+  then
+    log_success "Default domain certificate created ($(defaultSubdomain).$(rootDomain))"
+  else
+    log_error "Failed to create default domain certificate"
+    return 1
+  fi
 
-echoWarning "Selfsigned certificate is added to root ca, please reboot the system for it to effect"
+  log_warning "Self-signed certificate added to system CA store - system reboot recommended for full effect"
+  log_component_success "cert-issuers" "Certificate issuers and CA infrastructure configured successfully"
 }
 
 certManagerReset() {
