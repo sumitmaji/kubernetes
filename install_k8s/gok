@@ -1403,6 +1403,181 @@ suggest_next_installations() {
     echo
 }
 
+# Suggest and optionally install the next recommended module after successful installation
+suggest_and_install_next_module() {
+    local current_component="$1"
+    local auto_install="${2:-false}"  # Optional parameter for auto-installation
+    
+    # Define the logical installation dependency chain
+    declare -A NEXT_MODULE_MAP
+    NEXT_MODULE_MAP["docker"]="kubernetes"
+    NEXT_MODULE_MAP["kubernetes"]="cert-manager"
+    NEXT_MODULE_MAP["cert-manager"]="ingress"
+    NEXT_MODULE_MAP["ingress"]="monitoring"
+    NEXT_MODULE_MAP["monitoring"]="vault"
+    NEXT_MODULE_MAP["vault"]="keycloak"
+    NEXT_MODULE_MAP["keycloak"]="oauth2"
+    NEXT_MODULE_MAP["oauth2"]="argocd"
+    NEXT_MODULE_MAP["helm"]="kubernetes"
+    
+    # Define component descriptions
+    declare -A MODULE_DESCRIPTIONS
+    MODULE_DESCRIPTIONS["docker"]="Container runtime engine"
+    MODULE_DESCRIPTIONS["kubernetes"]="Container orchestration platform"
+    MODULE_DESCRIPTIONS["cert-manager"]="Automated TLS certificate management"
+    MODULE_DESCRIPTIONS["ingress"]="HTTP/HTTPS traffic routing and load balancing"
+    MODULE_DESCRIPTIONS["monitoring"]="Prometheus & Grafana observability stack"
+    MODULE_DESCRIPTIONS["vault"]="Secrets management and secure storage"
+    MODULE_DESCRIPTIONS["keycloak"]="Identity and access management"
+    MODULE_DESCRIPTIONS["oauth2"]="Authentication proxy and SSO"
+    MODULE_DESCRIPTIONS["argocd"]="GitOps continuous delivery"
+    MODULE_DESCRIPTIONS["jenkins"]="CI/CD automation and pipeline management"
+    MODULE_DESCRIPTIONS["jupyter"]="Interactive data science and development"
+    MODULE_DESCRIPTIONS["dashboard"]="Kubernetes web-based management interface"
+    
+    # Get the next recommended module
+    local next_module="${NEXT_MODULE_MAP[$current_component]}"
+    
+    if [[ -z "$next_module" ]]; then
+        # No specific next module defined, show general suggestions
+        log_info "🎉 $current_component installation completed successfully!"
+        echo ""
+        suggest_next_installations
+        return 0
+    fi
+    
+    # Check if the next module is already installed
+    local is_installed=false
+    case "$next_module" in
+        "kubernetes")
+            kubectl get nodes >/dev/null 2>&1 && is_installed=true
+            ;;
+        "cert-manager")
+            kubectl get deployment cert-manager -n cert-manager >/dev/null 2>&1 && is_installed=true
+            ;;
+        "ingress")
+            kubectl get deployment ingress-nginx-controller -n ingress-nginx >/dev/null 2>&1 && is_installed=true
+            ;;
+        "monitoring")
+            kubectl get deployment -n monitoring prometheus-operator >/dev/null 2>&1 && is_installed=true
+            ;;
+        "vault")
+            kubectl get statefulset -n vault vault >/dev/null 2>&1 && is_installed=true
+            ;;
+        "keycloak")
+            kubectl get deployment -n keycloak keycloak >/dev/null 2>&1 && is_installed=true
+            ;;
+        "oauth2")
+            kubectl get deployment -n oauth2 oauth2proxy >/dev/null 2>&1 && is_installed=true
+            ;;
+        "argocd")
+            kubectl get deployment -n argocd argocd-server >/dev/null 2>&1 && is_installed=true
+            ;;
+        "docker")
+            command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 && is_installed=true
+            ;;
+    esac
+    
+    echo ""
+    log_header "Next Recommended Installation" "Suggested Module: $next_module"
+    
+    if [[ "$is_installed" == "true" ]]; then
+        log_success "✓ $next_module is already installed"
+        echo -e "  ${COLOR_DIM}${MODULE_DESCRIPTIONS[$next_module]}${COLOR_RESET}"
+        echo ""
+        # Recursively suggest the next module after this one
+        suggest_and_install_next_module "$next_module" "$auto_install"
+        return 0
+    fi
+    
+    # Show the recommendation
+    echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🎯 Recommended Next Step:${COLOR_RESET}"
+    echo ""
+    echo -e "  ${COLOR_CYAN}Module:${COLOR_RESET} ${COLOR_BOLD}$next_module${COLOR_RESET}"
+    echo -e "  ${COLOR_CYAN}Purpose:${COLOR_RESET} ${MODULE_DESCRIPTIONS[$next_module]}"
+    echo -e "  ${COLOR_CYAN}Command:${COLOR_RESET} ${COLOR_BOLD}gok install $next_module${COLOR_RESET}"
+    echo ""
+    
+    # Show why this is recommended after the current component
+    case "$current_component -> $next_module" in
+        "kubernetes -> cert-manager")
+            echo -e "${COLOR_YELLOW}📋 Why install cert-manager next?${COLOR_RESET}"
+            echo -e "  • Provides automated TLS certificate management"
+            echo -e "  • Required for secure HTTPS ingress traffic"
+            echo -e "  • Integrates with Let's Encrypt for free certificates"
+            echo -e "  • Foundation for secure service mesh and applications"
+            ;;
+        "cert-manager -> ingress")
+            echo -e "${COLOR_YELLOW}📋 Why install ingress next?${COLOR_RESET}"
+            echo -e "  • Enables external HTTP/HTTPS access to cluster services"
+            echo -e "  • Provides load balancing and SSL termination"
+            echo -e "  • Works with cert-manager for automatic TLS certificates"
+            echo -e "  • Required for web-based dashboards and applications"
+            ;;
+        "ingress -> monitoring")
+            echo -e "${COLOR_YELLOW}📋 Why install monitoring next?${COLOR_RESET}"
+            echo -e "  • Provides cluster observability with Prometheus & Grafana"
+            echo -e "  • Essential for production cluster health monitoring"
+            echo -e "  • Web dashboards accessible through ingress"
+            echo -e "  • Helps troubleshoot performance and resource issues"
+            ;;
+        "monitoring -> vault")
+            echo -e "${COLOR_YELLOW}📋 Why install vault next?${COLOR_RESET}"
+            echo -e "  • Secure secrets management for applications"
+            echo -e "  • Centralized storage for API keys, passwords, certificates"
+            echo -e "  • Required for production-grade security"
+            echo -e "  • Integrates with Kubernetes service accounts"
+            ;;
+        "vault -> keycloak")
+            echo -e "${COLOR_YELLOW}📋 Why install keycloak next?${COLOR_RESET}"
+            echo -e "  • Identity and access management for all services"
+            echo -e "  • Single sign-on (SSO) across applications"
+            echo -e "  • User authentication and authorization"
+            echo -e "  • Integrates with vault for secure credential storage"
+            ;;
+        "keycloak -> oauth2")
+            echo -e "${COLOR_YELLOW}📋 Why install oauth2 next?${COLOR_RESET}"
+            echo -e "  • Authentication proxy for securing applications"
+            echo -e "  • Enforces authentication before accessing services"
+            echo -e "  • Works with Keycloak for seamless SSO experience"
+            echo -e "  • Protects cluster resources and dashboards"
+            ;;
+    esac
+    echo ""
+    
+    # Offer to install the next module
+    if [[ "$auto_install" == "true" ]]; then
+        log_info "Auto-installing $next_module..."
+        gok install "$next_module"
+        return $?
+    else
+        echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 Would you like to install $next_module now?${COLOR_RESET}"
+        echo -e "${COLOR_DIM}This will start the installation process for the next recommended component.${COLOR_RESET}"
+        echo ""
+        
+        read -p "Install $next_module now? (y/N): " -r install_choice
+        if [[ "$install_choice" =~ ^[Yy]$ ]]; then
+            echo ""
+            log_info "Starting installation of $next_module..."
+            echo ""
+            gok install "$next_module"
+            return $?
+        else
+            log_info "Skipping $next_module installation"
+            echo -e "  ${COLOR_DIM}You can install it later with: ${COLOR_BOLD}gok install $next_module${COLOR_RESET}"
+            echo ""
+            
+            # Show alternative next steps
+            echo -e "${COLOR_CYAN}Alternative next steps:${COLOR_RESET}"
+            echo -e "  • View platform status: ${COLOR_BOLD}gok status${COLOR_RESET}"
+            echo -e "  • Check component summary: ${COLOR_BOLD}gok ${current_component}Summary${COLOR_RESET}"
+            echo -e "  • Install different component: ${COLOR_BOLD}gok install help${COLOR_RESET}"
+            echo ""
+            return 0
+        fi
+    fi
+}
+
 # =============================================================================
 # � REPOSITORY FIX UTILITIES
 # =============================================================================
@@ -3286,6 +3461,9 @@ ingressInst() {
   # Wait for service to be available
   log_step "Waiting for ingress controller to be ready"
   waitForServiceAvailable ingress-nginx
+  
+  # Suggest next module installation
+  suggest_and_install_next_module "ingress"
 }
 
 # Show comprehensive NGINX Ingress Controller installation summary
@@ -11143,9 +11321,10 @@ function installCmd() {
     if certmanagerInst && setupCertiIssuers; then
       if validate_component_installation "cert-manager" 300; then
         complete_component "cert-manager" "Cert-manager installation completed and validated"
-        show_component_next_steps "cert-manager"
+        suggest_and_install_next_module "cert-manager"
       else
         complete_component "cert-manager" "Cert-manager installed but validation had warnings"
+        suggest_and_install_next_module "cert-manager"
       fi
     else
       fail_component "cert-manager" "Cert-manager installation failed"
@@ -11266,9 +11445,10 @@ function installCmd() {
     if ingressInst; then
       if validate_component_installation "ingress" 300; then
         complete_component "ingress" "Ingress controller installation completed and validated"
-        show_component_next_steps "ingress"
+        # Note: suggest_and_install_next_module is already called by ingressInst function
       else
         complete_component "ingress" "Ingress controller installed but validation had warnings"
+        # Note: suggest_and_install_next_module is already called by ingressInst function
       fi
     else
       fail_component "ingress" "Ingress controller installation failed"
@@ -11528,10 +11708,10 @@ EOF
     # Final validation and next steps
     if validate_component_installation "kubernetes" 180; then
       complete_component "kubernetes" "Kubernetes cluster installation completed and validated"
-      show_kubernetes_complete_next_steps
+      suggest_and_install_next_module "kubernetes"
     else
       complete_component "kubernetes" "Kubernetes cluster installed but validation had warnings"
-      show_kubernetes_complete_next_steps
+      suggest_and_install_next_module "kubernetes"
     fi
   else
     echo "Error: Unsupported component: $COMPONENT"
