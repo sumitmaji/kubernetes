@@ -11834,21 +11834,21 @@ validate_keycloak_installation() {
     return 1
   fi
   
-  # Check if Keycloak deployment is ready
-  if kubectl get deployment keycloak -n keycloak >/dev/null 2>&1; then
-    log_success "Keycloak deployment found"
+  # Check if Keycloak StatefulSet is ready
+  if kubectl get statefulset keycloak -n keycloak >/dev/null 2>&1; then
+    log_success "Keycloak StatefulSet found"
     
-    # Check deployment status
-    local ready_replicas=$(kubectl get deployment keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-    local desired_replicas=$(kubectl get deployment keycloak -n keycloak -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+    # Check StatefulSet status
+    local ready_replicas=$(kubectl get statefulset keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    local desired_replicas=$(kubectl get statefulset keycloak -n keycloak -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
     
     if [[ "$ready_replicas" == "$desired_replicas" ]]; then
-      log_success "Keycloak deployment is ready (${ready_replicas}/${desired_replicas} replicas)"
+      log_success "Keycloak StatefulSet is ready (${ready_replicas}/${desired_replicas} replicas)"
     else
-      log_warning "Keycloak deployment is scaling (${ready_replicas}/${desired_replicas} replicas ready)"
+      log_warning "Keycloak StatefulSet is scaling (${ready_replicas}/${desired_replicas} replicas ready)"
     fi
   else
-    log_error "Keycloak deployment not found"
+    log_error "Keycloak StatefulSet not found"
     return 1
   fi
   
@@ -12424,17 +12424,17 @@ installKeycloakWithCertMgr(){
   log_step "8" "Configuring Keycloak clients and realms"
   if setup_keycloak_clients; then
     log_success "Keycloak clients and realms configured"
+    
+    log_step "9" "Setting up OAuth2 integration"
+    if execute_with_suppression oauth2Secret; then
+      log_success "OAuth2 integration configured"
+    else
+      log_warning "OAuth2 integration had issues but continuing"
+    fi
   else
     log_error "Keycloak client configuration failed"
     popd || true
     return 1
-  fi
-
-  log_step "9" "Setting up OAuth2 integration"
-  if execute_with_suppression oauth2Secret; then
-    log_success "OAuth2 integration configured"
-  else
-    log_warning "OAuth2 integration had issues but continuing"
   fi
 
   log_step "10" "Configuring LDAP user federation"
@@ -12547,8 +12547,17 @@ setup_keycloak_clients() {
   log_substep "Client ID: ${COLOR_CYAN}${client_id}${COLOR_RESET}"
   log_substep "Realm: ${COLOR_CYAN}${realm}${COLOR_RESET}"
   
+  # Show what will be created
+  log_substep "📋 Configuration Details:"
+  log_substep "  • Realm: ${COLOR_CYAN}${realm}${COLOR_RESET} (will be created)"
+  log_substep "  • Client: ${COLOR_CYAN}${client_id}${COLOR_RESET} (OIDC client for automation)"
+  log_substep "  • Groups: ${COLOR_CYAN}administrators, developers${COLOR_RESET} (user groups)"
+  log_substep "  • Sample User: ${COLOR_CYAN}skmaji1${COLOR_RESET} (with admin/developer roles)"
+  log_substep "  • Scopes: ${COLOR_CYAN}groups${COLOR_RESET} (OIDC group membership claims)"
+  log_substep "  • Token Lifespan: ${COLOR_CYAN}24 hours${COLOR_RESET} (access token validity)"
+  
   # Run Keycloak client configuration
-  log_substep "Running Keycloak client configuration script..."
+  log_substep "🚀 Running Keycloak client configuration script..."
   if execute_with_suppression python3 "$MOUNT_PATH/kubernetes/install_k8s/keycloak/keycloak-client.py" all "$admin_id" "$admin_pwd" "$client_id" "$realm"; then
     log_success "Keycloak client configuration completed"
   else
@@ -12558,11 +12567,11 @@ setup_keycloak_clients() {
   
   # Create sub scope
   local keycloak_url=$(fullKeycloakUrl)
-  log_substep "Creating audience scope for Kubernetes integration..."
+  log_substep "Creating groups scope for OIDC claims..."
   if execute_with_suppression create_sub_scope "https://${keycloak_url}" "${realm}" "${admin_id}" "${admin_pwd}" "${client_id}"; then
-    log_success "Audience scope created"
+    log_success "Groups scope created for OIDC integration"
   else
-    log_warning "Audience scope creation had issues but continuing"
+    log_warning "Groups scope creation had issues but continuing"
   fi
   
   return 0
@@ -12592,10 +12601,11 @@ setup_ldap_federation() {
   
   # Create audience scope
   log_substep "Setting up Kubernetes audience scope..."
-  if execute_with_suppression chmod +x setup_kubernetes_audience.sh && execute_with_suppression ./setup_kubernetes_audience.sh "$admin_id" "$admin_pwd"; then
+  if execute_with_suppression pushd "$MOUNT_PATH/kubernetes/install_k8s/keycloak" && execute_with_suppression chmod +x setup_kubernetes_audience.sh && execute_with_suppression ./setup_kubernetes_audience.sh "$admin_id" "$admin_pwd" && execute_with_suppression popd; then
     log_success "Kubernetes audience scope created"
   else
     log_error "Audience scope creation failed"
+    popd || true
     return 1
   fi
   

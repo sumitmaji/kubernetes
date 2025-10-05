@@ -285,7 +285,7 @@ def group():
 def user():
   password = env.get('SAMPLE_USER_PASSWORD')
   if not password:
-    password = getpass.getpass('Password for Sample User (skmaji1): ')
+    password = getpass.getpass('Password for Sample User (skmaji1 - will have admin/developer access): ')
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,
