@@ -12182,55 +12182,60 @@ installKeycloakWithCertMgr(){
   suggest_and_install_next_module "keycloak"
 }
 
-# Enhanced waiting for Keycloak services
+# Enhanced waiting for Keycloak services with immediate issue detection
 wait_for_keycloak_services() {
-  log_info "⏳ Waiting for Keycloak services to be ready (timeout: 4 minutes)"
+  log_info "⏳ Waiting for Keycloak services to be ready with enhanced diagnostics (timeout: 4 minutes)"
   
-  local wait_progress=0
-  local wait_steps=6
-  local spinner_chars="|/-\\"
-  local spinner_idx=0
-  local wait_stage="Starting services"
-  local max_wait=240  # 4 minutes
-  local wait_count=0
+  # First, check for immediate deployment issues
+  log_substep "Performing initial deployment health check..."
+  sleep 10  # Give pods time to start creating
   
-  while [[ $wait_count -lt $max_wait ]]; do
-    if kubectl --timeout=10s wait --for=condition=Ready pods --all --namespace keycloak >/dev/null 2>&1; then
-      printf "\r${COLOR_GREEN}  ✓ Keycloak services ready [100%%]${COLOR_RESET}\n"
-      
-      local keycloak_url="https://$(keycloakSubdomain).$(rootDomain)/"
-      log_success "Keycloak is accessible at: ${COLOR_CYAN}${keycloak_url}${COLOR_RESET}"
-      
-      # Brief pause for services to fully initialize
-      log_substep "Allowing services to fully initialize..."
-      sleep 10
-      return 0
-    fi
-    
-    local char=${spinner_chars:spinner_idx:1}
-    wait_progress=$(( (wait_progress + 1) % (wait_steps * 10) ))
-    local progress_percent=$(( wait_progress * 100 / (wait_steps * 10) ))
-    
-    # Update stage based on progress
-    case $((wait_progress / 10)) in
-      0) wait_stage="Starting PostgreSQL database" ;;
-      1) wait_stage="Initializing Keycloak server" ;;
-      2) wait_stage="Loading identity providers" ;;
-      3) wait_stage="Setting up authentication" ;;
-      4) wait_stage="Configuring realms and clients" ;;
-      5) wait_stage="Finalizing services" ;;
-    esac
-    
-    printf "\r${COLOR_YELLOW}  Waiting for services [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$wait_stage"
-    
-    spinner_idx=$(( (spinner_idx + 1) % 4 ))
-    sleep 2
-    wait_count=$((wait_count + 2))
-  done
+  # Check for immediate image pull issues
+  if ! check_image_pull_issues "keycloak" "keycloak"; then
+    log_error "❌ Keycloak has Docker image pull issues - aborting wait"
+    return 1
+  fi
   
-  printf "\r${COLOR_RED}  ✗ Keycloak services timed out${COLOR_RESET}\n"
-  log_error "Keycloak services failed to start within timeout period"
-  return 1
+  # Check for resource constraint issues
+  if ! check_resource_constraints "keycloak" "keycloak"; then
+    log_error "❌ Keycloak has resource constraint issues - aborting wait"
+    return 1
+  fi
+  
+  # Use enhanced pod waiting with detailed diagnostics
+  log_substep "Waiting for Keycloak pods with detailed monitoring..."
+  if wait_for_pods_ready "keycloak" "240" "keycloak"; then
+    log_success "✓ Keycloak pods are ready"
+  else
+    log_error "❌ Keycloak pods failed to become ready"
+    return 1
+  fi
+  
+  # Verify deployment is actually ready
+  log_substep "Verifying Keycloak deployment status..."
+  if check_deployment_readiness "keycloak" "keycloak"; then
+    log_success "✓ Keycloak deployment is healthy"
+  else
+    log_error "❌ Keycloak deployment has issues"
+    return 1
+  fi
+  
+  # Check service connectivity
+  log_substep "Verifying Keycloak service connectivity..."
+  if check_service_connectivity "keycloak" "keycloak"; then
+    log_success "✓ Keycloak service is accessible"
+  else
+    log_warning "⚠️  Keycloak service connectivity issues detected"
+  fi
+  
+  # Final verification
+  local keycloak_url="https://$(keycloakSubdomain).$(rootDomain)/"
+  log_success "✅ Keycloak is ready and accessible at: ${COLOR_CYAN}${keycloak_url}${COLOR_RESET}"
+  
+  # Brief pause for services to fully initialize
+  log_substep "Allowing services to fully initialize..."
+  sleep 10
+  return 0
 }
 
 # Setup Keycloak clients and realms
@@ -12611,6 +12616,40 @@ build_ldap_with_progress() {
   if [[ $deploy_exit_code -eq 0 ]]; then
     printf "\r${COLOR_GREEN}  ✓ LDAP deployment completed [100%%]${COLOR_RESET}\n"
     log_success "LDAP service deployed successfully to Kubernetes"
+    
+    # Step 5: Enhanced diagnostic verification after deployment
+    log_info "🔍 Performing enhanced deployment verification"
+    
+    # Give the deployment a moment to start creating pods
+    log_substep "Allowing deployment to initialize..."
+    sleep 15
+    
+    # Check for immediate image pull issues
+    log_substep "Checking for Docker image pull issues..."
+    if ! check_image_pull_issues "ldap" "ldap"; then
+      log_error "❌ LDAP has Docker image pull issues"
+      rm -f "$temp_build_log" "$temp_build_error" "$temp_deploy_log" "$temp_deploy_error"
+      return 1
+    fi
+    
+    # Check for resource constraint issues
+    log_substep "Checking for resource constraints..."
+    if ! check_resource_constraints "ldap" "ldap"; then
+      log_error "❌ LDAP has resource constraint issues"
+      rm -f "$temp_build_log" "$temp_build_error" "$temp_deploy_log" "$temp_deploy_error"
+      return 1
+    fi
+    
+    # Use enhanced pod waiting with detailed diagnostics
+    log_substep "Waiting for LDAP pods with enhanced monitoring..."
+    if wait_for_pods_ready "ldap" "300" "ldap"; then
+      log_success "✅ LDAP pods are ready and healthy"
+    else
+      log_error "❌ LDAP pods failed to become ready"
+      rm -f "$temp_build_log" "$temp_build_error" "$temp_deploy_log" "$temp_deploy_error"
+      return 1
+    fi
+    
   else
     printf "\r${COLOR_RED}  ✗ LDAP deployment failed${COLOR_RESET}\n"
     log_error "LDAP deployment failed - error details:"
@@ -14192,42 +14231,57 @@ build_oauth2_with_progress() {
     return 1
   fi
   
-  # Step 3: Wait for OAuth2 Proxy to be ready
-  log_info "⏳ Waiting for OAuth2 Proxy services to be ready"
+  # Step 3: Enhanced OAuth2 Proxy readiness verification with immediate issue detection
+  log_info "🔍 Waiting for OAuth2 Proxy services with enhanced diagnostics"
   
-  local wait_progress=0
-  local wait_steps=6
-  local wait_stage="Starting"
-  local ready=false
-  local max_wait=120  # 2 minutes
-  local wait_count=0
+  # Give deployment time to start creating pods
+  log_substep "Allowing OAuth2 deployment to initialize..."
+  sleep 10
   
-  while [[ $wait_count -lt $max_wait ]]; do
-    if kubectl wait --for=condition=available --timeout=10s deployment/oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
-      ready=true
-      break
+  # Check for immediate image pull issues
+  log_substep "Checking for Docker image pull issues..."
+  if ! check_image_pull_issues "oauth2" "oauth2-proxy"; then
+    log_error "❌ OAuth2 Proxy has Docker image pull issues"
+    rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
+    return 1
+  fi
+  
+  # Check for resource constraint issues
+  log_substep "Checking for resource constraints..."
+  if ! check_resource_constraints "oauth2" "oauth2-proxy"; then
+    log_error "❌ OAuth2 Proxy has resource constraint issues"
+    rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
+    return 1
+  fi
+  
+  # Use enhanced pod waiting with detailed diagnostics
+  log_substep "Waiting for OAuth2 Proxy pods with enhanced monitoring..."
+  if wait_for_pods_ready "oauth2" "180" "oauth2-proxy"; then
+    log_success "✅ OAuth2 Proxy pods are ready and healthy"
+  else
+    log_error "❌ OAuth2 Proxy pods failed to become ready"
+    rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
+    return 1
+  fi
+  
+  # Verify deployment is actually ready
+  local deployment_name=""
+  if kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get deployment oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2proxy"
+  fi
+  
+  if [[ -n "$deployment_name" ]]; then
+    log_substep "Verifying OAuth2 deployment status..."
+    if check_deployment_readiness "$deployment_name" "oauth2"; then
+      log_success "✅ OAuth2 Proxy deployment is healthy"
+    else
+      log_error "❌ OAuth2 Proxy deployment has issues"
+      rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
+      return 1
     fi
-    
-    local char=${spinner_chars:spinner_idx:1}
-    wait_progress=$(( (wait_progress + 1) % (wait_steps * 10) ))
-    local progress_percent=$(( wait_progress * 100 / (wait_steps * 10) ))
-    
-    # Update stage based on progress
-    case $((wait_progress / 10)) in
-      0) wait_stage="Starting OAuth2 proxy" ;;
-      1) wait_stage="Connecting to Keycloak" ;;
-      2) wait_stage="Validating OIDC configuration" ;;
-      3) wait_stage="Setting up authentication flows" ;;
-      4) wait_stage="Configuring cookie domains" ;;
-      5) wait_stage="Finalizing proxy services" ;;
-    esac
-    
-    printf "\r${COLOR_YELLOW}  Waiting for OAuth2 Proxy [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$wait_stage"
-    
-    spinner_idx=$(( (spinner_idx + 1) % 4 ))
-    sleep 2
-    wait_count=$((wait_count + 2))
-  done
+  fi
   
   if [[ "$ready" == "true" ]]; then
     printf "\r${COLOR_GREEN}  ✓ OAuth2 Proxy services ready [100%%]${COLOR_RESET}\n"
