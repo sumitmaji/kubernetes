@@ -674,6 +674,9 @@ echoWarning() {
 # =============================================================================
 # 🌐 REMOTE EXECUTION SYSTEM
 # =============================================================================
+# Enhanced remote execution with shell redirection support
+# Fixed: Shell redirections (>, >>, |, &&, ||) now work properly with sudo
+# The system automatically wraps complex commands in "sh -c" for proper privilege escalation
 
 # Remote execution configuration
 declare -A REMOTE_HOSTS
@@ -778,11 +781,17 @@ simple_remote_exec() {
     # Use stored sudo preference, fall back to environment variable, then default to auto
     local use_sudo="${DEFAULT_REMOTE_SUDO:-${GOK_REMOTE_SUDO:-auto}}"
     
-    # Determine if sudo should be used
+    # Determine if sudo should be used and handle shell redirections
     local final_commands="$commands"
     if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$commands") ]]; then
         if [[ "$commands" != sudo* ]]; then
-            final_commands="sudo $commands"
+            # Check if command contains shell redirections or pipes
+            if [[ "$commands" == *">"* ]] || [[ "$commands" == *">>"* ]] || [[ "$commands" == *"|"* ]] || [[ "$commands" == *"&&"* ]] || [[ "$commands" == *"||"* ]]; then
+                # Wrap complex commands in sh -c to ensure proper sudo context for redirections
+                final_commands="sudo sh -c \"$commands\""
+            else
+                final_commands="sudo $commands"
+            fi
         fi
     fi
     
@@ -954,11 +963,17 @@ remote_exec() {
     local key_file="${REMOTE_KEYS[$alias]}"
     local use_sudo="${REMOTE_SUDOS[$alias]:-${GOK_REMOTE_SUDO:-auto}}"
     
-    # Determine if sudo should be used
+    # Determine if sudo should be used and handle shell redirections
     local final_commands="$commands"
     if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$commands") ]]; then
         if [[ "$commands" != sudo* ]]; then
-            final_commands="sudo $commands"
+            # Check if command contains shell redirections or pipes
+            if [[ "$commands" == *">"* ]] || [[ "$commands" == *">>"* ]] || [[ "$commands" == *"|"* ]] || [[ "$commands" == *"&&"* ]] || [[ "$commands" == *"||"* ]]; then
+                # Wrap complex commands in sh -c to ensure proper sudo context for redirections
+                final_commands="sudo sh -c \"$commands\""
+            else
+                final_commands="sudo $commands"
+            fi
         fi
     fi
     
