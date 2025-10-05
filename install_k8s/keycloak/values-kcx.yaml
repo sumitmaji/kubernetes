@@ -49,6 +49,10 @@ secrets:
 # Replicas & resources (tune as you like)
 replicas: 1
 
+# --- HTTP configuration to use root path instead of /auth ---
+http:
+  relativePath: "/"
+
 # --- Ingress configuration for codecentric/keycloakx ---
 ingress:
   enabled: true
@@ -58,7 +62,7 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
-  hosts:
+  rules:
     - host: master.cloud.com
       paths:
         - path: /

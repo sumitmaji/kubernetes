@@ -2642,6 +2642,45 @@ check_deployment_readiness() {
     fi
 }
 
+# Check StatefulSet readiness (similar to deployment readiness but for StatefulSets)
+check_statefulset_readiness() {
+    local statefulset="$1"
+    local namespace="$2"
+    
+    log_info "🚀 Analyzing StatefulSet readiness: $statefulset"
+    
+    # Get StatefulSet status
+    local sts_info=$(kubectl get statefulset "$statefulset" -n "$namespace" -o jsonpath='{.status.readyReplicas}/{.status.replicas} {.status.currentReplicas} {.status.updatedReplicas}' 2>/dev/null)
+    
+    if [[ -z "$sts_info" ]]; then
+        log_error "StatefulSet $statefulset not found in namespace $namespace"
+        return 1
+    fi
+    
+    local ready_replicas=$(echo "$sts_info" | cut -d' ' -f1 | cut -d'/' -f1)
+    local total_replicas=$(echo "$sts_info" | cut -d' ' -f1 | cut -d'/' -f2)
+    local current_replicas=$(echo "$sts_info" | cut -d' ' -f2)
+    local updated_replicas=$(echo "$sts_info" | cut -d' ' -f3)
+    
+    echo -e "${COLOR_CYAN}  📊 Ready: ${COLOR_BOLD}${ready_replicas:-0}/${total_replicas:-0}${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  📈 Current: ${COLOR_BOLD}${current_replicas:-0}${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  🔄 Updated: ${COLOR_BOLD}${updated_replicas:-0}${COLOR_RESET}"
+    
+    # Check if StatefulSet is healthy
+    if [[ "$ready_replicas" == "$total_replicas" ]] && [[ "$ready_replicas" -gt 0 ]]; then
+        log_success "StatefulSet $statefulset is ready and healthy"
+        return 0
+    else
+        log_warning "StatefulSet $statefulset is not fully ready"
+        
+        # Get StatefulSet details
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔍 STATEFULSET ANALYSIS:${COLOR_RESET}"
+        kubectl describe statefulset "$statefulset" -n "$namespace" 2>/dev/null | grep -A 10 "Conditions:\|Events:" | tail -20
+        
+        return 1
+    fi
+}
+
 # Check service endpoints and connectivity
 check_service_connectivity() {
     local service="$1"
@@ -2948,11 +2987,11 @@ validate_keycloak_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Keycloak deployment status"
-    if check_deployment_readiness "keycloak" "keycloak"; then
-        log_success "Keycloak deployment is ready"
+    log_step "1" "Checking Keycloak StatefulSet status"
+    if check_statefulset_readiness "keycloak" "keycloak"; then
+        log_success "Keycloak StatefulSet is ready"
     else
-        log_error "Keycloak deployment has issues"
+        log_error "Keycloak StatefulSet has issues"
         validation_passed=false
     fi
     
@@ -12425,12 +12464,12 @@ wait_for_keycloak_services() {
     return 1
   fi
   
-  # Verify deployment is actually ready
-  log_substep "Verifying Keycloak deployment status..."
-  if check_deployment_readiness "keycloak" "keycloak"; then
-    log_success "✓ Keycloak deployment is healthy"
+  # Verify StatefulSet is actually ready (Keycloak uses StatefulSet, not Deployment)
+  log_substep "Verifying Keycloak StatefulSet status..."
+  if check_statefulset_readiness "keycloak" "keycloak"; then
+    log_success "✓ Keycloak StatefulSet is healthy"
   else
-    log_error "❌ Keycloak deployment has issues"
+    log_error "❌ Keycloak StatefulSet has issues"
     return 1
   fi
   
