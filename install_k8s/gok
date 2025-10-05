@@ -10028,6 +10028,8 @@ addPolicyToSyncSecrets(){
   log_info "Installing cluster-wide policy to automatically sync registry credentials"
   
   local apply_result=""
+  local exit_code=0
+  
   if [ "$GOK_VERBOSE" = "1" ]; then
     # In verbose mode, show kubectl output
     apply_result=$(cat <<EOF | kubectl apply -f - 2>&1
@@ -10066,6 +10068,8 @@ spec:
             imagePullSecrets:
               - name: regcred
 EOF
+)
+    exit_code=$?
     log_debug "Kubectl apply result: $apply_result"
   else
     # In normal mode, suppress kubectl output
@@ -10105,9 +10109,11 @@ spec:
             imagePullSecrets:
               - name: regcred
 EOF
+)
+    exit_code=$?
   fi
   
-  if [ $? -eq 0 ]
+  if [ $exit_code -eq 0 ]
   then
     log_success "Kyverno cluster policy 'sync-regcred' created successfully"
     log_info "✓ Registry credentials will auto-sync to all new namespaces"
