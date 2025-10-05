@@ -10503,14 +10503,16 @@ oauth2Secret(){
   ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
 
   client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
-  : "${ACTIVE_PROFILE:=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")}"
-  : "${OIDC_ISSUE_URL:=$(promptUserInput "Enter OIDC Issue URL (https://keycloak.gokcloud.com/realms/$REALM): " "https://keycloak.gokcloud.com/realms/$REALM")}"
-  : "${OIDC_USERNAME_CLAIM:=$(promptUserInput "Enter OIDC Username Claim (${OIDC_USERNAME_CLAIM}): " "${OIDC_USERNAME_CLAIM}")}"
-  : "${OIDC_GROUPS_CLAIM:=$(promptUserInput "Enter OIDC Groups Claim (${OIDC_GROUPS_CLAIM}): " "${OIDC_GROUPS_CLAIM}")}"
-  : "${AUTH0_DOMAIN:=$(promptUserInput "Enter Auth0 Domain (${AUTH0_DOMAIN}): " "${AUTH0_DOMAIN}")}"
-  : "${APP_HOST:=$(promptUserInput "Enter App Host (${APP_HOST}): " "${APP_HOST}")}"
-  : "${JWKS_URL:=$(promptUserInput "Enter JWKS URL (${JWKS_URL}): " "${JWKS_URL}")}"
-  OAUTH_SERVER_URI="https://$(fullKeycloakUrl)"
+  
+  # Use environment variables with fallbacks to predefined Keycloak configuration
+  ACTIVE_PROFILE="${ACTIVE_PROFILE:-keycloak}"
+  OIDC_ISSUE_URL="${OIDC_ISSUE_URL:-https://keycloak.gokcloud.com/realms/${REALM}}"
+  OIDC_USERNAME_CLAIM="${OIDC_USERNAME_CLAIM:-sub}"
+  OIDC_GROUPS_CLAIM="${OIDC_GROUPS_CLAIM:-groups}"
+  AUTH0_DOMAIN="${AUTH0_DOMAIN:-keycloak.gokcloud.com}"
+  APP_HOST="${APP_HOST:-kube.gokcloud.com}"
+  JWKS_URL="${JWKS_URL:-${OIDC_ISSUE_URL}/protocol/openid-connect/certs}"
+  OAUTH_SERVER_URI="${OAUTH_SERVER_URI:-https://$(fullKeycloakUrl)}"
 
   # If secret already exists then delete it
   kubectl get secret oauth-secrets -n kube-system 2>/dev/null && kubectl delete secret oauth-secrets -n kube-system
