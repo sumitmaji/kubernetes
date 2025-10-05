@@ -3004,7 +3004,7 @@ validate_keycloak_installation() {
     fi
     
     log_step "3" "Checking Keycloak service connectivity"
-    if check_service_connectivity "keycloak" "keycloak"; then
+  if check_service_connectivity "keycloak-http" "keycloak"; then
         log_success "Keycloak service is accessible"
     else
         log_warning "Keycloak service connectivity issues detected"
