@@ -19,7 +19,27 @@ realm = None
 if len(sys.argv) < 2:
   print("No command provided")
 else:
-  command, adminId, adminPwd, clientId, realm = (sys.argv[1:] + [None]*5)[:5]
+  command, adminId, adminPwd, clienif __name__ == '__main__':
+  if command == 'all' and adminId and adminPwd:
+    # Run non-interactively
+    main()
+  else:
+    # Run interactively (legacy behavior)
+    auth()
+    logger.info("Creating realm")
+    realm()
+    logger.info("Creating client")
+    client()
+    logger.info("Setting access token lifespan to 24 hours")
+    set_access_token_lifetime(KEYCLOAK_CLIENT_ID, 86400)
+    logger.info("Creating scope")
+    scope()
+    logger.info("Creating group")
+    group()
+    logger.info("Creating user %s", env.get('USER_NAME'))
+    user()
+    logger.info("Validating user, put the token in jwk.io to validate")
+    tokens().argv[1:] + [None]*5)[:5]
 
 DEBUG_MODE = False
 LOG_LEVEL = logging.INFO
@@ -265,7 +285,7 @@ def group():
 def user():
   password = env.get('SAMPLE_USER_PASSWORD')
   if not password:
-    password = getpass.getpass('Password for Sample User: ')
+    password = getpass.getpass('Password for Sample User (skmaji1): ')
   user_settings = {
     "username": env.get('USER_NAME'),
     "enabled": True,
@@ -297,9 +317,9 @@ def user():
 
   # Update user details
   update_settings = {
-    "firstName": "Sumit",
-    "email": "skmaji1@outlook.com",
-    "lastName": "Maji",
+    "firstName": env.get('USER_FIRST_NAME', 'User'),
+    "email": env.get('USER_EMAIL', f"{env.get('USER_NAME', 'user')}@example.com"),
+    "lastName": env.get('USER_LAST_NAME', ''),
     "emailVerified": True
   }
   resp = requests.put(
@@ -399,6 +419,27 @@ def main():
   try:
     if command == 'token':
       tokens()
+    elif command == 'all':
+      # Run all operations non-interactively using provided credentials
+      if adminId and adminPwd:
+        auth()  # Authenticate using provided credentials
+        logger.info("Creating realm")
+        realm()
+        logger.info("Creating client")
+        client()
+        logger.info("Setting access token lifespan to 24 hours")
+        set_access_token_lifetime(KEYCLOAK_CLIENT_ID, 86400)
+        logger.info("Creating scope")
+        scope()
+        logger.info("Creating group")
+        group()
+        logger.info("Creating user %s", env.get('USER_NAME'))
+        user()
+        logger.info("Validating user, put the token in jwk.io to validate")
+        tokens()
+      else:
+        logger.error("Admin credentials not provided for 'all' command")
+        return 1
     else:
       resp = requests.get(
         f"https://{KEYCLOAK_ROOT}/admin/realms",
@@ -419,7 +460,8 @@ def main():
       elif command == 'list':
         list()
   except OSError as e:
-    auth()
+    if command != 'all':
+      auth()
 
 
 if __name__ == '__main__':
