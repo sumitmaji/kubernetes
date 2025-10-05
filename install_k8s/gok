@@ -7317,7 +7317,9 @@ EOYAML
   fi
 
   log_step "4" "Installing CA certificate to system trust store"
-  if execute_with_suppression kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r '.data["tls.crt"]' | base64 -d > /usr/local/share/ca-certificates/issuer.crt; then
+  # Extract CA certificate using proper shell command with redirection handling
+  # Fixed: Wrap in 'sh -c' to ensure redirection works with execute_with_suppression 
+  if execute_with_suppression sh -c 'kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r ".data[\"tls.crt\"]" | base64 -d > /usr/local/share/ca-certificates/issuer.crt'; then
     log_success "CA certificate extracted from Kubernetes secret"
   else
     log_error "Failed to extract CA certificate"
@@ -9925,8 +9927,9 @@ installRegistryWithCertMgr(){
   fi
   
   # Extract CA certificate from cert-manager secret
+  # Fixed: Wrap in 'sh -c' to ensure redirection works with execute_with_suppression
   local secret_name="$(registrySubdomain)-$(sedRootDomain)"
-  if execute_with_suppression kubectl get secret "$secret_name" -n registry -o jsonpath="{.data.ca\.crt}" | base64 --decode > /tmp/registry-ca.crt && \
+  if execute_with_suppression sh -c "kubectl get secret '$secret_name' -n registry -o jsonpath='{.data.ca\.crt}' | base64 --decode > /tmp/registry-ca.crt" && \
      execute_with_suppression cp /tmp/registry-ca.crt "$cert_dir/ca.crt" && \
      [[ -s "$cert_dir/ca.crt" ]]; then
     log_success "Registry CA certificate installed to Docker trust store ($(stat -c%s "$cert_dir/ca.crt") bytes)"
