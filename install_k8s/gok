@@ -7323,6 +7323,157 @@ EOYAML
     log_error "Failed to update system certificate store"
     return 1
   fi
+
+  log_step "4b" "Refreshing certificates in Kubernetes cluster (avoiding system reboot)"
+  log_info "⚠️ Self-signed certificate added to system CA store - applying cluster-wide refresh instead of system reboot"
+  
+  # Restart containerd/docker to pick up new CA certificates
+  if systemctl is-active --quiet containerd; then
+    log_info "🔄 Restarting containerd to refresh CA certificates"
+    if execute_with_suppression systemctl restart containerd; then
+      log_success "Containerd restarted successfully"
+    else
+      log_warning "Failed to restart containerd - certificates may not be fully effective"
+    fi
+  elif systemctl is-active --quiet docker; then
+    log_info "🔄 Restarting Docker to refresh CA certificates"
+    if execute_with_suppression systemctl restart docker; then
+      log_success "Docker restarted successfully"
+    else
+      log_warning "Failed to restart Docker - certificates may not be fully effective"
+    fi
+  fi
+  
+  # Restart kubelet to refresh certificates
+  log_info "🔄 Restarting kubelet to refresh CA certificates"
+  if execute_with_suppression systemctl restart kubelet; then
+    log_success "Kubelet restarted successfully"
+  else
+    log_warning "Failed to restart kubelet - certificates may not be fully effective"
+  fi
+  
+  # Wait for kubelet to be ready
+  log_info "⏳ Waiting for kubelet to become ready..."
+  sleep 10
+  
+  # Restart cert-manager pods to pick up new CA certificates
+  log_info "🔄 Restarting cert-manager pods to refresh CA certificates"
+  if execute_with_suppression kubectl rollout restart deployment cert-manager -n cert-manager; then
+    log_success "Cert-manager deployment restarted"
+  else
+    log_warning "Failed to restart cert-manager deployment"
+  fi
+  
+  if execute_with_suppression kubectl rollout restart deployment cert-manager-webhook -n cert-manager; then
+    log_success "Cert-manager webhook restarted"
+  else
+    log_warning "Failed to restart cert-manager webhook"
+  fi
+  
+  if execute_with_suppression kubectl rollout restart deployment cert-manager-cainjector -n cert-manager; then
+    log_success "Cert-manager CA injector restarted"
+  else
+    log_warning "Failed to restart cert-manager CA injector"
+  fi
+  
+  # Wait for cert-manager components to be ready
+  log_info "⏳ Waiting for cert-manager components to become ready..."
+  if execute_with_suppression kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager; then
+    log_success "Cert-manager deployment is ready"
+  else
+    log_warning "Cert-manager deployment may not be fully ready"
+  fi
+  
+  if execute_with_suppression kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager; then
+    log_success "Cert-manager webhook is ready"
+  else
+    log_warning "Cert-manager webhook may not be fully ready"
+  fi
+  
+  # Restart kube-system components that use certificates
+  log_info "🔄 Restarting core Kubernetes components to refresh certificates"
+  
+  # Restart kube-proxy daemonset
+  if execute_with_suppression kubectl rollout restart daemonset kube-proxy -n kube-system; then
+    log_success "Kube-proxy daemonset restarted"
+  else
+    log_warning "Failed to restart kube-proxy daemonset"
+  fi
+  
+  # Restart CoreDNS
+  if execute_with_suppression kubectl rollout restart deployment coredns -n kube-system; then
+    log_success "CoreDNS deployment restarted"
+  else
+    log_warning "Failed to restart CoreDNS deployment"
+  fi
+  
+  # If there's an ingress controller, restart it
+  if kubectl get deployment -n ingress-nginx nginx-ingress-controller >/dev/null 2>&1; then
+    log_info "🔄 Restarting NGINX ingress controller"
+    if execute_with_suppression kubectl rollout restart deployment nginx-ingress-controller -n ingress-nginx; then
+      log_success "NGINX ingress controller restarted"
+    else
+      log_warning "Failed to restart NGINX ingress controller"
+    fi
+  fi
+  
+  # Restart any other critical components that might use certificates
+  if kubectl get deployment -n vault vault >/dev/null 2>&1; then
+    log_info "🔄 Restarting Vault deployment"
+    if execute_with_suppression kubectl rollout restart deployment vault -n vault; then
+      log_success "Vault deployment restarted"
+    else
+      log_warning "Failed to restart Vault deployment"
+    fi
+  fi
+  
+  if kubectl get deployment -n rabbitmq rabbitmq >/dev/null 2>&1; then
+    log_info "🔄 Restarting RabbitMQ deployment"
+    if execute_with_suppression kubectl rollout restart deployment rabbitmq -n rabbitmq; then
+      log_success "RabbitMQ deployment restarted"
+    else
+      log_warning "Failed to restart RabbitMQ deployment"
+    fi
+  fi
+  
+  # Restart HAProxy if it's running
+  if docker ps --filter "name=master-proxy" --filter "status=running" -q | grep -q .; then
+    log_info "🔄 Restarting HAProxy to refresh CA certificates"
+    if startHa; then
+      log_success "HAProxy restarted successfully"
+    else
+      log_warning "Failed to restart HAProxy - certificates may not be fully effective"
+    fi
+  elif [ -f /opt/haproxy.cfg ]; then
+    log_info "🔄 HAProxy configuration found - starting HAProxy with new certificates"
+    if startHa; then
+      log_success "HAProxy started successfully with updated certificates"
+    else
+      log_warning "Failed to start HAProxy"
+    fi
+  fi
+  
+  # Final verification
+  log_info "🔍 Verifying certificate refresh completion"
+  
+  # Test certificate validation
+  if openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt /usr/local/share/ca-certificates/issuer.crt >/dev/null 2>&1; then
+    log_success "✅ Self-signed CA certificate is properly trusted by the system"
+  else
+    log_warning "⚠️ Certificate validation test failed - some components may not recognize the new CA"
+  fi
+  
+  # Check cluster health
+  log_info "🏥 Checking cluster health status"
+  if kubectl get nodes >/dev/null 2>&1; then
+    log_success "✅ Kubernetes cluster is responsive"
+  else
+    log_warning "⚠️ Kubernetes cluster may not be fully responsive"
+  fi
+  
+  log_success "🎉 Certificate refresh completed - cluster-wide certificate update applied without system reboot"
+  log_info "📋 Next steps: Verify your applications can validate certificates issued by the new CA"
+  log_info "💡 Tip: If you encounter certificate validation issues, run 'kubectl rollout restart deployment <deployment-name>' for specific applications"
 fi
 
   log_step "5" "Creating default domain certificate"
