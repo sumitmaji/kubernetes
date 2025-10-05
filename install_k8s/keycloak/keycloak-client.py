@@ -21,6 +21,56 @@ if len(sys.argv) < 2:
 else:
   command, adminId, adminPwd, clientId, realm = (sys.argv[1:] + [None]*5)[:5]
 
+
+def main():
+  try:
+    if command == 'token':
+      tokens()
+    elif command == 'all':
+      # Run all operations non-interactively using provided credentials
+      if adminId and adminPwd:
+        auth()  # Authenticate using provided credentials
+        logger.info("Creating realm")
+        realm()
+        logger.info("Creating client")
+        client()
+        logger.info("Setting access token lifespan to 24 hours")
+        set_access_token_lifetime(KEYCLOAK_CLIENT_ID, 86400)
+        logger.info("Creating scope")
+        scope()
+        logger.info("Creating group")
+        group()
+        logger.info("Creating user %s", env.get('USER_NAME'))
+        user()
+        logger.info("Validating user, put the token in jwk.io to validate")
+        tokens()
+      else:
+        logger.error("Admin credentials not provided for 'all' command")
+        return 1
+    else:
+      resp = requests.get(
+        f"https://{KEYCLOAK_ROOT}/admin/realms",
+        headers=authHeader(),
+      )
+      resp.raise_for_status()
+      # [print(r["realm"]) for r in resp.json()]
+      if command == 'realm':
+        realm()
+      elif command == 'client':
+        client()
+      elif command == 'scope':
+        scope()
+      elif command == 'group':
+        group()
+      elif command == 'user':
+        user()
+      elif command == 'list':
+        list()
+  except OSError as e:
+    if command != 'all':
+      auth()
+
+
 if __name__ == '__main__':
   if command == 'all' and adminId and adminPwd:
     # Run non-interactively
@@ -415,55 +465,6 @@ def fetch_client_secret(client_id):
     except Exception as e:
         logger.error(f"Error fetching client secret for client '{client_id}': {str(e)}")
         return None
-
-
-def main():
-  try:
-    if command == 'token':
-      tokens()
-    elif command == 'all':
-      # Run all operations non-interactively using provided credentials
-      if adminId and adminPwd:
-        auth()  # Authenticate using provided credentials
-        logger.info("Creating realm")
-        realm()
-        logger.info("Creating client")
-        client()
-        logger.info("Setting access token lifespan to 24 hours")
-        set_access_token_lifetime(KEYCLOAK_CLIENT_ID, 86400)
-        logger.info("Creating scope")
-        scope()
-        logger.info("Creating group")
-        group()
-        logger.info("Creating user %s", env.get('USER_NAME'))
-        user()
-        logger.info("Validating user, put the token in jwk.io to validate")
-        tokens()
-      else:
-        logger.error("Admin credentials not provided for 'all' command")
-        return 1
-    else:
-      resp = requests.get(
-        f"https://{KEYCLOAK_ROOT}/admin/realms",
-        headers=authHeader(),
-      )
-      resp.raise_for_status()
-      # [print(r["realm"]) for r in resp.json()]
-      if command == 'realm':
-        realm()
-      elif command == 'client':
-        client()
-      elif command == 'scope':
-        scope()
-      elif command == 'group':
-        group()
-      elif command == 'user':
-        user()
-      elif command == 'list':
-        list()
-  except OSError as e:
-    if command != 'all':
-      auth()
 
 
 if __name__ == '__main__':
