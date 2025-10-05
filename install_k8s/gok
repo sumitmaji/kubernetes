@@ -3179,9 +3179,31 @@ enableIstio(){
 }
 
 istioReset(){
-  helm -n istio-system delete istiod
-  helm -n istio-system delete istio-base
-  kubectl delete ns istio-system
+  log_info "Removing Istio service mesh components"
+  
+  if helm list -n istio-system 2>/dev/null | grep -q istiod; then
+    if helm_uninstall_with_summary "istiod" "istio-system" -n istio-system istiod; then
+      log_success "Istio control plane (istiod) removed"
+    fi
+  else
+    log_info "Istio control plane (istiod) not found"
+  fi
+  
+  if helm list -n istio-system 2>/dev/null | grep -q istio-base; then
+    if helm_uninstall_with_summary "istio-base" "istio-system" -n istio-system istio-base; then
+      log_success "Istio base components removed"
+    fi
+  else
+    log_info "Istio base components not found"
+  fi
+  
+  if kubectl get namespace istio-system >/dev/null 2>&1; then
+    if kubectl_with_summary delete "namespace" istio-system; then
+      log_success "Istio namespace removed"
+    fi
+  else
+    log_info "Istio namespace not found"
+  fi
 }
 
 checkDns(){
@@ -3744,10 +3766,30 @@ remove_kubernetes_packages() {
 }
 
 ingressUnInst() {
-  output=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json | jq '.items | length')
-  if [ "$output" == "1" ]; then
-    helm uninstall ingress-nginx -n ingress-nginx
-    kubectl delete ns ingress-nginx
+  log_info "Checking ingress-nginx installation status"
+  
+  local controller_count=$(kubectl get po -n ingress-nginx -l app.kubernetes.io/component=controller -o json 2>/dev/null | jq '.items | length' 2>/dev/null || echo "0")
+  
+  if [[ "$controller_count" == "1" ]]; then
+    log_info "Active ingress-nginx controller found - proceeding with removal"
+    
+    if helm list -n ingress-nginx 2>/dev/null | grep -q ingress-nginx; then
+      if helm_uninstall_with_summary "ingress-nginx" "ingress-nginx" -n ingress-nginx ingress-nginx; then
+        log_success "Ingress-nginx Helm release removed"
+      fi
+    else
+      log_info "No ingress-nginx Helm release found"
+    fi
+    
+    if kubectl get namespace ingress-nginx >/dev/null 2>&1; then
+      if kubectl_with_summary delete "namespace" ingress-nginx; then
+        log_success "Ingress-nginx namespace removed"
+      fi
+    else
+      log_info "Ingress-nginx namespace not found"
+    fi
+  else
+    log_info "No active ingress-nginx controller found - nothing to remove"
   fi
 }
 
@@ -7968,13 +8010,59 @@ emptyLocalFsStorage() {
   local volumePath=$4
   local namespace=$5
 
+  log_info "Cleaning up persistent storage for $service"
+  
+  # Clean up PVCs in namespace if specified
   if [[ -n $namespace ]]; then
-    kubectl delete pvc --all -n $namespace
+    log_info "Removing persistent volume claims in namespace: $namespace"
+    if kubectl get pvc -n $namespace >/dev/null 2>&1; then
+      if kubectl_with_summary delete "pvc" --all -n $namespace; then
+        log_success "Persistent volume claims removed from $namespace namespace"
+      else
+        log_warning "Some PVCs may not have been removed from $namespace namespace"
+      fi
+    else
+      log_info "No persistent volume claims found in $namespace namespace"
+    fi
   fi
 
-  kubectl delete pv $pvName
-  kubectl delete sc $scName
-  rm -rf $volumePath
+  # Clean up persistent volume
+  log_info "Removing persistent volume: $pvName"
+  if kubectl get pv $pvName >/dev/null 2>&1; then
+    if kubectl_with_summary delete "pv" $pvName; then
+      log_success "Persistent volume '$pvName' removed"
+    else
+      log_warning "Persistent volume '$pvName' removal had issues"
+    fi
+  else
+    log_info "Persistent volume '$pvName' not found (may already be removed)"
+  fi
+
+  # Clean up storage class
+  log_info "Removing storage class: $scName"
+  if kubectl get sc $scName >/dev/null 2>&1; then
+    if kubectl_with_summary delete "sc" $scName; then
+      log_success "Storage class '$scName' removed"  
+    else
+      log_warning "Storage class '$scName' removal had issues"
+    fi
+  else
+    log_info "Storage class '$scName' not found (may already be removed)"
+  fi
+
+  # Clean up local filesystem path
+  if [[ -n "$volumePath" && -d "$volumePath" ]]; then
+    log_info "Cleaning up local storage path: $volumePath"
+    if execute_with_suppression rm -rf "$volumePath"; then
+      log_success "Local storage path '$volumePath' cleaned up"
+    else
+      log_warning "Could not fully clean up local storage path '$volumePath'"
+    fi
+  else
+    log_info "Local storage path '$volumePath' not found or already cleaned"
+  fi
+  
+  log_success "$service persistent storage cleanup completed"
 }
 
 createLocalStorageClassAndPV() {
