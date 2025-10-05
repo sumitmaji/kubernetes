@@ -19,7 +19,9 @@ realm = None
 if len(sys.argv) < 2:
   print("No command provided")
 else:
-  command, adminId, adminPwd, clienif __name__ == '__main__':
+  command, adminId, adminPwd, clientId, realm = (sys.argv[1:] + [None]*5)[:5]
+
+if __name__ == '__main__':
   if command == 'all' and adminId and adminPwd:
     # Run non-interactively
     main()
@@ -39,7 +41,7 @@ else:
     logger.info("Creating user %s", env.get('USER_NAME'))
     user()
     logger.info("Validating user, put the token in jwk.io to validate")
-    tokens().argv[1:] + [None]*5)[:5]
+    tokens()
 
 DEBUG_MODE = False
 LOG_LEVEL = logging.INFO
