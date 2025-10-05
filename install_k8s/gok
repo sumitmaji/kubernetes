@@ -793,14 +793,20 @@ simple_remote_exec() {
     
     # Determine if sudo should be used and handle shell redirections
     local final_commands="$commands"
-    if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$commands") ]]; then
-        if [[ "$commands" != sudo* ]]; then
+    
+    # Automatically set MOUNT_PATH=/root for gok commands
+    if [[ "$commands" == *"./gok"* ]]; then
+        final_commands="export MOUNT_PATH=/root && $commands"
+    fi
+    
+    if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$final_commands") ]]; then
+        if [[ "$final_commands" != sudo* ]]; then
             # Check if command contains shell redirections or pipes
-            if [[ "$commands" == *">"* ]] || [[ "$commands" == *">>"* ]] || [[ "$commands" == *"|"* ]] || [[ "$commands" == *"&&"* ]] || [[ "$commands" == *"||"* ]]; then
+            if [[ "$final_commands" == *">"* ]] || [[ "$final_commands" == *">>"* ]] || [[ "$final_commands" == *"|"* ]] || [[ "$final_commands" == *"&&"* ]] || [[ "$final_commands" == *"||"* ]]; then
                 # Wrap complex commands in bash -c to ensure proper sudo context for redirections
-                final_commands="sudo bash -c \"$commands\""
+                final_commands="sudo bash -c \"$final_commands\""
             else
-                final_commands="sudo $commands"
+                final_commands="sudo $final_commands"
             fi
         fi
     fi
@@ -975,14 +981,20 @@ remote_exec() {
     
     # Determine if sudo should be used and handle shell redirections
     local final_commands="$commands"
-    if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$commands") ]]; then
-        if [[ "$commands" != sudo* ]]; then
+    
+    # Automatically set MOUNT_PATH=/root for gok commands
+    if [[ "$commands" == *"./gok"* ]]; then
+        final_commands="export MOUNT_PATH=/root && $commands"
+    fi
+    
+    if [[ "$use_sudo" == "always" ]] || [[ "$use_sudo" == "auto" && $(needs_sudo "$final_commands") ]]; then
+        if [[ "$final_commands" != sudo* ]]; then
             # Check if command contains shell redirections or pipes
-            if [[ "$commands" == *">"* ]] || [[ "$commands" == *">>"* ]] || [[ "$commands" == *"|"* ]] || [[ "$commands" == *"&&"* ]] || [[ "$commands" == *"||"* ]]; then
+            if [[ "$final_commands" == *">"* ]] || [[ "$final_commands" == *">>"* ]] || [[ "$final_commands" == *"|"* ]] || [[ "$final_commands" == *"&&"* ]] || [[ "$final_commands" == *"||"* ]]; then
                 # Wrap complex commands in bash -c to ensure proper sudo context for redirections
-                final_commands="sudo bash -c \"$commands\""
+                final_commands="sudo bash -c \"$final_commands\""
             else
-                final_commands="sudo $commands"
+                final_commands="sudo $final_commands"
             fi
         fi
     fi
@@ -2788,7 +2800,7 @@ wait_for_pods_ready() {
         
         # Get pod status information
         local pod_status=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null)
-        local not_ready_pods=$(echo "$pod_status" | grep -v -E "Running.*1/1|Completed" | wc -l)
+        local not_ready_pods=$(echo "$pod_status" | grep -v -E "1/1.*Running|.*Completed" | wc -l)
         local total_pods=$(echo "$pod_status" | wc -l)
         local ready_pods=$((total_pods - not_ready_pods))
         
@@ -2799,7 +2811,7 @@ wait_for_pods_ready() {
                 
                 # Show not ready pods briefly
                 if [[ $not_ready_pods -gt 0 ]]; then
-                    echo "$pod_status" | grep -v -E "Running.*1/1|Completed" | head -3 | while read -r pod_line; do
+                    echo "$pod_status" | grep -v -E "1/1.*Running|.*Completed" | head -3 | while read -r pod_line; do
                         local pod_name=$(echo "$pod_line" | awk '{print $1}')
                         local pod_status_detail=$(echo "$pod_line" | awk '{print $3}')
                         echo -e "${COLOR_DIM}    • $pod_name: $pod_status_detail${COLOR_RESET}"
@@ -11102,7 +11114,29 @@ keycloakReset(){
     log_info "Skipping helm uninstall (release not found)"
   fi
   
-  log_step "3" "Cleaning up persistent volumes and storage"
+  log_step "3" "Cleaning up PostgreSQL database"
+  if [[ "$namespace_exists" == true ]]; then
+    log_substep "Removing PostgreSQL deployment..."
+    if execute_with_suppression kubectl delete deployment postgres -n keycloak --timeout=60s; then
+      log_success "PostgreSQL deployment removed"
+    else
+      log_warning "PostgreSQL deployment may not exist or failed to delete"
+    fi
+    
+    log_substep "Removing PostgreSQL service..."
+    if execute_with_suppression kubectl delete service keycloak-postgresql -n keycloak --timeout=30s; then
+      log_success "PostgreSQL service removed"
+    else
+      log_warning "PostgreSQL service may not exist or failed to delete"
+    fi
+    
+    log_substep "Removing PostgreSQL secrets and config..."
+    execute_with_suppression kubectl delete configmap postgres-config -n keycloak --timeout=30s || true
+    execute_with_suppression kubectl delete secret postgres-secret -n keycloak --timeout=30s || true
+    log_success "PostgreSQL configuration cleaned up"
+  fi
+
+  log_step "4" "Cleaning up persistent volumes and storage"
   if [[ "$namespace_exists" == true ]]; then
     # Clean up PVCs
     log_substep "Removing persistent volume claims..."
@@ -11123,7 +11157,7 @@ keycloakReset(){
     log_info "Skipping storage cleanup (namespace not found)"
   fi
   
-  log_step "4" "Removing Keycloak namespace and resources"
+  log_step "5" "Removing Keycloak namespace and resources"
   if [[ "$namespace_exists" == true ]]; then
     if execute_with_suppression kubectl delete namespace keycloak --timeout=120s; then
       log_success "Keycloak namespace deleted successfully"
@@ -11142,7 +11176,7 @@ keycloakReset(){
     log_info "Skipping namespace deletion (namespace not found)"
   fi
   
-  log_step "5" "Cleaning up Keycloak-related resources"
+  log_step "6" "Cleaning up Keycloak-related resources"
   
   # Clean up any remaining Keycloak-related ingress resources
   local ingress_cleaned=false
@@ -11180,7 +11214,7 @@ keycloakReset(){
     log_info "No additional Keycloak resources found to clean up"
   fi
   
-  log_step "6" "Validating Keycloak reset completion"
+  log_step "7" "Validating Keycloak reset completion"
   validate_keycloak_reset
   
   local end_time=$(date +%s)
@@ -11274,6 +11308,151 @@ show_keycloak_reset_summary() {
   echo
 }
 
+# Deploy PostgreSQL for Keycloak
+deploy_keycloak_postgresql() {
+  log_substep "Creating PostgreSQL deployment for Keycloak..."
+  
+  # Clean up any existing PostgreSQL resources first
+  log_substep "Cleaning up any existing PostgreSQL resources..."
+  execute_with_suppression kubectl delete pvc postgres-pvc -n keycloak --ignore-not-found=true
+  execute_with_suppression kubectl delete deployment postgres -n keycloak --ignore-not-found=true
+  execute_with_suppression kubectl delete service keycloak-postgresql -n keycloak --ignore-not-found=true
+  execute_with_suppression kubectl delete configmap postgres-config -n keycloak --ignore-not-found=true
+  execute_with_suppression kubectl delete secret postgres-secret -n keycloak --ignore-not-found=true
+  
+  # First ensure storage class and persistent volume exist
+  log_substep "Setting up storage for PostgreSQL..."
+  if createLocalStorageClassAndPV "keycloak-storage" "keycloak-pv" "/data/volumes/pv3"; then
+    log_success "Keycloak storage configured"
+  else
+    log_error "Failed to create storage class and persistent volume"
+    return 1
+  fi
+  
+  # Create PostgreSQL deployment YAML
+  cat > /tmp/keycloak-postgres.yaml << 'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: keycloak
+data:
+  POSTGRES_DB: keycloak
+  POSTGRES_USER: postgres
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: keycloak
+type: Opaque
+data:
+  POSTGRES_PASSWORD: c3VtaXQ=  # base64 encoded "sumit"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: keycloak
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: keycloak-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+        envFrom:
+        - configMapRef:
+            name: postgres-config
+        - secretRef:
+            name: postgres-secret
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - exec pg_isready -U postgres -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -c
+              - exec pg_isready -U postgres -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: postgres-storage
+        persistentVolumeClaim:
+          claimName: postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-postgresql
+  namespace: keycloak
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+  type: ClusterIP
+EOF
+
+  # Apply PostgreSQL deployment
+  if execute_with_suppression kubectl apply -f /tmp/keycloak-postgres.yaml; then
+    log_success "PostgreSQL deployment created"
+  else
+    log_error "Failed to create PostgreSQL deployment"
+    return 1
+  fi
+
+  # Wait for PostgreSQL to be ready
+  log_substep "Waiting for PostgreSQL to be ready..."
+  if execute_with_suppression kubectl wait --for=condition=ready pod -l app=postgres -n keycloak --timeout=120s; then
+    log_success "PostgreSQL is ready"
+    return 0
+  else
+    log_error "PostgreSQL failed to become ready"
+    return 1
+  fi
+}
+
 keycloakInst(){
   log_substep "Installing core Keycloak identity management service"
   
@@ -11305,16 +11484,37 @@ keycloakInst(){
     --from-literal=password="${POSTGRESQL_PASSWORD}" \
     --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
 
-  # Install Keycloak via Helm
+  # Deploy PostgreSQL for Keycloak
+  log_substep "Deploying PostgreSQL database for Keycloak..."
+  if deploy_keycloak_postgresql; then
+    log_success "PostgreSQL database deployed successfully"
+  else
+    log_error "PostgreSQL deployment failed"
+    return 1
+  fi
+
+  # Add codecentric helm repository
+  log_substep "Adding codecentric helm repository..."
+  if execute_with_suppression helm repo add codecentric https://codecentric.github.io/helm-charts; then
+    log_success "Codecentric helm repository added"
+  else
+    log_warning "Codecentric repository may already exist"
+  fi
+  
+  log_substep "Updating helm repositories..."
+  if execute_with_suppression helm repo update; then
+    log_success "Helm repositories updated"
+  else
+    log_warning "Helm repository update had issues but continuing"
+  fi
+
+  # Install Keycloak via codecentric/keycloakx Helm chart
   local hostname="$(subDomain 'keycloak').$(rootDomain)"
 
   if helm_install_with_summary "keycloak" "keycloak" \
-    keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
+    keycloak codecentric/keycloakx \
         --namespace keycloak \
-        --set ingress.hostname="$hostname" \
-        --set auth.adminUser="$KEYCLOAK_ADMIN_USERNAME" \
-        --set auth.adminPassword="$KEYCLOAK_ADMIN_PASSWORD" \
-        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml; then
+        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml; then
     return 0
   else
     log_error "Keycloak helm installation failed"
@@ -11406,21 +11606,35 @@ build_keycloak_with_progress() {
     return 1
   fi
   
-  # Step 2: Install Keycloak via Helm with enhanced progress
-  log_info "☸️  Installing Keycloak via Helm chart"
-  log_substep "Chart: ${COLOR_CYAN}oci://registry-1.docker.io/bitnamicharts/keycloak${COLOR_RESET}"
-  log_substep "Values: ${COLOR_CYAN}${MOUNT_PATH}/kubernetes/install_k8s/keycloak/values2.yaml${COLOR_RESET}"
+  # Step 2: Add codecentric helm repository and install Keycloak
+  log_info "📦 Adding codecentric helm repository"
+  log_substep "Repository: ${COLOR_CYAN}https://codecentric.github.io/helm-charts${COLOR_RESET}"
+  
+  if execute_with_suppression helm repo add codecentric https://codecentric.github.io/helm-charts >/dev/null 2>&1; then
+    log_success "Codecentric helm repository added"
+  else
+    log_info "Codecentric repository already exists, continuing..."
+  fi
+  
+  log_substep "Updating helm repositories..."
+  if execute_with_suppression helm repo update >/dev/null 2>&1; then
+    log_success "Helm repositories updated"
+  else
+    log_warning "Helm repository update had issues but continuing"
+  fi
+
+  # Step 3: Install Keycloak via codecentric/keycloakx Helm chart with enhanced progress
+  log_info "☸️  Installing Keycloak via codecentric/keycloakx chart"
+  log_substep "Chart: ${COLOR_CYAN}codecentric/keycloakx${COLOR_RESET}"
+  log_substep "Values: ${COLOR_CYAN}${MOUNT_PATH}/kubernetes/install_k8s/keycloak/values-kcx.yaml${COLOR_RESET}"
   
   local temp_helm_log=$(mktemp)
   local temp_helm_error=$(mktemp)
   
-  # Start Helm installation in background
-  helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
+  # Start Helm installation in background with codecentric/keycloakx
+  helm upgrade --install keycloak codecentric/keycloakx \
     --namespace keycloak \
-    --set ingress.hostname="$hostname" \
-    --set auth.adminUser="$keycloak_admin_username" \
-    --set auth.adminPassword="$keycloak_admin_password" \
-    --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml \
+    --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
@@ -11434,16 +11648,16 @@ build_keycloak_with_progress() {
     helm_progress=$(( (helm_progress + 1) % (helm_steps * 15) ))
     local progress_percent=$(( helm_progress * 100 / (helm_steps * 15) ))
     
-    # Update stage based on progress
+    # Update stage based on progress for codecentric/keycloakx
     case $((helm_progress / 15)) in
-      0) helm_stage="Downloading Keycloak chart" ;;
-      1) helm_stage="Installing PostgreSQL database" ;;
-      2) helm_stage="Creating Keycloak deployment" ;;
-      3) helm_stage="Configuring identity services" ;;
-      4) helm_stage="Setting up authentication" ;;
-      5) helm_stage="Configuring ingress routing" ;;
-      6) helm_stage="Waiting for services" ;;
-      7) helm_stage="Finalizing installation" ;;
+      0) helm_stage="Downloading keycloakx chart" ;;
+      1) helm_stage="Creating Keycloak StatefulSet" ;;
+      2) helm_stage="Configuring Keycloak service" ;;
+      3) helm_stage="Setting up identity providers" ;;
+      4) helm_stage="Configuring authentication flows" ;;
+      5) helm_stage="Setting up ingress routing" ;;
+      6) helm_stage="Waiting for Keycloak pods" ;;
+      7) helm_stage="Finalizing keycloakx installation" ;;
     esac
     
     printf "\r${COLOR_BLUE}  Installing Keycloak [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$helm_stage"
@@ -11456,11 +11670,11 @@ build_keycloak_with_progress() {
   local helm_exit_code=$?
   
   if [[ $helm_exit_code -eq 0 ]]; then
-    printf "\r${COLOR_GREEN}  ✓ Keycloak installation completed [100%%]${COLOR_RESET}\n"
-    log_success "Keycloak deployed successfully via Helm"
+    printf "\r${COLOR_GREEN}  ✓ Keycloak keycloakx installation completed [100%%]${COLOR_RESET}\n"
+    log_success "Keycloak deployed successfully via codecentric/keycloakx Helm chart"
   else
-    printf "\r${COLOR_RED}  ✗ Keycloak installation failed${COLOR_RESET}\n"
-    log_error "Keycloak Helm installation failed - error details:"
+    printf "\r${COLOR_RED}  ✗ Keycloak keycloakx installation failed${COLOR_RESET}\n"
+    log_error "Keycloak keycloakx Helm installation failed - error details:"
     if [[ -s "$temp_helm_error" ]]; then
       if is_verbose_mode; then
         cat "$temp_helm_error" >&2

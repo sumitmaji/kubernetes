@@ -1,0 +1,87 @@
+# --- Keycloak naming configuration ---
+fullnameOverride: "keycloak"
+nameOverride: "keycloak"
+
+# --- Keycloak image & startup (upstream image) ---
+image:
+  repository: quay.io/keycloak/keycloak
+  # Pin to a version you want; the chart's appVersion is fine, but explicit is better
+  tag: "26.0.7"
+  pullPolicy: IfNotPresentKeycloak image & startup (upstream image) ---
+image:
+  repository: quay.io/keycloak/keycloak
+  # Pin to a version you want; the chart’s appVersion is fine, but explicit is better
+  tag: "26.0.7"
+  pullPolicy: IfNotPresent
+
+# Use the Quarkus KC launcher; you can add more args if needed (build, cache, etc.)
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"                 # for production use 'start' (not start-dev)
+  - "--http-enabled=true"
+  - "--http-port=8080"
+
+# Environment variables (codecentric/keycloakx format)
+extraEnv: |
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HOSTNAME
+    value: "master.cloud.com"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"
+  - name: KC_HTTP_ENABLED
+    value: "true"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "false"
+  - name: KC_DB_PASSWORD
+    value: "sumit"
+  - name: KC_CACHE
+    value: "local"
+
+# Secrets for admin credentials (these will be mounted as env vars)
+secrets:
+  keycloak-secrets:
+    stringData:
+      KEYCLOAK_ADMIN: "admin"
+      KEYCLOAK_ADMIN_PASSWORD: "sumit"
+      KC_LOG_LEVEL: "TRACE"
+
+# Replicas & resources (tune as you like)
+replicas: 1
+
+# --- Ingress configuration for codecentric/keycloakx ---
+ingress:
+  enabled: true
+  ingressClassName: "nginx"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+  hosts:
+    - host: master.cloud.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: keycloak-tls
+      hosts:
+        - master.cloud.com
+
+# --- Database configuration for codecentric/keycloakx ---
+database:
+  vendor: postgres
+  hostname: keycloak-postgresql
+  port: 5432
+  database: keycloak
+  username: postgres
+  # Password will be set via existing secret
+
+# Using external PostgreSQL deployment - no subchart needed
+postgresql:
+  enabled: false
+
+# Optional: service settings
+service:
+  type: ClusterIP
+  port: 8080
