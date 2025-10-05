@@ -8015,7 +8015,8 @@ emptyLocalFsStorage() {
   # Clean up PVCs in namespace if specified
   if [[ -n $namespace ]]; then
     log_info "Removing persistent volume claims in namespace: $namespace"
-    if kubectl get pvc -n $namespace --no-headers 2>/dev/null | grep -q .; then
+    local pvc_count=$(kubectl get pvc -n $namespace --no-headers 2>/dev/null | wc -l)
+    if [[ $pvc_count -gt 0 ]]; then
       if kubectl_with_summary delete "pvc" --all -n $namespace; then
         log_success "Persistent volume claims removed from $namespace namespace"
       else
@@ -8029,7 +8030,7 @@ emptyLocalFsStorage() {
   # Clean up persistent volume
   log_info "Removing persistent volume: $pvName"
   if kubectl get pv $pvName >/dev/null 2>&1; then
-    if kubectl_with_summary delete "pv" pv $pvName; then
+    if kubectl_with_summary delete "pv" $pvName; then
       log_success "Persistent volume '$pvName' removed"
     else
       log_warning "Persistent volume '$pvName' removal had issues"
@@ -8041,7 +8042,7 @@ emptyLocalFsStorage() {
   # Clean up storage class
   log_info "Removing storage class: $scName"
   if kubectl get sc $scName >/dev/null 2>&1; then
-    if kubectl_with_summary delete "sc" sc $scName; then
+    if kubectl_with_summary delete "sc" $scName; then
       log_success "Storage class '$scName' removed"  
     else
       log_warning "Storage class '$scName' removal had issues"
