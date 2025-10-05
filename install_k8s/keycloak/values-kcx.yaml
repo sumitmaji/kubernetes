@@ -38,11 +38,11 @@ extraEnv: |
   - name: KC_PROXY
     value: "edge"
   - name: KC_HOSTNAME_STRICT
-    value: "false"
-  - name: KC_HTTP_ENABLED
     value: "true"
-  - name: KC_HOSTNAME_STRICT_HTTPS
+  - name: KC_HTTP_ENABLED
     value: "false"
+  - name: KC_HOSTNAME_STRICT_HTTPS
+    value: "true"
   - name: KC_DB_PASSWORD
     value: "sumit"
   - name: KC_CACHE
