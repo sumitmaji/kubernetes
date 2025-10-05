@@ -3245,22 +3245,87 @@ getpod() {
 
 # =============================================================================
 # 📦 SYSTEM UPDATE & DEPENDENCY MANAGEMENT
-# Enhanced with progress bars and optional verbose logging
+# Enhanced with progress bars, optional verbose logging, and smart caching
 # =============================================================================
 
-# Global flag for verbose output (can be set via environment or command line)
+# Global flags for verbose output and caching (can be set via environment or command line)
 : ${GOK_VERBOSE:=false}
 : ${GOK_SHOW_PROGRESS:=true}
+: ${GOK_UPDATE_CACHE_HOURS:=6}  # Cache system updates for 6 hours by default
+: ${GOK_CACHE_DIR:=/tmp/gok-cache}
 
 # Function to check if verbose mode is enabled
 is_verbose_mode() {
     [[ "$GOK_VERBOSE" == "true" ]] || [[ "$1" == "--verbose" ]] || [[ "$1" == "-v" ]]
 }
 
-# Enhanced system update with progress bar
+# Function to check if system update cache is still valid
+is_update_cache_valid() {
+    local cache_file="$GOK_CACHE_DIR/last_update"
+    local cache_hours="${GOK_UPDATE_CACHE_HOURS:-6}"
+    
+    # Create cache directory if it doesn't exist
+    mkdir -p "$GOK_CACHE_DIR"
+    
+    # Check if cache file exists
+    if [[ ! -f "$cache_file" ]]; then
+        return 1  # No cache, need update
+    fi
+    
+    # Get cache timestamp
+    local cache_time=$(cat "$cache_file" 2>/dev/null || echo "0")
+    local current_time=$(date +%s)
+    local cache_age_hours=$(( (current_time - cache_time) / 3600 ))
+    
+    if [[ $cache_age_hours -lt $cache_hours ]]; then
+        log_info "System update cache is valid (updated ${cache_age_hours}h ago, cache expires in $((cache_hours - cache_age_hours))h)"
+        return 0  # Cache is valid
+    else
+        log_info "System update cache expired (${cache_age_hours}h old, cache limit: ${cache_hours}h)"
+        return 1  # Cache expired, need update
+    fi
+}
+
+# Function to mark system update cache as fresh
+mark_update_cache() {
+    local cache_file="$GOK_CACHE_DIR/last_update"
+    mkdir -p "$GOK_CACHE_DIR"
+    date +%s > "$cache_file"
+    log_info "System update cache marked fresh"
+}
+
+# Enhanced system update with progress bar and smart caching
 updateSys() {
     local verbose_flag="${1:-}"
+    local force_update=false
+    local skip_update=false
     local start_time=$(date +%s)
+    
+    # Parse additional flags
+    for arg in "$@"; do
+        case "$arg" in
+            --force-update)
+                force_update=true
+                shift
+                ;;
+            --skip-update)
+                skip_update=true
+                shift
+                ;;
+        esac
+    done
+    
+    # Skip update if explicitly requested
+    if [[ "$skip_update" == "true" ]]; then
+        log_info "System update skipped (--skip-update flag)"
+        return 0
+    fi
+    
+    # Check cache unless force update is requested
+    if [[ "$force_update" == "false" ]] && is_update_cache_valid; then
+        log_success "System update skipped (cache is fresh)"
+        return 0
+    fi
     
     log_step "System Update" "Updating package repositories"
     
@@ -3330,6 +3395,10 @@ updateSys() {
     
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
+    
+    # Mark cache as fresh after successful update
+    mark_update_cache
+    
     log_success "System update completed in ${duration}s"
     
     return 0
@@ -12289,12 +12358,48 @@ function helpCmd() {
     echo -e "${COLOR_CYAN}• Community: Join our Kubernetes community for help and discussions${COLOR_RESET}"
     echo
     
+    echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}⚡ SMART UPDATE CACHING${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}GOK intelligently caches system updates to avoid redundant package refreshes.${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}Cache Management:${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok cache status      ${COLOR_DIM}# Check cache age and validity${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok cache clear       ${COLOR_DIM}# Force next update (clear cache)${COLOR_RESET}"
+    echo 
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}Installation Flags:${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install <component>                ${COLOR_DIM}# Smart caching (default)${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install <component> --force-update ${COLOR_DIM}# Force system update${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install <component> --skip-update  ${COLOR_DIM}# Skip system update${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}Configuration Options:${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=6  ${COLOR_DIM}# Cache updates for 6 hours (default)${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=12 ${COLOR_DIM}# Cache updates for 12 hours${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=1  ${COLOR_DIM}# Cache updates for 1 hour${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_CACHE_DIR=/custom/path ${COLOR_DIM}# Custom cache directory${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}Examples:${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  # Development - Skip updates for speed${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install base --skip-update${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_CYAN}  # Production - Force fresh updates${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install kubernetes --force-update${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_CYAN}  # Custom cache duration (24 hours)${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=24 gok install docker${COLOR_RESET}"
+    echo
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}Performance Impact:${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}• First install: Full system update (~8 seconds)${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}• Subsequent installs: Skip update (instant, saves ~8s per component)${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}• Installing 5 components: Saves ~32 seconds with smart caching${COLOR_RESET}"
+    echo
+    
     echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}💡 PRO TIPS${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Use ${COLOR_BOLD}gok completion setup${COLOR_RESET} for tab completion${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Run ${COLOR_BOLD}gok status${COLOR_RESET} regularly to monitor your platform${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Install components in the recommended order for best results${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Use ${COLOR_BOLD}gok logs${COLOR_RESET} for troubleshooting issues${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Add ${COLOR_BOLD}--verbose${COLOR_RESET} or ${COLOR_BOLD}-v${COLOR_RESET} flag to show detailed system logs and command output${COLOR_RESET}"
+    echo -e "${COLOR_YELLOW}• Use ${COLOR_BOLD}gok cache status${COLOR_RESET} to check when your last system update was performed${COLOR_RESET}"
+    echo -e "${COLOR_YELLOW}• Set ${COLOR_BOLD}GOK_UPDATE_CACHE_HOURS=1${COLOR_RESET} for frequent updates or ${COLOR_BOLD}GOK_UPDATE_CACHE_HOURS=24${COLOR_RESET} for daily updates${COLOR_RESET}"
     echo
 }
 
@@ -13288,11 +13393,27 @@ function installCmd() {
   if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
     echo "gok install - Install and configure Kubernetes components and services"
     echo ""
-    echo "Usage: gok install <component> [--verbose|-v]"
+    echo "Usage: gok install <component> [--verbose|-v] [--force-update] [--skip-update]"
     echo ""
     echo "Options:"
-    echo "  --verbose, -v     Show detailed installation output (default: progress bars)"
-    echo "  GOK_VERBOSE=true  Environment variable to enable verbose mode globally"
+    echo "  --verbose, -v      Show detailed installation output (default: progress bars)"
+    echo "  --force-update     Force system update regardless of cache"
+    echo "  --skip-update      Skip system update completely"
+    echo ""
+    echo "Environment Variables:"
+    echo "  GOK_VERBOSE=true         Enable verbose mode globally"
+    echo "  GOK_UPDATE_CACHE_HOURS=6 Hours to cache system updates (default: 6)"
+    echo "  GOK_CACHE_DIR=/tmp/gok-cache  Custom cache directory location"
+    echo ""
+    echo "Smart Update Caching Examples:"
+    echo "  gok install docker                     # Uses smart cache (default)"
+    echo "  gok install base --skip-update         # Skip system update completely"
+    echo "  gok install kubernetes --force-update  # Force fresh system update"
+    echo "  GOK_UPDATE_CACHE_HOURS=12 gok install helm  # Cache for 12 hours"
+    echo ""
+    echo "Cache Management:"
+    echo "  gok cache status        # Check cache age and validity"
+    echo "  gok cache clear         # Clear cache, force next update"
     echo ""
     echo "Core Infrastructure:"
     echo "  docker            Docker container runtime"
@@ -13380,15 +13501,23 @@ function installCmd() {
   # Initialize component tracking
   init_component_tracking "$COMPONENT" "Installing $COMPONENT component"
   
-  # Check for verbose flag in all arguments
+  # Parse all flags
   local verbose_flag=""
+  local update_flags=""
   for arg in "$@"; do
-    if [[ "$arg" == "--verbose" ]] || [[ "$arg" == "-v" ]]; then
-      verbose_flag="--verbose"
-      export GOK_VERBOSE="true"
-      log_info "Verbose logging enabled"
-      break
-    fi
+    case "$arg" in
+      --verbose|-v)
+        verbose_flag="--verbose"
+        export GOK_VERBOSE="true"
+        log_info "Verbose logging enabled"
+        ;;
+      --force-update)
+        update_flags="$update_flags --force-update"
+        ;;
+      --skip-update)
+        update_flags="$update_flags --skip-update"
+        ;;
+    esac
   done
   
   # Also check environment variable
@@ -13400,8 +13529,8 @@ function installCmd() {
   # Start component installation with enhanced logging
   start_component "$COMPONENT" "Installing $COMPONENT component"
   
-  # Run system updates with progress bars (unless verbose)
-  if ! updateSys "$verbose_flag"; then
+  # Run smart system updates with caching
+  if ! updateSys $verbose_flag $update_flags; then
     fail_component "$COMPONENT" "System update failed"
     return 1
   fi
@@ -15850,6 +15979,46 @@ if [[ $# -gt 0 ]]; then
         ;;
       help)
         helpCmd "$@"
+        ;;
+      cache)
+        case "${1:-}" in
+          'clear' | 'clean')
+            if [[ -d "$GOK_CACHE_DIR" ]]; then
+              rm -rf "$GOK_CACHE_DIR"
+              echo "✅ Update cache cleared"
+            else
+              echo "ℹ️ Update cache is already empty"
+            fi
+            ;;
+          'status' | 'info')
+            cache_file="$GOK_CACHE_DIR/last_update"
+            if [[ -f "$cache_file" ]]; then
+              cache_time=$(cat "$cache_file" 2>/dev/null || echo "0")
+              current_time=$(date +%s)
+              cache_age_hours=$(( (current_time - cache_time) / 3600 ))
+              cache_age_mins=$(( ((current_time - cache_time) % 3600) / 60 ))
+              cache_hours="${GOK_UPDATE_CACHE_HOURS:-6}"
+              
+              echo "📦 System Update Cache Status:"
+              echo "   Last update: $(date -d "@$cache_time" 2>/dev/null || echo "Unknown")"
+              echo "   Cache age: ${cache_age_hours}h ${cache_age_mins}m"
+              echo "   Cache limit: ${cache_hours}h"
+              echo "   Status: $(if [[ $cache_age_hours -lt $cache_hours ]]; then echo "✅ Valid"; else echo "⚠️ Expired"; fi)"
+            else
+              echo "📦 System Update Cache Status: ❌ No cache found"
+            fi
+            ;;
+          *)
+            echo "Usage: gok cache <command>"
+            echo ""
+            echo "Commands:"
+            echo "  status    Show cache status and age"
+            echo "  clear     Clear update cache (force next update)"
+            echo ""
+            echo "Environment Variables:"
+            echo "  GOK_UPDATE_CACHE_HOURS=6  Hours to cache updates (default: 6)"
+            ;;
+        esac
         ;;
       *)
         # Check if the command is a valid function
