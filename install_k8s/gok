@@ -2134,23 +2134,47 @@ validate_component_installation() {
     esac
 }
 
-# Generic component validation
+# Generic component validation with enhanced checks
 validate_generic_component() {
     local component="$1"
     local timeout="$2"
     local validation_passed=true
     
-    log_step "1" "Checking $component pods"
-    if ! wait_for_pods_ready "$component" "$timeout"; then
+    log_step "1" "Checking $component deployments"
+    local deployments=$(kubectl get deployment -A --no-headers 2>/dev/null | grep "$component" | head -3)
+    if [[ -n "$deployments" ]]; then
+        echo "$deployments" | while read -r deploy_line; do
+            local namespace=$(echo "$deploy_line" | awk '{print $1}')
+            local deployment=$(echo "$deploy_line" | awk '{print $2}')
+            if check_deployment_readiness "$deployment" "$namespace"; then
+                log_success "Deployment $deployment is ready in $namespace"
+            else
+                log_warning "Deployment $deployment has issues in $namespace"
+            fi
+        done
+    fi
+    
+    log_step "2" "Checking $component pods"
+    if ! wait_for_pods_ready "$component" "$timeout" "$component"; then
         log_error "Pods not ready for $component"
         validation_passed=false
     else
         log_success "All $component pods are ready"
     fi
     
-    log_step "2" "Checking $component services"
-    if kubectl get svc -A | grep -q "$component"; then
+    log_step "3" "Checking $component services"
+    local services=$(kubectl get svc -A --no-headers 2>/dev/null | grep "$component" | head -5)
+    if [[ -n "$services" ]]; then
         log_success "$component services are available"
+        echo "$services" | while read -r svc_line; do
+            local namespace=$(echo "$svc_line" | awk '{print $1}')
+            local service=$(echo "$svc_line" | awk '{print $2}')
+            if check_service_connectivity "$service" "$namespace"; then
+                echo -e "${COLOR_GREEN}    ✓ Service $service in $namespace is accessible${COLOR_RESET}"
+            else
+                echo -e "${COLOR_YELLOW}    ⚠ Service $service in $namespace has connectivity issues${COLOR_RESET}"
+            fi
+        done
     else
         log_warning "No services found for $component"
     fi
@@ -2281,8 +2305,16 @@ validate_cert_manager() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking cert-manager pods"
-    if ! wait_for_pods_ready "cert-manager" "$timeout"; then
+    log_step "1" "Checking cert-manager deployment"
+    if check_deployment_readiness "cert-manager" "cert-manager"; then
+        log_success "Cert-manager deployment is ready"
+    else
+        log_error "Cert-manager deployment has issues"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking cert-manager pods"
+    if ! wait_for_pods_ready "cert-manager" "$timeout" "cert-manager"; then
         log_error "Cert-manager pods not ready"
         validation_passed=false
     else
@@ -2335,30 +2367,54 @@ EOF
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
-# Ingress controller validation
+# Ingress controller validation with enhanced checks
 validate_ingress_controller() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking ingress controller pods"
-    if ! wait_for_pods_ready "ingress-nginx" "$timeout"; then
+    log_step "1" "Checking ingress controller deployment"
+    if check_deployment_readiness "ingress-nginx-controller" "ingress-nginx"; then
+        log_success "Ingress controller deployment is ready"
+    else
+        log_error "Ingress controller deployment has issues"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking ingress controller pods"
+    if ! wait_for_pods_ready "ingress-nginx" "$timeout" "ingress-nginx"; then
         log_error "Ingress controller pods not ready"
         validation_passed=false
     else
         log_success "Ingress controller pods are ready"
     fi
     
-    log_step "2" "Checking ingress controller service"
-    if kubectl get svc -n ingress-nginx ingress-nginx-controller >/dev/null 2>&1; then
-        local external_ip=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-        if [[ -n "$external_ip" && "$external_ip" != "null" ]]; then
-            log_success "Ingress controller has external IP: $external_ip"
-        else
-            log_warning "Ingress controller service exists but no external IP yet"
+    log_step "3" "Checking ingress controller service"
+    if check_service_connectivity "ingress-nginx-controller" "ingress-nginx"; then
+        log_success "Ingress controller service is accessible"
+        
+        # Check for external IP or NodePort
+        local service_type=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.type}' 2>/dev/null)
+        if [[ "$service_type" == "LoadBalancer" ]]; then
+            local external_ip=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+            if [[ -n "$external_ip" && "$external_ip" != "null" ]]; then
+                log_success "LoadBalancer has external IP: $external_ip"
+            else
+                log_warning "LoadBalancer service exists but no external IP assigned yet"
+            fi
+        elif [[ "$service_type" == "NodePort" ]]; then
+            local node_port=$(kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}' 2>/dev/null)
+            log_info "NodePort service configured on port: $node_port"
         fi
     else
-        log_error "Ingress controller service not found"
+        log_error "Ingress controller service not accessible"
         validation_passed=false
+    fi
+    
+    log_step "4" "Checking ingress class"
+    if kubectl get ingressclass nginx >/dev/null 2>&1; then
+        log_success "Nginx ingress class is available"
+    else
+        log_warning "Nginx ingress class not found"
     fi
     
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
@@ -2450,90 +2506,572 @@ validate_gok_controller_installation() {
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
-# Utility function to wait for pods to be ready
+# =============================================================================
+# 🔍 ENHANCED DEPLOYMENT VERIFICATION SYSTEM
+# =============================================================================
+
+# Check for Docker image pull issues in pods
+check_image_pull_issues() {
+    local namespace="$1"
+    local component="$2"
+    
+    log_info "🐳 Checking for Docker image pull issues in $component..."
+    
+    # Get pods with image pull errors
+    local image_pull_pods=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}' 2>/dev/null | grep -E "(ImagePullBackOff|ErrImagePull)" | cut -d' ' -f1)
+    
+    if [[ -n "$image_pull_pods" ]]; then
+        log_error "Found pods with image pull issues:"
+        echo "$image_pull_pods" | while read -r pod; do
+            if [[ -n "$pod" ]]; then
+                echo -e "${COLOR_RED}  ❌ Pod: ${COLOR_BOLD}$pod${COLOR_RESET}"
+                
+                # Get detailed image pull error information
+                local image_error=$(kubectl describe pod "$pod" -n "$namespace" 2>/dev/null | grep -A 3 -B 1 "Failed to pull image\|Error response from daemon")
+                if [[ -n "$image_error" ]]; then
+                    echo -e "${COLOR_YELLOW}     Error details:${COLOR_RESET}"
+                    echo "$image_error" | sed 's/^/       /'
+                fi
+                
+                # Get the image name causing issues
+                local failed_image=$(kubectl get pod "$pod" -n "$namespace" -o jsonpath='{.spec.containers[*].image}' 2>/dev/null)
+                if [[ -n "$failed_image" ]]; then
+                    echo -e "${COLOR_CYAN}     Image: ${COLOR_BOLD}$failed_image${COLOR_RESET}"
+                fi
+            fi
+        done
+        
+        # Provide troubleshooting suggestions
+        echo
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🛠️  TROUBLESHOOTING SUGGESTIONS:${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}• Check Docker registry connectivity: ${COLOR_BOLD}docker pull <image>${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}• Verify image exists in registry: ${COLOR_BOLD}curl -s <registry-url>/v2/<image>/tags/list${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}• Check image pull secrets: ${COLOR_BOLD}kubectl get secrets -n $namespace${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}• Verify network/proxy settings for image registry access${COLOR_RESET}"
+        echo
+        return 1
+    else
+        log_success "No Docker image pull issues found"
+        return 0
+    fi
+}
+
+# Check for resource constraint issues
+check_resource_constraints() {
+    local namespace="$1"
+    local component="$2"
+    
+    log_info "📊 Checking for resource constraint issues in $component..."
+    
+    # Check for pods with resource-related issues
+    local resource_issues=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[*].state.waiting.reason}{" "}{.status.phase}{"\n"}{end}' 2>/dev/null | grep -E "(OutOfMemory|OutOfCpu|Evicted|OutOfDisk)")
+    
+    if [[ -n "$resource_issues" ]]; then
+        log_warning "Found pods with resource constraint issues:"
+        echo "$resource_issues" | while read -r line; do
+            if [[ -n "$line" ]]; then
+                local pod=$(echo "$line" | cut -d' ' -f1)
+                echo -e "${COLOR_YELLOW}  ⚠️  Pod: ${COLOR_BOLD}$pod${COLOR_RESET}"
+                
+                # Get resource usage and limits
+                kubectl top pod "$pod" -n "$namespace" 2>/dev/null | tail -n +2 | while read -r usage_line; do
+                    echo -e "${COLOR_CYAN}     Resource usage: $usage_line${COLOR_RESET}"
+                done
+            fi
+        done
+        
+        # Show node resource availability
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📈 NODE RESOURCE STATUS:${COLOR_RESET}"
+        kubectl top nodes 2>/dev/null | head -10
+        echo
+        return 1
+    else
+        log_success "No resource constraint issues found"
+        return 0
+    fi
+}
+
+# Check deployment readiness with detailed diagnostics
+check_deployment_readiness() {
+    local deployment="$1"
+    local namespace="$2"
+    
+    log_info "🚀 Analyzing deployment readiness: $deployment"
+    
+    # Get deployment status
+    local deployment_info=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.status.readyReplicas}/{.status.replicas} {.status.conditions[?(@.type=="Available")].status} {.status.conditions[?(@.type=="Progressing")].status}' 2>/dev/null)
+    
+    if [[ -z "$deployment_info" ]]; then
+        log_error "Deployment $deployment not found in namespace $namespace"
+        return 1
+    fi
+    
+    local ready_replicas=$(echo "$deployment_info" | cut -d' ' -f1 | cut -d'/' -f1)
+    local total_replicas=$(echo "$deployment_info" | cut -d' ' -f1 | cut -d'/' -f2)
+    local available_status=$(echo "$deployment_info" | cut -d' ' -f2)
+    local progressing_status=$(echo "$deployment_info" | cut -d' ' -f3)
+    
+    echo -e "${COLOR_CYAN}  📊 Ready: ${COLOR_BOLD}${ready_replicas:-0}/${total_replicas:-0}${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  📈 Available: ${COLOR_BOLD}$available_status${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  🔄 Progressing: ${COLOR_BOLD}$progressing_status${COLOR_RESET}"
+    
+    # Check if deployment is healthy
+    if [[ "$ready_replicas" == "$total_replicas" ]] && [[ "$available_status" == "True" ]]; then
+        log_success "Deployment $deployment is ready and healthy"
+        return 0
+    else
+        log_warning "Deployment $deployment is not fully ready"
+        
+        # Get replica set issues
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔍 REPLICA SET ANALYSIS:${COLOR_RESET}"
+        kubectl describe deployment "$deployment" -n "$namespace" 2>/dev/null | grep -A 10 "Conditions:\|Events:" | tail -20
+        
+        return 1
+    fi
+}
+
+# Check service endpoints and connectivity
+check_service_connectivity() {
+    local service="$1"
+    local namespace="$2"
+    
+    log_info "🌐 Checking service connectivity: $service"
+    
+    # Check if service exists
+    if ! kubectl get service "$service" -n "$namespace" >/dev/null 2>&1; then
+        log_error "Service $service not found in namespace $namespace"
+        return 1
+    fi
+    
+    # Get service endpoints
+    local endpoints=$(kubectl get endpoints "$service" -n "$namespace" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+    
+    if [[ -n "$endpoints" ]]; then
+        local endpoint_count=$(echo "$endpoints" | wc -w)
+        log_success "Service $service has $endpoint_count ready endpoint(s)"
+        echo -e "${COLOR_CYAN}  🎯 Endpoints: ${COLOR_BOLD}$endpoints${COLOR_RESET}"
+        
+        # Get service ports
+        local ports=$(kubectl get service "$service" -n "$namespace" -o jsonpath='{.spec.ports[*].port}' 2>/dev/null)
+        echo -e "${COLOR_CYAN}  🔌 Ports: ${COLOR_BOLD}$ports${COLOR_RESET}"
+        
+        return 0
+    else
+        log_warning "Service $service has no ready endpoints"
+        
+        # Check for pods that should be backing this service
+        local selector=$(kubectl get service "$service" -n "$namespace" -o jsonpath='{.spec.selector}' 2>/dev/null)
+        if [[ -n "$selector" ]]; then
+            echo -e "${COLOR_YELLOW}  🏷️  Service selector: $selector${COLOR_RESET}"
+            
+            # Try to find matching pods
+            local matching_pods=$(kubectl get pods -n "$namespace" -l "$(echo "$selector" | sed 's/map\[//;s/\]//;s/ /,/g')" --no-headers 2>/dev/null | wc -l)
+            echo -e "${COLOR_CYAN}  📦 Matching pods: ${COLOR_BOLD}$matching_pods${COLOR_RESET}"
+        fi
+        
+        return 1
+    fi
+}
+
+# Check ingress configuration and certificates
+check_ingress_status() {
+    local ingress="$1"
+    local namespace="$2"
+    
+    log_info "🌍 Checking ingress status: $ingress"
+    
+    # Check if ingress exists
+    if ! kubectl get ingress "$ingress" -n "$namespace" >/dev/null 2>&1; then
+        log_error "Ingress $ingress not found in namespace $namespace"
+        return 1
+    fi
+    
+    # Get ingress hosts and addresses
+    local hosts=$(kubectl get ingress "$ingress" -n "$namespace" -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)
+    local addresses=$(kubectl get ingress "$ingress" -n "$namespace" -o jsonpath='{.status.loadBalancer.ingress[*].ip}' 2>/dev/null)
+    
+    echo -e "${COLOR_CYAN}  🏠 Hosts: ${COLOR_BOLD}$hosts${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  📍 Addresses: ${COLOR_BOLD}${addresses:-<pending>}${COLOR_RESET}"
+    
+    # Check TLS certificates
+    local tls_secrets=$(kubectl get ingress "$ingress" -n "$namespace" -o jsonpath='{.spec.tls[*].secretName}' 2>/dev/null)
+    if [[ -n "$tls_secrets" ]]; then
+        echo -e "${COLOR_CYAN}  🔐 TLS Secrets: ${COLOR_BOLD}$tls_secrets${COLOR_RESET}"
+        
+        # Check certificate validity
+        for secret in $tls_secrets; do
+            if kubectl get secret "$secret" -n "$namespace" >/dev/null 2>&1; then
+                log_success "TLS certificate $secret exists"
+            else
+                log_warning "TLS certificate $secret not found or not ready"
+            fi
+        done
+    fi
+    
+    if [[ -n "$addresses" ]]; then
+        log_success "Ingress $ingress is configured and has addresses"
+        return 0
+    else
+        log_warning "Ingress $ingress is configured but pending addresses"
+        return 1
+    fi
+}
+
+# Check StatefulSet with persistent volume issues
+check_statefulset_status() {
+    local statefulset="$1"
+    local namespace="$2"
+    
+    log_info "💾 Checking StatefulSet status: $statefulset"
+    
+    # Check if StatefulSet exists
+    if ! kubectl get statefulset "$statefulset" -n "$namespace" >/dev/null 2>&1; then
+        log_error "StatefulSet $statefulset not found in namespace $namespace"
+        return 1
+    fi
+    
+    # Get StatefulSet status
+    local ss_info=$(kubectl get statefulset "$statefulset" -n "$namespace" -o jsonpath='{.status.readyReplicas}/{.status.replicas} {.status.currentReplicas}' 2>/dev/null)
+    local ready_replicas=$(echo "$ss_info" | cut -d' ' -f1 | cut -d'/' -f1)
+    local total_replicas=$(echo "$ss_info" | cut -d' ' -f1 | cut -d'/' -f2)
+    
+    echo -e "${COLOR_CYAN}  📊 Ready: ${COLOR_BOLD}${ready_replicas:-0}/${total_replicas:-0}${COLOR_RESET}"
+    
+    # Check persistent volume claims
+    local pvcs=$(kubectl get pvc -n "$namespace" | grep "$statefulset" 2>/dev/null)
+    if [[ -n "$pvcs" ]]; then
+        echo -e "${COLOR_CYAN}  💽 Persistent Volume Claims:${COLOR_RESET}"
+        echo "$pvcs" | while read -r pvc_line; do
+            echo -e "${COLOR_DIM}    $pvc_line${COLOR_RESET}"
+        done
+        
+        # Check for pending PVCs
+        local pending_pvcs=$(echo "$pvcs" | grep "Pending" | wc -l)
+        if [[ $pending_pvcs -gt 0 ]]; then
+            log_warning "$pending_pvcs PVC(s) are in Pending state"
+            echo -e "${COLOR_YELLOW}  💡 Check storage class and available storage${COLOR_RESET}"
+        fi
+    fi
+    
+    if [[ "$ready_replicas" == "$total_replicas" ]]; then
+        log_success "StatefulSet $statefulset is ready"
+        return 0
+    else
+        log_warning "StatefulSet $statefulset is not fully ready"
+        return 1
+    fi
+}
+
+# Enhanced utility function to wait for pods to be ready with detailed diagnostics
 wait_for_pods_ready() {
     local namespace="$1"
-    local timeout="$2"
+    local timeout="${2:-300}"
+    local component="${3:-$namespace}"
     local start_time=$(date +%s)
+    local last_status_check=0
+    local detailed_check_performed=false
+    
+    echo -e "${COLOR_CYAN}⏳ Waiting for $component pods to become ready (timeout: ${timeout}s)...${COLOR_RESET}"
     
     while true; do
         local current_time=$(date +%s)
         local elapsed=$((current_time - start_time))
         
         if [[ $elapsed -gt $timeout ]]; then
+            log_error "Timeout waiting for $component pods to be ready after ${timeout}s"
+            
+            # Perform final diagnostic check on timeout
+            echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}🔍 TIMEOUT DIAGNOSTIC REPORT:${COLOR_RESET}"
+            perform_pod_diagnostics "$namespace" "$component"
             return 1
         fi
         
-        # Check if all pods in namespace are ready
-        local not_ready_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -v "Running\|Completed" | wc -l)
+        # Get pod status information
+        local pod_status=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null)
+        local not_ready_pods=$(echo "$pod_status" | grep -v -E "Running.*1/1|Completed" | wc -l)
+        local total_pods=$(echo "$pod_status" | wc -l)
+        local ready_pods=$((total_pods - not_ready_pods))
         
-        if [[ $not_ready_pods -eq 0 ]]; then
+        # Show progress every 30 seconds or on status change
+        if [[ $((elapsed - last_status_check)) -ge 30 ]] || [[ $not_ready_pods -ne ${prev_not_ready:-$not_ready_pods} ]]; then
+            if [[ $total_pods -gt 0 ]]; then
+                echo -e "${COLOR_YELLOW}  📊 Progress: ${COLOR_BOLD}${ready_pods}/${total_pods}${COLOR_RESET} pods ready (${elapsed}s elapsed)"
+                
+                # Show not ready pods briefly
+                if [[ $not_ready_pods -gt 0 ]]; then
+                    echo "$pod_status" | grep -v -E "Running.*1/1|Completed" | head -3 | while read -r pod_line; do
+                        local pod_name=$(echo "$pod_line" | awk '{print $1}')
+                        local pod_status_detail=$(echo "$pod_line" | awk '{print $3}')
+                        echo -e "${COLOR_DIM}    • $pod_name: $pod_status_detail${COLOR_RESET}"
+                    done
+                    
+                    if [[ $not_ready_pods -gt 3 ]]; then
+                        echo -e "${COLOR_DIM}    ... and $((not_ready_pods - 3)) more${COLOR_RESET}"
+                    fi
+                fi
+            else
+                echo -e "${COLOR_YELLOW}  ⏳ No pods found yet in namespace $namespace${COLOR_RESET}"
+            fi
+            last_status_check=$elapsed
+        fi
+        
+        # If all pods are ready, success!
+        if [[ $not_ready_pods -eq 0 ]] && [[ $total_pods -gt 0 ]]; then
+            log_success "All $component pods are ready ($total_pods/$total_pods)"
             return 0
         fi
         
-        sleep 5
+        # Perform detailed diagnostics after 60 seconds if pods are still not ready
+        if [[ $elapsed -gt 60 ]] && [[ "$detailed_check_performed" == "false" ]]; then
+            echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔍 PERFORMING DETAILED DIAGNOSTICS:${COLOR_RESET}"
+            perform_pod_diagnostics "$namespace" "$component"
+            detailed_check_performed=true
+        fi
+        
+        prev_not_ready=$not_ready_pods
+        sleep 10
     done
 }
 
-# Keycloak validation
+# Perform comprehensive pod diagnostics
+perform_pod_diagnostics() {
+    local namespace="$1"
+    local component="$2"
+    
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔬 DIAGNOSTIC ANALYSIS FOR $component:${COLOR_RESET}"
+    
+    # 1. Check for image pull issues
+    if check_image_pull_issues "$namespace" "$component"; then
+        echo -e "${COLOR_GREEN}  ✓ No image pull issues${COLOR_RESET}"
+    fi
+    
+    # 2. Check for resource constraints
+    if check_resource_constraints "$namespace" "$component"; then
+        echo -e "${COLOR_GREEN}  ✓ No resource constraint issues${COLOR_RESET}"
+    fi
+    
+    # 3. Show current pod status with details
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📋 CURRENT POD STATUS:${COLOR_RESET}"
+    local pod_details=$(kubectl get pods -n "$namespace" -o wide 2>/dev/null)
+    if [[ -n "$pod_details" ]]; then
+        echo "$pod_details" | head -10
+        
+        # Show events for problematic pods
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📰 RECENT EVENTS:${COLOR_RESET}"
+        kubectl get events -n "$namespace" --sort-by='.lastTimestamp' 2>/dev/null | tail -5 | while read -r event_line; do
+            echo -e "${COLOR_DIM}  $event_line${COLOR_RESET}"
+        done
+    else
+        echo -e "${COLOR_RED}  No pods found in namespace $namespace${COLOR_RESET}"
+    fi
+    
+    # 4. Check for failed pods and get their logs
+    local failed_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -E "(Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull)" | head -2)
+    if [[ -n "$failed_pods" ]]; then
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}📝 FAILED POD LOGS (last 10 lines):${COLOR_RESET}"
+        echo "$failed_pods" | while read -r pod_line; do
+            local pod_name=$(echo "$pod_line" | awk '{print $1}')
+            echo -e "${COLOR_YELLOW}  Pod: $pod_name${COLOR_RESET}"
+            kubectl logs "$pod_name" -n "$namespace" --tail=10 2>/dev/null | sed 's/^/    /' || echo "    (No logs available)"
+            echo
+        done
+    fi
+    
+    # 5. Provide component-specific troubleshooting
+    provide_component_troubleshooting "$component" "$namespace"
+}
+
+# Provide component-specific troubleshooting suggestions
+provide_component_troubleshooting() {
+    local component="$1"
+    local namespace="$2"
+    
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}💡 TROUBLESHOOTING SUGGESTIONS FOR $component:${COLOR_RESET}"
+    
+    case "$component" in
+        "cert-manager")
+            echo -e "${COLOR_CYAN}• Check ClusterIssuer: ${COLOR_BOLD}kubectl get clusterissuer${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify webhook: ${COLOR_BOLD}kubectl get validatingwebhookconfiguration cert-manager-webhook${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Check certificates: ${COLOR_BOLD}kubectl get certificates -A${COLOR_RESET}"
+            ;;
+        "ingress-nginx")
+            echo -e "${COLOR_CYAN}• Check LoadBalancer service: ${COLOR_BOLD}kubectl get svc -n ingress-nginx${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify ingress class: ${COLOR_BOLD}kubectl get ingressclass${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Test ingress: ${COLOR_BOLD}kubectl get ingress -A${COLOR_RESET}"
+            ;;
+        "keycloak")
+            echo -e "${COLOR_CYAN}• Check database connectivity and persistent volumes${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify secrets: ${COLOR_BOLD}kubectl get secrets -n keycloak${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Check service: ${COLOR_BOLD}kubectl get svc -n keycloak${COLOR_RESET}"
+            ;;
+        "ldap")
+            echo -e "${COLOR_CYAN}• Check LDAP configuration and secrets${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify persistent volumes: ${COLOR_BOLD}kubectl get pvc -n ldap${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Test connectivity: ${COLOR_BOLD}kubectl exec -n ldap <pod> -- ldapsearch${COLOR_RESET}"
+            ;;
+        "oauth2")
+            echo -e "${COLOR_CYAN}• Check OAuth2 configuration and upstream services${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify Keycloak connectivity from OAuth2 proxy${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Check ingress and certificates${COLOR_RESET}"
+            ;;
+        "monitoring")
+            echo -e "${COLOR_CYAN}• Check storage class for Prometheus: ${COLOR_BOLD}kubectl get storageclass${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify service monitors: ${COLOR_BOLD}kubectl get servicemonitor -A${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Check Grafana access: ${COLOR_BOLD}kubectl get svc -n monitoring${COLOR_RESET}"
+            ;;
+        *)
+            echo -e "${COLOR_CYAN}• Check deployment: ${COLOR_BOLD}kubectl describe deployment -n $namespace${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Verify services: ${COLOR_BOLD}kubectl get svc -n $namespace${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}• Check configmaps/secrets: ${COLOR_BOLD}kubectl get cm,secrets -n $namespace${COLOR_RESET}"
+            ;;
+    esac
+    
+    echo -e "${COLOR_CYAN}• General troubleshooting: ${COLOR_BOLD}kubectl describe pods -n $namespace${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}• Check events: ${COLOR_BOLD}kubectl get events -n $namespace --sort-by='.lastTimestamp'${COLOR_RESET}"
+    echo
+}
+
+# Keycloak validation with comprehensive checks
 validate_keycloak_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Keycloak pods"
-    if ! wait_for_pods_ready "keycloak" "$timeout"; then
+    log_step "1" "Checking Keycloak deployment status"
+    if check_deployment_readiness "keycloak" "keycloak"; then
+        log_success "Keycloak deployment is ready"
+    else
+        log_error "Keycloak deployment has issues"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking Keycloak pods"
+    if ! wait_for_pods_ready "keycloak" "$timeout" "keycloak"; then
         log_error "Keycloak pods not ready"
         validation_passed=false
     else
         log_success "Keycloak pods are ready"
     fi
     
+    log_step "3" "Checking Keycloak service connectivity"
+    if check_service_connectivity "keycloak" "keycloak"; then
+        log_success "Keycloak service is accessible"
+    else
+        log_warning "Keycloak service connectivity issues detected"
+    fi
+    
+    log_step "4" "Checking Keycloak ingress configuration"
+    if kubectl get ingress keycloak -n keycloak >/dev/null 2>&1; then
+        if check_ingress_status "keycloak" "keycloak"; then
+            log_success "Keycloak ingress is configured and ready"
+        else
+            log_warning "Keycloak ingress has configuration issues"
+        fi
+    else
+        log_info "Keycloak ingress not configured (using NodePort/LoadBalancer)"
+    fi
+    
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
-# ArgoCD validation
+# ArgoCD validation with comprehensive checks
 validate_argocd_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking ArgoCD pods"
-    if ! wait_for_pods_ready "argocd" "$timeout"; then
+    log_step "1" "Checking ArgoCD server deployment"
+    if check_deployment_readiness "argocd-server" "argocd"; then
+        log_success "ArgoCD server deployment is ready"
+    else
+        log_error "ArgoCD server deployment has issues"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking ArgoCD pods"
+    if ! wait_for_pods_ready "argocd" "$timeout" "argocd"; then
         log_error "ArgoCD pods not ready"
         validation_passed=false
     else
         log_success "ArgoCD pods are ready"
     fi
     
+    log_step "3" "Checking ArgoCD services"
+    if check_service_connectivity "argocd-server" "argocd"; then
+        log_success "ArgoCD server service is accessible"
+    else
+        log_warning "ArgoCD server service connectivity issues detected"
+    fi
+    
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
-# Jupyter validation
+# JupyterHub validation with comprehensive checks
 validate_jupyter_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking JupyterHub pods"
-    if ! wait_for_pods_ready "jupyterhub" "$timeout"; then
+    log_step "1" "Checking JupyterHub hub deployment"
+    if check_deployment_readiness "hub" "jupyterhub"; then
+        log_success "JupyterHub hub deployment is ready"
+    else
+        log_error "JupyterHub hub deployment has issues"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking JupyterHub pods"
+    if ! wait_for_pods_ready "jupyterhub" "$timeout" "jupyterhub"; then
         log_error "JupyterHub pods not ready"
         validation_passed=false
     else
         log_success "JupyterHub pods are ready"
     fi
     
+    log_step "3" "Checking JupyterHub proxy service"
+    if check_service_connectivity "proxy-public" "jupyterhub"; then
+        log_success "JupyterHub proxy service is accessible"
+    else
+        log_warning "JupyterHub proxy service connectivity issues detected"
+    fi
+    
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
-# Registry validation
+# Registry validation with comprehensive checks
 validate_registry_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Registry pods"
-    if ! wait_for_pods_ready "registry" "$timeout"; then
+    log_step "1" "Checking Registry deployment"
+    if check_deployment_readiness "registry" "registry"; then
+        log_success "Registry deployment is ready"
+    else
+        log_error "Registry deployment has issues"
+        validation_passed=false
+    fi
+    
+    log_step "2" "Checking Registry pods"
+    if ! wait_for_pods_ready "registry" "$timeout" "registry"; then
         log_error "Registry pods not ready"
         validation_passed=false
     else
         log_success "Registry pods are ready"
+    fi
+    
+    log_step "3" "Checking Registry service"
+    if check_service_connectivity "registry" "registry"; then
+        log_success "Registry service is accessible"
+    else
+        log_warning "Registry service connectivity issues detected"
+    fi
+    
+    log_step "4" "Checking Registry ingress"
+    if kubectl get ingress registry -n registry >/dev/null 2>&1; then
+        if check_ingress_status "registry" "registry"; then
+            log_success "Registry ingress is configured and ready"
+        else
+            log_warning "Registry ingress has configuration issues"
+        fi
+    else
+        log_info "Registry ingress not configured (using NodePort/LoadBalancer)"
     fi
     
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
@@ -12102,11 +12640,12 @@ build_ldap_with_progress() {
   return 0
 }
 
-# Validate LDAP installation
+# Validate LDAP installation with comprehensive checks
 validate_ldap_installation() {
-  log_info "Validating LDAP installation..."
+  log_info "Validating LDAP installation with enhanced diagnostics..."
+  local validation_passed=true
   
-  # Check if LDAP namespace exists
+  log_step "1" "Checking LDAP namespace"
   if kubectl get namespace ldap >/dev/null 2>&1; then
     log_success "LDAP namespace found"
   else
@@ -12114,29 +12653,54 @@ validate_ldap_installation() {
     return 1
   fi
   
-  # Check if LDAP deployment is ready
-  if kubectl get deployment ldap -n ldap >/dev/null 2>&1; then
-    log_success "LDAP deployment found"
+  log_step "2" "Checking LDAP deployment status"
+  if check_deployment_readiness "ldap" "ldap"; then
+    log_success "LDAP deployment is ready"
+  else
+    log_error "LDAP deployment has issues"
+    validation_passed=false
+  fi
+  
+  log_step "3" "Checking LDAP pods with detailed diagnostics"
+  if ! wait_for_pods_ready "ldap" "300" "ldap"; then
+    log_error "LDAP pods not ready"
+    validation_passed=false
+  else
+    log_success "LDAP pods are ready"
+  fi
+  
+  log_step "4" "Checking LDAP service connectivity"
+  if check_service_connectivity "ldap" "ldap"; then
+    log_success "LDAP service is accessible"
+  else
+    log_warning "LDAP service connectivity issues detected"
+  fi
+  
+  log_step "5" "Checking LDAP persistent volumes"
+  local ldap_pvcs=$(kubectl get pvc -n ldap --no-headers 2>/dev/null | wc -l)
+  if [[ $ldap_pvcs -gt 0 ]]; then
+    log_success "LDAP persistent volume claims found ($ldap_pvcs PVCs)"
     
-    # Wait for deployment to be ready
-    if kubectl wait --for=condition=available --timeout=120s deployment/ldap -n ldap >/dev/null 2>&1; then
-      log_success "LDAP deployment is ready"
-    else
-      log_warning "LDAP deployment is not ready yet (may still be starting)"
+    # Check for pending PVCs
+    local pending_pvcs=$(kubectl get pvc -n ldap --no-headers 2>/dev/null | grep "Pending" | wc -l)
+    if [[ $pending_pvcs -gt 0 ]]; then
+      log_warning "$pending_pvcs LDAP PVC(s) are in Pending state"
     fi
   else
-    log_error "LDAP deployment not found"
-    return 1
+    log_info "No persistent volume claims found for LDAP (may be using ephemeral storage)"
   fi
   
-  # Check if LDAP service exists
-  if kubectl get service ldap -n ldap >/dev/null 2>&1; then
-    log_success "LDAP service found"
-  else
-    log_warning "LDAP service not found"
+  log_step "6" "Testing LDAP connectivity (if accessible)"
+  local ldap_pod=$(kubectl get pods -n ldap --no-headers 2>/dev/null | grep "Running" | head -1 | awk '{print $1}')
+  if [[ -n "$ldap_pod" ]]; then
+    if kubectl exec -n ldap "$ldap_pod" -- ldapsearch -x -b "" -s base "(objectclass=*)" >/dev/null 2>&1; then
+      log_success "LDAP server is responding to queries"
+    else
+      log_warning "LDAP server may not be fully initialized yet"
+    fi
   fi
   
-  return 0
+  return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
 # Show LDAP-specific summary and next steps
@@ -13687,11 +14251,12 @@ build_oauth2_with_progress() {
   return 0
 }
 
-# Enhanced validation for OAuth2 Proxy installation
+# Enhanced validation for OAuth2 Proxy installation with comprehensive checks
 validate_oauth2_installation() {
-  log_info "Validating OAuth2 Proxy installation..."
+  log_info "Validating OAuth2 Proxy installation with enhanced diagnostics..."
+  local validation_passed=true
   
-  # Check if OAuth2 namespace exists
+  log_step "1" "Checking OAuth2 Proxy namespace"
   if kubectl get namespace oauth2 >/dev/null 2>&1; then
     log_success "OAuth2 Proxy namespace found"
   else
@@ -13699,47 +14264,87 @@ validate_oauth2_installation() {
     return 1
   fi
   
-  # Check if OAuth2 deployment is ready
+  log_step "2" "Checking OAuth2 Proxy deployment status"
+  # Try different possible deployment names
+  local deployment_name=""
   if kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
-    log_success "OAuth2 Proxy deployment found"
-    
-    # Check deployment status
-    local ready_replicas=$(kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
-    local desired_replicas=$(kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
-    
-    if [[ "$ready_replicas" == "$desired_replicas" ]]; then
-      log_success "OAuth2 Proxy deployment is ready (${ready_replicas}/${desired_replicas} replicas)"
+    deployment_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get deployment oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2proxy"
+  elif kubectl get deployment oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2-proxy"
+  fi
+  
+  if [[ -n "$deployment_name" ]]; then
+    if check_deployment_readiness "$deployment_name" "oauth2"; then
+      log_success "OAuth2 Proxy deployment ($deployment_name) is ready"
     else
-      log_warning "OAuth2 Proxy deployment is scaling (${ready_replicas}/${desired_replicas} replicas ready)"
+      log_error "OAuth2 Proxy deployment ($deployment_name) has issues"
+      validation_passed=false
     fi
   else
-    log_error "OAuth2 Proxy deployment not found"
-    return 1
+    log_error "OAuth2 Proxy deployment not found (checked multiple naming patterns)"
+    validation_passed=false
   fi
   
-  # Check if OAuth2 service exists
+  log_step "3" "Checking OAuth2 Proxy pods with detailed diagnostics"
+  if ! wait_for_pods_ready "oauth2" "300" "oauth2-proxy"; then
+    log_error "OAuth2 Proxy pods not ready"
+    validation_passed=false
+  else
+    log_success "OAuth2 Proxy pods are ready"
+  fi
+  
+  log_step "4" "Checking OAuth2 Proxy service connectivity"
+  local service_name=""
   if kubectl get service oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
-    log_success "OAuth2 Proxy service found"
-  else
-    log_warning "OAuth2 Proxy service not found"
+    service_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get service oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    service_name="oauth2proxy"
+  elif kubectl get service oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    service_name="oauth2-proxy"
   fi
   
-  # Check if ingress exists
+  if [[ -n "$service_name" ]]; then
+    if check_service_connectivity "$service_name" "oauth2"; then
+      log_success "OAuth2 Proxy service ($service_name) is accessible"
+    else
+      log_warning "OAuth2 Proxy service ($service_name) connectivity issues detected"
+    fi
+  else
+    log_warning "OAuth2 Proxy service not found (checked multiple naming patterns)"
+  fi
+  
+  log_step "5" "Checking OAuth2 Proxy ingress configuration"
+  local ingress_name=""
   if kubectl get ingress oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
-    local hostname=$(kubectl get ingress oauth2proxy-oauth2-proxy -n oauth2 -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "unknown")
-    log_success "OAuth2 Proxy ingress found (${hostname})"
-  else
-    log_info "OAuth2 Proxy ingress not found (may be configured separately)"
+    ingress_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get ingress oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    ingress_name="oauth2proxy"
+  elif kubectl get ingress oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    ingress_name="oauth2-proxy"
   fi
   
-  # Check configuration
-  if kubectl get configmap oauth2-proxy-config -n oauth2 >/dev/null 2>&1; then
-    log_success "OAuth2 Proxy configuration found"
+  if [[ -n "$ingress_name" ]]; then
+    if check_ingress_status "$ingress_name" "oauth2"; then
+      log_success "OAuth2 Proxy ingress ($ingress_name) is configured and ready"
+    else
+      log_warning "OAuth2 Proxy ingress ($ingress_name) has configuration issues"
+    fi
   else
-    log_warning "OAuth2 Proxy configuration not found"
+    log_info "OAuth2 Proxy ingress not found (may be using NodePort/LoadBalancer or configured separately)"
   fi
   
-  return 0
+  log_step "6" "Checking OAuth2 Proxy configuration"
+  if kubectl get secret oauth2-proxy-config -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy configuration secret found"
+  elif kubectl get configmap oauth2-proxy-config -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy configuration configmap found"
+  else
+    log_warning "OAuth2 Proxy configuration not found (may use different naming)"
+  fi
+  
+  return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
 # Show OAuth2-specific summary
