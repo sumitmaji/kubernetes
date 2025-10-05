@@ -11579,7 +11579,10 @@ keycloakInst(){
   if is_verbose_mode "$@"; then
     helm upgrade --install keycloak codecentric/keycloakx \
       --namespace keycloak \
-      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml
+      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml \
+      --set extraEnv[2].value="$hostname" \
+      --set ingress.hostname="$hostname" \
+      --set ingress.tls[0].hosts[0]="$hostname"
     if [[ $? -eq 0 ]]; then
       return 0
     else
@@ -11590,7 +11593,10 @@ keycloakInst(){
     if helm_install_with_summary "keycloak" "keycloak" \
       keycloak codecentric/keycloakx \
       --namespace keycloak \
-      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml; then
+      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml \
+      --set extraEnv[2].value="$hostname" \
+      --set ingress.hostname="$hostname" \
+      --set ingress.tls[0].hosts[0]="$hostname"; then
       return 0
     else
       log_error "Keycloak helm installation failed"

@@ -35,8 +35,6 @@ extraEnv: |
         key: admin-password
   - name: KC_PROXY
     value: "edge"
-  - name: KC_HOSTNAME
-    value: "master.cloud.com"
   - name: KC_HOSTNAME_STRICT
     value: "false"
   - name: KC_HTTP_ENABLED
@@ -69,14 +67,11 @@ ingress:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
   rules:
-    - host: master.cloud.com
-      paths:
+    - paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: keycloak-tls
-      hosts:
-        - master.cloud.com
 
 # --- Database configuration for codecentric/keycloakx ---
 database:
