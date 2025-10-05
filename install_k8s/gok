@@ -9705,12 +9705,38 @@ installRegistryWithCertMgr(){
     return 1
   fi
   
-  if execute_with_suppression kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['tls\.crt']}" | base64 --decode > "$cert_dir/ca.crt" && \
-     execute_with_suppression kubectl get secret $(registrySubdomain)-$(sedRootDomain) -n registry -o jsonpath="{['data']['ca\.crt']}" | base64 --decode >> "$cert_dir/ca.crt"; then
-    log_success "Registry certificates installed to Docker trust store"
+  # Extract CA certificate from cert-manager secret
+  local secret_name="$(registrySubdomain)-$(sedRootDomain)"
+  if execute_with_suppression kubectl get secret "$secret_name" -n registry -o jsonpath="{.data.ca\.crt}" | base64 --decode > /tmp/registry-ca.crt && \
+     execute_with_suppression cp /tmp/registry-ca.crt "$cert_dir/ca.crt" && \
+     [[ -s "$cert_dir/ca.crt" ]]; then
+    log_success "Registry CA certificate installed to Docker trust store ($(stat -c%s "$cert_dir/ca.crt") bytes)"
   else
-    log_error "Failed to install registry certificates"
-    return 1
+    log_warning "Failed to extract CA certificate from secret, trying alternative approach..."
+    # Fallback: look for certificate in ingress controller or containerd
+    local alt_cert_path=""
+    for path in /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/etc/ingress-controller/ssl/*registry*gokcloud*.pem; do
+      if [[ -f "$path" ]]; then
+        alt_cert_path="$path"
+        break
+      fi
+    done
+    
+    if [[ -n "$alt_cert_path" ]] && [[ -f "$alt_cert_path" ]]; then
+      log_info "Found alternative certificate path: $alt_cert_path"
+      # Extract CA from certificate chain (usually the second certificate)
+      if execute_with_suppression tail -n +$(($(grep -n 'END CERTIFICATE' "$alt_cert_path" | head -1 | cut -d: -f1) + 1)) "$alt_cert_path" > /tmp/registry-ca-alt.crt && \
+         execute_with_suppression cp /tmp/registry-ca-alt.crt "$cert_dir/ca.crt" && \
+         [[ -s "$cert_dir/ca.crt" ]]; then
+        log_success "Registry CA certificate extracted from alternative source ($(stat -c%s "$cert_dir/ca.crt") bytes)"
+      else
+        log_error "Failed to extract CA certificate from alternative source"
+        return 1
+      fi
+    else
+      log_error "No alternative certificate source found"
+      return 1
+    fi
   fi
   
   log_step "5" "Restarting Docker service with new certificates"
