@@ -5178,10 +5178,14 @@ baseInst(){
   fi
   
   # Create a marker to indicate base is installed
-  if execute_with_suppression kubectl create configmap base-config --from-literal=installed="$(date)" -n kube-system --dry-run=client -o yaml | kubectl apply -f -; then
-    log_success "Base installation marker created"
+  if kubectl get configmap base-config -n kube-system >/dev/null 2>&1; then
+    log_info "Base installation marker already exists"
   else
-    log_warning "Failed to create base installation marker"
+    if execute_with_suppression kubectl create configmap base-config --from-literal=installed="$(date)" -n kube-system; then
+      log_success "Base installation marker created"
+    else
+      log_warning "Failed to create base installation marker (but installation completed successfully)"
+    fi
   fi
   
   show_installation_summary "base" "base" "Base platform services and infrastructure"
