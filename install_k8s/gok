@@ -12750,10 +12750,251 @@ get_keycloak_token() {
 }
 
 oauth2ProxyReset(){
-  helm uninstall oauth2proxy -n oauth2
+  local start_time=$(date +%s)
+  
+  log_component_start "oauth2-proxy-reset" "Resetting OAuth2 Proxy authentication system"
+  
+  log_step "1" "Checking OAuth2 Proxy installation status"
+  local oauth2_exists=false
+  local namespace_exists=false
+  
+  # Check if OAuth2 helm release exists (try both possible names)
+  if helm list -n oauth2 2>/dev/null | grep -q "oauth2proxy\|oauth2-proxy"; then
+    oauth2_exists=true
+    log_success "OAuth2 Proxy helm release found"
+  else
+    log_info "OAuth2 Proxy helm release not found (may already be uninstalled)"
+  fi
+  
+  # Check if OAuth2 namespace exists
+  if kubectl get namespace oauth2 >/dev/null 2>&1; then
+    namespace_exists=true
+    log_success "OAuth2 Proxy namespace found"
+  else
+    log_info "OAuth2 Proxy namespace not found (may already be deleted)"
+  fi
+  
+  # If nothing exists, inform user and exit
+  if [[ "$oauth2_exists" == false && "$namespace_exists" == false ]]; then
+    log_info "OAuth2 Proxy appears to already be reset or was never installed"
+    log_component_success "oauth2-proxy-reset" "OAuth2 Proxy reset completed (nothing to reset)"
+    return 0
+  fi
+  
+  log_step "2" "Uninstalling OAuth2 Proxy helm release"
+  if [[ "$oauth2_exists" == true ]]; then
+    # Try both possible release names
+    local release_name=""
+    if helm list -n oauth2 2>/dev/null | grep -q "oauth2-proxy"; then
+      release_name="oauth2-proxy"
+    elif helm list -n oauth2 2>/dev/null | grep -q "oauth2proxy"; then
+      release_name="oauth2proxy"
+    fi
+    
+    if [[ -n "$release_name" ]]; then
+      if execute_with_suppression helm uninstall "$release_name" -n oauth2; then
+        log_success "OAuth2 Proxy helm release ($release_name) uninstalled successfully"
+        
+        # Wait for pods to terminate
+        log_substep "Waiting for OAuth2 Proxy pods to terminate..."
+        local wait_count=0
+        while kubectl get pods -n oauth2 2>/dev/null | grep -q "oauth2" && [[ $wait_count -lt 30 ]]; do
+          printf "."
+          sleep 2
+          wait_count=$((wait_count + 1))
+        done
+        printf "\n"
+        
+        if [[ $wait_count -lt 30 ]]; then
+          log_success "OAuth2 Proxy pods terminated successfully"
+        else
+          log_warning "OAuth2 Proxy pods taking longer than expected to terminate"
+        fi
+      else
+        log_error "Failed to uninstall OAuth2 Proxy helm release"
+        if is_verbose_mode; then
+          log_info "Run with --verbose for detailed error information"
+        fi
+        return 1
+      fi
+    else
+      log_warning "Could not determine OAuth2 Proxy release name"
+    fi
+  else
+    log_info "Skipping helm uninstall (release not found)"
+  fi
+  
+  log_step "3" "Cleaning up persistent volumes and storage"
+  if [[ "$namespace_exists" == true ]]; then
+    # Clean up local storage
+    log_substep "Cleaning up local filesystem storage..."
+    if emptyLocalFsStorage "OAuth2" "oauth-pv" "oauth-storage" "/data/volumes/pv6" "oauth2"; then
+      log_success "Local filesystem storage cleaned up"
+    else
+      log_warning "Local storage cleanup had issues but continuing"
+    fi
+  else
+    log_info "Skipping storage cleanup (namespace not found)"
+  fi
+  
+  log_step "4" "Removing OAuth2 Proxy namespace and resources"
+  if [[ "$namespace_exists" == true ]]; then
+    if execute_with_suppression kubectl delete namespace oauth2 --timeout=120s; then
+      log_success "OAuth2 Proxy namespace deleted successfully"
+    else
+      log_warning "OAuth2 Proxy namespace deletion had issues but may still complete"
+      
+      # Try to force delete if needed
+      log_substep "Attempting force cleanup..."
+      if execute_with_suppression kubectl delete namespace oauth2 --force --grace-period=0 2>/dev/null; then
+        log_success "OAuth2 Proxy namespace force-deleted successfully"
+      else
+        log_warning "Force deletion also had issues - manual cleanup may be needed"
+      fi
+    fi
+  else
+    log_info "Skipping namespace deletion (namespace not found)"
+  fi
+  
+  log_step "5" "Cleaning up OAuth2-related resources"
+  
+  # Clean up any remaining OAuth2-related ingress resources
+  local ingress_cleaned=false
+  if kubectl get ingress -A 2>/dev/null | grep -q "oauth2"; then
+    log_substep "Removing OAuth2 ingress resources..."
+    if execute_with_suppression kubectl delete ingress -l app.kubernetes.io/name=oauth2-proxy --all-namespaces 2>/dev/null; then
+      ingress_cleaned=true
+      log_success "OAuth2 ingress resources cleaned up"
+    else
+      log_warning "Some OAuth2 ingress resources may remain"
+    fi
+  fi
+  
+  # Clean up any remaining OAuth2-related certificates
+  local certs_cleaned=false
+  if kubectl get certificates -A 2>/dev/null | grep -q "oauth2"; then
+    log_substep "Removing OAuth2 TLS certificates..."
+    if execute_with_suppression kubectl delete certificates -l app.kubernetes.io/name=oauth2-proxy --all-namespaces 2>/dev/null; then
+      certs_cleaned=true
+      log_success "OAuth2 certificates cleaned up"
+    else
+      log_warning "Some OAuth2 certificates may remain"
+    fi
+  fi
+  
+  # Clean up OAuth2-related storage classes and persistent volumes
+  local storage_cleaned=false
+  if kubectl get storageclass oauth-storage >/dev/null 2>&1; then
+    log_substep "Removing OAuth2 storage resources..."
+    if execute_with_suppression kubectl delete storageclass oauth-storage 2>/dev/null; then
+      storage_cleaned=true
+      log_success "OAuth2 storage class cleaned up"
+    fi
+  fi
+  
+  if kubectl get pv oauth-pv >/dev/null 2>&1; then
+    if execute_with_suppression kubectl delete pv oauth-pv 2>/dev/null; then
+      storage_cleaned=true
+      log_success "OAuth2 persistent volume cleaned up"
+    fi
+  fi
+  
+  if [[ "$ingress_cleaned" == false && "$certs_cleaned" == false && "$storage_cleaned" == false ]]; then
+    log_info "No additional OAuth2 resources found to clean up"
+  fi
+  
+  log_step "6" "Validating OAuth2 Proxy reset completion"
+  validate_oauth2_reset
+  
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  log_component_success "oauth2-proxy-reset" "OAuth2 Proxy authentication system reset completed"
+  log_success "OAuth2 Proxy reset completed in ${duration}s"
+  
+  # Show reset summary and next steps
+  show_oauth2_reset_summary
+}
 
-  emptyLocalFsStorage "OAuth2" "oauth-pv" "oauth-storage" "/data/volumes/pv6" "oauth2"
-  kubectl delete ns oauth2
+# Validate that OAuth2 Proxy reset was successful
+validate_oauth2_reset() {
+  local validation_success=true
+  
+  # Check that helm release is gone
+  if helm list -n oauth2 2>/dev/null | grep -q "oauth2"; then
+    log_error "OAuth2 Proxy helm release still exists"
+    validation_success=false
+  else
+    log_success "OAuth2 Proxy helm release successfully removed"
+  fi
+  
+  # Check that namespace is gone
+  if kubectl get namespace oauth2 >/dev/null 2>&1; then
+    log_warning "OAuth2 Proxy namespace still exists (may be terminating)"
+  else
+    log_success "OAuth2 Proxy namespace successfully removed"
+  fi
+  
+  # Check that pods are gone
+  if kubectl get pods -n oauth2 2>/dev/null | grep -q "oauth2"; then
+    log_warning "Some OAuth2 Proxy pods may still be terminating"
+  else
+    log_success "All OAuth2 Proxy pods removed"
+  fi
+  
+  # Check that services are gone
+  if kubectl get services -n oauth2 2>/dev/null | grep -q "oauth2"; then
+    log_warning "Some OAuth2 Proxy services may still exist"
+  else
+    log_success "All OAuth2 Proxy services removed"
+  fi
+  
+  # Check that storage is cleaned up
+  if kubectl get storageclass oauth-storage >/dev/null 2>&1; then
+    log_warning "OAuth2 storage class still exists"
+  else
+    log_success "OAuth2 storage resources removed"
+  fi
+  
+  return $([[ "$validation_success" == true ]] && echo 0 || echo 1)
+}
+
+# Show OAuth2 Proxy reset summary and recommendations
+show_oauth2_reset_summary() {
+  echo
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔄 OAuth2 Proxy Reset Summary${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Reset Actions Completed:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}OAuth2 Proxy helm release uninstalled${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}OAuth2 Proxy namespace and pods cleaned up${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Persistent volumes and storage cleared${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}OAuth2 ingress and certificates removed${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Authentication proxy configuration reset${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Storage classes and volumes cleaned up${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Impact of OAuth2 Proxy Reset:${COLOR_RESET}"
+  echo -e "  🛡️  ${COLOR_RED}HTTP authentication proxy removed${COLOR_RESET}"
+  echo -e "  🍪 ${COLOR_RED}User sessions and authentication cookies invalidated${COLOR_RESET}"
+  echo -e "  🔐 ${COLOR_RED}Protected services no longer secured by OAuth2${COLOR_RESET}"
+  echo -e "  🌐 ${COLOR_RED}OAuth2 proxy endpoints and callbacks unavailable${COLOR_RESET}"
+  echo -e "  🔗 ${COLOR_YELLOW}Applications relying on OAuth2 proxy will be unprotected${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}⚠️  Post-Reset Considerations:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Services protected by OAuth2 proxy are now publicly accessible${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Dashboards and admin interfaces may need alternative protection${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Session cookies for authenticated users are now invalid${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Applications may need reconfiguration for direct Keycloak integration${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🚀 Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To reinstall OAuth2 Proxy: ${COLOR_BOLD}gok install oauth2${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To check protected services: ${COLOR_BOLD}gok status${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To install next component: ${COLOR_BOLD}gok install rabbitmq${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To see available components: ${COLOR_BOLD}gok help reset${COLOR_RESET}"
+  echo
 }
 
 #export NODE_TLS_REJECT_UNAUTHORIZED=0
@@ -12971,35 +13212,202 @@ resetEclipseChe(){
 }
 
 oauth2ProxyInst(){
-  log_component_start "oauth2-proxy" "Installing OAuth2 Proxy authentication system"
+  local start_time=$(date +%s)
   
-  log_step "1" "Creating namespace and storage"
-  createLocalStorageClassAndPV "oauth-storage" "oauth-pv" "/data/volumes/pv6"
-  kubectl_with_summary create "namespace" oauth2
+  log_component_start "oauth2-proxy-install" "Installing OAuth2 Proxy authentication system"
+  
+  log_step "1" "Updating system packages with smart caching"
+  if ! updateSys; then
+    log_error "Failed to update system packages"
+    return 1
+  fi
+  
+  log_step "2" "Installing dependencies with smart caching"
+  if ! installDeps; then
+    log_error "Failed to install OAuth2 Proxy dependencies"
+    return 1
+  fi
+  
+  log_step "3" "Preparing OAuth2 Proxy installation directory"
+  local oauth2_dir="$MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy"
+  if [[ ! -d "$oauth2_dir" ]]; then
+    log_error "OAuth2 Proxy installation directory not found: $oauth2_dir"
+    return 1
+  fi
+  
+  if execute_with_suppression pushd "$oauth2_dir"; then
+    log_success "OAuth2 Proxy installation directory prepared"
+  else
+    log_error "Failed to access OAuth2 Proxy installation directory"
+    return 1
+  fi
 
-  log_step "2" "Configuring OAuth2 settings"
-  OAUTH2_PROXY_CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
-  REALM=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM)
-  OAUTH2_HOST="$(fullKeycloakUrl)"
-  OAUTH2_OIDC_ISSUE_URL="$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL)"
+  log_step "4" "Creating namespace and persistent storage"
+  if createLocalStorageClassAndPV "oauth-storage" "oauth-pv" "/data/volumes/pv6"; then
+    log_success "OAuth2 Proxy storage created"
+  else
+    log_warning "OAuth2 Proxy storage creation had issues but continuing"
+  fi
+  
+  if kubectl_with_summary create "namespace" oauth2; then
+    log_success "OAuth2 Proxy namespace created"
+  else
+    log_info "OAuth2 Proxy namespace already exists"
+  fi
 
-  execute_with_suppression kubectl create configmap oauth2-proxy-config \
-      --from-literal=clientID="${OAUTH2_PROXY_CLIENT_ID}" \
-      --from-literal=oidcIssuerUrl="${OAUTH2_OIDC_ISSUE_URL}" \
+  log_step "5" "Collecting OAuth2 configuration from Keycloak"
+  log_substep "Retrieving OAuth2 configuration parameters"
+  
+  local oauth2_client_id=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID 2>/dev/null || echo "")
+  local realm=$(dataFromSecret oauth-secrets kube-system OAUTH_REALM 2>/dev/null || echo "")
+  local oauth2_host="$(fullKeycloakUrl 2>/dev/null || echo "")"
+  local oidc_issuer_url=$(dataFromSecret oauth-secrets kube-system OIDC_ISSUE_URL 2>/dev/null || echo "")
+  
+  if [[ -z "$oauth2_client_id" || -z "$realm" || -z "$oauth2_host" || -z "$oidc_issuer_url" ]]; then
+    log_error "Failed to retrieve OAuth2 configuration from Keycloak secrets"
+    log_error "Please ensure Keycloak is installed and configured properly"
+    popd || true
+    return 1
+  fi
+  
+  log_substep "Client ID: ${COLOR_CYAN}${oauth2_client_id}${COLOR_RESET}"
+  log_substep "Realm: ${COLOR_CYAN}${realm}${COLOR_RESET}"
+  log_substep "Keycloak Host: ${COLOR_CYAN}${oauth2_host}${COLOR_RESET}"
+  log_substep "OIDC Issuer: ${COLOR_CYAN}${oidc_issuer_url}${COLOR_RESET}"
+  
+  log_success "OAuth2 configuration parameters collected"
+
+  log_step "6" "Building and deploying OAuth2 Proxy services"
+  
+  # Enhanced OAuth2 build with progress tracking
+  build_oauth2_with_progress "$oauth2_client_id" "$realm" "$oauth2_host" "$oidc_issuer_url"
+  if [[ $? -ne 0 ]]; then
+    log_error "OAuth2 Proxy installation failed"
+    popd || true
+    return 1
+  fi
+
+  log_step "7" "Configuring OAuth2 Proxy networking and access"
+  if execute_with_suppression gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain); then
+    log_success "OAuth2 Proxy ingress configured successfully"
+  else
+    log_warning "OAuth2 Proxy ingress configuration had issues but installation may still work"
+  fi
+
+  log_step "8" "Validating OAuth2 Proxy installation"
+  if validate_oauth2_installation; then
+    log_success "OAuth2 Proxy installation validation completed"
+  else
+    log_warning "OAuth2 Proxy validation had issues but installation may still work"
+  fi
+
+  if execute_with_suppression popd; then
+    log_success "OAuth2 Proxy installation directory cleanup completed"
+  else
+    log_warning "Directory cleanup had issues but installation completed"
+  fi
+
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  show_installation_summary "oauth2-proxy" "oauth2" "Authentication proxy with Keycloak integration"
+  log_component_success "oauth2-proxy-install" "OAuth2 Proxy authentication system installed successfully"
+  log_success "OAuth2 Proxy installation completed in ${duration}s"
+  
+  # Show OAuth2-specific next steps and recommend RabbitMQ
+  show_oauth2_next_steps
+}
+
+# Enhanced OAuth2 Proxy build with detailed progress tracking
+build_oauth2_with_progress() {
+  local oauth2_client_id="$1"
+  local realm="$2"
+  local oauth2_host="$3"
+  local oidc_issuer_url="$4"
+  local start_time=$(date +%s)
+  
+  log_substep "Authentication Provider: ${COLOR_CYAN}OAuth2 + OIDC${COLOR_RESET}"
+  log_substep "Keycloak Integration: ${COLOR_CYAN}${oauth2_host}${COLOR_RESET}"
+  log_substep "Client ID: ${COLOR_CYAN}${oauth2_client_id}${COLOR_RESET}"
+  log_substep "Realm: ${COLOR_CYAN}${realm}${COLOR_RESET}"
+  log_substep "OIDC Issuer: ${COLOR_CYAN}${oidc_issuer_url}${COLOR_RESET}"
+  
+  # Step 1: Create OAuth2 configuration with progress
+  log_info "🔧 Creating OAuth2 Proxy configuration"
+  
+  local temp_config_log=$(mktemp)
+  local temp_config_error=$(mktemp)
+  
+  # Create configuration in background with progress tracking
+  (
+    kubectl create configmap oauth2-proxy-config \
+      --from-literal=clientID="${oauth2_client_id}" \
+      --from-literal=oidcIssuerUrl="${oidc_issuer_url}" \
       --from-literal=redirectUrl=oauth2/callback \
-      -n oauth2
-
-  execute_with_suppression kubectl create configmap oauth2-ca-cert --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt -n oauth2
-
-  log_step "3" "Installing OAuth2 Proxy via Helm"
-  if helm_install_with_summary "oauth2-proxy" "oauth2" \
-    oauth2proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
+      -n oauth2 >"$temp_config_log" 2>"$temp_config_error"
+    
+    kubectl create configmap oauth2-ca-cert \
+      --from-file=issuer.crt=/usr/local/share/ca-certificates/issuer.crt \
+      -n oauth2 >>"$temp_config_log" 2>>"$temp_config_error"
+  ) &
+  local config_pid=$!
+  
+  # Show configuration creation progress
+  local config_progress=0
+  local spinner_chars="|/-\\"
+  local spinner_idx=0
+  local config_stage="Creating OAuth2 configuration"
+  
+  while kill -0 $config_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    config_progress=$(( (config_progress + 1) % 40 ))
+    local progress_percent=$(( config_progress * 100 / 40 ))
+    
+    # Update stage based on progress
+    if [[ $config_progress -lt 20 ]]; then
+      config_stage="Creating OAuth2 proxy config"
+    else
+      config_stage="Setting up CA certificates"
+    fi
+    
+    printf "\r${COLOR_BLUE}  Creating configuration [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$config_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.3
+  done
+  
+  wait $config_pid
+  local config_exit_code=$?
+  
+  if [[ $config_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ OAuth2 configuration created [100%%]${COLOR_RESET}\n"
+    log_success "OAuth2 Proxy configuration created successfully"
+  else
+    printf "\r${COLOR_RED}  ✗ Configuration creation failed${COLOR_RESET}\n"
+    log_error "OAuth2 configuration creation failed - error details:"
+    if [[ -s "$temp_config_error" ]]; then
+      cat "$temp_config_error" >&2
+    fi
+    rm -f "$temp_config_log" "$temp_config_error"
+    return 1
+  fi
+  
+  # Step 2: Install OAuth2 Proxy via Helm with enhanced progress
+  log_info "☸️  Installing OAuth2 Proxy via Helm chart"
+  log_substep "Chart: ${COLOR_CYAN}oci://registry-1.docker.io/bitnamicharts/oauth2-proxy${COLOR_RESET}"
+  log_substep "Values: ${COLOR_CYAN}${MOUNT_PATH}/kubernetes/install_k8s/oauth2-proxy/values.yaml${COLOR_RESET}"
+  
+  local temp_helm_log=$(mktemp)
+  local temp_helm_error=$(mktemp)
+  
+  # Start Helm installation in background
+  helm install oauth2-proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
     --namespace oauth2 \
     --set "extraArgs[0]=--provider=oidc" \
-    --set "extraArgs[1]=--login-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth" \
-    --set "extraArgs[2]=--redeem-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token" \
-    --set "extraArgs[3]=--profile-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
-    --set "extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[1]=--login-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/auth" \
+    --set "extraArgs[2]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
+    --set "extraArgs[3]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[4]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
     --set "extraArgs[5]=--keycloak-group=administrators" \
     --set "extraArgs[6]=--keycloak-group=developers" \
     --set "extraArgs[7]=--allowed-group=administrators" \
@@ -13014,7 +13422,7 @@ oauth2ProxyInst(){
     --set "extraArgs[16]=--cookie-secure=true" \
     --set "extraArgs[17]=--pass-access-token=true" \
     --set "extraArgs[18]=--pass-authorization-header=true" \
-    --set "extraArgs[19]=--oidc-issuer-url=${OAUTH2_OIDC_ISSUE_URL}" \
+    --set "extraArgs[19]=--oidc-issuer-url=${oidc_issuer_url}" \
     --set "extraArgs[20]=--standard-logging=true" \
     --set "extraArgs[21]=--auth-logging=true" \
     --set "extraArgs[22]=--request-logging=true" \
@@ -13022,25 +13430,249 @@ oauth2ProxyInst(){
     --set "extraArgs[24]=--cookie-expire=8h" \
     --set "extraArgs[25]=--set-xauthrequest=true" \
     --set "extraArgs[26]=--skip-jwt-bearer-tokens=true" \
-    --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
-    --create-namespace; then
+    --values "${MOUNT_PATH}/kubernetes/install_k8s/oauth2-proxy/values.yaml" \
+    --create-namespace \
+    >"$temp_helm_log" 2>"$temp_helm_error" &
+  local helm_pid=$!
+  
+  # Show Helm installation progress with OAuth2-specific stages
+  local helm_progress=0
+  local helm_steps=8
+  local helm_stage="Preparing"
+  
+  while kill -0 $helm_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    helm_progress=$(( (helm_progress + 1) % (helm_steps * 15) ))
+    local progress_percent=$(( helm_progress * 100 / (helm_steps * 15) ))
     
-    log_step "4" "Configuring ingress"
-    gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain)
+    # Update stage based on progress
+    case $((helm_progress / 15)) in
+      0) helm_stage="Downloading OAuth2 chart" ;;
+      1) helm_stage="Installing OAuth2 proxy" ;;
+      2) helm_stage="Configuring authentication" ;;
+      3) helm_stage="Setting up OIDC integration" ;;
+      4) helm_stage="Configuring Keycloak provider" ;;
+      5) helm_stage="Setting up cookie management" ;;
+      6) helm_stage="Configuring ingress routing" ;;
+      7) helm_stage="Finalizing installation" ;;
+    esac
     
-    log_step "5" "Waiting for service to be available"
-    waitForServiceAvailable oauth2
+    printf "\r${COLOR_BLUE}  Installing OAuth2 Proxy [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$helm_stage"
     
-    show_installation_summary "oauth2-proxy" "oauth2" "Authentication proxy with Keycloak integration"
-    log_component_success "oauth2-proxy" "OAuth2 Proxy authentication system installed successfully"
-    
-    # Call next module suggestion
-    suggest_and_install_next_module "oauth2"
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.5
+  done
+  
+  wait $helm_pid
+  local helm_exit_code=$?
+  
+  if [[ $helm_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ OAuth2 Proxy installation completed [100%%]${COLOR_RESET}\n"
+    log_success "OAuth2 Proxy deployed successfully via Helm"
   else
-    log_error "OAuth2 Proxy installation failed"
+    printf "\r${COLOR_RED}  ✗ OAuth2 Proxy installation failed${COLOR_RESET}\n"
+    log_error "OAuth2 Proxy Helm installation failed - error details:"
+    if [[ -s "$temp_helm_error" ]]; then
+      if is_verbose_mode; then
+        cat "$temp_helm_error" >&2
+      else
+        tail -10 "$temp_helm_error" >&2
+        log_info "Use --verbose flag to see full installation logs"
+      fi
+    fi
+    rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
     return 1
   fi
+  
+  # Step 3: Wait for OAuth2 Proxy to be ready
+  log_info "⏳ Waiting for OAuth2 Proxy services to be ready"
+  
+  local wait_progress=0
+  local wait_steps=6
+  local wait_stage="Starting"
+  local ready=false
+  local max_wait=120  # 2 minutes
+  local wait_count=0
+  
+  while [[ $wait_count -lt $max_wait ]]; do
+    if kubectl wait --for=condition=available --timeout=10s deployment/oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+      ready=true
+      break
+    fi
+    
+    local char=${spinner_chars:spinner_idx:1}
+    wait_progress=$(( (wait_progress + 1) % (wait_steps * 10) ))
+    local progress_percent=$(( wait_progress * 100 / (wait_steps * 10) ))
+    
+    # Update stage based on progress
+    case $((wait_progress / 10)) in
+      0) wait_stage="Starting OAuth2 proxy" ;;
+      1) wait_stage="Connecting to Keycloak" ;;
+      2) wait_stage="Validating OIDC configuration" ;;
+      3) wait_stage="Setting up authentication flows" ;;
+      4) wait_stage="Configuring cookie domains" ;;
+      5) wait_stage="Finalizing proxy services" ;;
+    esac
+    
+    printf "\r${COLOR_YELLOW}  Waiting for OAuth2 Proxy [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$wait_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 2
+    wait_count=$((wait_count + 2))
+  done
+  
+  if [[ "$ready" == "true" ]]; then
+    printf "\r${COLOR_GREEN}  ✓ OAuth2 Proxy services ready [100%%]${COLOR_RESET}\n"
+    log_success "OAuth2 Proxy is ready and accepting connections"
+  else
+    printf "\r${COLOR_YELLOW}  ⚠ OAuth2 Proxy taking longer than expected${COLOR_RESET}\n"
+    log_warning "OAuth2 Proxy deployment may still be starting (check with: kubectl get pods -n oauth2)"
+  fi
+  
+  # Clean up temporary files
+  rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
+  
+  # Installation completion summary
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  log_success "OAuth2 Proxy deployment completed in ${duration}s"
+  
+  # Show OAuth2 summary
+  show_oauth2_summary "$oauth2_host" "$realm"
+  
+  return 0
 }
+
+# Enhanced validation for OAuth2 Proxy installation
+validate_oauth2_installation() {
+  log_info "Validating OAuth2 Proxy installation..."
+  
+  # Check if OAuth2 namespace exists
+  if kubectl get namespace oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy namespace found"
+  else
+    log_error "OAuth2 Proxy namespace not found"
+    return 1
+  fi
+  
+  # Check if OAuth2 deployment is ready
+  if kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy deployment found"
+    
+    # Check deployment status
+    local ready_replicas=$(kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    local desired_replicas=$(kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+    
+    if [[ "$ready_replicas" == "$desired_replicas" ]]; then
+      log_success "OAuth2 Proxy deployment is ready (${ready_replicas}/${desired_replicas} replicas)"
+    else
+      log_warning "OAuth2 Proxy deployment is scaling (${ready_replicas}/${desired_replicas} replicas ready)"
+    fi
+  else
+    log_error "OAuth2 Proxy deployment not found"
+    return 1
+  fi
+  
+  # Check if OAuth2 service exists
+  if kubectl get service oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy service found"
+  else
+    log_warning "OAuth2 Proxy service not found"
+  fi
+  
+  # Check if ingress exists
+  if kubectl get ingress oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    local hostname=$(kubectl get ingress oauth2proxy-oauth2-proxy -n oauth2 -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "unknown")
+    log_success "OAuth2 Proxy ingress found (${hostname})"
+  else
+    log_info "OAuth2 Proxy ingress not found (may be configured separately)"
+  fi
+  
+  # Check configuration
+  if kubectl get configmap oauth2-proxy-config -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy configuration found"
+  else
+    log_warning "OAuth2 Proxy configuration not found"
+  fi
+  
+  return 0
+}
+
+# Show OAuth2-specific summary
+show_oauth2_summary() {
+  local oauth2_host="$1"
+  local realm="$2"
+  
+  log_info "📋 OAuth2 Proxy Authentication Summary"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🛡️  OAuth2 Proxy Authentication Details${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Authentication Proxy Information:${COLOR_RESET}"
+  echo -e "  🔐 ${COLOR_GREEN}OAuth2 Proxy${COLOR_RESET} - HTTP reverse proxy for authentication"
+  echo -e "  🔗 ${COLOR_GREEN}Keycloak Integration${COLOR_RESET} - OIDC provider integration"
+  echo -e "  🍪 ${COLOR_GREEN}Session Management${COLOR_RESET} - Secure cookie-based sessions"
+  echo -e "  🛡️  ${COLOR_GREEN}Access Control${COLOR_RESET} - Group-based authorization"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Integration Configuration:${COLOR_RESET}"
+  echo -e "  🏢 ${COLOR_CYAN}Identity Provider${COLOR_RESET}: ${oauth2_host}"
+  echo -e "  🌍 ${COLOR_CYAN}Keycloak Realm${COLOR_RESET}: ${realm}"
+  echo -e "  👥 ${COLOR_CYAN}Allowed Groups${COLOR_RESET}: administrators, developers"
+  echo -e "  🍪 ${COLOR_CYAN}Cookie Domain${COLOR_RESET}: .gokcloud.com"
+  echo -e "  ⏰ ${COLOR_CYAN}Session Duration${COLOR_RESET}: 8 hours (refresh: 1 hour)"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Authentication Features:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}OIDC Integration${COLOR_RESET} - OpenID Connect with Keycloak"
+  echo -e "  ✅ ${COLOR_GREEN}Group-based Access${COLOR_RESET} - Role-based authorization"
+  echo -e "  ✅ ${COLOR_GREEN}Secure Cookies${COLOR_RESET} - HTTPs-only secure session cookies"
+  echo -e "  ✅ ${COLOR_GREEN}Token Passing${COLOR_RESET} - Access token forwarding to backends"
+  echo -e "  ✅ ${COLOR_GREEN}Domain Whitelisting${COLOR_RESET} - Restricted to trusted domains"
+  echo -e "  ✅ ${COLOR_GREEN}Request Logging${COLOR_RESET} - Comprehensive authentication audit logs"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}💡 OAuth2 Proxy Benefits:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Protects any HTTP service with Keycloak authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Seamless single sign-on experience across all platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Group-based access control integrated with LDAP directory${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Secure session management with configurable timeouts${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Production-ready authentication proxy for enterprise environments${COLOR_RESET}"
+  echo
+}
+
+# Show OAuth2 next steps and recommend RabbitMQ
+show_oauth2_next_steps() {
+  echo
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 OAuth2 Proxy Post-Installation Steps${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_MAGENTA}${COLOR_BOLD}Immediate Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  1. Test OAuth2 authentication with protected services${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  2. Configure additional applications to use OAuth2 proxy${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  3. Set up group-based access policies in Keycloak${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  4. Monitor authentication logs and session management${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}🎯 Recommended Next Installation: RabbitMQ${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}OAuth2 provides authentication - now add RabbitMQ for messaging and communication!${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Why install RabbitMQ next?${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 📨 Reliable message broker for asynchronous communication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔗 Decouples services for better scalability and resilience${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 📊 Enables event-driven architecture patterns${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🚀 High-performance messaging for microservices${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🛡️  Secure messaging with authentication and authorization${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Install RabbitMQ now?${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  Command: ${COLOR_BOLD}gok install rabbitmq${COLOR_RESET}"
+  echo
+  
+  # Suggest and install RabbitMQ as the next step
+  suggest_and_install_next_module "oauth2"
+}
+
 
 waitForServiceAvailable(){
   NS=$1
