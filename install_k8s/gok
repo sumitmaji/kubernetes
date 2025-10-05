@@ -13465,6 +13465,33 @@ function fixCmd() {
 function startCmd() {
   COMPONENT=$1
   
+  # Handle help flags
+  if [[ "$COMPONENT" == "--help" || "$COMPONENT" == "-h" || "$COMPONENT" == "help" ]]; then
+    echo
+    echo "🚀 GOK Start Command Help"
+    echo "─────────────────────────────"
+    echo
+    echo "Purpose: Start system services and components"
+    echo
+    echo "Usage: gok start <component>"
+    echo
+    echo "Available Components:"
+    echo "  kubernetes    - Start complete Kubernetes cluster (kubelet + haproxy)"
+    echo "  kubelet       - Start kubelet service"
+    echo "  proxy         - Start HAProxy load balancer"
+    echo "  ha            - Start HAProxy load balancer (alias for proxy)"
+    echo "  docker        - Start Docker service"
+    echo "  containerd    - Start containerd service"
+    echo
+    echo "Examples:"
+    echo "  gok start kubernetes    # Start full Kubernetes cluster"
+    echo "  gok start kubelet       # Start only kubelet service"
+    echo "  gok start docker        # Start Docker service"
+    echo "  gok start --help        # Show this help message"
+    echo
+    return 0
+  fi
+  
   # Check if component is provided
   if [ -z "$COMPONENT" ]; then
     log_error "No component specified for start command"
