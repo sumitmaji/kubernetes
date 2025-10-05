@@ -10218,12 +10218,32 @@ installRegistryWithCertMgr(){
   fi
   
   log_step "7" "Verifying registry authentication"
-  if execute_with_suppression docker login $(registrySubdomain).$(rootDomain); then
-    log_success "Registry authentication verified - ready for use"
-    log_component_success "registry-install" "Container registry installation completed successfully"
+  
+  # Use stored credentials for non-interactive login
+  local DESTINATION_FOLDER=./registry-creds
+  if [[ -f "${DESTINATION_FOLDER}/registry-user.txt" && -f "${DESTINATION_FOLDER}/registry-pass.txt" ]]; then
+    local registry_user=$(cat "${DESTINATION_FOLDER}/registry-user.txt")
+    local registry_pass=$(cat "${DESTINATION_FOLDER}/registry-pass.txt")
+    
+    log_info "Authenticating with registry using stored credentials (user: $registry_user)"
+    if echo "$registry_pass" | execute_with_suppression docker login $(registrySubdomain).$(rootDomain) --username "$registry_user" --password-stdin; then
+      log_success "Registry authentication verified - ready for use"
+      log_component_success "registry-install" "Container registry installation completed successfully"
+    else
+      log_error "Registry authentication failed with stored credentials"
+      return 1
+    fi
   else
-    log_error "Registry authentication failed"
-    return 1
+    log_warning "Registry credentials not found, attempting interactive login"
+    log_info "Please enter your registry credentials when prompted"
+    # Allow interactive login without suppression
+    if docker login $(registrySubdomain).$(rootDomain); then
+      log_success "Registry authentication verified - ready for use"
+      log_component_success "registry-install" "Container registry installation completed successfully"
+    else
+      log_error "Registry authentication failed"
+      return 1
+    fi
   fi
   log_step "8" "Verifying TLS certificate chain and trust"
   log_info "Testing SSL/TLS connection to $(registrySubdomain).$(rootDomain):443"
