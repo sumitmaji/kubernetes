@@ -26,7 +26,7 @@ _gok_enhanced_completion() {
     local reset_components="kubernetes kubernetes-worker cert-manager ingress dashboard monitoring fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller controller gok-login chart base-services"
     
     # Start components
-    local start_components="kubernetes proxy kubelet"
+    local start_components="kubernetes kubelet proxy ha docker containerd"
     
     # Create resources
     local create_resources="secret certificate kubeconfig"

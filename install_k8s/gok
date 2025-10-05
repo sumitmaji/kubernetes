@@ -7816,16 +7816,69 @@ show_haproxy_next_steps() {
 }
 
 startKubelet() {
-  systemctl stop kubelet
-  systemctl start kubelet
+  # Stop kubelet service
+  if systemctl is-active --quiet kubelet; then
+    if ! systemctl stop kubelet >/dev/null 2>&1; then
+      log_warning "Failed to stop kubelet service"
+    fi
+  fi
+  
+  # Start kubelet service
+  if systemctl start kubelet >/dev/null 2>&1; then
+    # Wait a moment for service to initialize
+    sleep 2
+    if systemctl is-active --quiet kubelet; then
+      return 0
+    else
+      log_error "Kubelet service started but is not active"
+      return 1
+    fi
+  else
+    log_error "Failed to start kubelet service"
+    systemctl status kubelet --no-pager -l || true
+    return 1
+  fi
 }
 
 startHa() {
-  docker stop master-proxy
-  docker rm master-proxy
-  docker run -d --name master-proxy \
+  # Check if HAProxy configuration exists
+  if [ ! -f /opt/haproxy.cfg ]; then
+    log_error "HAProxy configuration file not found: /opt/haproxy.cfg"
+    return 1
+  fi
+  
+  # Stop existing container if running
+  if docker ps -q -f name=master-proxy | grep -q .; then
+    if ! docker stop master-proxy >/dev/null 2>&1; then
+      log_warning "Failed to stop existing master-proxy container"
+    fi
+  fi
+  
+  # Remove existing container if exists
+  if docker ps -a -q -f name=master-proxy | grep -q .; then
+    if ! docker rm master-proxy >/dev/null 2>&1; then
+      log_warning "Failed to remove existing master-proxy container"
+    fi
+  fi
+  
+  # Start new HAProxy container
+  if docker run -d --name master-proxy \
     -v /opt/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
-    --net=host haproxy
+    --net=host haproxy >/dev/null 2>&1; then
+    
+    # Wait a moment and verify container is running
+    sleep 2
+    if docker ps -q -f name=master-proxy -f status=running | grep -q .; then
+      return 0
+    else
+      log_error "HAProxy container started but is not running"
+      docker logs master-proxy 2>/dev/null || true
+      return 1
+    fi
+  else
+    log_error "Failed to start HAProxy container"
+    return 1
+  fi
 }
 
 disableSwap() {
@@ -11904,9 +11957,15 @@ function describeAllMethods() {
   echo "startCmd(\$COMPONENT)"
   echo "├─ Purpose: Start system services and components"
   echo "├─ Parameters:"
-  echo "│  └─ \$COMPONENT: Service name (kubernetes, proxy, kubelet)"
+  echo "│  └─ \$COMPONENT: Service name (kubernetes, kubelet, proxy/ha, docker, containerd)"
   echo "├─ Usage: gok start <component>"
-  echo "└─ Returns: Service startup status"
+  echo "├─ Supported Components:"
+  echo "│  ├─ kubernetes  - Start complete Kubernetes cluster"
+  echo "│  ├─ kubelet     - Start kubelet service"
+  echo "│  ├─ proxy/ha    - Start HAProxy load balancer"
+  echo "│  ├─ docker      - Start Docker service"
+  echo "│  └─ containerd  - Start containerd service"
+  echo "└─ Returns: Service startup status with detailed error reporting"
   echo ""
   
   echo "deployCmd(\$COMPONENT)"
@@ -13405,15 +13464,116 @@ function fixCmd() {
 
 function startCmd() {
   COMPONENT=$1
-  if [ "$COMPONENT" == "kubernetes" ]; then
-    disableSwap
-    startHa
-    startKubelet
-  elif [ "$COMPONENT" == "proxy" ]; then
-    startHa
-  elif [ "$COMPONET" == "kubelet" ]; then
-    startKubelet
+  
+  # Check if component is provided
+  if [ -z "$COMPONENT" ]; then
+    log_error "No component specified for start command"
+    echo
+    echo "Usage: gok start <component>"
+    echo
+    echo "Available components:"
+    echo "  kubernetes    - Start Kubernetes cluster (kubelet + haproxy)"
+    echo "  kubelet       - Start kubelet service"
+    echo "  proxy         - Start HAProxy load balancer"
+    echo "  ha            - Start HAProxy load balancer (alias for proxy)"
+    echo "  docker        - Start Docker service"
+    echo "  containerd    - Start containerd service"
+    echo
+    return 1
   fi
+  
+  log_component_start "$COMPONENT" "Starting service"
+  
+  case "$COMPONENT" in
+    "kubernetes")
+      log_step "1" "Disabling swap"
+      if disableSwap; then
+        log_success "Swap disabled"
+      else
+        log_warning "Failed to disable swap"
+      fi
+      
+      log_step "2" "Starting HAProxy"
+      if startHa; then
+        log_success "HAProxy started successfully"
+      else
+        log_error "Failed to start HAProxy"
+        return 1
+      fi
+      
+      log_step "3" "Starting kubelet"
+      if startKubelet; then
+        log_success "Kubelet started successfully"
+      else
+        log_error "Failed to start kubelet"
+        return 1
+      fi
+      
+      log_component_success "$COMPONENT" "Kubernetes cluster services started"
+      ;;
+      
+    "proxy"|"ha")
+      log_step "1" "Starting HAProxy"
+      if startHa; then
+        log_component_success "$COMPONENT" "HAProxy started successfully"
+      else
+        log_error "Failed to start HAProxy"
+        return 1
+      fi
+      ;;
+      
+    "kubelet")
+      log_step "1" "Starting kubelet service"
+      if startKubelet; then
+        log_component_success "$COMPONENT" "Kubelet started successfully"
+      else
+        log_error "Failed to start kubelet"
+        return 1
+      fi
+      ;;
+      
+    "docker")
+      log_step "1" "Starting Docker service"
+      if execute_with_suppression systemctl start docker; then
+        if execute_with_suppression systemctl enable docker; then
+          log_component_success "$COMPONENT" "Docker service started and enabled"
+        else
+          log_component_success "$COMPONENT" "Docker service started (enable failed)"
+        fi
+      else
+        log_error "Failed to start Docker service"
+        return 1
+      fi
+      ;;
+      
+    "containerd")
+      log_step "1" "Starting containerd service"
+      if execute_with_suppression systemctl start containerd; then
+        if execute_with_suppression systemctl enable containerd; then
+          log_component_success "$COMPONENT" "Containerd service started and enabled"
+        else
+          log_component_success "$COMPONENT" "Containerd service started (enable failed)"
+        fi
+      else
+        log_error "Failed to start containerd service"
+        return 1
+      fi
+      ;;
+      
+    *)
+      log_error "Unknown component: $COMPONENT"
+      echo
+      echo "Available components:"
+      echo "  kubernetes    - Start Kubernetes cluster (kubelet + haproxy)"
+      echo "  kubelet       - Start kubelet service"
+      echo "  proxy         - Start HAProxy load balancer"
+      echo "  ha            - Start HAProxy load balancer (alias for proxy)"
+      echo "  docker        - Start Docker service"
+      echo "  containerd    - Start containerd service"
+      echo
+      return 1
+      ;;
+  esac
 }
 
 # Enhanced user confirmation with detailed information
