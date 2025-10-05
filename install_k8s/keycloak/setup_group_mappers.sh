@@ -11,8 +11,33 @@ fi
 
 # The following lines are responsible for reading environment variables.
 source ${MOUNT_PATH}/kubernetes/install_k8s/util
-source ${MOUNT_PATH}/kubernetes/install_k8s/gok
+source ${MOUNT_PATH}/kubernetes/install_k8s/config
 source ${MOUNT_PATH}/kubernetes/install_k8s/ldap/config/config
+
+# Define required variables and functions inline to avoid sourcing gok (which has main execution)
+export KEYCLOAK=keycloak
+
+getKeycloakConfig(){
+  IFS='' read -r -d '' OAUTH <<"EOF"
+export OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
+export OIDC_CLIENT_ID=gok-developers-client
+export OIDC_USERNAME_CLAIM=sub
+export OIDC_GROUPS_CLAIM=groups
+export REALM=GokDevelopers
+export AUTH0_DOMAIN=keycloak.gokcloud.com
+export APP_HOST=kube.gokcloud.com
+export JWKS_URL=$OIDC_ISSUE_URL/protocol/openid-connect/certs
+EOF
+echo "$OAUTH"
+}
+
+fullKeycloakUrl(){
+  echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+# Load keycloak config for REALM
+source ${MOUNT_PATH}/kubernetes/install_k8s/keycloak/config
+
 echo "$(getKeycloakConfig)"
 
 # Variables
