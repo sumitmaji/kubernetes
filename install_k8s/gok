@@ -10027,7 +10027,10 @@ addPolicyToSyncSecrets(){
   log_step "9" "Creating Kyverno policy for registry credential synchronization"
   log_info "Installing cluster-wide policy to automatically sync registry credentials"
   
-  if cat <<EOF | kubectl apply -f -  
+  local apply_result=""
+  if [ "$GOK_VERBOSE" = "1" ]; then
+    # In verbose mode, show kubectl output
+    apply_result=$(cat <<EOF | kubectl apply -f - 2>&1
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -10063,6 +10066,48 @@ spec:
             imagePullSecrets:
               - name: regcred
 EOF
+    log_debug "Kubectl apply result: $apply_result"
+  else
+    # In normal mode, suppress kubectl output
+    apply_result=$(cat <<EOF | kubectl apply -f - 2>/dev/null
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: sync-regcred
+spec:
+  rules:
+    - name: sync-regcred-secret
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      generate:
+        apiVersion: v1
+        kind: Secret
+        name: regcred
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        clone:
+          namespace: kube-system
+          name: regcred
+    - name: patch-serviceaccount
+      match:
+        any:
+          - resources:
+              kinds:
+                - ServiceAccount
+              namespaces:
+                - "*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            imagePullSecrets:
+              - name: regcred
+EOF
+  fi
+  
+  if [ $? -eq 0 ]
   then
     log_success "Kyverno cluster policy 'sync-regcred' created successfully"
     log_info "✓ Registry credentials will auto-sync to all new namespaces"
@@ -10182,13 +10227,29 @@ installRegistryWithCertMgr(){
   fi
   log_step "8" "Verifying TLS certificate chain and trust"
   log_info "Testing SSL/TLS connection to $(registrySubdomain).$(rootDomain):443"
-  if openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null | grep 'Verify return code: 0 (ok)' >/dev/null; then
+  
+  # Test SSL/TLS connection with suppressed output
+  local ssl_result=""
+  if [ "$GOK_VERBOSE" = "1" ]; then
+    # In verbose mode, show the openssl output
+    ssl_result=$(openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null 2>&1)
+    log_debug "OpenSSL connection test output:"
+    log_debug "$ssl_result"
+  else
+    # In normal mode, suppress openssl output
+    ssl_result=$(openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null 2>/dev/null)
+  fi
+  
+  if echo "$ssl_result" | grep 'Verify return code: 0 (ok)' >/dev/null; then
     log_success "TLS certificate verification successful"
     log_info "✓ Certificate chain is valid and trusted"
     log_info "✓ Registry is accessible via secure HTTPS connection"
   else
     log_warning "TLS certificate verification had issues"
     log_info "Registry may still be functional but certificate trust needs attention"
+    if [ "$GOK_VERBOSE" = "1" ]; then
+      log_debug "SSL verification details available in verbose output above"
+    fi
   fi
   addPolicyToSyncSecrets
 }
