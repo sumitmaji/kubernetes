@@ -11502,13 +11502,13 @@ keycloakInst(){
     log_info "Keycloak namespace already exists"
   fi
   
-  # Collect configuration parameters
-  : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
-  : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
-  : "${POSTGRESQL_USERNAME:=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")}"
-  : "${POSTGRESQL_PASSWORD:=$(promptSecret "Please enter postgresql password: ")}"
-  : "${OIDC_CLIENT_ID:=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")}"
-  : "${REALM:=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")}"
+  # Collect configuration parameters (always prompt)
+  KEYCLOAK_ADMIN_USERNAME=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")
+  KEYCLOAK_ADMIN_PASSWORD=$(promptSecret "Please enter keycloak admin password: ")
+  POSTGRESQL_USERNAME=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")
+  POSTGRESQL_PASSWORD=$(promptSecret "Please enter postgresql password: ")
+  OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID:-gok-developers-client}): " "${OIDC_CLIENT_ID:-gok-developers-client}")
+  REALM=$(promptUserInput "Please enter realm name (${REALM:-GokDevelopers}): " "${REALM:-GokDevelopers}")
   
   # Create secrets for Keycloak and PostgreSQL
   execute_with_suppression kubectl create secret generic keycloak-secrets \
