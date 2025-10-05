@@ -12526,10 +12526,10 @@ setup_keycloak_clients() {
   log_info "🔧 Configuring Keycloak clients and realms"
   
   # Retrieve credentials from secrets
-  local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" 2>/dev/null | base64 --decode || echo "")
+  local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN}" 2>/dev/null | base64 --decode || echo "")
   local admin_pwd=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null | base64 --decode || echo "")
-  local client_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" 2>/dev/null | base64 --decode || echo "")
-  local realm=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" 2>/dev/null | base64 --decode || echo "")
+  local client_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.CLIENT_ID}" 2>/dev/null | base64 --decode || echo "")
+  local realm=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.OAUTH_REALM}" 2>/dev/null | base64 --decode || echo "")
   
   if [[ -z "$admin_id" || -z "$admin_pwd" || -z "$client_id" || -z "$realm" ]]; then
     log_error "Failed to retrieve Keycloak credentials from secrets"
@@ -12578,7 +12578,7 @@ setup_ldap_federation() {
   fi
   
   # Get credentials
-  local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" 2>/dev/null | base64 --decode || echo "")
+  local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN}" 2>/dev/null | base64 --decode || echo "")
   local admin_pwd=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null | base64 --decode || echo "")
   
   : "${LDAP_PASSWORD:=$(promptSecret "Please enter LDAP password for admin: ")}"
