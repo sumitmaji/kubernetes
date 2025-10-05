@@ -23,6 +23,16 @@ command:
 
 # Environment variables (codecentric/keycloakx format)
 extraEnv: |
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secrets
+        key: admin-user
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secrets
+        key: admin-password
   - name: KC_PROXY
     value: "edge"
   - name: KC_HOSTNAME
