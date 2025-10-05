@@ -2121,6 +2121,9 @@ validate_component_installation() {
         "registry")
             validate_registry_installation "$timeout"
             ;;
+        "base")
+            validate_base_installation "$timeout"
+            ;;
         "gok-controller"|"controller")
             validate_gok_controller_installation "$timeout"
             ;;
@@ -2530,6 +2533,31 @@ validate_registry_installation() {
         validation_passed=false
     else
         log_success "Registry pods are ready"
+    fi
+    
+    return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}
+
+# Base platform services validation
+validate_base_installation() {
+    local timeout="$1"
+    local validation_passed=true
+    
+    log_step "1" "Checking base installation marker"
+    if kubectl get configmap base-config -n kube-system >/dev/null 2>&1; then
+        log_success "Base installation marker found"
+    else
+        log_warning "Base installation marker not found (but installation may have succeeded)"
+        # Don't fail validation for missing marker as it's not critical
+    fi
+    
+    log_step "2" "Checking base platform components"
+    local base_dir="$MOUNT_PATH/kubernetes/install_k8s/base"
+    if [[ -d "$base_dir" ]]; then
+        log_success "Base platform directory exists"
+    else
+        log_error "Base platform directory not found"
+        validation_passed=false
     fi
     
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
@@ -5052,12 +5080,56 @@ resetChart(){
 }
 
 baseInst(){
-  echo "Installing base image"
-  pushd "$MOUNT_PATH"/kubernetes/install_k8s/base || exit
-  find . -type f -name "*.sh" -exec chmod +x {} \;
-  ./build.sh
-  popd || exit
-  echoSuccess "Base image installed successfully!"
+  log_component_start "base-install" "Installing base platform services and infrastructure"
+  
+  log_step "1" "Preparing base installation directory"
+  local base_dir="$MOUNT_PATH/kubernetes/install_k8s/base"
+  if [[ ! -d "$base_dir" ]]; then
+    log_error "Base installation directory not found: $base_dir"
+    return 1
+  fi
+  
+  if execute_with_suppression pushd "$base_dir"; then
+    log_success "Base installation directory prepared"
+  else
+    log_error "Failed to access base installation directory"
+    return 1
+  fi
+  
+  log_step "2" "Setting executable permissions for base scripts"
+  if execute_with_suppression find . -type f -name "*.sh" -exec chmod +x {} \;; then
+    log_success "Executable permissions set for base scripts"
+  else
+    log_error "Failed to set executable permissions"
+    popd || true
+    return 1
+  fi
+  
+  log_step "3" "Building and installing base platform components"
+  if execute_with_suppression ./build.sh; then
+    log_success "Base platform components built successfully"
+  else
+    log_error "Base platform build failed"
+    popd || true
+    return 1
+  fi
+  
+  log_step "4" "Completing base installation"
+  if execute_with_suppression popd; then
+    log_success "Base installation directory cleanup completed"
+  else
+    log_warning "Directory cleanup had issues but installation completed"
+  fi
+  
+  # Create a marker to indicate base is installed
+  if execute_with_suppression kubectl create configmap base-config --from-literal=installed="$(date)" -n kube-system --dry-run=client -o yaml | kubectl apply -f -; then
+    log_success "Base installation marker created"
+  else
+    log_warning "Failed to create base installation marker"
+  fi
+  
+  show_installation_summary "base" "base" "Base platform services and infrastructure"
+  log_component_success "base-install" "Base platform services installed successfully"
 }
 
 
@@ -13442,7 +13514,18 @@ function installCmd() {
       return 1
     fi
   elif [ "$COMPONENT" == "registry" ]; then
-    installRegistryWithCertMgr
+    if installRegistryWithCertMgr; then
+      if validate_component_installation "registry" 300; then
+        complete_component "registry" "Container registry installation completed and validated"
+        suggest_and_install_next_module "registry"
+      else
+        complete_component "registry" "Container registry installed but validation had warnings"
+        suggest_and_install_next_module "registry"
+      fi
+    else
+      fail_component "registry" "Container registry installation failed"
+      return 1
+    fi
   elif [ "$COMPONENT" == "fluentd" ]; then
     fluentdInst
   elif [ "$COMPONENT" == "opensearch" ]; then
@@ -13459,7 +13542,18 @@ function installCmd() {
   elif [ "$COMPONENT" == "kyverno" ]; then
     kyvernoInst
   elif [ "$COMPONENT" == "base" ]; then
-    baseInst
+    if baseInst; then
+      if validate_component_installation "base" 60; then
+        complete_component "base" "Base platform services installation completed and validated"
+        suggest_and_install_next_module "base"
+      else
+        complete_component "base" "Base platform services installed but validation had warnings"
+        suggest_and_install_next_module "base"
+      fi
+    else
+      fail_component "base" "Base platform services installation failed"
+      return 1
+    fi
   elif [ "$COMPONENT" == "kubernetes-worker" ]; then
     dockrInst $verbose_flag
     k8sInst "kubernetes-worker" "$verbose_flag"
