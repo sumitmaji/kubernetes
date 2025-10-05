@@ -5301,10 +5301,10 @@ keycloakSummary() {
   # 3. Service and Access
   if [[ "$cluster_accessible" == "true" ]]; then
     log_step "3" "Service Configuration"
-    local keycloak_service=$(kubectl get service keycloak -n keycloak --no-headers 2>/dev/null)
+  local keycloak_service=$(kubectl get service keycloak-http -n keycloak --no-headers 2>/dev/null)
     if [[ -n "$keycloak_service" ]]; then
-      local service_type=$(kubectl get service keycloak -n keycloak -o jsonpath='{.spec.type}' 2>/dev/null)
-      local port=$(kubectl get service keycloak -n keycloak -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+  local service_type=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.type}' 2>/dev/null)
+  local port=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
       echo -e "  ${COLOR_GREEN}✓ Service: keycloak (Type: ${service_type}, Port: ${port})${COLOR_RESET}"
       
       # Check for ingress
@@ -11830,7 +11830,7 @@ validate_keycloak_installation() {
   fi
   
   # Check if Keycloak service exists
-  if kubectl get service keycloak -n keycloak >/dev/null 2>&1; then
+  if kubectl get service keycloak-http -n keycloak >/dev/null 2>&1; then
     log_success "Keycloak service found"
   else
     log_warning "Keycloak service not found"
@@ -12475,7 +12475,7 @@ wait_for_keycloak_services() {
   
   # Check service connectivity
   log_substep "Verifying Keycloak service connectivity..."
-  if check_service_connectivity "keycloak" "keycloak"; then
+  if check_service_connectivity "keycloak-http" "keycloak"; then
     log_success "✓ Keycloak service is accessible"
   else
     log_warning "⚠️  Keycloak service connectivity issues detected"
