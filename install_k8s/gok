@@ -1727,7 +1727,8 @@ suggest_and_install_next_module() {
     NEXT_MODULE_MAP["kyverno"]="registry"
     NEXT_MODULE_MAP["registry"]="base"
     NEXT_MODULE_MAP["base"]="ldap"
-    NEXT_MODULE_MAP["ldap"]="oauth2"
+    NEXT_MODULE_MAP["ldap"]="keycloak"
+    NEXT_MODULE_MAP["keycloak"]="oauth2"
     NEXT_MODULE_MAP["oauth2"]="rabbitmq"
     NEXT_MODULE_MAP["rabbitmq"]="vault"
     NEXT_MODULE_MAP["vault"]="monitoring"
@@ -10501,107 +10502,676 @@ vaultReset() {
 
 
 keycloakReset(){
-  helm uninstall keycloak -n keycloak
-  kubectl delete pvc --all -n keycloak
+  local start_time=$(date +%s)
+  
+  log_component_start "keycloak-reset" "Resetting Keycloak identity and access management"
+  
+  log_step "1" "Checking Keycloak installation status"
+  local keycloak_exists=false
+  local namespace_exists=false
+  
+  # Check if Keycloak helm release exists
+  if helm list -n keycloak 2>/dev/null | grep -q "keycloak"; then
+    keycloak_exists=true
+    log_success "Keycloak helm release found"
+  else
+    log_info "Keycloak helm release not found (may already be uninstalled)"
+  fi
+  
+  # Check if Keycloak namespace exists
+  if kubectl get namespace keycloak >/dev/null 2>&1; then
+    namespace_exists=true
+    log_success "Keycloak namespace found"
+  else
+    log_info "Keycloak namespace not found (may already be deleted)"
+  fi
+  
+  # If nothing exists, inform user and exit
+  if [[ "$keycloak_exists" == false && "$namespace_exists" == false ]]; then
+    log_info "Keycloak appears to already be reset or was never installed"
+    log_component_success "keycloak-reset" "Keycloak reset completed (nothing to reset)"
+    return 0
+  fi
+  
+  log_step "2" "Uninstalling Keycloak helm release"
+  if [[ "$keycloak_exists" == true ]]; then
+    if execute_with_suppression helm uninstall keycloak -n keycloak; then
+      log_success "Keycloak helm release uninstalled successfully"
+      
+      # Wait for pods to terminate
+      log_substep "Waiting for Keycloak pods to terminate..."
+      local wait_count=0
+      while kubectl get pods -n keycloak 2>/dev/null | grep -q "keycloak" && [[ $wait_count -lt 30 ]]; do
+        printf "."
+        sleep 2
+        wait_count=$((wait_count + 1))
+      done
+      printf "\n"
+      
+      if [[ $wait_count -lt 30 ]]; then
+        log_success "Keycloak pods terminated successfully"
+      else
+        log_warning "Keycloak pods taking longer than expected to terminate"
+      fi
+    else
+      log_error "Failed to uninstall Keycloak helm release"
+      if is_verbose_mode; then
+        log_info "Run with --verbose for detailed error information"
+      fi
+      return 1
+    fi
+  else
+    log_info "Skipping helm uninstall (release not found)"
+  fi
+  
+  log_step "3" "Cleaning up persistent volumes and storage"
+  if [[ "$namespace_exists" == true ]]; then
+    # Clean up PVCs
+    log_substep "Removing persistent volume claims..."
+    if execute_with_suppression kubectl delete pvc --all -n keycloak --timeout=60s; then
+      log_success "Persistent volume claims removed"
+    else
+      log_warning "Some PVCs may remain or are taking time to delete"
+    fi
+    
+    # Clean up local storage
+    log_substep "Cleaning up local filesystem storage..."
+    if emptyLocalFsStorage "Keycloak" "keycloak-pv" "keycloak-storage" "/data/volumes/pv3"; then
+      log_success "Local filesystem storage cleaned up"
+    else
+      log_warning "Local storage cleanup had issues but continuing"
+    fi
+  else
+    log_info "Skipping storage cleanup (namespace not found)"
+  fi
+  
+  log_step "4" "Removing Keycloak namespace and resources"
+  if [[ "$namespace_exists" == true ]]; then
+    if execute_with_suppression kubectl delete namespace keycloak --timeout=120s; then
+      log_success "Keycloak namespace deleted successfully"
+    else
+      log_warning "Keycloak namespace deletion had issues but may still complete"
+      
+      # Try to force delete if needed
+      log_substep "Attempting force cleanup..."
+      if execute_with_suppression kubectl delete namespace keycloak --force --grace-period=0 2>/dev/null; then
+        log_success "Keycloak namespace force-deleted successfully"
+      else
+        log_warning "Force deletion also had issues - manual cleanup may be needed"
+      fi
+    fi
+  else
+    log_info "Skipping namespace deletion (namespace not found)"
+  fi
+  
+  log_step "5" "Cleaning up Keycloak-related resources"
+  
+  # Clean up any remaining Keycloak-related ingress resources
+  local ingress_cleaned=false
+  if kubectl get ingress -A 2>/dev/null | grep -q "keycloak"; then
+    log_substep "Removing Keycloak ingress resources..."
+    if execute_with_suppression kubectl delete ingress -l app.kubernetes.io/name=keycloak --all-namespaces 2>/dev/null; then
+      ingress_cleaned=true
+      log_success "Keycloak ingress resources cleaned up"
+    else
+      log_warning "Some Keycloak ingress resources may remain"
+    fi
+  fi
+  
+  # Clean up OAuth secrets that may reference Keycloak
+  local oauth_secrets_cleaned=false
+  if kubectl get secret oauth-secrets -n kube-system >/dev/null 2>&1; then
+    log_substep "Checking OAuth secrets configuration..."
+    log_info "OAuth secrets found - may need manual reconfiguration"
+    oauth_secrets_cleaned=true
+  fi
+  
+  # Clean up any remaining Keycloak-related certificates
+  local certs_cleaned=false
+  if kubectl get certificates -A 2>/dev/null | grep -q "keycloak"; then
+    log_substep "Removing Keycloak TLS certificates..."
+    if execute_with_suppression kubectl delete certificates -l app.kubernetes.io/name=keycloak --all-namespaces 2>/dev/null; then
+      certs_cleaned=true
+      log_success "Keycloak certificates cleaned up"
+    else
+      log_warning "Some Keycloak certificates may remain"
+    fi
+  fi
+  
+  if [[ "$ingress_cleaned" == false && "$oauth_secrets_cleaned" == false && "$certs_cleaned" == false ]]; then
+    log_info "No additional Keycloak resources found to clean up"
+  fi
+  
+  log_step "6" "Validating Keycloak reset completion"
+  validate_keycloak_reset
+  
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  log_component_success "keycloak-reset" "Keycloak identity management reset completed"
+  log_success "Keycloak reset completed in ${duration}s"
+  
+  # Show reset summary and next steps
+  show_keycloak_reset_summary
+}
 
-  emptyLocalFsStorage "Keycloak" "keycloak-pv" "keycloak-storage" "/data/volumes/pv3"
-  kubectl delete ns keycloak
-  kubectl get secret oauth-secrets >/dev/null 2>&1
+# Validate that Keycloak reset was successful
+validate_keycloak_reset() {
+  local validation_success=true
+  
+  # Check that helm release is gone
+  if helm list -n keycloak 2>/dev/null | grep -q "keycloak"; then
+    log_error "Keycloak helm release still exists"
+    validation_success=false
+  else
+    log_success "Keycloak helm release successfully removed"
+  fi
+  
+  # Check that namespace is gone
+  if kubectl get namespace keycloak >/dev/null 2>&1; then
+    log_warning "Keycloak namespace still exists (may be terminating)"
+  else
+    log_success "Keycloak namespace successfully removed"
+  fi
+  
+  # Check that pods are gone
+  if kubectl get pods -n keycloak 2>/dev/null | grep -q "keycloak"; then
+    log_warning "Some Keycloak pods may still be terminating"
+  else
+    log_success "All Keycloak pods removed"
+  fi
+  
+  # Check that services are gone
+  if kubectl get services -n keycloak 2>/dev/null | grep -q "keycloak"; then
+    log_warning "Some Keycloak services may still exist"
+  else
+    log_success "All Keycloak services removed"
+  fi
+  
+  # Check that PVCs are gone
+  if kubectl get pvc -n keycloak 2>/dev/null | grep -q -v "No resources found"; then
+    log_warning "Some Keycloak persistent volume claims may still exist"
+  else
+    log_success "All Keycloak persistent volumes removed"
+  fi
+  
+  return $([[ "$validation_success" == true ]] && echo 0 || echo 1)
+}
 
-  # vaultLogin
-  # kubectl delete secretProviderClass keycloak-admin-secret-provider -n keycloak >/dev/null 2>&1
-  # kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/admin
-  # kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-admin-role
-  # kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-admin-policy
-
-  # kubectl delete secretProviderClass keycloak-postgresql-secret-provider -n keycloak >/dev/null 2>&1
-  # kubectl exec -it vault-0 -n vault -- vault kv delete secret/keycloak/postgresql
-  # kubectl exec -it vault-0 -n vault -- vault delete auth/kubernetes/role/keycloak-postgresql-role
-  # kubectl exec -it vault-0 -n vault -- vault policy delete keycloak-postgresql-policy
-  # kubectl delete secret keycloak-secrets -n keycloak >/dev/null 2>&1
-  # kubectl delete secret keycloak-postgresql -n keycloak >/dev/null 2>&1
-  # kubectl delete secret keycloak-secrets -n kube-system >/dev/null 2>&1
-  # kubectl delete secret keycloak-postgresql -n kube-system >/dev/null 2>&1
-  # kubectl delete secret keycloak-secrets -n default >/dev/null 2>&1
-  # kubectl delete secret keycloak-postgresql -n default >/dev/null 2>&1
-
+# Show Keycloak reset summary and recommendations
+show_keycloak_reset_summary() {
+  echo
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔄 Keycloak Reset Summary${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Reset Actions Completed:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Keycloak helm release uninstalled${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}PostgreSQL database and data removed${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Keycloak namespace and pods cleaned up${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Persistent volumes and storage cleared${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Keycloak ingress and certificates removed${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Identity provider configuration reset${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Impact of Keycloak Reset:${COLOR_RESET}"
+  echo -e "  🔐 ${COLOR_RED}All identity and access management data removed${COLOR_RESET}"
+  echo -e "  👥 ${COLOR_RED}User accounts, roles, and realm configurations deleted${COLOR_RESET}"
+  echo -e "  🔑 ${COLOR_RED}OAuth2/OIDC clients and tokens invalidated${COLOR_RESET}"
+  echo -e "  🌐 ${COLOR_RED}Keycloak admin console and APIs unavailable${COLOR_RESET}"
+  echo -e "  🔗 ${COLOR_YELLOW}Applications using Keycloak authentication will fail${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}⚠️  Post-Reset Considerations:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• OAuth2 proxy and other services depending on Keycloak will need reconfiguration${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• LDAP user federation settings will need to be recreated${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Application OAuth2/OIDC clients will need to be re-registered${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Custom authentication flows and security policies will be lost${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🚀 Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To reinstall Keycloak: ${COLOR_BOLD}gok install keycloak${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To reset dependent services: ${COLOR_BOLD}gok reset oauth2${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To check system status: ${COLOR_BOLD}gok status${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To see available components: ${COLOR_BOLD}gok help reset${COLOR_RESET}"
+  echo
 }
 
 keycloakInst(){
-  log_component_start "keycloak" "Installing Keycloak identity management system"
+  local start_time=$(date +%s)
   
-  #Admin user is "user" and password is fetched from secret keycloak with key "admin-password"
-  #Hence removing the below 2 lines
-  #keycloak_adminid=$(promptUserInput "Please enter keycloak admin id (admin): " "admin")
-  #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
+  log_component_start "keycloak-install" "Installing Keycloak identity and access management"
   
-  log_step "1" "Creating namespace and collecting configuration"
-  kubectl_with_summary create "namespace" keycloak
-  
-  : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
-  : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
-  
-  # createVaultSecretStore \
-  # -p "secret/keycloak/admin" \
-  # -r "keycloak-admin-role" \
-  # -l "keycloak-admin-policy" \
-  # -s "keycloak-admin-secret-provider" \
-  # -x "keycloak" \
-  # -n "keycloak" \
-  # -k "adminUser=${KEYCLOAK_ADMIN_USERNAME}" \
-  # -k "adminPassword=${KEYCLOAK_ADMIN_PASSWORD}"
-  
-  : "${POSTGRESQL_USERNAME:=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")}"
-  : "${POSTGRESQL_PASSWORD:=$(promptSecret "Please enter postgresql password: ")}"
-
-  # createVaultSecretStore \
-  # -p "secret/keycloak/postgresql" \
-  # -r "keycloak-postgresql-role" \
-  # -l "keycloak-postgresql-policy" \
-  # -s "keycloak-postgresql-secret-provider" \
-  # -x "keycloak" \
-  # -n "keycloak" \
-  # -k "username=${POSTGRESQL_USERNAME}" \
-  # -k "password=${POSTGRESQL_PASSWORD}"
-  
-  : "${OIDC_CLIENT_ID:=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")}"
-  : "${REALM:=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")}"
-
-  log_step "2" "Creating secrets for Keycloak and PostgreSQL"
-  execute_with_suppression kubectl create secret generic keycloak-secrets \
-    --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
-    --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-    --from-literal=OAUTH_REALM="${REALM}"  -n keycloak \
-    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak
-
-  execute_with_suppression kubectl create secret generic keycloak-postgresql \
-    --from-literal=username="${POSTGRESQL_USERNAME}" \
-    --from-literal=password="${POSTGRESQL_PASSWORD}" \
-    --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak
-
-  log_step "3" "Installing Keycloak via Helm"
-  hostname="$(subDomain 'keycloak').$(rootDomain)"
-
-  if helm_install_with_summary "keycloak" "keycloak" \
-    keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
-        --namespace keycloak \
-        --set ingress.hostname="$hostname" \
-        --set auth.adminUser="$KEYCLOAK_ADMIN_USERNAME" \
-        --set auth.adminPassword="$KEYCLOAK_ADMIN_PASSWORD" \
-        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml; then
-    
-    show_installation_summary "keycloak" "keycloak" "Identity management system at https://$hostname"
-    log_component_success "keycloak" "Keycloak identity management system installed successfully"
-    
-    # Call next module suggestion
-    suggest_and_install_next_module "keycloak"
-  else
-    log_error "Keycloak installation failed"
+  log_step "1" "Updating system packages with smart caching"
+  if ! updateSys; then
+    log_error "Failed to update system packages"
     return 1
   fi
+  
+  log_step "2" "Installing dependencies with smart caching"
+  if ! installDeps; then
+    log_error "Failed to install Keycloak dependencies"
+    return 1
+  fi
+  
+  log_step "3" "Preparing Keycloak installation directory"
+  local keycloak_dir="$MOUNT_PATH/kubernetes/install_k8s/keycloak"
+  if [[ ! -d "$keycloak_dir" ]]; then
+    log_error "Keycloak installation directory not found: $keycloak_dir"
+    return 1
+  fi
+  
+  if execute_with_suppression pushd "$keycloak_dir"; then
+    log_success "Keycloak installation directory prepared"
+  else
+    log_error "Failed to access Keycloak installation directory"
+    return 1
+  fi
+
+  log_step "4" "Creating namespace and collecting configuration"
+  if kubectl_with_summary create "namespace" keycloak; then
+    log_success "Keycloak namespace created"
+  else
+    log_info "Keycloak namespace already exists"
+  fi
+  
+  log_substep "Collecting Keycloak configuration parameters"
+  : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
+  : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
+  : "${POSTGRESQL_USERNAME:=$(promptUserInput "Please enter postgresql username (postgres): " "postgres")}"
+  : "${POSTGRESQL_PASSWORD:=$(promptSecret "Please enter postgresql password: ")}"
+  : "${OIDC_CLIENT_ID:=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID}): " "${OIDC_CLIENT_ID}")}"
+  : "${REALM:=$(promptUserInput "Please enter realm name (${REALM}): " "${REALM}")}"
+  
+  log_success "Keycloak configuration parameters collected"
+
+  log_step "5" "Building and deploying Keycloak services"
+  
+  # Enhanced Keycloak build with progress tracking
+  build_keycloak_with_progress "$KEYCLOAK_ADMIN_USERNAME" "$KEYCLOAK_ADMIN_PASSWORD" "$POSTGRESQL_USERNAME" "$POSTGRESQL_PASSWORD" "$OIDC_CLIENT_ID" "$REALM"
+  if [[ $? -ne 0 ]]; then
+    log_error "Keycloak installation failed"
+    popd || true
+    return 1
+  fi
+
+  log_step "6" "Configuring Keycloak networking and access"
+  local hostname="$(subDomain 'keycloak').$(rootDomain)"
+  log_substep "Keycloak hostname: ${COLOR_CYAN}${hostname}${COLOR_RESET}"
+  
+  if execute_with_suppression gok patch ingress keycloak keycloak letsencrypt $(defaultSubdomain); then
+    log_success "Keycloak ingress configured successfully"
+  else
+    log_warning "Keycloak ingress configuration had issues but installation may still work"
+  fi
+
+  log_step "7" "Validating Keycloak installation"
+  if validate_keycloak_installation; then
+    log_success "Keycloak installation validation completed"
+  else
+    log_warning "Keycloak validation had issues but installation may still work"
+  fi
+
+  if execute_with_suppression popd; then
+    log_success "Keycloak installation directory cleanup completed"
+  else
+    log_warning "Directory cleanup had issues but installation completed"
+  fi
+
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  show_installation_summary "keycloak" "keycloak" "Identity and access management system"
+  log_component_success "keycloak-install" "Keycloak identity management system installed successfully"
+  log_success "Keycloak installation completed in ${duration}s"
+  
+  # Show Keycloak-specific next steps and recommend OAuth2
+  show_keycloak_next_steps
 }
 
+# Enhanced Keycloak build with detailed progress tracking
+build_keycloak_with_progress() {
+  local keycloak_admin_username="$1"
+  local keycloak_admin_password="$2"
+  local postgresql_username="$3"
+  local postgresql_password="$4"
+  local oidc_client_id="$5"
+  local realm="$6"
+  local start_time=$(date +%s)
+  
+  # Get hostname configuration
+  local hostname="$(subDomain 'keycloak').$(rootDomain)"
+  
+  log_substep "Identity Provider: ${COLOR_CYAN}Keycloak${COLOR_RESET}"
+  log_substep "Hostname: ${COLOR_CYAN}${hostname}${COLOR_RESET}"
+  log_substep "Admin User: ${COLOR_CYAN}${keycloak_admin_username}${COLOR_RESET}"
+  log_substep "Database: ${COLOR_CYAN}PostgreSQL${COLOR_RESET}"
+  log_substep "OIDC Client: ${COLOR_CYAN}${oidc_client_id}${COLOR_RESET}"
+  log_substep "Realm: ${COLOR_CYAN}${realm}${COLOR_RESET}"
+  
+  # Step 1: Create Kubernetes secrets with progress
+  log_info "🔐 Creating Keycloak and PostgreSQL secrets"
+  
+  local temp_secret_log=$(mktemp)
+  local temp_secret_error=$(mktemp)
+  
+  # Create secrets in background with progress tracking
+  (
+    kubectl create secret generic keycloak-secrets \
+      --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+      --from-literal=KEYCLOAK_ADMIN="${keycloak_admin_username}" \
+      --from-literal=CLIENT_ID="${oidc_client_id}" \
+      --from-literal=OAUTH_REALM="${realm}" \
+      --from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_admin_password}" \
+      -n keycloak >"$temp_secret_log" 2>"$temp_secret_error"
+    
+    kubectl create secret generic keycloak-postgresql \
+      --from-literal=username="${postgresql_username}" \
+      --from-literal=password="${postgresql_password}" \
+      --from-literal=postgres-password="${postgresql_password}" \
+      -n keycloak >>"$temp_secret_log" 2>>"$temp_secret_error"
+  ) &
+  local secret_pid=$!
+  
+  # Show secret creation progress
+  local secret_progress=0
+  local spinner_chars="|/-\\"
+  local spinner_idx=0
+  local secret_stage="Creating authentication secrets"
+  
+  while kill -0 $secret_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    secret_progress=$(( (secret_progress + 1) % 40 ))
+    local progress_percent=$(( secret_progress * 100 / 40 ))
+    
+    # Update stage based on progress
+    if [[ $secret_progress -lt 20 ]]; then
+      secret_stage="Creating Keycloak admin secrets"
+    else
+      secret_stage="Creating PostgreSQL database secrets"
+    fi
+    
+    printf "\r${COLOR_BLUE}  Creating secrets [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$secret_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.3
+  done
+  
+  wait $secret_pid
+  local secret_exit_code=$?
+  
+  if [[ $secret_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ Keycloak secrets created [100%%]${COLOR_RESET}\n"
+    log_success "Keycloak and PostgreSQL secrets created successfully"
+  else
+    printf "\r${COLOR_RED}  ✗ Secret creation failed${COLOR_RESET}\n"
+    log_error "Keycloak secret creation failed - error details:"
+    if [[ -s "$temp_secret_error" ]]; then
+      cat "$temp_secret_error" >&2
+    fi
+    rm -f "$temp_secret_log" "$temp_secret_error"
+    return 1
+  fi
+  
+  # Step 2: Install Keycloak via Helm with enhanced progress
+  log_info "☸️  Installing Keycloak via Helm chart"
+  log_substep "Chart: ${COLOR_CYAN}oci://registry-1.docker.io/bitnamicharts/keycloak${COLOR_RESET}"
+  log_substep "Values: ${COLOR_CYAN}${MOUNT_PATH}/kubernetes/install_k8s/keycloak/values2.yaml${COLOR_RESET}"
+  
+  local temp_helm_log=$(mktemp)
+  local temp_helm_error=$(mktemp)
+  
+  # Start Helm installation in background
+  helm install keycloak oci://registry-1.docker.io/bitnamicharts/keycloak \
+    --namespace keycloak \
+    --set ingress.hostname="$hostname" \
+    --set auth.adminUser="$keycloak_admin_username" \
+    --set auth.adminPassword="$keycloak_admin_password" \
+    --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values2.yaml \
+    >"$temp_helm_log" 2>"$temp_helm_error" &
+  local helm_pid=$!
+  
+  # Show Helm installation progress with Keycloak-specific stages
+  local helm_progress=0
+  local helm_steps=8
+  local helm_stage="Preparing"
+  
+  while kill -0 $helm_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    helm_progress=$(( (helm_progress + 1) % (helm_steps * 15) ))
+    local progress_percent=$(( helm_progress * 100 / (helm_steps * 15) ))
+    
+    # Update stage based on progress
+    case $((helm_progress / 15)) in
+      0) helm_stage="Downloading Keycloak chart" ;;
+      1) helm_stage="Installing PostgreSQL database" ;;
+      2) helm_stage="Creating Keycloak deployment" ;;
+      3) helm_stage="Configuring identity services" ;;
+      4) helm_stage="Setting up authentication" ;;
+      5) helm_stage="Configuring ingress routing" ;;
+      6) helm_stage="Waiting for services" ;;
+      7) helm_stage="Finalizing installation" ;;
+    esac
+    
+    printf "\r${COLOR_BLUE}  Installing Keycloak [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$helm_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.5
+  done
+  
+  wait $helm_pid
+  local helm_exit_code=$?
+  
+  if [[ $helm_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ Keycloak installation completed [100%%]${COLOR_RESET}\n"
+    log_success "Keycloak deployed successfully via Helm"
+  else
+    printf "\r${COLOR_RED}  ✗ Keycloak installation failed${COLOR_RESET}\n"
+    log_error "Keycloak Helm installation failed - error details:"
+    if [[ -s "$temp_helm_error" ]]; then
+      if is_verbose_mode; then
+        cat "$temp_helm_error" >&2
+      else
+        tail -10 "$temp_helm_error" >&2
+        log_info "Use --verbose flag to see full installation logs"
+      fi
+    fi
+    rm -f "$temp_secret_log" "$temp_secret_error" "$temp_helm_log" "$temp_helm_error"
+    return 1
+  fi
+  
+  # Step 3: Wait for Keycloak to be ready
+  log_info "⏳ Waiting for Keycloak services to be ready"
+  
+  local wait_progress=0
+  local wait_steps=6
+  local wait_stage="Starting"
+  local ready=false
+  local max_wait=180  # 3 minutes
+  local wait_count=0
+  
+  while [[ $wait_count -lt $max_wait ]]; do
+    if kubectl wait --for=condition=available --timeout=10s deployment/keycloak -n keycloak >/dev/null 2>&1; then
+      ready=true
+      break
+    fi
+    
+    local char=${spinner_chars:spinner_idx:1}
+    wait_progress=$(( (wait_progress + 1) % (wait_steps * 10) ))
+    local progress_percent=$(( wait_progress * 100 / (wait_steps * 10) ))
+    
+    # Update stage based on progress
+    case $((wait_progress / 10)) in
+      0) wait_stage="Starting PostgreSQL" ;;
+      1) wait_stage="Initializing Keycloak" ;;
+      2) wait_stage="Loading identity providers" ;;
+      3) wait_stage="Setting up authentication" ;;
+      4) wait_stage="Configuring realms" ;;
+      5) wait_stage="Finalizing services" ;;
+    esac
+    
+    printf "\r${COLOR_YELLOW}  Waiting for Keycloak [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$wait_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 2
+    wait_count=$((wait_count + 2))
+  done
+  
+  if [[ "$ready" == "true" ]]; then
+    printf "\r${COLOR_GREEN}  ✓ Keycloak services ready [100%%]${COLOR_RESET}\n"
+    log_success "Keycloak is ready and accepting connections"
+  else
+    printf "\r${COLOR_YELLOW}  ⚠ Keycloak taking longer than expected${COLOR_RESET}\n"
+    log_warning "Keycloak deployment may still be starting (check with: kubectl get pods -n keycloak)"
+  fi
+  
+  # Clean up temporary files
+  rm -f "$temp_secret_log" "$temp_secret_error" "$temp_helm_log" "$temp_helm_error"
+  
+  # Installation completion summary
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  log_success "Keycloak deployment completed in ${duration}s"
+  
+  # Show Keycloak summary
+  show_keycloak_summary "$hostname"
+  
+  return 0
+}
+
+# Enhanced validation for Keycloak installation
+validate_keycloak_installation() {
+  log_info "Validating Keycloak installation..."
+  
+  # Check if Keycloak namespace exists
+  if kubectl get namespace keycloak >/dev/null 2>&1; then
+    log_success "Keycloak namespace found"
+  else
+    log_error "Keycloak namespace not found"
+    return 1
+  fi
+  
+  # Check if Keycloak deployment is ready
+  if kubectl get deployment keycloak -n keycloak >/dev/null 2>&1; then
+    log_success "Keycloak deployment found"
+    
+    # Check deployment status
+    local ready_replicas=$(kubectl get deployment keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    local desired_replicas=$(kubectl get deployment keycloak -n keycloak -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+    
+    if [[ "$ready_replicas" == "$desired_replicas" ]]; then
+      log_success "Keycloak deployment is ready (${ready_replicas}/${desired_replicas} replicas)"
+    else
+      log_warning "Keycloak deployment is scaling (${ready_replicas}/${desired_replicas} replicas ready)"
+    fi
+  else
+    log_error "Keycloak deployment not found"
+    return 1
+  fi
+  
+  # Check if PostgreSQL is ready
+  if kubectl get statefulset keycloak-postgresql -n keycloak >/dev/null 2>&1; then
+    log_success "PostgreSQL database found"
+    
+    local pg_ready=$(kubectl get statefulset keycloak-postgresql -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    if [[ "$pg_ready" == "1" ]]; then
+      log_success "PostgreSQL database is ready"
+    else
+      log_warning "PostgreSQL database is starting"
+    fi
+  else
+    log_warning "PostgreSQL statefulset not found (may use external database)"
+  fi
+  
+  # Check if Keycloak service exists
+  if kubectl get service keycloak -n keycloak >/dev/null 2>&1; then
+    log_success "Keycloak service found"
+  else
+    log_warning "Keycloak service not found"
+  fi
+  
+  # Check if ingress exists
+  if kubectl get ingress keycloak -n keycloak >/dev/null 2>&1; then
+    local hostname=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "unknown")
+    log_success "Keycloak ingress found (${hostname})"
+  else
+    log_info "Keycloak ingress not found (may be configured separately)"
+  fi
+  
+  return 0
+}
+
+# Show Keycloak-specific summary
+show_keycloak_summary() {
+  local hostname="$1"
+  
+  log_info "📋 Keycloak Identity Management Summary"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔐 Keycloak Identity & Access Management Details${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Identity Provider Information:${COLOR_RESET}"
+  echo -e "  🏢 ${COLOR_GREEN}Keycloak Server${COLOR_RESET} - Enterprise identity and access management"
+  echo -e "  🗄️  ${COLOR_GREEN}PostgreSQL Database${COLOR_RESET} - Reliable data persistence and sessions"
+  echo -e "  🌐 ${COLOR_GREEN}Admin Console${COLOR_RESET} - Web-based identity management interface"
+  echo -e "  🔗 ${COLOR_GREEN}OAuth2/OIDC Provider${COLOR_RESET} - Modern authentication protocols"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Access Information:${COLOR_RESET}"
+  echo -e "  🌍 ${COLOR_CYAN}Admin Console${COLOR_RESET}: https://${hostname}/admin/"
+  echo -e "  🔐 ${COLOR_CYAN}OIDC Endpoint${COLOR_RESET}: https://${hostname}/realms/{realm}/.well-known/openid_configuration"
+  echo -e "  🔑 ${COLOR_CYAN}Token Endpoint${COLOR_RESET}: https://${hostname}/realms/{realm}/protocol/openid-connect/token"
+  echo -e "  👤 ${COLOR_CYAN}User Account${COLOR_RESET}: https://${hostname}/realms/{realm}/account/"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Authentication Features:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Single Sign-On (SSO)${COLOR_RESET} - Unified authentication across applications"
+  echo -e "  ✅ ${COLOR_GREEN}Multi-Factor Authentication${COLOR_RESET} - Enhanced security with 2FA/MFA"
+  echo -e "  ✅ ${COLOR_GREEN}Social Login Integration${COLOR_RESET} - Google, GitHub, Facebook, etc."
+  echo -e "  ✅ ${COLOR_GREEN}LDAP/Active Directory${COLOR_RESET} - Enterprise directory integration"
+  echo -e "  ✅ ${COLOR_GREEN}Role-Based Access Control${COLOR_RESET} - Fine-grained permissions"
+  echo -e "  ✅ ${COLOR_GREEN}OAuth2 & OIDC Support${COLOR_RESET} - Modern authentication standards"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}💡 Keycloak Benefits:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Centralized identity and access management for all platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Seamless integration with existing LDAP directory services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Modern OAuth2/OIDC protocols for secure API authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Comprehensive admin console for user and role management${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• High availability and scalability for enterprise environments${COLOR_RESET}"
+  echo
+}
+
+# Show Keycloak next steps and recommend OAuth2
+show_keycloak_next_steps() {
+  echo
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 Keycloak Post-Installation Steps${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_MAGENTA}${COLOR_BOLD}Immediate Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  1. Access Keycloak admin console to configure realms and clients${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  2. Set up LDAP integration for user federation${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  3. Create OAuth2/OIDC clients for your applications${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  4. Configure authentication flows and security policies${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}🎯 Recommended Next Installation: OAuth2 Proxy${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}Keycloak provides identity management - now add OAuth2 proxy for application protection!${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Why install OAuth2 proxy next?${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🛡️  Protects applications with Keycloak authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔐 Seamless integration with Keycloak OIDC provider${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🌐 Single sign-on experience across all platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 📊 Protects dashboards and admin interfaces${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🚀 Ready-to-use authentication proxy for any HTTP service${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Install OAuth2 proxy now?${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  Command: ${COLOR_BOLD}gok install oauth2${COLOR_RESET}"
+  echo
+  
+  # Suggest and install OAuth2 as the next step
+  suggest_and_install_next_module "keycloak"
+}
 
 
 addPolicyToSyncSecrets(){
