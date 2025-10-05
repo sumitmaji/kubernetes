@@ -686,7 +686,7 @@ echoWarning() {
 # =============================================================================
 # Enhanced remote execution with shell redirection support
 # Fixed: Shell redirections (>, >>, |, &&, ||) now work properly with sudo
-# The system automatically wraps complex commands in "sh -c" for proper privilege escalation
+# The system automatically wraps complex commands in "bash -c" for proper privilege escalation
 
 # Remote execution configuration
 declare -A REMOTE_HOSTS
@@ -797,8 +797,8 @@ simple_remote_exec() {
         if [[ "$commands" != sudo* ]]; then
             # Check if command contains shell redirections or pipes
             if [[ "$commands" == *">"* ]] || [[ "$commands" == *">>"* ]] || [[ "$commands" == *"|"* ]] || [[ "$commands" == *"&&"* ]] || [[ "$commands" == *"||"* ]]; then
-                # Wrap complex commands in sh -c to ensure proper sudo context for redirections
-                final_commands="sudo sh -c \"$commands\""
+                # Wrap complex commands in bash -c to ensure proper sudo context for redirections
+                final_commands="sudo bash -c \"$commands\""
             else
                 final_commands="sudo $commands"
             fi
@@ -979,8 +979,8 @@ remote_exec() {
         if [[ "$commands" != sudo* ]]; then
             # Check if command contains shell redirections or pipes
             if [[ "$commands" == *">"* ]] || [[ "$commands" == *">>"* ]] || [[ "$commands" == *"|"* ]] || [[ "$commands" == *"&&"* ]] || [[ "$commands" == *"||"* ]]; then
-                # Wrap complex commands in sh -c to ensure proper sudo context for redirections
-                final_commands="sudo sh -c \"$commands\""
+                # Wrap complex commands in bash -c to ensure proper sudo context for redirections
+                final_commands="sudo bash -c \"$commands\""
             else
                 final_commands="sudo $commands"
             fi
@@ -7350,8 +7350,8 @@ EOYAML
 
   log_step "4" "Installing CA certificate to system trust store"
   # Extract CA certificate using proper shell command with redirection handling
-  # Fixed: Wrap in 'sh -c' to ensure redirection works with execute_with_suppression 
-  if execute_with_suppression sh -c 'kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r ".data[\"tls.crt\"]" | base64 -d > /usr/local/share/ca-certificates/issuer.crt'; then
+  # Fixed: Wrap in 'bash -c' to ensure redirection works with execute_with_suppression 
+  if execute_with_suppression bash -c 'kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r ".data[\"tls.crt\"]" | base64 -d > /usr/local/share/ca-certificates/issuer.crt'; then
     log_success "CA certificate extracted from Kubernetes secret"
   else
     log_error "Failed to extract CA certificate"
@@ -8740,8 +8740,8 @@ genRegistryPassword(){
 
   # Backup credentials to local files (in case you'll forget them later on)
   if execute_with_suppression mkdir -p ${DESTINATION_FOLDER} && \
-     execute_with_suppression sh -c "echo '${REGISTRY_USER}' > ${DESTINATION_FOLDER}/registry-user.txt" && \
-     execute_with_suppression sh -c "echo '${REGISTRY_PASS}' > ${DESTINATION_FOLDER}/registry-pass.txt"; then
+     execute_with_suppression bash -c "echo '${REGISTRY_USER}' > ${DESTINATION_FOLDER}/registry-user.txt" && \
+     execute_with_suppression bash -c "echo '${REGISTRY_PASS}' > ${DESTINATION_FOLDER}/registry-pass.txt"; then
     log_success "Registry credentials backed up to local files"
   else
     log_error "Failed to backup registry credentials"
@@ -9965,13 +9965,16 @@ installRegistryWithCertMgr(){
   fi
   
   # Extract CA certificate from cert-manager secret
-  # Fixed: Wrap in 'sh -c' to ensure redirection works with execute_with_suppression
+  # Use mktemp for proper temporary file handling with permissions
   local secret_name="$(registrySubdomain)-$(sedRootDomain)"
-  if execute_with_suppression sh -c "kubectl get secret '$secret_name' -n registry -o jsonpath='{.data.ca\.crt}' | base64 --decode > /tmp/registry-ca.crt" && \
-     execute_with_suppression cp /tmp/registry-ca.crt "$cert_dir/ca.crt" && \
-     [[ -s "$cert_dir/ca.crt" ]]; then
+  local temp_cert=$(mktemp)
+  if kubectl get secret "$secret_name" -n registry -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 --decode > "$temp_cert" && \
+     [[ -s "$temp_cert" ]] && \
+     execute_with_suppression cp "$temp_cert" "$cert_dir/ca.crt"; then
     log_success "Registry CA certificate installed to Docker trust store ($(stat -c%s "$cert_dir/ca.crt") bytes)"
+    rm -f "$temp_cert"
   else
+    rm -f "$temp_cert"
     log_warning "Failed to extract CA certificate from secret, trying alternative approach..."
     # Fallback: look for certificate in ingress controller or containerd
     local alt_cert_path=""
@@ -9985,11 +9988,14 @@ installRegistryWithCertMgr(){
     if [[ -n "$alt_cert_path" ]] && [[ -f "$alt_cert_path" ]]; then
       log_info "Found alternative certificate path: $alt_cert_path"
       # Extract CA from certificate chain (usually the second certificate)
-      if execute_with_suppression tail -n +$(($(grep -n 'END CERTIFICATE' "$alt_cert_path" | head -1 | cut -d: -f1) + 1)) "$alt_cert_path" > /tmp/registry-ca-alt.crt && \
-         execute_with_suppression cp /tmp/registry-ca-alt.crt "$cert_dir/ca.crt" && \
-         [[ -s "$cert_dir/ca.crt" ]]; then
+      local temp_alt_cert=$(mktemp)
+      if tail -n +$(($(grep -n 'END CERTIFICATE' "$alt_cert_path" | head -1 | cut -d: -f1) + 1)) "$alt_cert_path" > "$temp_alt_cert" 2>/dev/null && \
+         [[ -s "$temp_alt_cert" ]] && \
+         execute_with_suppression cp "$temp_alt_cert" "$cert_dir/ca.crt"; then
         log_success "Registry CA certificate extracted from alternative source ($(stat -c%s "$cert_dir/ca.crt") bytes)"
+        rm -f "$temp_alt_cert"
       else
+        rm -f "$temp_alt_cert"
         log_error "Failed to extract CA certificate from alternative source"
         return 1
       fi
@@ -10379,9 +10385,11 @@ createUserGroup(){
   copySecret ldapsecret ldap default
   updateLdapConfig "ldap://ldap.ldap.svc.cloud.uat" "$BASE_DN"
 
-  cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/${script_name} /tmp/user_script.sh
+  local temp_script=$(mktemp)
+  cp ${MOUNT_PATH}/kubernetes/install_k8s/ldap/${script_name} "$temp_script"
 
-  kubectl create configmap user-script --from-file=/tmp/user_script.sh -n default
+  kubectl create configmap user-script --from-file="$temp_script" -n default
+  rm -f "$temp_script"
   
   # Apply the Job
   kubectl apply -f ${MOUNT_PATH}/kubernetes/install_k8s/gokutil/job.yaml
@@ -14603,7 +14611,8 @@ setup_gok_completion() {
   echo "Setting up GOK tab completion..."
   
   # Extract just the completion function to a separate file
-  cat > /tmp/gok_completion << 'COMPLETION_EOF'
+  local temp_completion=$(mktemp)
+  cat > "$temp_completion" << 'COMPLETION_EOF'
 # GOK Bash Completion
 _gok_completion() {
   local cur prev opts base
@@ -14662,25 +14671,29 @@ COMPLETION_EOF
 
   # Try to install system-wide first (requires sudo)
   if [[ -w "$completion_dir" ]] || sudo -n true 2>/dev/null; then
-    if sudo cp /tmp/gok_completion "$completion_file" 2>/dev/null; then
+    if sudo cp "$temp_completion" "$completion_file" 2>/dev/null; then
       echo "✅ System-wide completion installed at $completion_file"
     else
       echo "⚠️  Could not install system-wide completion"
     fi
   fi
   
-  # Install user-specific completion
-  if ! grep -q "source.*gok_completion\|_gok_completion" "$user_bashrc" 2>/dev/null; then
-    echo "" >> "$user_bashrc"
-    echo "# GOK tab completion" >> "$user_bashrc"
-    echo "source /tmp/gok_completion 2>/dev/null || true" >> "$user_bashrc"
-    echo "✅ User completion added to $user_bashrc"
-  else
-    echo "ℹ️  Completion already configured in $user_bashrc"
+  # Install user-specific completion if system-wide failed
+  if [[ ! -f "$completion_file" ]]; then
+    local user_completion="$HOME/.gok_completion"
+    if ! grep -q "source.*gok_completion\|_gok_completion" "$user_bashrc" 2>/dev/null; then
+      cp "$temp_completion" "$user_completion"
+      echo "" >> "$user_bashrc"
+      echo "# GOK tab completion" >> "$user_bashrc"
+      echo "source \"$user_completion\" 2>/dev/null || true" >> "$user_bashrc"
+      echo "✅ User completion added to $user_bashrc ($user_completion)"
+    else
+      echo "ℹ️  Completion already configured in $user_bashrc"
+    fi
   fi
   
   # Enable for current session
-  source /tmp/gok_completion
+  source "$temp_completion"
   echo "✅ Tab completion enabled for current session!"
   echo ""
   echo "💡 Usage examples:"
@@ -14691,7 +14704,7 @@ COMPLETION_EOF
   echo ""
   echo "🔄 Restart your terminal or run 'source ~/.bashrc' to enable permanently"
   
-  rm -f /tmp/gok_completion
+  rm -f "$temp_completion"
 }
 
 # =============================================================================
