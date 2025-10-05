@@ -501,7 +501,7 @@ kubectl_with_summary() {
     local temp_file=$(mktemp)
     local error_file=$(mktemp)
     
-    if kubectl "$operation" "$@" >"$temp_file" 2>"$error_file"; then
+    if kubectl "$operation" "$resource_type" "$@" >"$temp_file" 2>"$error_file"; then
         case "$operation" in
             "apply"|"create")
                 log_success "Successfully applied $resource_type"
