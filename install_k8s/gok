@@ -3844,9 +3844,13 @@ getpod() {
 : ${GOK_UPDATE_CACHE_HOURS:=6}  # Cache system updates for 6 hours by default
 : ${GOK_CACHE_DIR:=/tmp/gok-cache}
 
-# Function to check if verbose mode is enabled
+# Function to check if verbose mode is enabled (checks all args)
 is_verbose_mode() {
-    [[ "$GOK_VERBOSE" == "true" ]] || [[ "$1" == "--verbose" ]] || [[ "$1" == "-v" ]]
+  if [[ "$GOK_VERBOSE" == "true" ]]; then return 0; fi
+  for arg in "$@"; do
+    [[ "$arg" == "--verbose" || "$arg" == "-v" ]] && return 0
+  done
+  return 1
 }
 
 # Function to check if system update cache is still valid
@@ -11510,18 +11514,32 @@ keycloakInst(){
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID:-gok-developers-client}): " "${OIDC_CLIENT_ID:-gok-developers-client}")
   REALM=$(promptUserInput "Please enter realm name (${REALM:-GokDevelopers}): " "${REALM:-GokDevelopers}")
   
-  # Create secrets for Keycloak and PostgreSQL
-  execute_with_suppression kubectl create secret generic keycloak-secrets \
-    --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-    --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
-    --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-    --from-literal=OAUTH_REALM="${REALM}" \
-    --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
 
-  execute_with_suppression kubectl create secret generic keycloak-postgresql \
-    --from-literal=username="${POSTGRESQL_USERNAME}" \
-    --from-literal=password="${POSTGRESQL_PASSWORD}" \
-    --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
+  if is_verbose_mode "$@"; then
+    kubectl create secret generic keycloak-secrets \
+      --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+      --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
+      --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
+      --from-literal=OAUTH_REALM="${REALM}" \
+      --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
+
+    kubectl create secret generic keycloak-postgresql \
+      --from-literal=username="${POSTGRESQL_USERNAME}" \
+      --from-literal=password="${POSTGRESQL_PASSWORD}" \
+      --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
+  else
+    execute_with_suppression kubectl create secret generic keycloak-secrets \
+      --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+      --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
+      --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
+      --from-literal=OAUTH_REALM="${REALM}" \
+      --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
+
+    execute_with_suppression kubectl create secret generic keycloak-postgresql \
+      --from-literal=username="${POSTGRESQL_USERNAME}" \
+      --from-literal=password="${POSTGRESQL_PASSWORD}" \
+      --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
+  fi
 
   # Deploy PostgreSQL for Keycloak
   log_substep "Deploying PostgreSQL database for Keycloak..."
@@ -11550,14 +11568,26 @@ keycloakInst(){
   # Install Keycloak via codecentric/keycloakx Helm chart
   local hostname="$(subDomain 'keycloak').$(rootDomain)"
 
-  if helm_install_with_summary "keycloak" "keycloak" \
-    keycloak codecentric/keycloakx \
-        --namespace keycloak \
-        --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml; then
-    return 0
+  if is_verbose_mode "$@"; then
+    helm upgrade --install keycloak codecentric/keycloakx \
+      --namespace keycloak \
+      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml
+    if [[ $? -eq 0 ]]; then
+      return 0
+    else
+      log_error "Keycloak helm installation failed"
+      return 1
+    fi
   else
-    log_error "Keycloak helm installation failed"
-    return 1
+    if helm_install_with_summary "keycloak" "keycloak" \
+      keycloak codecentric/keycloakx \
+      --namespace keycloak \
+      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml; then
+      return 0
+    else
+      log_error "Keycloak helm installation failed"
+      return 1
+    fi
   fi
 }
 
