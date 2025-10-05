@@ -2300,14 +2300,22 @@ spec:
   - test.example.com
 EOF
     
-    # Wait a moment and check if certificate was processed
-    sleep 10
-    if kubectl get certificate test-certificate -o jsonpath='{.status.conditions[0].type}' 2>/dev/null | grep -q "Ready"; then
+    # Wait for certificate to be processed (increased timeout for stability)
+    sleep 15
+    
+    # Check certificate status with debug information
+    local cert_status=$(kubectl get certificate test-certificate -o jsonpath='{.status.conditions[0].type}' 2>/dev/null)
+    
+    if [[ "$cert_status" == "Ready" ]]; then
         log_success "Cert-manager is functioning correctly"
         kubectl delete certificate test-certificate >/dev/null 2>&1
         kubectl delete secret test-certificate-secret >/dev/null 2>&1
     else
         log_warning "Cert-manager test certificate creation needs verification"
+        log_info "Certificate status: '$cert_status' (expected: 'Ready')"
+        # Clean up failed certificate
+        kubectl delete certificate test-certificate >/dev/null 2>&1
+        kubectl delete secret test-certificate-secret >/dev/null 2>&1
     fi
     
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
@@ -15120,15 +15128,37 @@ remote() {
       remote_install_gok "${2:-all}"
       ;;
     copy)
-      if [[ -z "$2" || -z "$3" || -z "$4" ]]; then
-        echo "Usage: gok remote copy <alias> <local_file> <remote_path>"
+      # Support both alias-based copy and default remote copy
+      if [[ -n "$4" ]]; then
+        # Full syntax: gok remote copy <alias> <local_file> <remote_path>
+        remote_copy "$2" "$3" "$4"
+      elif [[ -n "$2" ]]; then
+        # Default remote syntax: gok remote copy <local_file> [remote_path]
+        if ! load_default_remote_config; then
+          log_error "No default remote configuration found!"
+          echo ""
+          echo "Please set up your default remote host first:"
+          echo "  gok remote setup <host> <user> [key_file]"
+          exit 1
+        fi
+        
+        local local_file="$2"
+        local remote_path="${3:-~/$(basename "$local_file")}"
+        
+        log_info "Copying $local_file to default remote ($DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST):$remote_path"
+        
+        scp -i "$DEFAULT_REMOTE_KEY" -o StrictHostKeyChecking=no \
+            "$local_file" "$DEFAULT_REMOTE_USER@$DEFAULT_REMOTE_HOST:$remote_path"
+      else
+        echo "Usage: gok remote copy <local_file> [remote_path]"
+        echo "   or: gok remote copy <alias> <local_file> <remote_path>"
         echo ""
         echo "Examples:"
-        echo "  gok remote copy master ./script.sh /tmp/script.sh"
-        echo "  gok remote copy node1 ./config.yaml /etc/app/config.yaml"
+        echo "  gok remote copy ./script.sh                                   # Copy to default remote home"
+        echo "  gok remote copy ./script.sh /tmp/script.sh                    # Copy to specific path"
+        echo "  gok remote copy master ./config.yaml /etc/app/config.yaml    # Copy to specific alias"
         exit 1
       fi
-      remote_copy "$2" "$3" "$4"
       ;;
     setup-ssh|setup-keys)
       local key_file="${2:-$HOME/.ssh/id_rsa}"
@@ -15247,14 +15277,29 @@ remote() {
       echo "      gok remote exec 10.0.0.244:sumit \"ls\"        # Auto-setup sumit@10.0.0.244"
       echo "      gok remote exec all \"systemctl status docker\" # Run on all configured hosts"
       echo ""
-      echo "📋 All Commands:"
+      echo "� COPY COMMAND:"
+      echo ""
+      echo "  gok remote copy <filename> [remote_path]         # Copy to default remote"
+      echo "  gok remote copy <alias> <file> <remote_path>     # Copy to specific alias"
+      echo ""
+      echo "    Simple Usage (after setup):"
+      echo "      gok remote copy script.sh                    # Copy to default remote home"
+      echo "      gok remote copy config.yaml /etc/           # Copy to /etc/ on default remote"
+      echo "      gok remote copy ./local/file.txt            # Copy local file to remote home"
+      echo ""
+      echo "    Advanced Usage with aliases:"
+      echo "      gok remote copy master script.sh /tmp/      # Copy to /tmp/ on master alias"
+      echo "      gok remote copy node1 config.yaml /etc/app/ # Copy to specific path on node1"
+      echo ""
+      echo "�📋 All Commands:"
       echo "  gok remote add <alias> <host> [user] [key_file]   # Add remote host alias"
       echo "  gok remote list                                   # Show configured hosts"
       echo "  gok remote exec \"<command>\"                       # Execute on default remote"
       echo "  gok remote exec <alias> \"<command>\"              # Execute on specific alias"  
       echo "  gok remote test-connection <alias>               # Test SSH connection"
       echo "  gok remote status [alias]                        # Show system status"
-      echo "  gok remote copy <alias> <local_file> <remote_path> # Copy file"
+      echo "  gok remote copy <filename> [remote_path]         # Copy file to default remote"
+      echo "  gok remote copy <alias> <local_file> <remote_path> # Copy file to specific alias"
       echo "  gok remote install-gok [alias]                   # Install GOK remotely"
       echo ""
       echo "� SSH Management:"
@@ -15269,6 +15314,7 @@ remote() {
       echo "  gok remote exec master 'kubectl get nodes'       # Run kubectl on master"
       echo "  gok remote exec all 'docker ps'                  # Run docker on all hosts"
       echo "  gok remote status                                 # Check all host status"
+      echo "  gok remote copy ./script.sh /tmp/                # Copy to default remote"
       echo "  gok remote copy master ./script.sh /tmp/         # Copy script to master"
       echo ""
       echo "💡 Auto-Setup Features:"
