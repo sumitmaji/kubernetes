@@ -5245,68 +5245,8 @@ baseInst(){
   
   log_step "3" "Building and installing base platform components"
   
-  # Start build with progress indication
-  local build_steps=5
-  log_progress 1 $build_steps "Preparing build environment"
-  sleep 0.5
-  
-  log_progress 2 $build_steps "Analyzing build dependencies"
-  sleep 0.5
-  
-  log_progress 3 $build_steps "Compiling base components"
-  
-  # Execute the actual build in background to show progress
-  local temp_build_log=$(mktemp)
-  local temp_build_error=$(mktemp)
-  
-  # Start the build process in background
-  ./build.sh >"$temp_build_log" 2>"$temp_build_error" &
-  local build_pid=$!
-  
-  # Show progress while build is running
-  local progress_counter=3
-  while kill -0 $build_pid 2>/dev/null; do
-    if [[ $progress_counter -lt $build_steps ]]; then
-      progress_counter=$((progress_counter + 1))
-      case $progress_counter in
-        4) log_progress 4 $build_steps "Installing base platform components" ;;
-        5) log_progress 5 $build_steps "Finalizing base installation" ;;
-      esac
-    fi
-    sleep 1
-  done
-  
-  # Wait for build to complete and get exit code
-  wait $build_pid
-  local build_exit_code=$?
-  
-  # Complete progress bar
-  log_progress $build_steps $build_steps "Base platform build completed"
-  
-  # Check build result
-  if [[ $build_exit_code -eq 0 ]]; then
-    log_success "Base platform components built successfully"
-    if is_verbose_mode; then
-      echo -e "${COLOR_DIM}Build output:${COLOR_RESET}"
-      cat "$temp_build_log"
-    fi
-  else
-    log_error "Base platform build failed"
-    echo -e "${COLOR_RED}${COLOR_BOLD}Build Error Details:${COLOR_RESET}" >&2
-    if [[ -s "$temp_build_error" ]]; then
-      cat "$temp_build_error" >&2
-    fi
-    if [[ -s "$temp_build_log" ]]; then
-      echo -e "${COLOR_YELLOW}Build Output:${COLOR_RESET}" >&2
-      cat "$temp_build_log" >&2
-    fi
-    rm -f "$temp_build_log" "$temp_build_error"
-    popd || true
-    return 1
-  fi
-  
-  # Clean up temporary files
-  rm -f "$temp_build_log" "$temp_build_error"
+  # Enhanced build with detailed progress tracking
+  build_base_platform_with_progress
   
   log_step "4" "Completing base installation"
   if execute_with_suppression popd; then
@@ -5328,6 +5268,200 @@ baseInst(){
   
   show_installation_summary "base" "base" "Base platform services and infrastructure"
   log_component_success "base-install" "Base platform services installed successfully"
+}
+
+# Enhanced base platform build with detailed progress tracking
+build_base_platform_with_progress() {
+  local start_time=$(date +%s)
+  
+  # Source configuration to get image details
+  if [[ ! -f "configuration" ]]; then
+    log_error "Configuration file not found in base directory"
+    return 1
+  fi
+  
+  source configuration
+  source "$MOUNT_PATH/kubernetes/install_k8s/util" 2>/dev/null || true
+  
+  # Get registry information
+  local registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
+  local image_name="${IMAGE_NAME:-gok-base}"
+  local repo_name="${REPO_NAME:-gok-base}"
+  local full_image_url="${registry_url}/${repo_name}"
+  
+  log_substep "Registry: ${COLOR_CYAN}${registry_url}${COLOR_RESET}"
+  log_substep "Image: ${COLOR_CYAN}${image_name}${COLOR_RESET}"
+  log_substep "Target: ${COLOR_CYAN}${full_image_url}${COLOR_RESET}"
+  
+  # Step 1: Docker Build with Progress
+  log_info "🐳 Building Docker image: ${COLOR_BOLD}${image_name}${COLOR_RESET}"
+  
+  local temp_build_log=$(mktemp)
+  local temp_build_error=$(mktemp)
+  
+  # Start Docker build in background
+  docker build --build-arg REGISTRY="$registry_url" -t "$image_name" . >"$temp_build_log" 2>"$temp_build_error" &
+  local build_pid=$!
+  
+  # Show build progress
+  local build_progress=0
+  local build_steps=8
+  local spinner_chars="|/-\\"
+  local spinner_idx=0
+  
+  while kill -0 $build_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    build_progress=$(( (build_progress + 1) % (build_steps * 10) ))
+    local progress_percent=$(( build_progress * 100 / (build_steps * 10) ))
+    
+    printf "\r${COLOR_BLUE}  Building image [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}Compiling base platform components${COLOR_RESET}" "$char" "$progress_percent"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.3
+  done
+  
+  wait $build_pid
+  local build_exit_code=$?
+  
+  if [[ $build_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ Docker build completed [100%%]${COLOR_RESET}\n"
+    log_success "Docker image built successfully: ${image_name}"
+  else
+    printf "\r${COLOR_RED}  ✗ Docker build failed${COLOR_RESET}\n"
+    log_error "Docker build failed - error details:"
+    if [[ -s "$temp_build_error" ]]; then
+      cat "$temp_build_error" >&2
+    fi
+    rm -f "$temp_build_log" "$temp_build_error"
+    return 1
+  fi
+  
+  # Step 2: Docker Tag
+  log_info "🏷️  Tagging image for registry: ${COLOR_BOLD}${full_image_url}${COLOR_RESET}"
+  if docker tag "$image_name" "$full_image_url" >/dev/null 2>&1; then
+    log_success "Image tagged successfully"
+  else
+    log_error "Failed to tag Docker image"
+    rm -f "$temp_build_log" "$temp_build_error"
+    return 1
+  fi
+  
+  # Step 3: Docker Push with Progress
+  log_info "📤 Pushing to registry: ${COLOR_BOLD}${registry_url}${COLOR_RESET}"
+  log_substep "Target repository: ${COLOR_CYAN}${repo_name}${COLOR_RESET}"
+  
+  # Start Docker push in background
+  docker push "$full_image_url" >"$temp_build_log" 2>"$temp_build_error" &
+  local push_pid=$!
+  
+  # Show push progress
+  local push_progress=0
+  local push_steps=6
+  local push_stage="Preparing"
+  
+  while kill -0 $push_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    push_progress=$(( (push_progress + 1) % (push_steps * 15) ))
+    local progress_percent=$(( push_progress * 100 / (push_steps * 15) ))
+    
+    # Update stage based on progress
+    case $((push_progress / 15)) in
+      0) push_stage="Preparing layers" ;;
+      1) push_stage="Uploading base layer" ;;
+      2) push_stage="Uploading dependencies" ;;
+      3) push_stage="Uploading scripts" ;;
+      4) push_stage="Uploading config" ;;
+      5) push_stage="Finalizing push" ;;
+    esac
+    
+    printf "\r${COLOR_MAGENTA}  Pushing to registry [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$push_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.4
+  done
+  
+  wait $push_pid
+  local push_exit_code=$?
+  
+  if [[ $push_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ Push completed [100%%] - Image available at ${COLOR_BOLD}${full_image_url}${COLOR_RESET}\n"
+    log_success "Image pushed successfully to registry"
+  else
+    printf "\r${COLOR_RED}  ✗ Push failed${COLOR_RESET}\n"
+    log_error "Docker push failed - error details:"
+    if [[ -s "$temp_build_error" ]]; then
+      cat "$temp_build_error" >&2
+    fi
+    rm -f "$temp_build_log" "$temp_build_error"
+    return 1
+  fi
+  
+  # Clean up temporary files
+  rm -f "$temp_build_log" "$temp_build_error"
+  
+  # Build completion summary
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  log_success "Base platform build completed in ${duration}s"
+  
+  # Show Dockerfile summary
+  show_dockerfile_summary
+  
+  return 0
+}
+
+# Show comprehensive Dockerfile summary after build completion
+show_dockerfile_summary() {
+  log_info "📋 Base Platform Dockerfile Summary"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🐳 Base Platform Container Details${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Base Image:${COLOR_RESET}"
+  echo -e "  📦 ${COLOR_GREEN}ubuntu:trusty${COLOR_RESET} - Ubuntu 14.04 LTS (Trusty Tahr)"
+  echo -e "     ${COLOR_DIM}• Stable, long-term support base system${COLOR_RESET}"
+  echo -e "     ${COLOR_DIM}• Optimized for containerized environments${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Installed System Tools:${COLOR_RESET}"
+  echo -e "  🔧 ${COLOR_GREEN}openssh-server & openssh-client${COLOR_RESET} - SSH connectivity and remote access"
+  echo -e "  🌐 ${COLOR_GREEN}net-tools${COLOR_RESET} - Network utilities (ifconfig, netstat, route)"
+  echo -e "  📡 ${COLOR_GREEN}iputils-ping${COLOR_RESET} - Network connectivity testing (ping command)"
+  echo -e "  📥 ${COLOR_GREEN}curl${COLOR_RESET} - HTTP/HTTPS data transfer and API communication"
+  echo -e "  📥 ${COLOR_GREEN}wget${COLOR_RESET} - File downloading and web content retrieval"
+  echo -e "  🐍 ${COLOR_GREEN}python${COLOR_RESET} - Python runtime for scripting and automation"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Container Structure:${COLOR_RESET}"
+  echo -e "  📁 ${COLOR_CYAN}/container/scripts/${COLOR_RESET} - Platform initialization and setup scripts"
+  echo -e "  📁 ${COLOR_CYAN}/usr/local/repository${COLOR_RESET} - Volume mount for persistent data"
+  echo -e "     ${COLOR_DIM}• Houses GOK platform configuration and state${COLOR_RESET}"
+  echo -e "     ${COLOR_DIM}• Shared across container lifecycle${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Container Features:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Minimal footprint${COLOR_RESET} - Optimized package selection with cleanup"
+  echo -e "  ✅ ${COLOR_GREEN}Network-ready${COLOR_RESET} - Full networking stack for service communication"
+  echo -e "  ✅ ${COLOR_GREEN}SSH-enabled${COLOR_RESET} - Remote access and management capabilities"
+  echo -e "  ✅ ${COLOR_GREEN}Script automation${COLOR_RESET} - Custom setup and initialization scripts"
+  echo -e "  ✅ ${COLOR_GREEN}Persistent storage${COLOR_RESET} - Volume support for data persistence"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Use Cases:${COLOR_RESET}"
+  echo -e "  🎯 ${COLOR_MAGENTA}Base platform services${COLOR_RESET} - Foundation for GOK platform components"
+  echo -e "  🎯 ${COLOR_MAGENTA}Development environment${COLOR_RESET} - Containerized development workspace"
+  echo -e "  🎯 ${COLOR_MAGENTA}CI/CD pipeline support${COLOR_RESET} - Build and deployment automation"
+  echo -e "  🎯 ${COLOR_MAGENTA}Microservice foundation${COLOR_RESET} - Starting point for custom services"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}💡 Container Benefits:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Consistent runtime environment across all deployments${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Pre-configured with essential system utilities${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Minimal attack surface with optimized package selection${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Ready for integration with Kubernetes and container orchestration${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Supports both development and production workloads${COLOR_RESET}"
+  echo
 }
 
 
