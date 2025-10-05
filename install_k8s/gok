@@ -11517,11 +11517,14 @@ keycloakInst(){
 
   if is_verbose_mode "$@"; then
     kubectl create secret generic keycloak-secrets \
-      --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-      --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
-      --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-      --from-literal=OAUTH_REALM="${REALM}" \
-      --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
+  --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+  --from-literal=KC_LOG_LEVEL="TRACE" \
+  --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
+  --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
+  --from-literal=OAUTH_REALM="${REALM}" \
+  --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
+  --from-literal=admin-user="${KEYCLOAK_ADMIN_USERNAME}" \
+  --from-literal=admin-password="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
 
     kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${POSTGRESQL_USERNAME}" \
@@ -11529,11 +11532,14 @@ keycloakInst(){
       --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
   else
     execute_with_suppression kubectl create secret generic keycloak-secrets \
-      --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
-      --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
-      --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
-      --from-literal=OAUTH_REALM="${REALM}" \
-      --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
+  --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+  --from-literal=KC_LOG_LEVEL="TRACE" \
+  --from-literal=KEYCLOAK_ADMIN="${KEYCLOAK_ADMIN_USERNAME}" \
+  --from-literal=CLIENT_ID="${OIDC_CLIENT_ID}" \
+  --from-literal=OAUTH_REALM="${REALM}" \
+  --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
+  --from-literal=admin-user="${KEYCLOAK_ADMIN_USERNAME}" \
+  --from-literal=admin-password="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
 
     execute_with_suppression kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${POSTGRESQL_USERNAME}" \
@@ -11620,7 +11626,8 @@ build_keycloak_with_progress() {
   # Create secrets in background with progress tracking
   (
     kubectl create secret generic keycloak-secrets \
-      --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+  --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
+  --from-literal=KC_LOG_LEVEL="TRACE" \
       --from-literal=KEYCLOAK_ADMIN="${keycloak_admin_username}" \
       --from-literal=CLIENT_ID="${oidc_client_id}" \
       --from-literal=OAUTH_REALM="${realm}" \

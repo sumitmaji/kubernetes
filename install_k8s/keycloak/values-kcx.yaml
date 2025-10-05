@@ -38,13 +38,9 @@ extraEnv: |
   - name: KC_CACHE
     value: "local"
 
-# Secrets for admin credentials (these will be mounted as env vars)
-secrets:
-  keycloak-secrets:
-    stringData:
-      KEYCLOAK_ADMIN: "admin"
-      KEYCLOAK_ADMIN_PASSWORD: "sumit"
-      KC_LOG_LEVEL: "TRACE"
+
+# Use existing secret for admin credentials (codecentric/keycloakx)
+existingSecret: keycloak-secrets
 
 # Replicas & resources (tune as you like)
 replicas: 1
