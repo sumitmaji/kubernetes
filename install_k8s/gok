@@ -5042,7 +5042,7 @@ resetChart(){
   emptyLocalFsStorage "ChartMuseum" "chart-pv" "chart-storage" "/data/volumes/chart-storage"
   
   log_step "3" "Removing namespace"
-  if kubectl_with_summary delete "namespace" namespace chartmuseum; then
+  if kubectl_with_summary delete "namespace" chartmuseum; then
     show_installation_summary "chartmuseum" "chartmuseum" "Helm chart repository removed"
     log_component_success "chartmuseum-reset" "ChartMuseum has been reset successfully"
   else
@@ -5065,7 +5065,7 @@ chartInst() {
   log_component_start "chartmuseum" "Installing ChartMuseum Helm repository"
   
   log_step "1" "Creating namespace and storage"
-  kubectl_with_summary create "namespace" create namespace chartmuseum || log_info "Namespace chartmuseum already exists"
+  kubectl_with_summary create "namespace" chartmuseum || log_info "Namespace chartmuseum already exists"
   createLocalStorageClassAndPV "chart-storage" "chart-pv" "/data/volumes/chart-storage"
 
   log_step "2" "Adding ChartMuseum Helm repository"
@@ -7617,7 +7617,7 @@ certManagerReset() {
   fi
   
   log_step "4" "Removing cert-manager namespace"
-  if kubectl_with_summary delete "namespace" namespace cert-manager; then
+  if kubectl_with_summary delete "namespace" cert-manager; then
     show_installation_summary "cert-manager" "cert-manager" "Certificate management system removed"
     log_component_success "cert-manager-reset" "cert-manager successfully removed from cluster"
   else
@@ -8015,7 +8015,7 @@ emptyLocalFsStorage() {
   # Clean up PVCs in namespace if specified
   if [[ -n $namespace ]]; then
     log_info "Removing persistent volume claims in namespace: $namespace"
-    if kubectl get pvc -n $namespace >/dev/null 2>&1; then
+    if kubectl get pvc -n $namespace --no-headers 2>/dev/null | grep -q .; then
       if kubectl_with_summary delete "pvc" --all -n $namespace; then
         log_success "Persistent volume claims removed from $namespace namespace"
       else
@@ -8029,7 +8029,7 @@ emptyLocalFsStorage() {
   # Clean up persistent volume
   log_info "Removing persistent volume: $pvName"
   if kubectl get pv $pvName >/dev/null 2>&1; then
-    if kubectl_with_summary delete "pv" $pvName; then
+    if kubectl_with_summary delete "pv" pv $pvName; then
       log_success "Persistent volume '$pvName' removed"
     else
       log_warning "Persistent volume '$pvName' removal had issues"
@@ -8041,7 +8041,7 @@ emptyLocalFsStorage() {
   # Clean up storage class
   log_info "Removing storage class: $scName"
   if kubectl get sc $scName >/dev/null 2>&1; then
-    if kubectl_with_summary delete "sc" $scName; then
+    if kubectl_with_summary delete "sc" sc $scName; then
       log_success "Storage class '$scName' removed"  
     else
       log_warning "Storage class '$scName' removal had issues"
@@ -8202,7 +8202,7 @@ prometheusGrafanaInst() {
 #    's/metricsBindAddress: 127.0.0.1:10249/metricsBindAddress: 0.0.0.0:10249' \
 #    kubectl apply -f -
 
-    if kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl_with_summary apply "kube-proxy config"; then
+    if kubectl -n kube-system get cm kube-proxy -o yaml | sed 's/metricsBindAddress: ""/metricsBindAddress: 0.0.0.0:10249/' | kubectl_with_summary apply "configmap" -f -; then
       log_success "kube-proxy metrics configured"
     fi
 
@@ -8533,7 +8533,7 @@ jenkinsInst() {
   execute_with_suppression helm repo update
   
   log_step "2" "Creating namespace and configuring secrets"
-  kubectl_with_summary create "namespace" create ns jenkins
+  kubectl_with_summary create "namespace" jenkins
 
   execute_with_suppression kubectl create configmap jenkins-logging-config \
   --from-file=${MOUNT_PATH}/kubernetes/install_k8s/jenkins/logging.properties \
@@ -8683,7 +8683,7 @@ resetDockerRegistry(){
     log_success "Registry storage cleaned up"
     
     log_step "4" "Removing registry namespace and resources"
-    if kubectl_with_summary delete "namespace" namespace registry; then
+    if kubectl_with_summary delete "namespace" registry; then
       log_success "Registry namespace and all resources removed"
     else
       log_warning "Registry namespace removal had issues"
@@ -9955,7 +9955,7 @@ keycloakInst(){
   #keycloak_adminpwd=$(promptSecret "Please enter keycloak admin pwd: ")
   
   log_step "1" "Creating namespace and collecting configuration"
-  kubectl_with_summary create "namespace" create ns keycloak
+  kubectl_with_summary create "namespace" keycloak
   
   : "${KEYCLOAK_ADMIN_USERNAME:=$(promptUserInput "Please enter keycloak admin username (admin): " "admin")}"
   : "${KEYCLOAK_ADMIN_PASSWORD:=$(promptSecret "Please enter keycloak admin password: ")}"
@@ -11188,7 +11188,7 @@ oauth2ProxyInst(){
   
   log_step "1" "Creating namespace and storage"
   createLocalStorageClassAndPV "oauth-storage" "oauth-pv" "/data/volumes/pv6"
-  kubectl_with_summary create "namespace" create ns oauth2
+  kubectl_with_summary create "namespace" oauth2
 
   log_step "2" "Configuring OAuth2 settings"
   OAUTH2_PROXY_CLIENT_ID=$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_ID)
@@ -11945,7 +11945,7 @@ kyvernoReset(){
   fi
   
   log_step "3" "Removing Kyverno namespace"
-  if kubectl_with_summary delete "namespace" namespace kyverno; then
+  if kubectl_with_summary delete "namespace" kyverno; then
     show_installation_summary "kyverno" "kyverno" "Policy engine and governance system removed"
     log_component_success "kyverno-reset" "Kyverno has been completely removed from the cluster"
   else
