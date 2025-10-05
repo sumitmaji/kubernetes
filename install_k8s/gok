@@ -2284,7 +2284,7 @@ validate_cert_manager() {
     fi
     
     log_step "3" "Testing cert-manager functionality"
-    # Create a test certificate
+    # Create a test certificate using the correct ClusterIssuer name
     cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -2294,7 +2294,7 @@ metadata:
 spec:
   secretName: test-certificate-secret
   issuerRef:
-    name: selfsigned-issuer
+    name: selfsigned-cluster-issuer
     kind: ClusterIssuer
   dnsNames:
   - test.example.com
