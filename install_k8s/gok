@@ -5218,9 +5218,23 @@ resetChart(){
 }
 
 baseInst(){
+  local start_time=$(date +%s)
+  
   log_component_start "base-install" "Installing base platform services and infrastructure"
   
-  log_step "1" "Preparing base installation directory"
+  log_step "1" "Updating system packages with smart caching"
+  if ! updateSys; then
+    log_error "Failed to update system packages"
+    return 1
+  fi
+  
+  log_step "2" "Installing dependencies with smart caching"
+  if ! installDeps; then
+    log_error "Failed to install base dependencies"
+    return 1
+  fi
+  
+  log_step "3" "Preparing base installation directory"
   local base_dir="$MOUNT_PATH/kubernetes/install_k8s/base"
   if [[ ! -d "$base_dir" ]]; then
     log_error "Base installation directory not found: $base_dir"
@@ -5234,7 +5248,7 @@ baseInst(){
     return 1
   fi
   
-  log_step "2" "Setting executable permissions for base scripts"
+  log_step "4" "Setting executable permissions for base scripts"
   if execute_with_suppression find . -type f -name "*.sh" -exec chmod +x {} \;; then
     log_success "Executable permissions set for base scripts"
   else
@@ -5243,31 +5257,50 @@ baseInst(){
     return 1
   fi
   
-  log_step "3" "Building and installing base platform components"
+  log_step "5" "Building and installing base platform components"
   
-  # Enhanced build with detailed progress tracking
+  # Enhanced build with detailed progress tracking and caching integration
   build_base_platform_with_progress
   
-  log_step "4" "Completing base installation"
+  log_step "6" "Validating base platform installation"
+  if validate_base_installation; then
+    log_success "Base platform installation validation completed"
+  else
+    log_warning "Base validation had issues but installation may still work"
+  fi
+
+  log_step "7" "Completing base installation cleanup"
   if execute_with_suppression popd; then
     log_success "Base installation directory cleanup completed"
   else
     log_warning "Directory cleanup had issues but installation completed"
   fi
   
-  # Create a marker to indicate base is installed
+  # Create a marker to indicate base is installed with additional metadata
   if kubectl get configmap base-config -n kube-system >/dev/null 2>&1; then
-    log_info "Base installation marker already exists"
+    log_info "Updating existing base installation marker"
+    execute_with_suppression kubectl patch configmap base-config -n kube-system --patch "{\"data\":{\"updated\":\"$(date)\",\"version\":\"enhanced\"}}"
   else
-    if execute_with_suppression kubectl create configmap base-config --from-literal=installed="$(date)" -n kube-system; then
-      log_success "Base installation marker created"
+    if execute_with_suppression kubectl create configmap base-config \
+      --from-literal=installed="$(date)" \
+      --from-literal=version="enhanced" \
+      --from-literal=caching-enabled="true" \
+      -n kube-system; then
+      log_success "Base installation marker created with metadata"
     else
       log_warning "Failed to create base installation marker (but installation completed successfully)"
     fi
   fi
+
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
   
   show_installation_summary "base" "base" "Base platform services and infrastructure"
   log_component_success "base-install" "Base platform services installed successfully"
+  log_success "Base platform installation completed in ${duration}s"
+  
+  # Show base-specific next steps and recommendations
+  show_base_next_steps
 }
 
 # Enhanced base platform build with detailed progress tracking
@@ -5293,42 +5326,71 @@ build_base_platform_with_progress() {
   log_substep "Image: ${COLOR_CYAN}${image_name}${COLOR_RESET}"
   log_substep "Target: ${COLOR_CYAN}${full_image_url}${COLOR_RESET}"
   
-  # Step 1: Docker Build with Progress
-  log_info "🐳 Building Docker image: ${COLOR_BOLD}${image_name}${COLOR_RESET}"
+  # Step 1: Docker Build with Enhanced Progress
+  log_info "🐳 Building base platform Docker image: ${COLOR_BOLD}${image_name}${COLOR_RESET}"
   
   local temp_build_log=$(mktemp)
   local temp_build_error=$(mktemp)
   
-  # Start Docker build in background
-  docker build --build-arg REGISTRY="$registry_url" -t "$image_name" . >"$temp_build_log" 2>"$temp_build_error" &
+  # Start Docker build in background with enhanced arguments
+  docker build \
+    --build-arg REGISTRY="$registry_url" \
+    --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+    --build-arg VERSION="enhanced" \
+    -t "$image_name" . >"$temp_build_log" 2>"$temp_build_error" &
   local build_pid=$!
   
-  # Show build progress
+  # Show build progress with base-specific stages
   local build_progress=0
-  local build_steps=8
+  local build_steps=10
   local spinner_chars="|/-\\"
   local spinner_idx=0
+  local build_stage="Initializing"
   
   while kill -0 $build_pid 2>/dev/null; do
     local char=${spinner_chars:spinner_idx:1}
-    build_progress=$(( (build_progress + 1) % (build_steps * 10) ))
-    local progress_percent=$(( build_progress * 100 / (build_steps * 10) ))
+    build_progress=$(( (build_progress + 1) % (build_steps * 8) ))
+    local progress_percent=$(( build_progress * 100 / (build_steps * 8) ))
     
-    printf "\r${COLOR_BLUE}  Building image [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}Compiling base platform components${COLOR_RESET}" "$char" "$progress_percent"
+    # Update stage based on progress
+    case $((build_progress / 8)) in
+      0) build_stage="Preparing Ubuntu base image" ;;
+      1) build_stage="Installing system utilities" ;;
+      2) build_stage="Setting up SSH server" ;;
+      3) build_stage="Installing network tools" ;;
+      4) build_stage="Adding Python runtime" ;;
+      5) build_stage="Installing curl and wget" ;;
+      6) build_stage="Copying platform scripts" ;;
+      7) build_stage="Setting up permissions" ;;
+      8) build_stage="Configuring volumes" ;;
+      9) build_stage="Finalizing base image" ;;
+    esac
+    
+    printf "\r${COLOR_BLUE}  Building base image [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$build_stage"
     
     spinner_idx=$(( (spinner_idx + 1) % 4 ))
-    sleep 0.3
+    sleep 0.4
   done
   
   wait $build_pid
   local build_exit_code=$?
   
   if [[ $build_exit_code -eq 0 ]]; then
-    printf "\r${COLOR_GREEN}  ✓ Docker build completed [100%%]${COLOR_RESET}\n"
-    log_success "Docker image built successfully: ${image_name}"
+    printf "\r${COLOR_GREEN}  ✓ Base platform Docker build completed [100%%]${COLOR_RESET}\n"
+    log_success "Base platform Docker image built successfully: ${image_name}"
+    
+    # Show warnings if present but don't fail
+    if is_verbose_mode && [[ -s "$temp_build_log" ]]; then
+      if grep -q "warning" "$temp_build_log"; then
+        log_info "Build warnings (non-critical):"
+        grep -i "warning" "$temp_build_log" | head -5 | while read line; do
+          log_warning "  $line"
+        done
+      fi
+    fi
   else
-    printf "\r${COLOR_RED}  ✗ Docker build failed${COLOR_RESET}\n"
-    log_error "Docker build failed - error details:"
+    printf "\r${COLOR_RED}  ✗ Base platform Docker build failed${COLOR_RESET}\n"
+    log_error "Base platform Docker build failed - error details:"
     if [[ -s "$temp_build_error" ]]; then
       cat "$temp_build_error" >&2
     fi
@@ -5346,35 +5408,37 @@ build_base_platform_with_progress() {
     return 1
   fi
   
-  # Step 3: Docker Push with Progress
-  log_info "📤 Pushing to registry: ${COLOR_BOLD}${registry_url}${COLOR_RESET}"
+  # Step 3: Docker Push with Enhanced Progress
+  log_info "📤 Pushing base platform image to registry: ${COLOR_BOLD}${registry_url}${COLOR_RESET}"
   log_substep "Target repository: ${COLOR_CYAN}${repo_name}${COLOR_RESET}"
   
   # Start Docker push in background
   docker push "$full_image_url" >"$temp_build_log" 2>"$temp_build_error" &
   local push_pid=$!
   
-  # Show push progress
+  # Show enhanced push progress with base-specific stages
   local push_progress=0
-  local push_steps=6
+  local push_steps=8
   local push_stage="Preparing"
   
   while kill -0 $push_pid 2>/dev/null; do
     local char=${spinner_chars:spinner_idx:1}
-    push_progress=$(( (push_progress + 1) % (push_steps * 15) ))
-    local progress_percent=$(( push_progress * 100 / (push_steps * 15) ))
+    push_progress=$(( (push_progress + 1) % (push_steps * 12) ))
+    local progress_percent=$(( push_progress * 100 / (push_steps * 12) ))
     
     # Update stage based on progress
-    case $((push_progress / 15)) in
-      0) push_stage="Preparing layers" ;;
-      1) push_stage="Uploading base layer" ;;
-      2) push_stage="Uploading dependencies" ;;
-      3) push_stage="Uploading scripts" ;;
-      4) push_stage="Uploading config" ;;
-      5) push_stage="Finalizing push" ;;
+    case $((push_progress / 12)) in
+      0) push_stage="Preparing base layers" ;;
+      1) push_stage="Uploading Ubuntu base" ;;
+      2) push_stage="Uploading system tools" ;;
+      3) push_stage="Uploading Python runtime" ;;
+      4) push_stage="Uploading platform scripts" ;;
+      5) push_stage="Uploading configurations" ;;
+      6) push_stage="Uploading final layers" ;;
+      7) push_stage="Finalizing push" ;;
     esac
     
-    printf "\r${COLOR_MAGENTA}  Pushing to registry [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$push_stage"
+    printf "\r${COLOR_MAGENTA}  Pushing base to registry [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$push_stage"
     
     spinner_idx=$(( (spinner_idx + 1) % 4 ))
     sleep 0.4
@@ -5384,13 +5448,18 @@ build_base_platform_with_progress() {
   local push_exit_code=$?
   
   if [[ $push_exit_code -eq 0 ]]; then
-    printf "\r${COLOR_GREEN}  ✓ Push completed [100%%] - Image available at ${COLOR_BOLD}${full_image_url}${COLOR_RESET}\n"
-    log_success "Image pushed successfully to registry"
+    printf "\r${COLOR_GREEN}  ✓ Base platform push completed [100%%] - Image available at ${COLOR_BOLD}${full_image_url}${COLOR_RESET}\n"
+    log_success "Base platform image pushed successfully to registry"
   else
-    printf "\r${COLOR_RED}  ✗ Push failed${COLOR_RESET}\n"
-    log_error "Docker push failed - error details:"
+    printf "\r${COLOR_RED}  ✗ Base platform push failed${COLOR_RESET}\n"
+    log_error "Base platform Docker push failed - error details:"
     if [[ -s "$temp_build_error" ]]; then
-      cat "$temp_build_error" >&2
+      if is_verbose_mode; then
+        cat "$temp_build_error" >&2
+      else
+        tail -10 "$temp_build_error" >&2
+        log_info "Use --verbose flag to see full push logs"
+      fi
     fi
     rm -f "$temp_build_log" "$temp_build_error"
     return 1
@@ -5462,6 +5531,113 @@ show_dockerfile_summary() {
   echo -e "${COLOR_GREEN}• Ready for integration with Kubernetes and container orchestration${COLOR_RESET}"
   echo -e "${COLOR_GREEN}• Supports both development and production workloads${COLOR_RESET}"
   echo
+}
+
+# Validate base platform installation
+validate_base_installation() {
+  log_info "Validating base platform installation..."
+  
+  # Check if base installation marker exists
+  if kubectl get configmap base-config -n kube-system >/dev/null 2>&1; then
+    log_success "Base platform installation marker found"
+    
+    # Check marker metadata
+    local version=$(kubectl get configmap base-config -n kube-system -o jsonpath='{.data.version}' 2>/dev/null || echo "unknown")
+    local caching=$(kubectl get configmap base-config -n kube-system -o jsonpath='{.data.caching-enabled}' 2>/dev/null || echo "false")
+    
+    if [[ "$version" == "enhanced" ]]; then
+      log_success "Base platform enhanced version confirmed"
+    else
+      log_info "Base platform version: ${version}"
+    fi
+    
+    if [[ "$caching" == "true" ]]; then
+      log_success "Smart caching enabled and operational"
+    else
+      log_info "Smart caching status: ${caching}"
+    fi
+  else
+    log_warning "Base platform installation marker not found"
+    return 1
+  fi
+  
+  # Check if Docker registry is accessible
+  local registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
+  if docker images | grep -q "gok-base"; then
+    log_success "Base platform Docker image found locally"
+  else
+    log_warning "Base platform Docker image not found locally"
+  fi
+  
+  # Check if caching directory exists and is working
+  if [[ -d "$GOK_CACHE_DIR" ]]; then
+    log_success "GOK cache directory operational"
+    
+    # Check cache effectiveness
+    if [[ -f "$GOK_CACHE_DIR/update_cache" ]]; then
+      local cache_age=$(stat -c %Y "$GOK_CACHE_DIR/update_cache" 2>/dev/null || echo 0)
+      local current_time=$(date +%s)
+      local hours_old=$(( (current_time - cache_age) / 3600 ))
+      
+      if [[ $hours_old -lt ${GOK_UPDATE_CACHE_HOURS:-6} ]]; then
+        log_success "System update cache is fresh (${hours_old}h old)"
+      else
+        log_info "System update cache is aging (${hours_old}h old)"
+      fi
+    fi
+  else
+    log_warning "GOK cache directory not found"
+  fi
+  
+  return 0
+}
+
+# Show base platform next steps and recommendations
+show_base_next_steps() {
+  echo
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 Base Platform Post-Installation Steps${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_MAGENTA}${COLOR_BOLD}Immediate Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  1. Verify Docker registry connectivity and image availability${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  2. Test smart caching system with other component installations${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  3. Configure additional registry repositories if needed${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  4. Set up persistent volume storage for platform data${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}🎯 Recommended Next Installation: Registry${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}Base platform provides the foundation - now add a container registry for image management!${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Why install Registry next?${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🗂️  Central container image storage and distribution${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔒 Secure, private registry for your platform images${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🚀 Faster deployments with local image caching${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔍 Image vulnerability scanning and management${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 📈 Scalable image distribution across your cluster${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Alternative Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_YELLOW}Core Infrastructure:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install registry${COLOR_RESET}        - Container registry for image management"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install cert-manager${COLOR_RESET}   - SSL certificate management"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install ingress${COLOR_RESET}        - Load balancing and routing"
+  echo
+  echo -e "${COLOR_YELLOW}Development Tools:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install jenkins${COLOR_RESET}        - CI/CD pipeline automation"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install argocd${COLOR_RESET}         - GitOps continuous deployment"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install console${COLOR_RESET}        - Web-based cluster management"
+  echo
+  echo -e "${COLOR_YELLOW}Authentication:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install ldap${COLOR_RESET}           - Directory services and user management"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install keycloak${COLOR_RESET}       - Modern identity and access management"
+  echo -e "${COLOR_CYAN}  • ${COLOR_BOLD}gok install oauth2${COLOR_RESET}         - OAuth2 proxy for authentication"
+  echo
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Install Registry now?${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  Command: ${COLOR_BOLD}gok install registry${COLOR_RESET}"
+  echo
+  
+  # Suggest and install Registry as the next logical step
+  suggest_and_install_next_module "base"
 }
 
 
