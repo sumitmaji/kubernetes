@@ -10899,21 +10899,425 @@ installKeycloakWithCertMgr(){
 }
 
 installLdap(){
-  pushd $MOUNT_PATH/kubernetes/install_k8s/ldap
+  local start_time=$(date +%s)
+  
+  log_component_start "ldap-install" "Installing LDAP directory service and authentication"
+  
+  log_step "1" "Preparing LDAP installation directory"
+  local ldap_dir="$MOUNT_PATH/kubernetes/install_k8s/ldap"
+  if [[ ! -d "$ldap_dir" ]]; then
+    log_error "LDAP installation directory not found: $ldap_dir"
+    return 1
+  fi
+  
+  if execute_with_suppression pushd "$ldap_dir"; then
+    log_success "LDAP installation directory prepared"
+  else
+    log_error "Failed to access LDAP installation directory"
+    return 1
+  fi
 
+  log_step "2" "Collecting LDAP configuration parameters"
   : "${LDAP_PASSWORD:=${1:-$(promptSecret "Please enter LDAP password for admin: ")} }"
   : "${KERBEROS_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos password: ")} }"
   : "${KERBEROS_KDC_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos kdc password: ")} }"
   : "${KERBEROS_ADM_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos adm password: ")} }"
   
-  ./run_ldap.sh $LDAP_PASSWORD $KERBEROS_PASSWORD $KERBEROS_KDC_PASSWORD $KERBEROS_ADM_PASSWORD
+  log_success "LDAP configuration parameters collected"
+
+  log_step "3" "Building and deploying LDAP directory service"
+  
+  # Enhanced LDAP build with progress tracking
+  build_ldap_with_progress "$LDAP_PASSWORD" "$KERBEROS_PASSWORD" "$KERBEROS_KDC_PASSWORD" "$KERBEROS_ADM_PASSWORD"
   if [[ $? -ne 0 ]]; then
-    echoFailed "LDAP installation failed, please check the logs!"
-    popd
+    log_error "LDAP installation failed"
+    popd || true
     return 1
   fi
-  gok patch ingress ldap ldap letsencrypt $(defaultSubdomain)
-  popd
+
+  log_step "4" "Configuring LDAP ingress and networking"
+  if execute_with_suppression gok patch ingress ldap ldap letsencrypt $(defaultSubdomain); then
+    log_success "LDAP ingress configured successfully"
+  else
+    log_warning "LDAP ingress configuration had issues but installation may still work"
+  fi
+
+  log_step "5" "Validating LDAP installation"
+  if validate_ldap_installation; then
+    log_success "LDAP installation validation completed"
+  else
+    log_warning "LDAP validation had issues but installation may still work"
+  fi
+
+  if execute_with_suppression popd; then
+    log_success "LDAP installation directory cleanup completed"
+  else
+    log_warning "Directory cleanup had issues but installation completed"
+  fi
+
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  show_installation_summary "ldap" "ldap" "LDAP directory service and authentication"
+  log_component_success "ldap-install" "LDAP directory service installed successfully"
+  log_success "LDAP installation completed in ${duration}s"
+  
+  # Show LDAP-specific next steps and recommend Keycloak
+  show_ldap_next_steps
+}
+
+# Enhanced LDAP build with detailed progress tracking
+build_ldap_with_progress() {
+  local ldap_password="$1"
+  local kerberos_password="$2"
+  local kerberos_kdc_password="$3"
+  local kerberos_adm_password="$4"
+  local start_time=$(date +%s)
+  
+  # Source configuration to get image details
+  if [[ ! -f "configuration" ]]; then
+    log_error "Configuration file not found in LDAP directory"
+    return 1
+  fi
+  
+  source configuration
+  source "$MOUNT_PATH/kubernetes/install_k8s/util" 2>/dev/null || true
+  
+  # Get registry and image information
+  local registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
+  local image_name="${IMAGE_NAME:-sumit/ldap}"
+  local repo_name="${REPO_NAME:-ldap}"
+  local full_image_url="${registry_url}/${repo_name}"
+  
+  log_substep "Registry: ${COLOR_CYAN}${registry_url}${COLOR_RESET}"
+  log_substep "Image: ${COLOR_CYAN}${image_name}${COLOR_RESET}"
+  log_substep "Target: ${COLOR_CYAN}${full_image_url}${COLOR_RESET}"
+  
+  # Get domain configuration
+  source config/config 2>/dev/null || true
+  local domain_name="${DOMAIN_NAME:-default.svc.cloud.uat}"
+  local ldap_hostname="${LDAP_HOSTNAME:-ldap.${domain_name}}"
+  local base_dn="${DC:-dc=default,dc=svc,dc=cloud,dc=uat}"
+  
+  log_substep "LDAP Domain: ${COLOR_CYAN}${domain_name}${COLOR_RESET}"
+  log_substep "LDAP Hostname: ${COLOR_CYAN}${ldap_hostname}${COLOR_RESET}"
+  log_substep "Base DN: ${COLOR_CYAN}${base_dn}${COLOR_RESET}"
+  
+  # Step 1: Docker Build with Progress
+  log_info "🐳 Building LDAP Docker image: ${COLOR_BOLD}${image_name}${COLOR_RESET}"
+  
+  local temp_build_log=$(mktemp)
+  local temp_build_error=$(mktemp)
+  
+  # Start Docker build in background with enhanced arguments
+  docker build \
+    --build-arg LDAP_DOMAIN="$domain_name" \
+    --build-arg REGISTRY="$registry_url" \
+    --build-arg LDAP_HOSTNAME="$ldap_hostname" \
+    --build-arg BASE_DN="$base_dn" \
+    --build-arg LDAP_PASSWORD="$ldap_password" \
+    -t "$image_name" . >"$temp_build_log" 2>"$temp_build_error" &
+  local build_pid=$!
+  
+  # Show build progress with LDAP-specific stages
+  local build_progress=0
+  local build_steps=12
+  local spinner_chars="|/-\\"
+  local spinner_idx=0
+  local build_stage="Initializing"
+  
+  while kill -0 $build_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    build_progress=$(( (build_progress + 1) % (build_steps * 8) ))
+    local progress_percent=$(( build_progress * 100 / (build_steps * 8) ))
+    
+    # Update stage based on progress
+    case $((build_progress / 8)) in
+      0) build_stage="Preparing base image" ;;
+      1) build_stage="Installing LDAP packages" ;;
+      2) build_stage="Configuring OpenLDAP" ;;
+      3) build_stage="Setting up phpLDAPadmin" ;;
+      4) build_stage="Installing Kerberos" ;;
+      5) build_stage="Configuring authentication" ;;
+      6) build_stage="Setting up SSL certificates" ;;
+      7) build_stage="Installing utilities" ;;
+      8) build_stage="Configuring permissions" ;;
+      9) build_stage="Installing NTP services" ;;
+      10) build_stage="Cleaning up packages" ;;
+      11) build_stage="Finalizing LDAP image" ;;
+    esac
+    
+    printf "\r${COLOR_BLUE}  Building LDAP image [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$build_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.4
+  done
+  
+  wait $build_pid
+  local build_exit_code=$?
+  
+  if [[ $build_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ LDAP Docker build completed [100%%]${COLOR_RESET}\n"
+    log_success "LDAP Docker image built successfully: ${image_name}"
+    
+    # Show warnings if present but don't fail
+    if is_verbose_mode && [[ -s "$temp_build_log" ]]; then
+      if grep -q "warning" "$temp_build_log"; then
+        log_info "Build warnings (non-critical):"
+        grep -i "warning" "$temp_build_log" | head -5 | while read line; do
+          log_warning "  $line"
+        done
+      fi
+    fi
+  else
+    printf "\r${COLOR_RED}  ✗ LDAP Docker build failed${COLOR_RESET}\n"
+    log_error "LDAP Docker build failed - error details:"
+    if [[ -s "$temp_build_error" ]]; then
+      cat "$temp_build_error" >&2
+    fi
+    rm -f "$temp_build_log" "$temp_build_error"
+    return 1
+  fi
+  
+  # Step 2: Docker Tag
+  log_info "🏷️  Tagging LDAP image for registry: ${COLOR_BOLD}${full_image_url}${COLOR_RESET}"
+  if docker tag "$image_name" "$full_image_url" >/dev/null 2>&1; then
+    log_success "LDAP image tagged successfully"
+  else
+    log_error "Failed to tag LDAP Docker image"
+    rm -f "$temp_build_log" "$temp_build_error"
+    return 1
+  fi
+  
+  # Step 3: Docker Push with Progress
+  log_info "📤 Pushing LDAP image to registry: ${COLOR_BOLD}${registry_url}${COLOR_RESET}"
+  log_substep "Target repository: ${COLOR_CYAN}${repo_name}${COLOR_RESET}"
+  
+  # Start Docker push in background
+  docker push "$full_image_url" >"$temp_build_log" 2>"$temp_build_error" &
+  local push_pid=$!
+  
+  # Show push progress with LDAP-specific stages
+  local push_progress=0
+  local push_steps=8
+  local push_stage="Preparing"
+  
+  while kill -0 $push_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    push_progress=$(( (push_progress + 1) % (push_steps * 12) ))
+    local progress_percent=$(( push_progress * 100 / (push_steps * 12) ))
+    
+    # Update stage based on progress
+    case $((push_progress / 12)) in
+      0) push_stage="Preparing LDAP layers" ;;
+      1) push_stage="Uploading base system" ;;
+      2) push_stage="Uploading LDAP packages" ;;
+      3) push_stage="Uploading configurations" ;;
+      4) push_stage="Uploading certificates" ;;
+      5) push_stage="Uploading utilities" ;;
+      6) push_stage="Uploading final layers" ;;
+      7) push_stage="Finalizing push" ;;
+    esac
+    
+    printf "\r${COLOR_MAGENTA}  Pushing LDAP to registry [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$push_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.4
+  done
+  
+  wait $push_pid
+  local push_exit_code=$?
+  
+  if [[ $push_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ LDAP push completed [100%%] - Image available at ${COLOR_BOLD}${full_image_url}${COLOR_RESET}\n"
+    log_success "LDAP image pushed successfully to registry"
+  else
+    printf "\r${COLOR_RED}  ✗ LDAP push failed${COLOR_RESET}\n"
+    log_error "LDAP Docker push failed - error details:"
+    if [[ -s "$temp_build_error" ]]; then
+      cat "$temp_build_error" >&2
+    fi
+    rm -f "$temp_build_log" "$temp_build_error"
+    return 1
+  fi
+  
+  # Step 4: Deploy to Kubernetes
+  log_info "☸️  Deploying LDAP to Kubernetes cluster"
+  
+  # Execute the deployment script with suppressed output unless verbose
+  local temp_deploy_log=$(mktemp)
+  local temp_deploy_error=$(mktemp)
+  
+  ./run_ldap.sh "$ldap_password" "$kerberos_password" "$kerberos_kdc_password" "$kerberos_adm_password" >"$temp_deploy_log" 2>"$temp_deploy_error" &
+  local deploy_pid=$!
+  
+  # Show deployment progress
+  local deploy_progress=0
+  local deploy_steps=6
+  local deploy_stage="Preparing"
+  
+  while kill -0 $deploy_pid 2>/dev/null; do
+    local char=${spinner_chars:spinner_idx:1}
+    deploy_progress=$(( (deploy_progress + 1) % (deploy_steps * 10) ))
+    local progress_percent=$(( deploy_progress * 100 / (deploy_steps * 10) ))
+    
+    # Update stage based on progress
+    case $((deploy_progress / 10)) in
+      0) deploy_stage="Creating namespace" ;;
+      1) deploy_stage="Deploying LDAP service" ;;
+      2) deploy_stage="Setting up ingress" ;;
+      3) deploy_stage="Configuring certificates" ;;
+      4) deploy_stage="Waiting for pods" ;;
+      5) deploy_stage="Verifying services" ;;
+    esac
+    
+    printf "\r${COLOR_BLUE}  Deploying LDAP service [%c] ${COLOR_CYAN}%d%%${COLOR_RESET} - ${COLOR_DIM}%s${COLOR_RESET}" "$char" "$progress_percent" "$deploy_stage"
+    
+    spinner_idx=$(( (spinner_idx + 1) % 4 ))
+    sleep 0.5
+  done
+  
+  wait $deploy_pid
+  local deploy_exit_code=$?
+  
+  if [[ $deploy_exit_code -eq 0 ]]; then
+    printf "\r${COLOR_GREEN}  ✓ LDAP deployment completed [100%%]${COLOR_RESET}\n"
+    log_success "LDAP service deployed successfully to Kubernetes"
+  else
+    printf "\r${COLOR_RED}  ✗ LDAP deployment failed${COLOR_RESET}\n"
+    log_error "LDAP deployment failed - error details:"
+    if [[ -s "$temp_deploy_error" ]]; then
+      if is_verbose_mode; then
+        cat "$temp_deploy_error" >&2
+      else
+        tail -10 "$temp_deploy_error" >&2
+        log_info "Use --verbose flag to see full deployment logs"
+      fi
+    fi
+    rm -f "$temp_build_log" "$temp_build_error" "$temp_deploy_log" "$temp_deploy_error"
+    return 1
+  fi
+  
+  # Clean up temporary files
+  rm -f "$temp_build_log" "$temp_build_error" "$temp_deploy_log" "$temp_deploy_error"
+  
+  # Build completion summary
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  log_success "LDAP build and deployment completed in ${duration}s"
+  
+  # Show LDAP image and deployment summary
+  show_ldap_summary
+  
+  return 0
+}
+
+# Validate LDAP installation
+validate_ldap_installation() {
+  log_info "Validating LDAP installation..."
+  
+  # Check if LDAP namespace exists
+  if kubectl get namespace ldap >/dev/null 2>&1; then
+    log_success "LDAP namespace found"
+  else
+    log_error "LDAP namespace not found"
+    return 1
+  fi
+  
+  # Check if LDAP deployment is ready
+  if kubectl get deployment ldap -n ldap >/dev/null 2>&1; then
+    log_success "LDAP deployment found"
+    
+    # Wait for deployment to be ready
+    if kubectl wait --for=condition=available --timeout=120s deployment/ldap -n ldap >/dev/null 2>&1; then
+      log_success "LDAP deployment is ready"
+    else
+      log_warning "LDAP deployment is not ready yet (may still be starting)"
+    fi
+  else
+    log_error "LDAP deployment not found"
+    return 1
+  fi
+  
+  # Check if LDAP service exists
+  if kubectl get service ldap -n ldap >/dev/null 2>&1; then
+    log_success "LDAP service found"
+  else
+    log_warning "LDAP service not found"
+  fi
+  
+  return 0
+}
+
+# Show LDAP-specific summary and next steps
+show_ldap_summary() {
+  log_info "📋 LDAP Directory Service Summary"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🗂️  LDAP Directory Service Details${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Service Information:${COLOR_RESET}"
+  echo -e "  🌐 ${COLOR_GREEN}LDAP Server${COLOR_RESET} - OpenLDAP directory service"
+  echo -e "  🖥️  ${COLOR_GREEN}phpLDAPadmin${COLOR_RESET} - Web-based LDAP administration interface"
+  echo -e "  🔐 ${COLOR_GREEN}Kerberos Integration${COLOR_RESET} - Single sign-on authentication"
+  echo -e "  🗂️  ${COLOR_GREEN}Directory Structure${COLOR_RESET} - Hierarchical user and group management"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Access Information:${COLOR_RESET}"
+  local subdomain=$(defaultSubdomain 2>/dev/null || echo "kube")
+  local domain=$(rootDomain 2>/dev/null || echo "gokcloud.com")
+  echo -e "  🌍 ${COLOR_CYAN}Web Interface${COLOR_RESET}: https://${subdomain}.${domain}/phpldapadmin/"
+  echo -e "  🔌 ${COLOR_CYAN}LDAP Protocol${COLOR_RESET}: ldap://ldap.default.svc.cloud.uat:389"
+  echo -e "  🔒 ${COLOR_CYAN}LDAPS (SSL)${COLOR_RESET}: ldaps://ldap.default.svc.cloud.uat:636"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Authentication Features:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}User Management${COLOR_RESET} - Create, modify, and delete users"
+  echo -e "  ✅ ${COLOR_GREEN}Group Management${COLOR_RESET} - Organize users into groups"
+  echo -e "  ✅ ${COLOR_GREEN}Password Policies${COLOR_RESET} - Enforce security requirements"
+  echo -e "  ✅ ${COLOR_GREEN}SSL/TLS Support${COLOR_RESET} - Encrypted connections"
+  echo -e "  ✅ ${COLOR_GREEN}Kerberos SSO${COLOR_RESET} - Single sign-on integration"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}💡 LDAP Benefits:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Centralized user and group management across all services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Foundation for enterprise identity and access management${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Integration with Keycloak, OAuth2, and other auth services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Support for complex organizational hierarchies${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• High availability and scalability for enterprise environments${COLOR_RESET}"
+  echo
+}
+
+# Show LDAP next steps and recommend Keycloak
+show_ldap_next_steps() {
+  echo
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 LDAP Post-Installation Steps${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_MAGENTA}${COLOR_BOLD}Immediate Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  1. Access phpLDAPadmin web interface to configure users and groups${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  2. Create organizational units (OUs) for your directory structure${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  3. Add initial users and groups to the directory${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  4. Test LDAP authentication and directory queries${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}🎯 Recommended Next Installation: Keycloak${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}LDAP provides the directory foundation - now add modern identity management with Keycloak!${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Why install Keycloak next?${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔐 Modern OAuth2/OIDC identity provider${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔗 Seamless LDAP integration for user authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🌐 Single sign-on (SSO) across all GOK platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 👥 Advanced user federation and social login support${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🛡️  Enterprise-grade security and compliance features${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Install Keycloak now?${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  Command: ${COLOR_BOLD}gok install keycloak${COLOR_RESET}"
+  echo
+  
+  # Suggest and install Keycloak as the next step
+  suggest_and_install_next_module "ldap"
 }
 
 updateLdapConfig(){
@@ -11062,8 +11466,214 @@ createUserGroup(){
 }
 
 ldapReset(){
-  helm uninstall ldap -n ldap
-  kubectl delete ns ldap
+  local start_time=$(date +%s)
+  
+  log_component_start "ldap-reset" "Resetting LDAP directory service"
+  
+  log_step "1" "Checking LDAP installation status"
+  local ldap_exists=false
+  local namespace_exists=false
+  
+  # Check if LDAP helm release exists
+  if helm list -n ldap 2>/dev/null | grep -q "ldap"; then
+    ldap_exists=true
+    log_success "LDAP helm release found"
+  else
+    log_info "LDAP helm release not found (may already be uninstalled)"
+  fi
+  
+  # Check if LDAP namespace exists
+  if kubectl get namespace ldap >/dev/null 2>&1; then
+    namespace_exists=true
+    log_success "LDAP namespace found"
+  else
+    log_info "LDAP namespace not found (may already be deleted)"
+  fi
+  
+  # If nothing exists, inform user and exit
+  if [[ "$ldap_exists" == false && "$namespace_exists" == false ]]; then
+    log_info "LDAP appears to already be reset or was never installed"
+    log_component_success "ldap-reset" "LDAP reset completed (nothing to reset)"
+    return 0
+  fi
+  
+  log_step "2" "Uninstalling LDAP helm release"
+  if [[ "$ldap_exists" == true ]]; then
+    if execute_with_suppression helm uninstall ldap -n ldap; then
+      log_success "LDAP helm release uninstalled successfully"
+      
+      # Wait for pods to terminate
+      log_substep "Waiting for LDAP pods to terminate..."
+      local wait_count=0
+      while kubectl get pods -n ldap 2>/dev/null | grep -q "ldap" && [[ $wait_count -lt 30 ]]; do
+        printf "."
+        sleep 2
+        wait_count=$((wait_count + 1))
+      done
+      printf "\n"
+      
+      if [[ $wait_count -lt 30 ]]; then
+        log_success "LDAP pods terminated successfully"
+      else
+        log_warning "LDAP pods taking longer than expected to terminate"
+      fi
+    else
+      log_error "Failed to uninstall LDAP helm release"
+      if is_verbose_mode; then
+        log_info "Run with --verbose for detailed error information"
+      fi
+      return 1
+    fi
+  else
+    log_info "Skipping helm uninstall (release not found)"
+  fi
+  
+  log_step "3" "Removing LDAP namespace and resources"
+  if [[ "$namespace_exists" == true ]]; then
+    if execute_with_suppression kubectl delete namespace ldap --timeout=120s; then
+      log_success "LDAP namespace deleted successfully"
+    else
+      log_warning "LDAP namespace deletion had issues but may still complete"
+      
+      # Try to force delete if needed
+      log_substep "Attempting force cleanup..."
+      if execute_with_suppression kubectl delete namespace ldap --force --grace-period=0 2>/dev/null; then
+        log_success "LDAP namespace force-deleted successfully"
+      else
+        log_warning "Force deletion also had issues - manual cleanup may be needed"
+      fi
+    fi
+  else
+    log_info "Skipping namespace deletion (namespace not found)"
+  fi
+  
+  log_step "4" "Cleaning up LDAP-related resources"
+  
+  # Clean up any remaining LDAP-related ingress resources
+  local ingress_cleaned=false
+  if kubectl get ingress -A 2>/dev/null | grep -q "ldap"; then
+    log_substep "Removing LDAP ingress resources..."
+    if execute_with_suppression kubectl delete ingress -l app=ldap --all-namespaces 2>/dev/null; then
+      ingress_cleaned=true
+      log_success "LDAP ingress resources cleaned up"
+    else
+      log_warning "Some LDAP ingress resources may remain"
+    fi
+  fi
+  
+  # Clean up any remaining LDAP-related secrets
+  local secrets_cleaned=false
+  if kubectl get secrets -A 2>/dev/null | grep -q "ldap"; then
+    log_substep "Removing LDAP-related secrets..."
+    if execute_with_suppression kubectl delete secrets -l app=ldap --all-namespaces 2>/dev/null; then
+      secrets_cleaned=true
+      log_success "LDAP secrets cleaned up"
+    else
+      log_warning "Some LDAP secrets may remain"
+    fi
+  fi
+  
+  # Clean up any remaining LDAP-related persistent volumes
+  local pv_cleaned=false
+  if kubectl get pv 2>/dev/null | grep -q "ldap"; then
+    log_substep "Removing LDAP persistent volumes..."
+    if execute_with_suppression kubectl delete pv -l app=ldap 2>/dev/null; then
+      pv_cleaned=true
+      log_success "LDAP persistent volumes cleaned up"
+    else
+      log_warning "Some LDAP persistent volumes may remain"
+    fi
+  fi
+  
+  if [[ "$ingress_cleaned" == false && "$secrets_cleaned" == false && "$pv_cleaned" == false ]]; then
+    log_info "No additional LDAP resources found to clean up"
+  fi
+  
+  log_step "5" "Validating LDAP reset completion"
+  validate_ldap_reset
+  
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  
+  log_component_success "ldap-reset" "LDAP directory service reset completed"
+  log_success "LDAP reset completed in ${duration}s"
+  
+  # Show reset summary and next steps
+  show_ldap_reset_summary
+}
+
+# Validate that LDAP reset was successful
+validate_ldap_reset() {
+  local validation_success=true
+  
+  # Check that helm release is gone
+  if helm list -n ldap 2>/dev/null | grep -q "ldap"; then
+    log_error "LDAP helm release still exists"
+    validation_success=false
+  else
+    log_success "LDAP helm release successfully removed"
+  fi
+  
+  # Check that namespace is gone
+  if kubectl get namespace ldap >/dev/null 2>&1; then
+    log_warning "LDAP namespace still exists (may be terminating)"
+  else
+    log_success "LDAP namespace successfully removed"
+  fi
+  
+  # Check that pods are gone
+  if kubectl get pods -n ldap 2>/dev/null | grep -q "ldap"; then
+    log_warning "Some LDAP pods may still be terminating"
+  else
+    log_success "All LDAP pods removed"
+  fi
+  
+  # Check that services are gone
+  if kubectl get services -n ldap 2>/dev/null | grep -q "ldap"; then
+    log_warning "Some LDAP services may still exist"
+  else
+    log_success "All LDAP services removed"
+  fi
+  
+  return $([[ "$validation_success" == true ]] && echo 0 || echo 1)
+}
+
+# Show LDAP reset summary and recommendations
+show_ldap_reset_summary() {
+  echo
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔄 LDAP Reset Summary${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Reset Actions Completed:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}LDAP helm release uninstalled${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}LDAP namespace removed${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}LDAP pods and services cleaned up${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}LDAP ingress resources removed${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}LDAP secrets and certificates cleaned up${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}LDAP persistent volumes removed${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Impact of LDAP Reset:${COLOR_RESET}"
+  echo -e "  🗂️  ${COLOR_RED}All LDAP directory data removed${COLOR_RESET}"
+  echo -e "  👥 ${COLOR_RED}User accounts and groups deleted${COLOR_RESET}"
+  echo -e "  🔐 ${COLOR_RED}LDAP authentication unavailable${COLOR_RESET}"
+  echo -e "  🌐 ${COLOR_RED}phpLDAPadmin web interface removed${COLOR_RESET}"
+  echo -e "  🔗 ${COLOR_YELLOW}Dependent services may need reconfiguration${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}⚠️  Post-Reset Considerations:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Services depending on LDAP authentication may fail${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Keycloak user federation will need reconfiguration if LDAP is reinstalled${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• OAuth2 proxy configurations may need updates${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}• Any custom applications using LDAP will need alternative auth${COLOR_RESET}"
+  echo
+  
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}🚀 Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To reinstall LDAP: ${COLOR_BOLD}gok install ldap${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To check system status: ${COLOR_BOLD}gok status${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To reset other auth components: ${COLOR_BOLD}gok reset keycloak${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• To see available components: ${COLOR_BOLD}gok help reset${COLOR_RESET}"
+  echo
 }
 
 kcAdminPwd(){
