@@ -168,6 +168,7 @@ readonly EMOJI_NETWORK="🌐"
 readonly EMOJI_SHIELD="🛡️"
 readonly EMOJI_TOOLS="🔧"
 readonly EMOJI_CHART="📊"
+readonly EMOJI_DEBUG="🔍"
 readonly EMOJI_KEY="🔑"
 readonly EMOJI_LINK="🔗"
 readonly EMOJI_BOOK="📚"
@@ -255,6 +256,15 @@ log_step() {
 log_substep() {
     local message="$1"
     echo -e "  ${COLOR_DIM}${EMOJI_ARROW} $message${COLOR_RESET}"
+}
+
+log_debug() {
+    local message="$1"
+    local timestamp=$(get_timestamp)
+    # Only show debug/system logs in verbose mode or when there's an error
+    if is_verbose_mode || [[ "${2:-}" == "error" ]]; then
+        echo -e "${COLOR_DIM}[$timestamp] ${EMOJI_DEBUG} $message${COLOR_RESET}"
+    fi
 }
 
 log_progress() {
@@ -3017,7 +3027,8 @@ dataFromSecret(){
 }
 
 createApp1() {
-  cat <<EOF | kubectl apply -f -
+  log_info "Creating test app1 deployment..."
+  cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -3076,11 +3087,18 @@ spec:
         path: /app1
         pathType: Prefix
 EOF
+  if [[ $? -eq 0 ]]; then
+    log_success "Test app1 deployment created successfully"
+  else
+    log_error "Failed to create test app1 deployment"
+    return 1
+  fi
 }
 
 #This deploys a pod that has curl installed
 kcurl(){
-  cat <<EOF | kubectl apply -f -
+  log_info "Creating curl test pod..."
+  cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: v1
 kind: Pod
 metadata:
@@ -3116,7 +3134,8 @@ join(){
 }
 
 dnsUtils(){
-  cat <<EOF | kubectl apply -f -
+  log_info "Creating DNS utilities test pod..."
+  cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: v1
 kind: Pod
 metadata:
@@ -3132,9 +3151,14 @@ spec:
     imagePullPolicy: IfNotPresent
   restartPolicy: Always
 EOF
-  echo "Commands"
-  echo "checkDns kubernetes.default.svc.cloud.uat"
-
+  if [[ $? -eq 0 ]]; then
+    log_success "DNS utilities test pod created successfully"
+    echo "Commands:"
+    echo "  checkDns kubernetes.default.svc.cloud.uat"
+  else
+    log_error "Failed to create DNS utilities test pod"
+    return 1
+  fi
 }
 
 istioInst(){
@@ -8230,6 +8254,12 @@ spec:
         args: ["cluster-info"]
       restartPolicy: Never
 EOF
+  if [[ $? -eq 0 ]]; then
+    log_success "Curl test pod created successfully"
+  else
+    log_error "Failed to create curl test pod"
+    return 1
+  fi
 }
 
 #Creating user role administrators which would allow users authenticated with oauth and
@@ -10999,9 +11029,11 @@ oauth2ProxyInst(){
 
 waitForServiceAvailable(){
   NS=$1
-  echo "Waiting for services to be up!!!!"
-  kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace "$NS"
-  [[ $? -eq 0 ]] && echoSuccess "Service is now up!" || echoFailed "Service timed-out, please check!!"
+  # Suppress verbose output, only show on error
+  if ! kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace "$NS" >/dev/null 2>&1; then
+    echoFailed "Service timed-out, please check!!"
+    return 1
+  fi
 }
 
 resolveDns() {
@@ -11875,6 +11907,7 @@ function helpCmd() {
     echo -e "${COLOR_YELLOW}• Run ${COLOR_BOLD}gok status${COLOR_RESET} regularly to monitor your platform${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Install components in the recommended order for best results${COLOR_RESET}"
     echo -e "${COLOR_YELLOW}• Use ${COLOR_BOLD}gok logs${COLOR_RESET} for troubleshooting issues${COLOR_RESET}"
+    echo -e "${COLOR_YELLOW}• Add ${COLOR_BOLD}--verbose${COLOR_RESET} or ${COLOR_BOLD}-v${COLOR_RESET} flag to show detailed system logs and command output${COLOR_RESET}"
     echo
 }
 
@@ -15362,9 +15395,21 @@ remote() {
 # Simple unified command dispatcher that always works
 # Handle both sourced and executed scenarios the same way
 if [[ $# -gt 0 ]]; then
+  # Check for global verbose flag
+  if [[ "$1" == "--verbose" || "$1" == "-v" ]]; then
+    export GOK_VERBOSE=true
+    shift
+  fi
+  
   # Get the command (first argument)
   command="$1"
   shift
+  
+  # Check for verbose flag after command
+  if [[ "$1" == "--verbose" || "$1" == "-v" ]]; then
+    export GOK_VERBOSE=true
+    shift
+  fi
   
   # Handle command aliases that map to different function names
   case "$command" in
