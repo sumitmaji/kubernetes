@@ -3294,6 +3294,41 @@ mark_update_cache() {
     log_info "System update cache marked fresh"
 }
 
+# Function to check if dependency installation cache is still valid
+is_deps_cache_valid() {
+    local cache_file="$GOK_CACHE_DIR/last_deps_install"
+    local cache_hours="${GOK_DEPS_CACHE_HOURS:-${GOK_UPDATE_CACHE_HOURS:-6}}"
+    
+    # Create cache directory if it doesn't exist
+    mkdir -p "$GOK_CACHE_DIR"
+    
+    # Check if cache file exists
+    if [[ ! -f "$cache_file" ]]; then
+        return 1  # No cache, need to install deps
+    fi
+    
+    # Get cache timestamp
+    local cache_time=$(cat "$cache_file" 2>/dev/null || echo "0")
+    local current_time=$(date +%s)
+    local cache_age_hours=$(( (current_time - cache_time) / 3600 ))
+    
+    if [[ $cache_age_hours -lt $cache_hours ]]; then
+        log_info "Dependencies cache is valid (installed ${cache_age_hours}h ago, cache expires in $((cache_hours - cache_age_hours))h)"
+        return 0  # Cache is valid
+    else
+        log_info "Dependencies cache expired (${cache_age_hours}h old, cache limit: ${cache_hours}h)"
+        return 1  # Cache expired, need to install deps
+    fi
+}
+
+# Function to mark dependency installation cache as fresh
+mark_deps_cache() {
+    local cache_file="$GOK_CACHE_DIR/last_deps_install"
+    mkdir -p "$GOK_CACHE_DIR"
+    date +%s > "$cache_file"
+    log_info "Dependencies cache marked fresh"
+}
+
 # Enhanced system update with progress bar and smart caching
 updateSys() {
     local verbose_flag="${1:-}"
@@ -3459,7 +3494,35 @@ setupDockerRegistry(){
 # Enhanced dependency installation with progress tracking
 installDeps() {
     local verbose_flag="${1:-}"
+    local force_deps=false
+    local skip_deps=false
     local start_time=$(date +%s)
+    
+    # Parse additional flags
+    for arg in "$@"; do
+        case "$arg" in
+            --force-deps)
+                force_deps=true
+                shift
+                ;;
+            --skip-deps)
+                skip_deps=true
+                shift
+                ;;
+        esac
+    done
+    
+    # Skip dependencies if explicitly requested
+    if [[ "$skip_deps" == "true" ]]; then
+        log_info "Dependencies installation skipped (--skip-deps flag)"
+        return 0
+    fi
+    
+    # Check cache unless force install is requested
+    if [[ "$force_deps" == "false" ]] && is_deps_cache_valid; then
+        log_success "Dependencies installation skipped (cache is fresh)"
+        return 0
+    fi
     
     log_step "Dependencies" "Installing essential system dependencies"
     
@@ -3550,6 +3613,8 @@ installDeps() {
     local duration=$((end_time - start_time))
     
     if [[ ${#failed_packages[@]} -eq 0 ]]; then
+        # Mark cache as fresh after successful installation
+        mark_deps_cache
         log_success "All $total_packages dependencies installed successfully in ${duration}s"
     else
         log_warning "$successful_packages/$total_packages dependencies installed successfully"
@@ -3567,6 +3632,10 @@ installDeps() {
             log_error "Too many failed packages - aborting installation"
             return 1
         else
+            # Mark partial cache as fresh if most packages succeeded
+            if [[ $successful_packages -gt $((total_packages / 2)) ]]; then
+                mark_deps_cache
+            fi
             log_warning "Continuing with partial dependency installation"
         fi
     fi
@@ -12358,38 +12427,40 @@ function helpCmd() {
     echo -e "${COLOR_CYAN}• Community: Join our Kubernetes community for help and discussions${COLOR_RESET}"
     echo
     
-    echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}⚡ SMART UPDATE CACHING${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}GOK intelligently caches system updates to avoid redundant package refreshes.${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}⚡ SMART CACHING SYSTEM${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}GOK intelligently caches system updates and dependency installations to avoid redundant operations.${COLOR_RESET}"
     echo
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}Cache Management:${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  gok cache status      ${COLOR_DIM}# Check cache age and validity${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  gok cache clear       ${COLOR_DIM}# Force next update (clear cache)${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok cache status      ${COLOR_DIM}# Check cache age for updates & dependencies${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok cache clear       ${COLOR_DIM}# Clear all caches (force fresh installs)${COLOR_RESET}"
     echo 
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}Installation Flags:${COLOR_RESET}"
     echo -e "${COLOR_CYAN}  gok install <component>                ${COLOR_DIM}# Smart caching (default)${COLOR_RESET}"
     echo -e "${COLOR_CYAN}  gok install <component> --force-update ${COLOR_DIM}# Force system update${COLOR_RESET}"
     echo -e "${COLOR_CYAN}  gok install <component> --skip-update  ${COLOR_DIM}# Skip system update${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install <component> --force-deps   ${COLOR_DIM}# Force dependency installation${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install <component> --skip-deps    ${COLOR_DIM}# Skip dependency installation${COLOR_RESET}"
     echo
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}Configuration Options:${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=6  ${COLOR_DIM}# Cache updates for 6 hours (default)${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=12 ${COLOR_DIM}# Cache updates for 12 hours${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=6  ${COLOR_DIM}# Cache system updates for 6 hours (default)${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_DEPS_CACHE_HOURS=12   ${COLOR_DIM}# Cache dependencies for 12 hours${COLOR_RESET}"
     echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=1  ${COLOR_DIM}# Cache updates for 1 hour${COLOR_RESET}"
     echo -e "${COLOR_CYAN}  GOK_CACHE_DIR=/custom/path ${COLOR_DIM}# Custom cache directory${COLOR_RESET}"
     echo
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}Examples:${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  # Development - Skip updates for speed${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  gok install base --skip-update${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  # Development - Skip all installations for speed${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install base --skip-update --skip-deps${COLOR_RESET}"
     echo
-    echo -e "${COLOR_CYAN}  # Production - Force fresh updates${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  gok install kubernetes --force-update${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  # Production - Force fresh installations${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  gok install kubernetes --force-update --force-deps${COLOR_RESET}"
     echo
-    echo -e "${COLOR_CYAN}  # Custom cache duration (24 hours)${COLOR_RESET}"
-    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=24 gok install docker${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  # Custom cache durations${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  GOK_UPDATE_CACHE_HOURS=24 GOK_DEPS_CACHE_HOURS=48 gok install docker${COLOR_RESET}"
     echo
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}Performance Impact:${COLOR_RESET}"
-    echo -e "${COLOR_GREEN}• First install: Full system update (~8 seconds)${COLOR_RESET}"
-    echo -e "${COLOR_GREEN}• Subsequent installs: Skip update (instant, saves ~8s per component)${COLOR_RESET}"
-    echo -e "${COLOR_GREEN}• Installing 5 components: Saves ~32 seconds with smart caching${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}• First install: Full system update (~8s) + dependencies (~10s) = ~18s${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}• Subsequent installs: Skip both (instant, saves ~18s per component)${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}• Installing 5 components: Saves ~72 seconds with smart caching${COLOR_RESET}"
     echo
     
     echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}💡 PRO TIPS${COLOR_RESET}"
@@ -13393,23 +13464,29 @@ function installCmd() {
   if [ -z "$COMPONENT" ] || [ "$COMPONENT" == "help" ] || [ "$COMPONENT" == "--help" ]; then
     echo "gok install - Install and configure Kubernetes components and services"
     echo ""
-    echo "Usage: gok install <component> [--verbose|-v] [--force-update] [--skip-update]"
+    echo "Usage: gok install <component> [--verbose|-v] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
     echo ""
     echo "Options:"
     echo "  --verbose, -v      Show detailed installation output (default: progress bars)"
     echo "  --force-update     Force system update regardless of cache"
     echo "  --skip-update      Skip system update completely"
+    echo "  --force-deps       Force dependency installation regardless of cache"
+    echo "  --skip-deps        Skip dependency installation completely"
     echo ""
     echo "Environment Variables:"
     echo "  GOK_VERBOSE=true         Enable verbose mode globally"
     echo "  GOK_UPDATE_CACHE_HOURS=6 Hours to cache system updates (default: 6)"
+    echo "  GOK_DEPS_CACHE_HOURS=6   Hours to cache dependency installations (default: same as updates)"
     echo "  GOK_CACHE_DIR=/tmp/gok-cache  Custom cache directory location"
     echo ""
-    echo "Smart Update Caching Examples:"
+    echo "Smart Caching Examples:"
     echo "  gok install docker                     # Uses smart cache (default)"
     echo "  gok install base --skip-update         # Skip system update completely"
+    echo "  gok install base --skip-deps           # Skip dependency installation"
     echo "  gok install kubernetes --force-update  # Force fresh system update"
-    echo "  GOK_UPDATE_CACHE_HOURS=12 gok install helm  # Cache for 12 hours"
+    echo "  gok install kubernetes --force-deps    # Force fresh dependency installation"
+    echo "  GOK_UPDATE_CACHE_HOURS=12 gok install helm  # Cache updates for 12 hours"
+    echo "  GOK_DEPS_CACHE_HOURS=24 gok install vault   # Cache dependencies for 24 hours"
     echo ""
     echo "Cache Management:"
     echo "  gok cache status        # Check cache age and validity"
@@ -13504,6 +13581,7 @@ function installCmd() {
   # Parse all flags
   local verbose_flag=""
   local update_flags=""
+  local deps_flags=""
   for arg in "$@"; do
     case "$arg" in
       --verbose|-v)
@@ -13516,6 +13594,12 @@ function installCmd() {
         ;;
       --skip-update)
         update_flags="$update_flags --skip-update"
+        ;;
+      --force-deps)
+        deps_flags="$deps_flags --force-deps"
+        ;;
+      --skip-deps)
+        deps_flags="$deps_flags --skip-deps"
         ;;
     esac
   done
@@ -13535,7 +13619,7 @@ function installCmd() {
     return 1
   fi
   
-  if ! installDeps "$verbose_flag"; then
+  if ! installDeps $verbose_flag $deps_flags; then
     fail_component "$COMPONENT" "Dependency installation failed"
     return 1
   fi
@@ -15985,12 +16069,13 @@ if [[ $# -gt 0 ]]; then
           'clear' | 'clean')
             if [[ -d "$GOK_CACHE_DIR" ]]; then
               rm -rf "$GOK_CACHE_DIR"
-              echo "✅ Update cache cleared"
+              echo "✅ All caches cleared (system updates & dependencies)"
             else
-              echo "ℹ️ Update cache is already empty"
+              echo "ℹ️ Cache directory is already empty"
             fi
             ;;
           'status' | 'info')
+            # System Update Cache Status
             cache_file="$GOK_CACHE_DIR/last_update"
             if [[ -f "$cache_file" ]]; then
               cache_time=$(cat "$cache_file" 2>/dev/null || echo "0")
@@ -16007,16 +16092,36 @@ if [[ $# -gt 0 ]]; then
             else
               echo "📦 System Update Cache Status: ❌ No cache found"
             fi
+            
+            echo ""
+            
+            # Dependencies Cache Status
+            deps_cache_file="$GOK_CACHE_DIR/last_deps_install"
+            if [[ -f "$deps_cache_file" ]]; then
+              deps_cache_time=$(cat "$deps_cache_file" 2>/dev/null || echo "0")
+              deps_cache_age_hours=$(( (current_time - deps_cache_time) / 3600 ))
+              deps_cache_age_mins=$(( ((current_time - deps_cache_time) % 3600) / 60 ))
+              deps_cache_hours="${GOK_DEPS_CACHE_HOURS:-${GOK_UPDATE_CACHE_HOURS:-6}}"
+              
+              echo "🔧 Dependencies Cache Status:"
+              echo "   Last install: $(date -d "@$deps_cache_time" 2>/dev/null || echo "Unknown")"
+              echo "   Cache age: ${deps_cache_age_hours}h ${deps_cache_age_mins}m"
+              echo "   Cache limit: ${deps_cache_hours}h"
+              echo "   Status: $(if [[ $deps_cache_age_hours -lt $deps_cache_hours ]]; then echo "✅ Valid"; else echo "⚠️ Expired"; fi)"
+            else
+              echo "🔧 Dependencies Cache Status: ❌ No cache found"
+            fi
             ;;
           *)
             echo "Usage: gok cache <command>"
             echo ""
             echo "Commands:"
-            echo "  status    Show cache status and age"
-            echo "  clear     Clear update cache (force next update)"
+            echo "  status    Show cache status and age for updates & dependencies"
+            echo "  clear     Clear all caches (force next update & dependency install)"
             echo ""
             echo "Environment Variables:"
-            echo "  GOK_UPDATE_CACHE_HOURS=6  Hours to cache updates (default: 6)"
+            echo "  GOK_UPDATE_CACHE_HOURS=6  Hours to cache system updates (default: 6)"
+            echo "  GOK_DEPS_CACHE_HOURS=6    Hours to cache dependency installs (default: same as updates)"
             ;;
         esac
         ;;
