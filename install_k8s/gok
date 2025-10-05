@@ -10500,7 +10500,7 @@ oauth2Secret(){
   REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
   KEYCLOAK_URL=$(fullKeycloakUrl)
   ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
-  ADMIN_PASSWORD=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
 
   client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
   : "${ACTIVE_PROFILE:=$(promptUserInput "Enter Active Profile (keycloak): " "keycloak")}"
@@ -12307,7 +12307,7 @@ debugScope(){
   REALM_NAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
   CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
   ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
-  ADMIN_PASSWORD=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
 
   CLIENT_SECRET=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM_NAME" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
   echo "Client Secret: $CLIENT_SECRET"
@@ -12527,7 +12527,7 @@ setup_keycloak_clients() {
   
   # Retrieve credentials from secrets
   local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" 2>/dev/null | base64 --decode || echo "")
-  local admin_pwd=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" 2>/dev/null | base64 --decode || echo "")
+  local admin_pwd=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null | base64 --decode || echo "")
   local client_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" 2>/dev/null | base64 --decode || echo "")
   local realm=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" 2>/dev/null | base64 --decode || echo "")
   
@@ -12579,7 +12579,7 @@ setup_ldap_federation() {
   
   # Get credentials
   local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" 2>/dev/null | base64 --decode || echo "")
-  local admin_pwd=$(kubectl get secret keycloak -n keycloak -o jsonpath="{.data.admin-password}" 2>/dev/null | base64 --decode || echo "")
+  local admin_pwd=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null | base64 --decode || echo "")
   
   : "${LDAP_PASSWORD:=$(promptSecret "Please enter LDAP password for admin: ")}"
   
