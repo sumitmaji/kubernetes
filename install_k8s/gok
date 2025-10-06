@@ -5271,11 +5271,11 @@ keycloakSummary() {
   if [[ "$cluster_accessible" == "true" ]]; then
     if kubectl get namespace keycloak >/dev/null 2>&1; then
       echo -e "  ${COLOR_GREEN}✓ Namespace: keycloak exists${COLOR_RESET}"
-      local keycloak_deployment=$(kubectl get deployment keycloak -n keycloak --no-headers 2>/dev/null)
-      if [[ -n "$keycloak_deployment" ]]; then
-        echo -e "  ${COLOR_GREEN}✓ Keycloak deployment found${COLOR_RESET}"
+      local keycloak_statefulset=$(kubectl get statefulset keycloak -n keycloak --no-headers 2>/dev/null)
+      if [[ -n "$keycloak_statefulset" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ Keycloak StatefulSet found${COLOR_RESET}"
       else
-        echo -e "  ${COLOR_RED}✗ Keycloak deployment not found${COLOR_RESET}"
+        echo -e "  ${COLOR_RED}✗ Keycloak StatefulSet not found${COLOR_RESET}"
       fi
     else
       echo -e "  ${COLOR_RED}✗ Namespace: keycloak not found${COLOR_RESET}"
@@ -5288,7 +5288,7 @@ keycloakSummary() {
   # 2. Keycloak Pods
   if [[ "$cluster_accessible" == "true" ]]; then
     log_step "2" "Keycloak Pods"
-    local pods=$(kubectl get pods -n keycloak --no-headers 2>/dev/null)
+    local pods=$(kubectl get pods -n keycloak --no-headers 2>/dev/null | grep keycloak)
     if [[ -n "$pods" ]]; then
       echo "$pods" | while read -r line; do
         local pod_name=$(echo "$line" | awk '{print $1}')
@@ -5306,9 +5306,43 @@ keycloakSummary() {
     echo ""
   fi
 
-  # 3. Service and Access
+  # 3. PostgreSQL Database
   if [[ "$cluster_accessible" == "true" ]]; then
-    log_step "3" "Service Configuration"
+    log_step "3" "PostgreSQL Database"
+    local postgres_pods=$(kubectl get pods -n keycloak --no-headers 2>/dev/null | grep postgres)
+    if [[ -n "$postgres_pods" ]]; then
+      echo -e "  ${COLOR_GREEN}✓ PostgreSQL pods found${COLOR_RESET}"
+      echo "$postgres_pods" | while read -r line; do
+        local pod_name=$(echo "$line" | awk '{print $1}')
+        local pod_status=$(echo "$line" | awk '{print $3}')
+        local ready_status=$(echo "$line" | awk '{print $2}')
+        if [[ "$pod_status" == "Running" ]]; then
+          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+        fi
+      done
+      
+      # Check PostgreSQL service
+      local postgres_service=$(kubectl get service keycloak-postgresql -n keycloak --no-headers 2>/dev/null)
+      if [[ -n "$postgres_service" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ PostgreSQL service: keycloak-postgresql${COLOR_RESET}"
+      fi
+      
+      # Check PostgreSQL PVC
+      local postgres_pvc=$(kubectl get pvc postgres-pvc -n keycloak --no-headers 2>/dev/null)
+      if [[ -n "$postgres_pvc" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ PostgreSQL persistent storage configured${COLOR_RESET}"
+      fi
+    else
+      echo -e "  ${COLOR_RED}✗ PostgreSQL pods not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+
+  # 4. Service and Access
+  if [[ "$cluster_accessible" == "true" ]]; then
+    log_step "4" "Service Configuration"
   local keycloak_service=$(kubectl get service keycloak-http -n keycloak --no-headers 2>/dev/null)
     if [[ -n "$keycloak_service" ]]; then
   local service_type=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.type}' 2>/dev/null)
@@ -5327,8 +5361,8 @@ keycloakSummary() {
     echo ""
   fi
   
-  # 4. Available Commands
-  log_step "4" "Available Commands"
+  # 5. Available Commands
+  log_step "5" "Available Commands"
   echo -e "  ${COLOR_CYAN}Keycloak Management:${COLOR_RESET}"
   echo -e "    ${COLOR_DIM}gok install keycloak            # Install Keycloak${COLOR_RESET}"
   echo -e "    ${COLOR_DIM}gok keycloakSummary             # Show this summary${COLOR_RESET}"
