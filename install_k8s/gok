@@ -5396,6 +5396,13 @@ keycloakSummary() {
           echo -e "  ${COLOR_CYAN}🔑 Keycloak Admin Credentials:${COLOR_RESET}"
           echo -e "    ${COLOR_DIM}Username: admin${COLOR_RESET}"
           echo -e "    ${COLOR_DIM}Password: Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d${COLOR_RESET}"
+          echo ""
+          echo -e "  ${COLOR_YELLOW}⚠️  Initial Setup Required:${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• First login uses temporary admin account${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Create permanent admin user in: Master realm → Users → Create new user${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Set permanent password and assign 'admin' role${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Sign out and login with permanent admin account${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Delete the temporary admin user for security${COLOR_RESET}"
         fi
       fi
     else
