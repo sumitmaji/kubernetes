@@ -11176,8 +11176,7 @@ keycloakReset(){
     fi
     
     log_substep "Removing PostgreSQL secrets and config..."
-    execute_with_suppression kubectl delete configmap postgres-config -n keycloak --timeout=30s || true
-    execute_with_suppression kubectl delete secret postgres-secret -n keycloak --timeout=30s || true
+  execute_with_suppression kubectl delete configmap postgres-config -n keycloak --timeout=30s || true
     log_success "PostgreSQL configuration cleaned up"
   fi
 
@@ -11363,7 +11362,6 @@ deploy_keycloak_postgresql() {
   execute_with_suppression kubectl delete deployment postgres -n keycloak --ignore-not-found=true
   execute_with_suppression kubectl delete service keycloak-postgresql -n keycloak --ignore-not-found=true
   execute_with_suppression kubectl delete configmap postgres-config -n keycloak --ignore-not-found=true
-  execute_with_suppression kubectl delete secret postgres-secret -n keycloak --ignore-not-found=true
   
   # First ensure storage class and persistent volume exist
   log_substep "Setting up storage for PostgreSQL..."
@@ -11383,7 +11381,6 @@ metadata:
   namespace: keycloak
 data:
   POSTGRES_DB: keycloak
-  POSTGRES_USER: postgres
 ---
 apiVersion: v1
 kind: Secret
@@ -11392,7 +11389,7 @@ metadata:
   namespace: keycloak
 type: Opaque
 data:
-  POSTGRES_PASSWORD: c3VtaXQ=  # base64 encoded "sumit"
+  # POSTGRES_PASSWORD now comes from keycloak-postgresql secret
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -11431,7 +11428,7 @@ spec:
         - configMapRef:
             name: postgres-config
         - secretRef:
-            name: postgres-secret
+            name: keycloak-postgresql
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
@@ -11533,7 +11530,9 @@ keycloakInst(){
 
     kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${POSTGRESQL_USERNAME}" \
+      --from-literal=POSTGRES_USER="${POSTGRESQL_USERNAME}" \
       --from-literal=password="${POSTGRESQL_PASSWORD}" \
+      --from-literal=POSTGRES_PASSWORD="${POSTGRESQL_PASSWORD}" \
       --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
   else
     # Calculate Keycloak hostname
@@ -11552,7 +11551,9 @@ keycloakInst(){
 
     execute_with_suppression kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${POSTGRESQL_USERNAME}" \
+      --from-literal=POSTGRES_USER="${POSTGRESQL_USERNAME}" \
       --from-literal=password="${POSTGRESQL_PASSWORD}" \
+      --from-literal=POSTGRES_PASSWORD="${POSTGRESQL_PASSWORD}" \
       --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
   fi
 
@@ -11648,7 +11649,9 @@ build_keycloak_with_progress() {
     
     kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${postgresql_username}" \
+      --from-literal=POSTGRES_USER="${postgresql_username}" \
       --from-literal=password="${postgresql_password}" \
+      --from-literal=POSTGRES_PASSWORD="${postgresql_password}" \
       --from-literal=postgres-password="${postgresql_password}" \
       -n keycloak >>"$temp_secret_log" 2>>"$temp_secret_error"
   ) &

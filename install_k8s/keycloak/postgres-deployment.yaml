@@ -10,7 +10,6 @@ metadata:
   namespace: keycloak
 data:
   POSTGRES_DB: keycloak
-  POSTGRES_USER: postgres
 ---
 apiVersion: v1
 kind: Secret
@@ -19,7 +18,7 @@ metadata:
   namespace: keycloak
 type: Opaque
 data:
-  POSTGRES_PASSWORD: c3VtaXQ=  # base64 encoded "sumit"
+  # POSTGRES_PASSWORD now comes from keycloak-postgresql secret
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -58,7 +57,7 @@ spec:
         - configMapRef:
             name: postgres-config
         - secretRef:
-            name: postgres-secret
+            name: keycloak-postgresql
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
