@@ -28,15 +28,19 @@ echo "$OAUTH"
 }
 
 getKeycloakConfig(){
+  # Source the centralized OAuth/OIDC configuration from keycloak/config
+  source "${MOUNT_PATH}/kubernetes/install_k8s/keycloak/config"
+
+  # Export the OAuth/OIDC configuration values
   IFS='' read -r -d '' OAUTH <<"EOF"
-export OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
-export OIDC_CLIENT_ID=gok-developers-client
-export OIDC_USERNAME_CLAIM=sub
-export OIDC_GROUPS_CLAIM=groups
-export REALM=GokDevelopers
-export AUTH0_DOMAIN=keycloak.gokcloud.com
-export APP_HOST=kube.gokcloud.com
-export JWKS_URL=$OIDC_ISSUE_URL/protocol/openid-connect/certs
+export OIDC_ISSUE_URL=$OIDC_ISSUE_URL
+export OIDC_CLIENT_ID=$OIDC_CLIENT_ID
+export OIDC_USERNAME_CLAIM=$OIDC_USERNAME_CLAIM
+export OIDC_GROUPS_CLAIM=$OIDC_GROUPS_CLAIM
+export REALM=$REALM
+export AUTH0_DOMAIN=$AUTH0_DOMAIN
+export APP_HOST=$APP_HOST
+export JWKS_URL=$JWKS_URL
 EOF
 echo "$OAUTH"
 }

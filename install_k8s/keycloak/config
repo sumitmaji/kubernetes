@@ -1,3 +1,14 @@
+# OAuth/OIDC Configuration
+export OIDC_ISSUE_URL=https://keycloak.gokcloud.com/realms/GokDevelopers
+export OIDC_CLIENT_ID=gok-developers-client
+export OIDC_USERNAME_CLAIM=sub
+export OIDC_GROUPS_CLAIM=groups
+export REALM=GokDevelopers
+export AUTH0_DOMAIN=keycloak.gokcloud.com
+export APP_HOST=kube.gokcloud.com
+export JWKS_URL=$OIDC_ISSUE_URL/protocol/openid-connect/certs
+
+# Keycloak Configuration
 KEYCLOAK_ROOT=${KEYCLOAK}.${GOK_ROOT_DOMAIN}
 REALM=${REALM}
 KEYCLOAK_CLIENT_ID=${OIDC_CLIENT_ID}
