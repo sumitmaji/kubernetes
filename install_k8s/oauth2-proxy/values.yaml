@@ -116,7 +116,7 @@ extraVolumeMounts:
 ingress:
   ## @param ingress.enabled Enable ingress record generation for OAuth2 Proxy
   ##
-  enabled: true
+  enabled: false
   ## DEPRECATED: Use ingress.annotations instead of ingress.certManager
   ## certManager: false
   ##
@@ -134,11 +134,11 @@ ingress:
   ingressClassName: "nginx"
   ## @param ingress.hostname Default host for the ingress record
   ##
-  hostname: master.cloud.com
+  hostname: master.gokcloud.com
   ## @param ingress.path Default path for the ingress record
   ## NOTE: You may need to set this to '/*' in order to use this with ALB ingress controllers
   ##
-  path: /oauth2
+  path: /
   ## @param ingress.annotations Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
   ## For a full list of possible ingress annotations, please see
   ## ref: https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/annotations.md
@@ -163,7 +163,7 @@ ingress:
   ##   - Rely on cert-manager to create it by setting the corresponding annotations
   ##   - Rely on Helm to create self-signed certificates by setting `ingress.tls=true` and `ingress.certManager=false`
   ##
-  tls: true
+  tls: []
   ## @param ingress.extraHosts An array with additional hostname(s) to be covered with the ingress record
   ## e.g:
   ## extraHosts:
@@ -231,4 +231,14 @@ ingress:
   ##           port:
   ##             name: http
   ##
-  extraRules: []
+  extraRules:
+    - host: master.gokcloud.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
