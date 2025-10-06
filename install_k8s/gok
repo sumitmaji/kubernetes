@@ -5233,6 +5233,22 @@ ldapSummary() {
       echo -e "  ${COLOR_GREEN}✓ Service: ldap (Type: ${service_type})${COLOR_RESET}"
       echo -e "    ${COLOR_DIM}• LDAP Port: 389${COLOR_RESET}"
       echo -e "    ${COLOR_DIM}• LDAPS Port: 636${COLOR_RESET}"
+      
+      # LDAP Access Information
+      echo ""
+      echo -e "  ${COLOR_CYAN}🔗 LDAP Access:${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Server: ldap.default.svc.cloud.uat${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Base DN: dc=default,dc=svc,dc=cloud,dc=uat${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Web Interface: https://master.cloud.com:31000/phpldapadmin/${COLOR_RESET}"
+      echo ""
+      echo -e "  ${COLOR_CYAN}🔑 LDAP Credentials:${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Admin User: cn=admin,dc=default,dc=svc,dc=cloud,dc=uat${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Admin Password: sumit/admin${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Web UI Username: sumit${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• Web UI Password: sumit${COLOR_RESET}"
+      echo ""
+      echo -e "  ${COLOR_CYAN}👤 Sample User:${COLOR_RESET}"
+      echo -e "    ${COLOR_DIM}• User: cn=smaji,ou=users,dc=default,dc=svc,dc=cloud,dc=uat${COLOR_RESET}"
     else
       echo -e "  ${COLOR_RED}✗ LDAP service not found${COLOR_RESET}"
     fi
