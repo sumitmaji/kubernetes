@@ -1,37 +1,108 @@
-extraEnvVars:
-  - name: LOG_LEVEL
-    value: debug
-  - name: OAUTH2_PROXY_CLIENT_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: oauth-secrets
-        key: OIDC_CLIENT_SECRET
-  - name: OAUTH2_PROXY_CLIENT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: oauth2-proxy-config
-        key: clientID
-  - name: OAUTH2_OIDC_ISSUER_URL
-    valueFrom:
-      configMapKeyRef:
-        name: oauth2-proxy-config
-        key: oidcIssuerUrl
-  - name: OAUTH2_REDIRECT_URL
-    valueFrom:
-      configMapKeyRef:
-        name: oauth2-proxy-config
-        key: redirectUrl
+# OAuth2 Proxy Upstream Chart Configuration
+# This configuration is for the official oauth2-proxy/oauth2-proxy Helm chart
 
-configuration:
-  clientID: ${OAUTH2_PROXY_CLIENT_ID}
-  clientSecretFile: /etc/secrets/OIDC_CLIENT_SECRET
-  cookieSecret: mycookiesumit123
-  oidcIssuerUrl: $(OAUTH2_OIDC_ISSUER_URL)
-  redirectUrl: $(OAUTH2_REDIRECT_URL)
+# OAuth2 Proxy image
+image:
+  repository: quay.io/oauth2-proxy/oauth2-proxy
+  tag: "v7.4.0"
+  pullPolicy: IfNotPresent
 
-global:
-  storageClass: "oauth-storage"
+# Configuration for OAuth2 Proxy
+config:
+  clientID: "PLACEHOLDER_CLIENT_ID"
+  clientSecret: "PLACEHOLDER_CLIENT_SECRET"
+  cookieSecret: "mycookiesumit123"
+  oidcIssuerUrl: ""
+  loginHost: ""
+  realm: ""
+  configFile: |
+    # Basic configuration - most settings moved to extraArgs
 
+# Extra arguments (will be merged with config)
+extraArgs:
+  oidc-issuer-url: "https://keycloak.gokcloud.com/realms/GokDevelopers"
+  login-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth"
+  redeem-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token"
+  profile-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
+  validate-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
+  scope: "openid email profile groups sub offline_access"
+  oidc-groups-claim: "groups"
+  user-id-claim: "sub"
+  whitelist-domain: ".gokcloud.com"
+  cookie-domain: ".gokcloud.com"
+  cookie-secure: true
+  set-authorization-header: true
+  pass-access-token: true
+  pass-authorization-header: true
+  ssl-insecure-skip-verify: false
+  email-domain: "*"
+
+# Service configuration
+service:
+  type: ClusterIP
+  portNumber: 80
+  targetPort: 4180
+
+# Readiness and liveness probes
+readinessProbe:
+  enabled: true
+  path: /ping
+  port: 4180
+  scheme: HTTP
+  initialDelaySeconds: 0
+  timeoutSeconds: 5
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
+
+livenessProbe:
+  enabled: true
+  path: /ping
+  port: 4180
+  scheme: HTTP
+  initialDelaySeconds: 0
+  timeoutSeconds: 1
+  periodSeconds: 10
+  successThreshold: 1
+  failureThreshold: 3
+
+# Ingress configuration - disabled for now
+# ingress:
+#   enabled: false
+
+# Resources
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 65534
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Extra volumes
 extraVolumes:
   - name: secrets
     secret:
@@ -40,6 +111,7 @@ extraVolumes:
     configMap:
       name: oauth2-ca-cert
 
+# Extra volume mounts
 extraVolumeMounts:
   - name: secrets
     mountPath: /etc/secrets

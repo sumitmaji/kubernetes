@@ -14555,6 +14555,21 @@ oauth2ProxyInst(){
 
   log_step "6" "Building and deploying OAuth2 Proxy services"
   
+  # Add upstream OAuth2 proxy Helm repository
+  log_substep "Adding upstream OAuth2 proxy Helm repository..."
+  if execute_with_suppression helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests; then
+    log_success "Upstream OAuth2 proxy Helm repository added"
+  else
+    log_warning "OAuth2 proxy repository may already exist"
+  fi
+  
+  log_substep "Updating Helm repositories..."
+  if execute_with_suppression helm repo update; then
+    log_success "Helm repositories updated"
+  else
+    log_warning "Helm repository update had issues but continuing"
+  fi
+  
   # Enhanced OAuth2 build with progress tracking
   build_oauth2_with_progress "$oauth2_client_id" "$realm" "$oauth2_host" "$oidc_issuer_url"
   if [[ $? -ne 0 ]]; then
@@ -14668,46 +14683,25 @@ build_oauth2_with_progress() {
     return 1
   fi
   
-  # Step 2: Install OAuth2 Proxy via Helm with enhanced progress
-  log_info "☸️  Installing OAuth2 Proxy via Helm chart"
-  log_substep "Chart: ${COLOR_CYAN}oci://registry-1.docker.io/bitnamicharts/oauth2-proxy${COLOR_RESET}"
+  # Step 2: Install OAuth2 Proxy via upstream Helm chart (default)
+  log_info "☸️  Installing OAuth2 Proxy via upstream Helm chart"
+  log_substep "Chart: ${COLOR_CYAN}oauth2-proxy/oauth2-proxy${COLOR_RESET}"
   log_substep "Values: ${COLOR_CYAN}${MOUNT_PATH}/kubernetes/install_k8s/oauth2-proxy/values.yaml${COLOR_RESET}"
   
   local temp_helm_log=$(mktemp)
   local temp_helm_error=$(mktemp)
   
-  # Start Helm installation in background
-  helm install oauth2-proxy oci://registry-1.docker.io/bitnamicharts/oauth2-proxy \
+  # Start Helm installation in background with upstream oauth2-proxy chart
+  helm upgrade --install oauth2-proxy oauth2-proxy/oauth2-proxy \
     --namespace oauth2 \
-    --set "extraArgs[0]=--provider=oidc" \
-    --set "extraArgs[1]=--login-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/auth" \
-    --set "extraArgs[2]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
-    --set "extraArgs[3]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
-    --set "extraArgs[4]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
-    --set "extraArgs[5]=--keycloak-group=administrators" \
-    --set "extraArgs[6]=--keycloak-group=developers" \
-    --set "extraArgs[7]=--allowed-group=administrators" \
-    --set "extraArgs[8]=--allowed-group=developers" \
-    --set "extraArgs[9]=--scope=openid email profile groups sub offline_access" \
-    --set "extraArgs[10]=--ssl-insecure-skip-verify=false" \
-    --set "extraArgs[11]=--set-authorization-header=true" \
-    --set "extraArgs[12]=--whitelist-domain=.gokcloud.com" \
-    --set "extraArgs[13]=--oidc-groups-claim=groups" \
-    --set "extraArgs[14]=--user-id-claim=sub" \
-    --set "extraArgs[15]=--cookie-domain=.gokcloud.com" \
-    --set "extraArgs[16]=--cookie-secure=true" \
-    --set "extraArgs[17]=--pass-access-token=true" \
-    --set "extraArgs[18]=--pass-authorization-header=true" \
-    --set "extraArgs[19]=--oidc-issuer-url=${oidc_issuer_url}" \
-    --set "extraArgs[20]=--standard-logging=true" \
-    --set "extraArgs[21]=--auth-logging=true" \
-    --set "extraArgs[22]=--request-logging=true" \
-    --set "extraArgs[23]=--cookie-refresh=1h" \
-    --set "extraArgs[24]=--cookie-expire=8h" \
-    --set "extraArgs[25]=--set-xauthrequest=true" \
-    --set "extraArgs[26]=--skip-jwt-bearer-tokens=true" \
-    --values "${MOUNT_PATH}/kubernetes/install_k8s/oauth2-proxy/values.yaml" \
-    --create-namespace \
+    --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
+    --set config.clientID="${oauth2_client_id}" \
+    --set config.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)" \
+    --set config.cookieSecret="mycookiesumit123" \
+    --set config.oidcIssuerUrl="${oidc_issuer_url}" \
+    --set config.loginHost="${oauth2_host}" \
+    --set config.realm="${realm}" \
+    --set ingress.enabled=false \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
