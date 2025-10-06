@@ -14063,9 +14063,7 @@ oauth2ProxyReset(){
   if [[ "$oauth2_exists" == true ]]; then
     # Try both possible release names
     local release_name=""
-    if helm list -n oauth2 2>/dev/null | grep -q "oauth2-proxy"; then
-      release_name="oauth2-proxy"
-    elif helm list -n oauth2 2>/dev/null | grep -q "oauth2proxy"; then
+    if helm list -n oauth2 2>/dev/null | grep -q "oauth2proxy"; then
       release_name="oauth2proxy"
     fi
     
