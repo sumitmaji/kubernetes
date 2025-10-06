@@ -116,7 +116,7 @@ extraVolumeMounts:
 ingress:
   ## @param ingress.enabled Enable ingress record generation for OAuth2 Proxy
   ##
-  enabled: false
+  enabled: true
   ## DEPRECATED: Use ingress.annotations instead of ingress.certManager
   ## certManager: false
   ##
@@ -231,14 +231,4 @@ ingress:
   ##           port:
   ##             name: http
   ##
-  extraRules:
-    - host: master.gokcloud.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: oauth2-proxy
-                port:
-                  number: 80
+  extraRules: []
