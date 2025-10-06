@@ -17,6 +17,7 @@ This document provides step-by-step instructions for installing Keycloak with Le
      - `KEYCLOAK_ADMIN`: `user`
      - `CLIENT_ID`: `<OIDC_CLIENT_ID>`
      - `OAUTH_REALM`: `<REALM>`
+     - `hostname`: `<keycloak-subdomain>.<root-domain>` (dynamically calculated)
    - Create the `keycloak-postgresql` secret with the following values:
      - `username`: `<POSTGRESQL_USERNAME>`
      - `password`: `<POSTGRESQL_PASSWORD>`
