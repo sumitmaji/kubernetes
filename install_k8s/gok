@@ -5239,7 +5239,21 @@ ldapSummary() {
       echo -e "  ${COLOR_CYAN}🔗 LDAP Access:${COLOR_RESET}"
       echo -e "    ${COLOR_DIM}• Server: ldap.default.svc.cloud.uat${COLOR_RESET}"
       echo -e "    ${COLOR_DIM}• Base DN: dc=default,dc=svc,dc=cloud,dc=uat${COLOR_RESET}"
-      echo -e "    ${COLOR_DIM}• Web Interface: https://master.cloud.com:31000/phpldapadmin/${COLOR_RESET}"
+      
+      # Check for LDAP ingress and get web interface URL dynamically
+      local ldap_ingress=$(kubectl get ingress -n ldap --no-headers 2>/dev/null | head -1)
+      if [[ -n "$ldap_ingress" ]]; then
+        local ingress_name=$(echo "$ldap_ingress" | awk '{print $1}')
+        local ldap_host=$(kubectl get ingress "$ingress_name" -n ldap -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
+        if [[ -n "$ldap_host" ]]; then
+          echo -e "    ${COLOR_DIM}• Web Interface: https://${ldap_host}/phpldapadmin/${COLOR_RESET}"
+        else
+          echo -e "    ${COLOR_DIM}• Web Interface: https://master.cloud.com/phpldapadmin/${COLOR_RESET}"
+        fi
+      else
+        echo -e "    ${COLOR_DIM}• Web Interface: https://master.cloud.com/phpldapadmin/${COLOR_RESET}"
+      fi
+      
       echo ""
       echo -e "  ${COLOR_CYAN}🔑 LDAP Credentials:${COLOR_RESET}"
       echo -e "    ${COLOR_DIM}• Admin User: cn=admin,dc=default,dc=svc,dc=cloud,dc=uat${COLOR_RESET}"
@@ -5371,15 +5385,18 @@ keycloakSummary() {
         local hosts=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)
         echo -e "  ${COLOR_GREEN}✓ Ingress: ${hosts}${COLOR_RESET}"
         
-        # Keycloak Access URLs
-        echo ""
-        echo -e "  ${COLOR_CYAN}🔗 Keycloak Access:${COLOR_RESET}"
-        echo -e "    ${COLOR_DIM}• Admin Console: https://keycloak.gokcloud.com/admin${COLOR_RESET}"
-        echo -e "    ${COLOR_DIM}• Account Console: https://keycloak.gokcloud.com/realms/master/account${COLOR_RESET}"
-        echo ""
-        echo -e "  ${COLOR_CYAN}🔑 Keycloak Admin Credentials:${COLOR_RESET}"
-        echo -e "    ${COLOR_DIM}Username: admin${COLOR_RESET}"
-        echo -e "    ${COLOR_DIM}Password: Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d${COLOR_RESET}"
+        # Keycloak Access URLs - dynamically get host from ingress
+        local keycloak_host=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
+        if [[ -n "$keycloak_host" ]]; then
+          echo ""
+          echo -e "  ${COLOR_CYAN}🔗 Keycloak Access:${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Admin Console: https://${keycloak_host}/admin${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Account Console: https://${keycloak_host}/realms/master/account${COLOR_RESET}"
+          echo ""
+          echo -e "  ${COLOR_CYAN}🔑 Keycloak Admin Credentials:${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}Username: admin${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}Password: Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d${COLOR_RESET}"
+        fi
       fi
     else
       echo -e "  ${COLOR_RED}✗ Keycloak service not found${COLOR_RESET}"
