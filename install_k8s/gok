@@ -5342,11 +5342,11 @@ keycloakSummary() {
 
   # 4. Service and Access
   if [[ "$cluster_accessible" == "true" ]]; then
-    log_step "4" "Service Configuration"
-  local keycloak_service=$(kubectl get service keycloak-http -n keycloak --no-headers 2>/dev/null)
+    log_step "4" "Service and Access"
+    local keycloak_service=$(kubectl get service keycloak-http -n keycloak --no-headers 2>/dev/null)
     if [[ -n "$keycloak_service" ]]; then
-  local service_type=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.type}' 2>/dev/null)
-  local port=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
+      local service_type=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.type}' 2>/dev/null)
+      local port=$(kubectl get service keycloak-http -n keycloak -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
       echo -e "  ${COLOR_GREEN}✓ Service: keycloak (Type: ${service_type}, Port: ${port})${COLOR_RESET}"
       
       # Check for ingress
@@ -5354,6 +5354,16 @@ keycloakSummary() {
       if [[ -n "$ingress" ]]; then
         local hosts=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)
         echo -e "  ${COLOR_GREEN}✓ Ingress: ${hosts}${COLOR_RESET}"
+        
+        # Keycloak Access URLs
+        echo ""
+        echo -e "  ${COLOR_CYAN}🔗 Keycloak Access:${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}• Admin Console: https://keycloak.gokcloud.com/admin${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}• Account Console: https://keycloak.gokcloud.com/realms/master/account${COLOR_RESET}"
+        echo ""
+        echo -e "  ${COLOR_CYAN}🔑 Keycloak Admin Credentials:${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}Username: admin${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}Password: Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d${COLOR_RESET}"
       fi
     else
       echo -e "  ${COLOR_RED}✗ Keycloak service not found${COLOR_RESET}"
