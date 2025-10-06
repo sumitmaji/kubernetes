@@ -12630,13 +12630,21 @@ installKeycloakWithCertMgr(){
   log_step "6" "Waiting for Keycloak services to be ready"
   if wait_for_keycloak_services; then
     log_success "Keycloak services are ready and accepting connections"
+    
+    # Create permanent admin account
+    log_step "7" "Creating permanent admin account"
+    if create_permanent_keycloak_admin; then
+      log_success "Permanent admin account created successfully"
+    else
+      log_warning "Could not create permanent admin account automatically (may need manual setup)"
+    fi
   else
     log_error "Keycloak services failed to start properly"
     popd || true
     return 1
   fi
 
-  log_step "7" "Installing Python dependencies for configuration"
+  log_step "8" "Installing Python dependencies for configuration"
   log_substep "Installing Python packages for Keycloak client management..."
   if execute_with_suppression apt install python3-dotenv python3-requests python3-jose -y; then
     log_success "Python dependencies installed"
