@@ -45,15 +45,7 @@ service:
 
 # Readiness and liveness probes
 readinessProbe:
-  enabled: true
-  path: /ping
-  port: 4180
-  scheme: HTTP
-  initialDelaySeconds: 0
-  timeoutSeconds: 5
-  periodSeconds: 10
-  successThreshold: 1
-  failureThreshold: 3
+  enabled: false
 
 livenessProbe:
   enabled: true
