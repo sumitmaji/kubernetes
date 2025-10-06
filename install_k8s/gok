@@ -5280,6 +5280,121 @@ ldapSummary() {
   echo ""
 }
 
+# Function to create permanent admin account in Keycloak
+create_permanent_keycloak_admin() {
+  local max_attempts=30
+  local attempt=1
+  local keycloak_url=""
+  local admin_user=""
+  local admin_password=""
+
+  # Get Keycloak URL from ingress
+  keycloak_url=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
+  if [[ -z "$keycloak_url" ]]; then
+    log_warning "Could not determine Keycloak URL from ingress"
+    return 1
+  fi
+
+  # Get admin credentials from secrets
+  admin_user=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath='{.data.admin-user}' 2>/dev/null | base64 --decode)
+  admin_password=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath='{.data.admin-password}' 2>/dev/null | base64 --decode)
+
+  if [[ -z "$admin_user" || -z "$admin_password" ]]; then
+    log_warning "Could not retrieve admin credentials from secrets"
+    return 1
+  fi
+
+  # Wait for Keycloak to be fully ready (not just pods, but admin API)
+  log_substep "Waiting for Keycloak admin API to be ready..."
+  while [[ $attempt -le $max_attempts ]]; do
+    if curl -s -k "https://${keycloak_url}/realms/master/.well-known/openid-connect-configuration" >/dev/null 2>&1; then
+      log_substep "Keycloak admin API is ready"
+      break
+    fi
+
+    if [[ $attempt -eq $max_attempts ]]; then
+      log_warning "Keycloak admin API not ready after ${max_attempts} attempts"
+      return 1
+    fi
+
+    sleep 5
+    attempt=$((attempt + 1))
+  done
+
+  # Get admin token
+  log_substep "Authenticating with Keycloak..."
+  local token_response=$(curl -s -k -X POST "https://${keycloak_url}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=password&client_id=admin-cli&username=${admin_user}&password=${admin_password}")
+
+  local access_token=$(echo "$token_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 2>/dev/null)
+
+  if [[ -z "$access_token" ]]; then
+    log_warning "Failed to authenticate with Keycloak admin API"
+    return 1
+  fi
+
+  # Check if permanent admin user already exists
+  log_substep "Checking for existing permanent admin user..."
+  local existing_users=$(curl -s -k -X GET "https://${keycloak_url}/admin/realms/master/users" \
+    -H "Authorization: Bearer ${access_token}" \
+    -H "Content-Type: application/json")
+
+  if echo "$existing_users" | grep -q '"username":"admin"'; then
+    log_substep "Permanent admin user already exists"
+    return 0
+  fi
+
+  # Create permanent admin user
+  log_substep "Creating permanent admin user..."
+  local create_response=$(curl -s -k -X POST "https://${keycloak_url}/admin/realms/master/users" \
+    -H "Authorization: Bearer ${access_token}" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "username": "keycloak-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Administrator",
+      "lastName": "User",
+      "credentials": [{
+        "type": "password",
+        "value": "'${admin_password}'",
+        "temporary": false
+      }]
+    }')
+
+  if [[ $? -ne 0 ]]; then
+    log_warning "Failed to create permanent admin user"
+    return 1
+  fi
+
+  # Get the user ID of the newly created user
+  sleep 2  # Wait a moment for user creation to complete
+  local user_id=$(curl -s -k -X GET "https://${keycloak_url}/admin/realms/master/users?username=admin" \
+    -H "Authorization: Bearer ${access_token}" \
+    -H "Content-Type: application/json" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+  if [[ -z "$user_id" ]]; then
+    log_warning "Could not retrieve user ID for permanent admin user"
+    return 1
+  fi
+
+  # Assign realm-admin role
+  log_substep "Assigning admin role to permanent user..."
+  local role_response=$(curl -s -k -X POST "https://${keycloak_url}/admin/realms/master/users/${user_id}/role-mappings/realm" \
+    -H "Authorization: Bearer ${access_token}" \
+    -H "Content-Type: application/json" \
+    -d '[{"id": "realm-admin", "name": "realm-admin"}]')
+
+  if [[ $? -ne 0 ]]; then
+    log_warning "Failed to assign admin role to permanent user"
+    return 1
+  fi
+
+  log_substep "Permanent admin account created and configured successfully"
+  return 0
+}
+
 # Keycloak Summary function
 keycloakSummary() {
   local verbose_mode="${1:-false}"
@@ -5397,12 +5512,10 @@ keycloakSummary() {
           echo -e "    ${COLOR_DIM}Username: admin${COLOR_RESET}"
           echo -e "    ${COLOR_DIM}Password: Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d${COLOR_RESET}"
           echo ""
-          echo -e "  ${COLOR_YELLOW}⚠️  Initial Setup Required:${COLOR_RESET}"
-          echo -e "    ${COLOR_DIM}• First login uses temporary admin account${COLOR_RESET}"
-          echo -e "    ${COLOR_DIM}• Create permanent admin user in: Master realm → Users → Create new user${COLOR_RESET}"
-          echo -e "    ${COLOR_DIM}• Set permanent password and assign 'admin' role${COLOR_RESET}"
-          echo -e "    ${COLOR_DIM}• Sign out and login with permanent admin account${COLOR_RESET}"
-          echo -e "    ${COLOR_DIM}• Delete the temporary admin user for security${COLOR_RESET}"
+          echo -e "  ${COLOR_GREEN}✅ Permanent Admin Account:${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Permanent admin account created automatically during installation${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• No manual setup required - login directly with admin credentials${COLOR_RESET}"
+          echo -e "    ${COLOR_DIM}• Account has full realm-admin privileges${COLOR_RESET}"
         fi
       fi
     else
@@ -11906,6 +12019,14 @@ build_keycloak_with_progress() {
   if [[ "$ready" == "true" ]]; then
     printf "\r${COLOR_GREEN}  ✓ Keycloak services ready [100%%]${COLOR_RESET}\n"
     log_success "Keycloak is ready and accepting connections"
+    
+    # Step 4: Create permanent admin account
+    log_info "👤 Creating permanent admin account"
+    if create_permanent_keycloak_admin; then
+      log_success "Permanent admin account created successfully"
+    else
+      log_warning "Could not create permanent admin account automatically (may need manual setup)"
+    fi
   else
     printf "\r${COLOR_YELLOW}  ⚠ Keycloak taking longer than expected${COLOR_RESET}\n"
     log_warning "Keycloak deployment may still be starting (check with: kubectl get pods -n keycloak)"
