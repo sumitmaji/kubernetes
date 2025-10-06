@@ -38,6 +38,11 @@ extraEnv: |
       secretKeyRef:
         name: keycloak-secrets
         key: hostname
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-postgresql
+        key: username
   - name: KC_PROXY
     value: "edge"
   - name: KC_HOSTNAME_STRICT
@@ -48,8 +53,6 @@ extraEnv: |
     value: "true"
   - name: KC_PROXY_HEADERS
     value: "xforwarded"
-  - name: KC_DB_PASSWORD
-    value: "sumit"
   - name: KC_CACHE
     value: "local"
 
@@ -90,8 +93,8 @@ database:
   hostname: keycloak-postgresql
   port: 5432
   database: keycloak
-  username: postgres
-  # Password will be set via existing secret
+  existingSecret: keycloak-postgresql
+  existingSecretKey: password
 
 # Using external PostgreSQL deployment - no subchart needed
 postgresql:
