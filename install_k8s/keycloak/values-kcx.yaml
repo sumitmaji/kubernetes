@@ -34,7 +34,10 @@ extraEnv: |
         name: keycloak-secrets
         key: admin-password
   - name: KC_HOSTNAME
-    value: "placeholder"
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secrets
+        key: hostname
   - name: KC_PROXY
     value: "edge"
   - name: KC_HOSTNAME_STRICT

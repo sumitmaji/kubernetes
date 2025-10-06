@@ -11516,6 +11516,8 @@ keycloakInst(){
   OIDC_CLIENT_ID=$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID:-gok-developers-client}): " "${OIDC_CLIENT_ID:-gok-developers-client}")
   REALM=$(promptUserInput "Please enter realm name (${REALM:-GokDevelopers}): " "${REALM:-GokDevelopers}")
   
+  # Calculate Keycloak hostname
+  local keycloak_hostname="$(subDomain 'keycloak').$(rootDomain)"
 
   if is_verbose_mode "$@"; then
     kubectl create secret generic keycloak-secrets \
@@ -11526,13 +11528,17 @@ keycloakInst(){
   --from-literal=OAUTH_REALM="${REALM}" \
   --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
   --from-literal=admin-user="${KEYCLOAK_ADMIN_USERNAME}" \
-  --from-literal=admin-password="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
+  --from-literal=admin-password="${KEYCLOAK_ADMIN_PASSWORD}" \
+  --from-literal=hostname="${keycloak_hostname}" -n keycloak || true
 
     kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${POSTGRESQL_USERNAME}" \
       --from-literal=password="${POSTGRESQL_PASSWORD}" \
       --from-literal=postgres-password="${POSTGRESQL_PASSWORD}" -n keycloak || true
   else
+    # Calculate Keycloak hostname
+    local keycloak_hostname="$(subDomain 'keycloak').$(rootDomain)"
+    
     execute_with_suppression kubectl create secret generic keycloak-secrets \
   --from-literal=KEYCLOAK_LOG_LEVEL="TRACE" \
   --from-literal=KC_LOG_LEVEL="TRACE" \
@@ -11541,7 +11547,8 @@ keycloakInst(){
   --from-literal=OAUTH_REALM="${REALM}" \
   --from-literal=KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}" \
   --from-literal=admin-user="${KEYCLOAK_ADMIN_USERNAME}" \
-  --from-literal=admin-password="${KEYCLOAK_ADMIN_PASSWORD}" -n keycloak || true
+  --from-literal=admin-password="${KEYCLOAK_ADMIN_PASSWORD}" \
+  --from-literal=hostname="${keycloak_hostname}" -n keycloak || true
 
     execute_with_suppression kubectl create secret generic keycloak-postgresql \
       --from-literal=username="${POSTGRESQL_USERNAME}" \
@@ -11575,19 +11582,12 @@ keycloakInst(){
 
   # Install Keycloak via codecentric/keycloakx Helm chart
   local hostname="$(subDomain 'keycloak').$(rootDomain)"
-  local full_hostname="https://${hostname}"
-
-  # Create a temporary values file with the correct hostname
-  local temp_values_file="/tmp/keycloak-values-${hostname}.yaml"
-  sed "s|placeholder|${full_hostname}|g" "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml > "$temp_values_file"
 
   if is_verbose_mode "$@"; then
     helm upgrade --install keycloak codecentric/keycloakx \
       --namespace keycloak \
-      --values "$temp_values_file"
-    local helm_exit_code=$?
-    rm -f "$temp_values_file"
-    if [[ $helm_exit_code -eq 0 ]]; then
+      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml
+    if [[ $? -eq 0 ]]; then
       return 0
     else
       log_error "Keycloak helm installation failed"
@@ -11597,11 +11597,9 @@ keycloakInst(){
     if helm_install_with_summary "keycloak" "keycloak" \
       keycloak codecentric/keycloakx \
       --namespace keycloak \
-      --values "$temp_values_file"; then
-      rm -f "$temp_values_file"
+      --values "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml; then
       return 0
     else
-      rm -f "$temp_values_file"
       log_error "Keycloak helm installation failed"
       return 1
     fi
@@ -11643,6 +11641,9 @@ build_keycloak_with_progress() {
       --from-literal=CLIENT_ID="${oidc_client_id}" \
       --from-literal=OAUTH_REALM="${realm}" \
       --from-literal=KEYCLOAK_ADMIN_PASSWORD="${keycloak_admin_password}" \
+      --from-literal=admin-user="${keycloak_admin_username}" \
+      --from-literal=admin-password="${keycloak_admin_password}" \
+      --from-literal=hostname="${hostname}" \
       -n keycloak >"$temp_secret_log" 2>"$temp_secret_error"
     
     kubectl create secret generic keycloak-postgresql \
