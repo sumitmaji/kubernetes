@@ -11575,10 +11575,11 @@ keycloakInst(){
 
   # Install Keycloak via codecentric/keycloakx Helm chart
   local hostname="$(subDomain 'keycloak').$(rootDomain)"
+  local full_hostname="https://${hostname}"
 
   # Create a temporary values file with the correct hostname
   local temp_values_file="/tmp/keycloak-values-${hostname}.yaml"
-  sed "s/placeholder/${hostname}/g" "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml > "$temp_values_file"
+  sed "s|placeholder|${full_hostname}|g" "${MOUNT_PATH}"/kubernetes/install_k8s/keycloak/values-kcx.yaml > "$temp_values_file"
 
   if is_verbose_mode "$@"; then
     helm upgrade --install keycloak codecentric/keycloakx \

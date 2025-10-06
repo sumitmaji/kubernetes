@@ -43,6 +43,8 @@ extraEnv: |
     value: "true"
   - name: KC_HOSTNAME_STRICT_HTTPS
     value: "true"
+  - name: KC_PROXY_HEADERS
+    value: "xforwarded"
   - name: KC_DB_PASSWORD
     value: "sumit"
   - name: KC_CACHE
@@ -69,7 +71,6 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
-    nginx.ingress.kubernetes.io/x-forwarded-proto: "https"
   rules:
     - host: "{{ .Values.ingress.hostname }}"
       paths:
