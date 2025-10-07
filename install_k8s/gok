@@ -14740,6 +14740,7 @@ build_oauth2_with_progress() {
   helm upgrade --install oauth2-proxy oauth2-proxy/oauth2-proxy \
     --namespace oauth2 \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
+    --set-string image.tag="v7.12.0" \
     --set-string config.clientID="${oauth2_client_id}" \
     --set-string config.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)" \
     --set-string config.cookieSecret=bXljb29raWVzdW1pdDEyMzQ1Njc4OTAx \
@@ -14778,6 +14779,7 @@ build_oauth2_with_progress() {
     --set "extraArgs[28]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
     --set "extraArgs[29]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
     --set "extraArgs[30]=--show-debug-on-error=true" \
+    --set "extraArgs[31]=--silence-ping-logging=false" \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
 
