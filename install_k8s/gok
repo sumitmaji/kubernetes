@@ -14771,7 +14771,7 @@ build_oauth2_with_progress() {
     --set "extraArgs[21]=--set-xauthrequest=true" \
     --set "extraArgs[22]=--skip-jwt-bearer-tokens=true" \
     --set "extraArgs[23]=--email-domain=*" \
-    --set "extraArgs[24]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}/" \
+    --set "extraArgs[24]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}" \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
