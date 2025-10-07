@@ -14781,6 +14781,7 @@ build_oauth2_with_progress() {
     --set "extraArgs[30]=--show-debug-on-error=true" \
     --set "extraArgs[31]=--silence-ping-logging=false" \
     --set "extraArgs[32]=--upstream=http://httpbin.org" \
+    --set "extraArgs[33]=--skip-provider-button=false"
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
 
