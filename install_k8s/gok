@@ -14775,7 +14775,7 @@ build_oauth2_with_progress() {
     --set 'extraArgs[25]=--set-xauthrequest=true' \
     --set 'extraArgs[26]=--skip-jwt-bearer-tokens=true' \
     --set 'extraArgs[27]=--email-domain=*' \
-    --set 'extraArgs[2]=--oidc-issuer-url=https://${OAUTH2_HOST}/${REALM}/GokDevelopers'" \
+    --set 'extraArgs[28]=--oidc-issuer-url=https://${OAUTH2_HOST}/${REALM}/GokDevelopers' \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
