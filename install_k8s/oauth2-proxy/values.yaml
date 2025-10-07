@@ -20,11 +20,8 @@ config:
 
 # Extra arguments (will be merged with config)
 extraArgs:
+  provider: "oidc"
   oidc-issuer-url: "https://keycloak.gokcloud.com/realms/GokDevelopers"
-  login-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/auth"
-  redeem-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/token"
-  profile-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
-  validate-url: "https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/userinfo"
   scope: "openid email profile groups sub offline_access"
   oidc-groups-claim: "groups"
   user-id-claim: "sub"
