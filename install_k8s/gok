@@ -14777,7 +14777,7 @@ build_oauth2_with_progress() {
     --set "extraArgs[27]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
     --set "extraArgs[28]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
     --set "extraArgs[29]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
-
+    --set "extraArgs[30]=--skip-provider-button=false" \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
 
