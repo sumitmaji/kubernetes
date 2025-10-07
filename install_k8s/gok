@@ -14594,7 +14594,7 @@ spec:
   - host: master.gokcloud.com
     http:
       paths:
-      - path: /
+      - path: /oauth2
         pathType: Prefix
         backend:
           service:
