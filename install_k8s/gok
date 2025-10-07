@@ -14617,7 +14617,7 @@ EOF
   fi
   
   log_substep "Setting SSL and protocol annotations..."
-  if execute_with_suppression kubectl annotate ingress oauth2-proxy -n oauth2 nginx.ingress.kubernetes.io/ssl-redirect='true' ingress.kubernetes.io/ssl-passthrough='true' nginx.ingress.kubernetes.io/backend-protocol='HTTP' kubernetes.io/ingress.allow-http='false' nginx.ingress.kubernetes.io/rewrite-target='/$1'; then
+  if execute_with_suppression kubectl annotate ingress oauth2-proxy -n oauth2 nginx.ingress.kubernetes.io/ssl-redirect='true' ingress.kubernetes.io/ssl-passthrough='true' nginx.ingress.kubernetes.io/backend-protocol='HTTP' kubernetes.io/ingress.allow-http='false'; then
     log_success "OAuth2 Proxy SSL annotations configured successfully"
   else
     log_warning "OAuth2 Proxy SSL annotations had issues but continuing"
