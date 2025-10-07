@@ -14701,7 +14701,7 @@ build_oauth2_with_progress() {
     --set config.oidcIssuerUrl="${oidc_issuer_url}" \
     --set config.loginHost="${oauth2_host}" \
     --set config.realm="${realm}" \
-    --set ingress.enabled=false \
+    --set ingress.enabled=true \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
@@ -17257,7 +17257,6 @@ function installCmd() {
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
-    echo "this is testing"
     oauth2ProxyInst
   elif [ "$COMPONENT" == "istio" ]; then
     istioInst
