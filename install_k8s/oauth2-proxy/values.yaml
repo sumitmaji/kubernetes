@@ -35,11 +35,42 @@ extraEnvVars:
 
 # Configuration for OAuth2 Proxy
 config:
+  # clientID: ${OAUTH2_PROXY_CLIENT_ID}
+  # clientSecretFile: /etc/secrets/OIDC_CLIENT_SECRET
+  # cookieSecret: mycookiesumit123
+  # oidcIssuerUrl: $(OAUTH2_OIDC_ISSUER_URL)
+  # redirectUrl: $(OAUTH2_REDIRECT_URL)
   configFile: |
     # Basic configuration - most settings moved to extraArgs
 
 # Extra arguments (will be merged with config)
 extraArgs: []
+  # - --provider=oidc
+  # - --keycloak-group=administrators
+  # - --keycloak-group=developers
+  # - --allowed-group=administrators
+  # - --allowed-group=developers
+  # - --scope=openid email profile groups sub offline_access
+  # - --ssl-insecure-skip-verify=false
+  # - --set-authorization-header=true
+  # - --whitelist-domain=.gokcloud.com
+  # - --oidc-groups-claim=groups
+  # - --user-id-claim=sub
+  # - --cookie-domain=.gokcloud.com
+  # - --cookie-secure=true
+  # - --pass-access-token=true
+  # - --pass-authorization-header=true
+  # - --standard-logging=true
+  # - --auth-logging=true
+  # - --request-logging=true
+  # - --cookie-refresh=1h
+  # - --cookie-expire=8h
+  # - --skip-jwt-bearer-tokens=true
+  # - --email-domain=*
+  # - --oidc-issuer-url=https://keycloak.gokcloud.com/realms/GokDevelopers
+  # - --oidc-jwks-url=https://keycloak.gokcloud.com/realms/GokDevelopers/protocol/openid-connect/certs
+  # - --upstream=http://httpbin.org/status/200
+  # - --reverse-proxy=true
 
 # Service configuration
 service:
