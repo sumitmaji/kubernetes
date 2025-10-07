@@ -14579,10 +14579,54 @@ oauth2ProxyInst(){
   fi
 
   log_step "7" "Configuring OAuth2 Proxy networking and access"
-  if execute_with_suppression gok patch ingress oauth2proxy-oauth2-proxy oauth2 letsencrypt $(defaultSubdomain); then
-    log_success "OAuth2 Proxy ingress configured successfully"
+  log_substep "Creating OAuth2 Proxy ingress manually..."
+  
+  # Create the ingress resource manually since upstream chart ingress has bugs
+  if execute_with_suppression kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oauth2-proxy
+  namespace: oauth2
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: master.gokcloud.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: oauth2proxy
+            port:
+              number: 80
+EOF
+  then
+    log_success "OAuth2 Proxy ingress created successfully"
   else
-    log_warning "OAuth2 Proxy ingress configuration had issues but installation may still work"
+    log_warning "OAuth2 Proxy ingress creation had issues but continuing"
+  fi
+  
+  log_substep "Configuring TLS for OAuth2 Proxy ingress..."
+  if execute_with_suppression kubectl patch ingress oauth2-proxy -n oauth2 --type=merge -p '{"spec":{"tls":[{"hosts":["master.gokcloud.com"],"secretName":"master-gokcloud-com-tls"}]}}'; then
+    log_success "OAuth2 Proxy TLS configured successfully"
+  else
+    log_warning "OAuth2 Proxy TLS configuration had issues but continuing"
+  fi
+  
+  log_substep "Setting SSL and protocol annotations..."
+  if execute_with_suppression kubectl annotate ingress oauth2-proxy -n oauth2 nginx.ingress.kubernetes.io/ssl-redirect='true' ingress.kubernetes.io/ssl-passthrough='true' nginx.ingress.kubernetes.io/backend-protocol='HTTP' kubernetes.io/ingress.allow-http='false'; then
+    log_success "OAuth2 Proxy SSL annotations configured successfully"
+  else
+    log_warning "OAuth2 Proxy SSL annotations had issues but continuing"
+  fi
+  
+  log_substep "Applying Let's Encrypt certificate configuration..."
+  if execute_with_suppression gok patch ingress oauth2-proxy oauth2 letsencrypt $(defaultSubdomain); then
+    log_success "OAuth2 Proxy Let's Encrypt configuration applied successfully"
+  else
+    log_warning "OAuth2 Proxy Let's Encrypt configuration had issues but installation may still work"
   fi
 
   log_step "8" "Validating OAuth2 Proxy installation"
@@ -14701,7 +14745,7 @@ build_oauth2_with_progress() {
     --set config.oidcIssuerUrl="${oidc_issuer_url}" \
     --set config.loginHost="${oauth2_host}" \
     --set config.realm="${realm}" \
-    --set ingress.enabled=true \
+    --set ingress.enabled=false \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
