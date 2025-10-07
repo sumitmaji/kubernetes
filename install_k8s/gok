@@ -14762,16 +14762,15 @@ build_oauth2_with_progress() {
     --set "extraArgs[12]=--cookie-secure=true" \
     --set "extraArgs[13]=--pass-access-token=true" \
     --set "extraArgs[14]=--pass-authorization-header=true" \
-    --set "extraArgs[15]=--oidc-issuer-url=${oauth2_oidc_issuer_url}" \
-    --set "extraArgs[16]=--standard-logging=true" \
-    --set "extraArgs[17]=--auth-logging=true" \
-    --set "extraArgs[18]=--request-logging=true" \
-    --set "extraArgs[19]=--cookie-refresh=1h" \
-    --set "extraArgs[20]=--cookie-expire=8h" \
-    --set "extraArgs[21]=--set-xauthrequest=true" \
-    --set "extraArgs[22]=--skip-jwt-bearer-tokens=true" \
-    --set "extraArgs[23]=--email-domain=*" \
-    --set "extraArgs[24]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}" \
+    --set "extraArgs[15]=--standard-logging=true" \
+    --set "extraArgs[16]=--auth-logging=true" \
+    --set "extraArgs[17]=--request-logging=true" \
+    --set "extraArgs[18]=--cookie-refresh=1h" \
+    --set "extraArgs[19]=--cookie-expire=8h" \
+    --set "extraArgs[20]=--set-xauthrequest=true" \
+    --set "extraArgs[21]=--skip-jwt-bearer-tokens=true" \
+    --set "extraArgs[22]=--email-domain=*" \
+    --set "extraArgs[23]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}" \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
