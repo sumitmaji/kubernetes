@@ -14773,13 +14773,14 @@ build_oauth2_with_progress() {
     --set "extraArgs[23]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}" \
     --set "extraArgs[24]=--oidc-jwks-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/certs" \
     --set "extraArgs[25]=--reverse-proxy=true" \
+    --set "extraArgs[26]=--login-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/auth" \
+    --set "extraArgs[27]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
+    --set "extraArgs[28]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[29]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
+
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
 
-    # --set "extraArgs[23]=--login-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/auth" \
-    # --set "extraArgs[24]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
-    # --set "extraArgs[25]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
-    # --set "extraArgs[27]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
 
 
   # Show Helm installation progress with OAuth2-specific stages
