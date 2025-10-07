@@ -14742,11 +14742,38 @@ build_oauth2_with_progress() {
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
     --set-string config.clientID="${oauth2_client_id}" \
     --set-string config.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)" \
-    --set-string config.cookieSecret="mycookiesumit123" \
+    --set-string config.cookieSecret=bXljb29raWVzdW1pdDEyMzQ1Njc4OTAx \
     --set-string config.oidcIssuerUrl="${oidc_issuer_url}" \
     --set-string config.loginHost="${oauth2_host}" \
     --set-string config.realm="${realm}" \
     --set ingress.enabled=false \
+    --set 'extraArgs[0]=--provider=oidc' \
+    --set 'extraArgs[1]=--login-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/auth' \
+    --set 'extraArgs[2]=--redeem-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/token' \
+    --set 'extraArgs[3]=--profile-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo' \
+    --set 'extraArgs[4]=--validate-url=https://${OAUTH2_HOST}/realms/${REALM}/protocol/openid-connect/userinfo' \
+    --set 'extraArgs[5]=--keycloak-group=administrators' \
+    --set 'extraArgs[6]=--keycloak-group=developers' \
+    --set 'extraArgs[7]=--allowed-group=administrators' \
+    --set 'extraArgs[8]=--allowed-group=developers' \
+    --set 'extraArgs[9]=--scope=openid email profile groups sub offline_access' \
+    --set 'extraArgs[10]=--ssl-insecure-skip-verify=false' \
+    --set 'extraArgs[11]=--set-authorization-header=true' \
+    --set 'extraArgs[12]=--whitelist-domain=.gokcloud.com' \
+    --set 'extraArgs[13]=--oidc-groups-claim=groups' \
+    --set 'extraArgs[14]=--user-id-claim=sub' \
+    --set 'extraArgs[15]=--cookie-domain=.gokcloud.com' \
+    --set 'extraArgs[16]=--cookie-secure=true' \
+    --set 'extraArgs[17]=--pass-access-token=true' \
+    --set 'extraArgs[18]=--pass-authorization-header=true' \
+    --set 'extraArgs[19]=--oidc-issuer-url=${OAUTH2_OIDC_ISSUE_URL}' \
+    --set 'extraArgs[20]=--standard-logging=true' \
+    --set 'extraArgs[21]=--auth-logging=true' \
+    --set 'extraArgs[22]=--request-logging=true' \
+    --set 'extraArgs[23]=--cookie-refresh=1h' \
+    --set 'extraArgs[24]=--cookie-expire=8h' \
+    --set 'extraArgs[25]=--set-xauthrequest=true' \
+    --set 'extraArgs[26]=--skip-jwt-bearer-tokens=true' \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   

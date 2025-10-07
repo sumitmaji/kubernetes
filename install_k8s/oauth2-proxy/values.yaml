@@ -7,33 +7,39 @@ image:
   tag: "v7.4.0"
   pullPolicy: IfNotPresent
 
+
+extraEnvVars:
+  - name: LOG_LEVEL
+    value: debug
+  - name: OAUTH2_PROXY_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: oauth-secrets
+        key: OIDC_CLIENT_SECRET
+  - name: OAUTH2_PROXY_CLIENT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: oauth2-proxy-config
+        key: clientID
+  - name: OAUTH2_OIDC_ISSUER_URL
+    valueFrom:
+      configMapKeyRef:
+        name: oauth2-proxy-config
+        key: oidcIssuerUrl
+  - name: OAUTH2_REDIRECT_URL
+    valueFrom:
+      configMapKeyRef:
+        name: oauth2-proxy-config
+        key: redirectUrl
+
+
 # Configuration for OAuth2 Proxy
 config:
-  clientID: "PLACEHOLDER_CLIENT_ID"
-  clientSecret: "PLACEHOLDER_CLIENT_SECRET"
-  cookieSecret: "mycookiesumit123"
-  oidcIssuerUrl: ""
-  loginHost: ""
-  realm: ""
   configFile: |
     # Basic configuration - most settings moved to extraArgs
 
 # Extra arguments (will be merged with config)
-extraArgs:
-  provider: "oidc"
-  oidc-issuer-url: "https://keycloak.gokcloud.com/realms/GokDevelopers"
-  scope: "openid email profile groups sub offline_access"
-  oidc-groups-claim: "groups"
-  user-id-claim: "sub"
-  whitelist-domain: ".gokcloud.com"
-  cookie-domain: ".gokcloud.com"
-  cookie-secure: true
-  set-authorization-header: true
-  pass-access-token: true
-  pass-authorization-header: true
-  ssl-insecure-skip-verify: false
-  email-domain: "*"
-  redirect-url: "https://kube.gokcloud.com/oauth2/callback"
+extraArgs: []
 
 # Service configuration
 service:
@@ -132,11 +138,11 @@ ingress:
   ingressClassName: "nginx"
   ## @param ingress.hostname Default host for the ingress record
   ##
-  hostname: master.gokcloud.com
+  hostname: master.cloud.com
   ## @param ingress.path Default path for the ingress record
   ## NOTE: You may need to set this to '/*' in order to use this with ALB ingress controllers
   ##
-  path: /
+  path: /oauth2
   ## @param ingress.annotations Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
   ## For a full list of possible ingress annotations, please see
   ## ref: https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/annotations.md
@@ -161,7 +167,7 @@ ingress:
   ##   - Rely on cert-manager to create it by setting the corresponding annotations
   ##   - Rely on Helm to create self-signed certificates by setting `ingress.tls=true` and `ingress.certManager=false`
   ##
-  tls: []
+  tls: true
   ## @param ingress.extraHosts An array with additional hostname(s) to be covered with the ingress record
   ## e.g:
   ## extraHosts:
