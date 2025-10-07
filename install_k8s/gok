@@ -14595,8 +14595,8 @@ spec:
   - host: $(defaultSubdomain).$(rootDomain)
     http:
       paths:
-      - path: /oauth2(.*)
-        pathType: ImplementationSpecific
+      - path: /oauth2
+        pathType: Prefix
         backend:
           service:
             name: oauth2-proxy
@@ -14770,7 +14770,13 @@ build_oauth2_with_progress() {
     --set "extraArgs[20]=--set-xauthrequest=true" \
     --set "extraArgs[21]=--skip-jwt-bearer-tokens=true" \
     --set "extraArgs[22]=--email-domain=*" \
-    --set "extraArgs[23]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}" \
+    --set "extraArgs[23]=--login-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/auth" \
+    --set "extraArgs[24]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
+    --set "extraArgs[25]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[26]=--oidc-issuer-url=https://${oauth2_host}/realms/${realm}" \
+    --set "extraArgs[27]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
+    --set "extraArgs[28]=--oidc-jwks-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/certs" \
+    --set "extraArgs[29]=--reverse-proxy=true" \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
   
