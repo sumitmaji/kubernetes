@@ -36,6 +36,7 @@ extraArgs:
   pass-authorization-header: true
   ssl-insecure-skip-verify: false
   email-domain: "*"
+  redirect-url: "https://kube.gokcloud.com/oauth2/callback"
 
 # Service configuration
 service:

@@ -1806,7 +1806,7 @@ suggest_and_install_next_module() {
             kubectl get deployment ldap -n ldap >/dev/null 2>&1 && is_installed=true
             ;;
         "oauth2")
-            kubectl get deployment oauth2proxy -n oauth2 >/dev/null 2>&1 && is_installed=true
+            kubectl get deployment oauth2-proxy -n oauth2 >/dev/null 2>&1 && is_installed=true
             ;;
         "rabbitmq")
             kubectl get statefulset rabbitmq -n rabbitmq >/dev/null 2>&1 && is_installed=true
@@ -14525,10 +14525,11 @@ oauth2ProxyInst(){
     log_warning "OAuth2 Proxy storage creation had issues but continuing"
   fi
   
-  if kubectl_with_summary create "namespace" oauth2; then
-    log_success "OAuth2 Proxy namespace created"
+  if kubectl get namespace oauth2 >/dev/null 2>&1 || kubectl create namespace oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy namespace created or already exists"
   else
-    log_info "OAuth2 Proxy namespace already exists"
+    log_error "Failed to create OAuth2 Proxy namespace"
+    return 1
   fi
 
   log_step "5" "Collecting OAuth2 configuration from Keycloak"
@@ -14591,14 +14592,14 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: master.gokcloud.com
+  - host: $(defaultSubdomain).$(rootDomain)
     http:
       paths:
-      - path: /oauth2
-        pathType: Prefix
+      - path: /oauth2(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
-            name: oauth2proxy
+            name: oauth2-proxy
             port:
               number: 80
 EOF
@@ -14609,14 +14610,14 @@ EOF
   fi
   
   log_substep "Configuring TLS for OAuth2 Proxy ingress..."
-  if execute_with_suppression kubectl patch ingress oauth2-proxy -n oauth2 --type=merge -p '{"spec":{"tls":[{"hosts":["master.gokcloud.com"],"secretName":"master-gokcloud-com-tls"}]}}'; then
+  if execute_with_suppression kubectl patch ingress oauth2-proxy -n oauth2 --type=merge -p '{"spec":{"tls":[{"hosts":["'$(defaultSubdomain).$(rootDomain)'"],"secretName":"'$(defaultSubdomain)-$(sedRootDomain)-tls'"}]}}'; then
     log_success "OAuth2 Proxy TLS configured successfully"
   else
     log_warning "OAuth2 Proxy TLS configuration had issues but continuing"
   fi
   
   log_substep "Setting SSL and protocol annotations..."
-  if execute_with_suppression kubectl annotate ingress oauth2-proxy -n oauth2 nginx.ingress.kubernetes.io/ssl-redirect='true' ingress.kubernetes.io/ssl-passthrough='true' nginx.ingress.kubernetes.io/backend-protocol='HTTP' kubernetes.io/ingress.allow-http='false'; then
+  if execute_with_suppression kubectl annotate ingress oauth2-proxy -n oauth2 nginx.ingress.kubernetes.io/ssl-redirect='true' ingress.kubernetes.io/ssl-passthrough='true' nginx.ingress.kubernetes.io/backend-protocol='HTTP' kubernetes.io/ingress.allow-http='false' nginx.ingress.kubernetes.io/rewrite-target='/$1'; then
     log_success "OAuth2 Proxy SSL annotations configured successfully"
   else
     log_warning "OAuth2 Proxy SSL annotations had issues but continuing"
@@ -14739,12 +14740,12 @@ build_oauth2_with_progress() {
   helm upgrade --install oauth2-proxy oauth2-proxy/oauth2-proxy \
     --namespace oauth2 \
     --values "${MOUNT_PATH}"/kubernetes/install_k8s/oauth2-proxy/values.yaml \
-    --set config.clientID="${oauth2_client_id}" \
-    --set config.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)" \
-    --set config.cookieSecret="mycookiesumit123" \
-    --set config.oidcIssuerUrl="${oidc_issuer_url}" \
-    --set config.loginHost="${oauth2_host}" \
-    --set config.realm="${realm}" \
+    --set-string config.clientID="${oauth2_client_id}" \
+    --set-string config.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)" \
+    --set-string config.cookieSecret="mycookiesumit123" \
+    --set-string config.oidcIssuerUrl="${oidc_issuer_url}" \
+    --set-string config.loginHost="${oauth2_host}" \
+    --set-string config.realm="${realm}" \
     --set ingress.enabled=false \
     >"$temp_helm_log" 2>"$temp_helm_error" &
   local helm_pid=$!
