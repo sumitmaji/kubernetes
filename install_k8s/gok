@@ -17257,6 +17257,7 @@ function installCmd() {
   elif [ "$COMPONENT" == "spinnaker" ]; then
     spinnakerInst
   elif [ "$COMPONENT" == "oauth2" ]; then
+    echo "this is testing"
     oauth2ProxyInst
   elif [ "$COMPONENT" == "istio" ]; then
     istioInst
