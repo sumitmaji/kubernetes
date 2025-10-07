@@ -14743,9 +14743,6 @@ build_oauth2_with_progress() {
     --set-string config.clientID="${oauth2_client_id}" \
     --set-string config.clientSecret="$(dataFromSecret oauth-secrets kube-system OIDC_CLIENT_SECRET)" \
     --set-string config.cookieSecret=bXljb29raWVzdW1pdDEyMzQ1Njc4OTAx \
-    # --set-string config.oidcIssuerUrl="${oidc_issuer_url}" \
-    # --set-string config.loginHost="${oauth2_host}" \
-    # --set-string config.realm="${realm}" \
     --set ingress.enabled=false \
     --set 'extraArgs[0]=--provider=oidc' \
     --set "extraArgs[1]=--keycloak-group=administrators" \
@@ -14780,6 +14777,9 @@ build_oauth2_with_progress() {
     # --set "extraArgs[24]=--redeem-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/token" \
     # --set "extraArgs[25]=--profile-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
     # --set "extraArgs[27]=--validate-url=https://${oauth2_host}/realms/${realm}/protocol/openid-connect/userinfo" \
+    # --set-string config.oidcIssuerUrl="${oidc_issuer_url}" \
+    # --set-string config.loginHost="${oauth2_host}" \
+    # --set-string config.realm="${realm}" \
 
 
   # Show Helm installation progress with OAuth2-specific stages
