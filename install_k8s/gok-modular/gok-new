@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# GOK - Kubernetes Operations Toolkit (Modular Version)
+# Main entry point for the modular GOK system
+
+# Check for help commands and set skip validation flag
+if [[ "$1" == "--help" || "$1" == "-h" || "$1" == "help" ]]; then
+    export GOK_SKIP_VALIDATION="true"
+fi
+
+# Set paths and initialize environment
+export GOK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export GOK_LIB_DIR="${GOK_ROOT}/lib"
+
+# Check if the required directories exist
+if [[ ! -d "$GOK_LIB_DIR" ]]; then
+    echo "ERROR: GOK library directory not found at $GOK_LIB_DIR" >&2
+    echo "Please ensure the GOK modular structure is properly installed." >&2
+    exit 1
+fi
+
+# Load bootstrap module to initialize the system
+if [[ -f "${GOK_LIB_DIR}/core/bootstrap.sh" ]]; then
+    source "${GOK_LIB_DIR}/core/bootstrap.sh"
+else
+    echo "ERROR: Bootstrap module not found" >&2
+    echo "Cannot initialize GOK system without core/bootstrap.sh" >&2
+    exit 1
+fi
+
+# Bootstrap the GOK system
+bootstrap_gok
+
+# Check if dispatcher is available
+if ! declare -f dispatch_command >/dev/null 2>&1; then
+    echo "ERROR: Command dispatcher not loaded" >&2
+    echo "The GOK system failed to initialize properly" >&2
+    exit 1
+fi
+
+# Initialize environment
+if declare -f init_environment >/dev/null 2>&1; then
+    init_environment
+fi
+
+# Dispatch to the appropriate command handler
+dispatch_command "$@"
