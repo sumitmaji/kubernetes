@@ -358,3 +358,180 @@ taintNodeCmd() {
     echo "This feature manages Kubernetes node taints for pod scheduling control."
     echo "Use 'kubectl taint nodes <node-name> <key>=<value>:<effect>' for manual configuration."
 }
+
+# Completion command - generate shell completion scripts
+completionCmd() {
+    local shell_type="${1:-bash}"
+    
+    # Only show header for help and install commands
+    case "$shell_type" in
+        --help|-h|help|install)
+            log_header "GOK Command Completion"
+            ;;
+    esac
+    
+    case "$shell_type" in
+        --help|-h|help)
+            echo "Generate shell completion for GOK commands"
+            echo ""
+            echo "Usage: gok completion [shell]"
+            echo ""
+            echo "Supported shells:"
+            echo "  bash    Generate bash completion (default)"
+            echo "  zsh     Generate zsh completion"
+            echo "  fish    Generate fish completion"
+            echo ""
+            echo "Installation:"
+            echo "  # For bash (add to ~/.bashrc):"
+            echo "  source <(gok-new completion bash)"
+            echo ""
+            echo "  # For zsh (add to ~/.zshrc):"
+            echo "  source <(gok-new completion zsh)"
+            echo ""
+            echo "  # For fish:"
+            echo "  gok-new completion fish > ~/.config/fish/completions/gok-new.fish"
+            echo ""
+            echo "Examples:"
+            echo "  gok-new completion bash > gok-completion.bash"
+            echo "  source gok-completion.bash"
+            return 0
+            ;;
+        bash)
+            # Generate bash completion 
+            if [[ -f "${GOK_ROOT}/gok-completion.bash" ]]; then
+                cat "${GOK_ROOT}/gok-completion.bash"
+            else
+                echo "Error: Completion script not found: ${GOK_ROOT}/gok-completion.bash" >&2
+                return 1
+            fi
+            ;;
+        zsh)
+            # Generate zsh completion
+            if [[ -f "${GOK_ROOT}/gok-completion.bash" ]]; then
+                bash "${GOK_ROOT}/gok-completion.bash" generate zsh
+            else
+                log_error "Completion script not found: ${GOK_ROOT}/gok-completion.bash"
+                return 1
+            fi
+            ;;
+        fish)
+            # Generate fish completion
+            if [[ -f "${GOK_ROOT}/gok-completion.bash" ]]; then
+                bash "${GOK_ROOT}/gok-completion.bash" generate fish
+            else
+                log_error "Completion script not found: ${GOK_ROOT}/gok-completion.bash"
+                return 1
+            fi
+            ;;
+        install)
+            # Install completion for current shell
+            local current_shell=$(basename "$SHELL")
+            log_info "Installing completion for $current_shell..."
+            if [[ -f "${GOK_ROOT}/gok-completion.bash" ]]; then
+                bash "${GOK_ROOT}/gok-completion.bash" install "$current_shell"
+            else
+                log_error "Completion script not found: ${GOK_ROOT}/gok-completion.bash"
+                return 1
+            fi
+            ;;
+        *)
+            log_error "Unsupported shell: $shell_type"
+            log_info "Supported shells: bash, zsh, fish"
+            log_info "Use 'gok-new completion --help' for more information"
+            return 1
+            ;;
+    esac
+}
+
+# Cache management command
+cacheCmd() {
+    local action="${1:-status}"
+    
+    case "$action" in
+        --help|-h|help)
+            echo "Manage GOK cache and temporary files"
+            echo ""
+            echo "Usage: gok-new cache [action]"
+            echo ""
+            echo "Actions:"
+            echo "  status     Show cache status and size (default)"
+            echo "  clean      Clean cache files"
+            echo "  clear      Clear all cache and logs"
+            echo "  path       Show cache directory path"
+            echo ""
+            echo "Examples:"
+            echo "  gok-new cache status"
+            echo "  gok-new cache clean"
+            return 0
+            ;;
+        status)
+            log_header "GOK Cache Status"
+            
+            if [[ -d "$GOK_CACHE_DIR" ]]; then
+                local cache_size=$(du -sh "$GOK_CACHE_DIR" 2>/dev/null | cut -f1)
+                local file_count=$(find "$GOK_CACHE_DIR" -type f 2>/dev/null | wc -l)
+                
+                log_info "Cache directory: $GOK_CACHE_DIR"
+                log_info "Cache size: ${cache_size:-0}"
+                log_info "Files: $file_count"
+                
+                if [[ -f "${GOK_CACHE_DIR}/component_status" ]]; then
+                    local components=$(wc -l < "${GOK_CACHE_DIR}/component_status" 2>/dev/null || echo 0)
+                    log_info "Tracked components: $components"
+                fi
+            else
+                log_info "Cache directory not found: $GOK_CACHE_DIR"
+            fi
+            
+            if [[ -d "$GOK_LOGS_DIR" ]]; then
+                local logs_size=$(du -sh "$GOK_LOGS_DIR" 2>/dev/null | cut -f1)
+                log_info "Logs directory: $GOK_LOGS_DIR"
+                log_info "Logs size: ${logs_size:-0}"
+            fi
+            ;;
+        clean)
+            log_info "Cleaning GOK cache..."
+            
+            # Clean old temporary files
+            if [[ -d "$GOK_CACHE_DIR" ]]; then
+                find "$GOK_CACHE_DIR" -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
+                find "$GOK_CACHE_DIR" -name "*.lock" -mtime +1 -delete 2>/dev/null || true
+                log_success "Temporary files cleaned"
+            fi
+            
+            # Clean old logs
+            if [[ -d "$GOK_LOGS_DIR" ]]; then
+                find "$GOK_LOGS_DIR" -name "*.log" -mtime +7 -delete 2>/dev/null || true
+                log_success "Old logs cleaned"
+            fi
+            ;;
+        clear)
+            log_warning "This will remove ALL cache files and logs"
+            read -p "Are you sure? (y/N): " -n 1 -r
+            echo
+            
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                if [[ -d "$GOK_CACHE_DIR" ]]; then
+                    rm -rf "$GOK_CACHE_DIR"/*
+                    log_success "Cache cleared"
+                fi
+                
+                if [[ -d "$GOK_LOGS_DIR" ]]; then
+                    rm -rf "$GOK_LOGS_DIR"/*
+                    log_success "Logs cleared"
+                fi
+            else
+                log_info "Operation cancelled"
+            fi
+            ;;
+        path)
+            echo "Cache: $GOK_CACHE_DIR"
+            echo "Logs: $GOK_LOGS_DIR"
+            ;;
+        *)
+            log_error "Unknown cache action: $action"
+            log_info "Use 'gok-new cache --help' for available actions"
+            return 1
+            ;;
+    esac
+}

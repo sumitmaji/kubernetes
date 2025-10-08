@@ -30,8 +30,8 @@ patchCmd() { echo "Patch command - functionality will be implemented"; }
 deployCmd() { echo "Deploy command - functionality will be implemented"; }
 startCmd() { echo "Start command - functionality will be implemented"; }
 remoteCmd() { echo "Remote command - functionality will be implemented"; }
-completionCmd() { echo "Completion command - functionality will be implemented"; }
-cacheCmd() { echo "Cache command - functionality will be implemented"; }
+# Completion command is now implemented in utils.sh
+# Cache command is now implemented in utils.sh
 
 # Network utility functions
 checkDns() { echo "DNS check - functionality will be implemented"; }
