@@ -101,6 +101,8 @@ load_command_modules() {
         "status"
         "utils"
         "create"
+        "exec"
+        "completion"
     )
     
     for module in "${command_modules[@]}"; do

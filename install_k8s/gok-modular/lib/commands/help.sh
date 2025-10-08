@@ -54,6 +54,7 @@ Operations:
   desc [target]           Describe pods or GOK methods
   logs                    View pod logs and diagnostics
   bash                    Open interactive terminal in pods
+  exec <command>          Execute commands on remote VMs
   status                  Check Helm release status
 
 System Management:
@@ -93,6 +94,7 @@ EXAMPLES:
   gok install base-services --verbose       # Install essential services
   gok reset monitoring                      # Uninstall monitoring stack
   gok create secret myapp-secret           # Create a Kubernetes secret
+  gok exec "kubectl get pods"              # Execute command on remote VM
   gok desc methods                         # Show all available methods
   gok remote setup                         # Configure remote hosts
 

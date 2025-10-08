@@ -67,6 +67,9 @@ dispatch_command() {
         "bash"|"shell")
             bashCmd "$@"
             ;;
+        "exec")
+            execCmd "$@"
+            ;;
         
         # Remote operations
         "remote")

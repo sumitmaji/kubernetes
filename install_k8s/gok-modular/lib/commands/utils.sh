@@ -100,6 +100,7 @@ helpCmd() {
     echo "  desc <resource>        Describe Kubernetes resources"
     echo "  logs <pod>             Show logs for pods"
     echo "  bash <pod>             Open bash shell in pod"
+    echo "  exec <command>         Execute commands on remote VMs"
     echo "  create <type>          Create Kubernetes resources"
     echo "  generate <type>        Generate configuration files"
     echo "  patch <resource>       Patch Kubernetes resources"
