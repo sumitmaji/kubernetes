@@ -5535,14 +5535,14 @@ keycloakSummary() {
   echo ""
 }
 
-# OAuth2 Proxy Summary function
-oauth2ProxySummary() {
+# Enhanced OAuth2 Proxy Summary function
+oauth2Summary() {
   local verbose_mode="${1:-false}"
   
   echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
-  echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-  echo "║                        OAUTH2 PROXY SUMMARY                                 ║"
-  echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+  echo "╔═══════════════════════════════════════════════════════════════════════════════════════════════════════════╗"
+  echo "║                                    🛡️  OAUTH2 PROXY COMPREHENSIVE SUMMARY 🛡️                                 ║"
+  echo "╚═══════════════════════════════════════════════════════════════════════════════════════════════════════════╝"
   echo -e "${COLOR_RESET}"
   echo ""
   
@@ -5550,70 +5550,307 @@ oauth2ProxySummary() {
   if kubectl cluster-info >/dev/null 2>&1; then
     cluster_accessible=true
   fi
+
+  if [[ "$cluster_accessible" != "true" ]]; then
+    echo -e "  ${COLOR_RED}❌ Kubernetes cluster not accessible${COLOR_RESET}"
+    echo -e "  ${COLOR_YELLOW}💡 Ensure kubectl is configured and cluster is running${COLOR_RESET}"
+    return 1
+  fi
   
-  # 1. Installation Status
-  log_step "1" "Installation Status"
-  if [[ "$cluster_accessible" == "true" ]]; then
-    if kubectl get namespace oauth2 >/dev/null 2>&1; then
-      echo -e "  ${COLOR_GREEN}✓ Namespace: oauth2 exists${COLOR_RESET}"
-      local oauth2_deployment=$(kubectl get deployment oauth2proxy -n oauth2 --no-headers 2>/dev/null)
-      if [[ -n "$oauth2_deployment" ]]; then
-        echo -e "  ${COLOR_GREEN}✓ OAuth2 Proxy deployment found${COLOR_RESET}"
+  # 1. Installation Status & Health
+  log_step "1" "Installation Status & Health Assessment"
+  
+  local deployment_name=""
+  local service_name=""
+  
+  # Check for both possible deployment names (oauth2-proxy and oauth2proxy)
+  if kubectl get deployment oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2-proxy"
+    service_name="oauth2-proxy"
+  elif kubectl get deployment oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2proxy"  
+    service_name="oauth2proxy"
+  fi
+  
+  if kubectl get namespace oauth2 >/dev/null 2>&1; then
+    echo -e "  ${COLOR_GREEN}✅ Namespace: oauth2 exists${COLOR_RESET}"
+    
+    if [[ -n "$deployment_name" ]]; then
+      echo -e "  ${COLOR_GREEN}✅ Deployment: $deployment_name found${COLOR_RESET}"
+      
+      # Check deployment status
+      local ready_replicas=$(kubectl get deployment $deployment_name -n oauth2 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+      local desired_replicas=$(kubectl get deployment $deployment_name -n oauth2 -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+      local image=$(kubectl get deployment $deployment_name -n oauth2 -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "unknown")
+      
+      if [[ "$ready_replicas" == "$desired_replicas" && "$ready_replicas" != "0" ]]; then
+        echo -e "  ${COLOR_GREEN}✅ Health: Ready ($ready_replicas/$desired_replicas replicas)${COLOR_RESET}"
       else
-        echo -e "  ${COLOR_RED}✗ OAuth2 Proxy deployment not found${COLOR_RESET}"
+        echo -e "  ${COLOR_RED}❌ Health: Not Ready ($ready_replicas/$desired_replicas replicas)${COLOR_RESET}"
       fi
+      
+      echo -e "  ${COLOR_CYAN}📦 Image: $image${COLOR_RESET}"
     else
-      echo -e "  ${COLOR_RED}✗ Namespace: oauth2 not found${COLOR_RESET}"
+      echo -e "  ${COLOR_RED}❌ OAuth2 Proxy deployment not found${COLOR_RESET}"
+      echo -e "  ${COLOR_YELLOW}💡 Run 'gok install oauth2' to install OAuth2 Proxy${COLOR_RESET}"
     fi
   else
-    echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+    echo -e "  ${COLOR_RED}❌ Namespace: oauth2 not found${COLOR_RESET}"
+    echo -e "  ${COLOR_YELLOW}💡 OAuth2 Proxy is not installed${COLOR_RESET}"
   fi
   echo ""
   
-  # 2. OAuth2 Proxy Pods
-  if [[ "$cluster_accessible" == "true" ]]; then
-    log_step "2" "OAuth2 Proxy Pods"
-    local pods=$(kubectl get pods -n oauth2 --no-headers 2>/dev/null)
+  # 2. Pod Analysis
+  if [[ -n "$deployment_name" ]]; then
+    log_step "2" "Pod Analysis & Resource Usage"
+    local pods=$(kubectl get pods -n oauth2 -l app.kubernetes.io/name=oauth2-proxy --no-headers 2>/dev/null)
     if [[ -n "$pods" ]]; then
       echo "$pods" | while read -r line; do
         local pod_name=$(echo "$line" | awk '{print $1}')
         local pod_status=$(echo "$line" | awk '{print $3}')
         local ready_status=$(echo "$line" | awk '{print $2}')
+        local restarts=$(echo "$line" | awk '{print $4}')
+        local age=$(echo "$line" | awk '{print $5}')
+        
         if [[ "$pod_status" == "Running" ]]; then
-          echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+          echo -e "    ${COLOR_GREEN}✅ Pod: $pod_name${COLOR_RESET}"
+          echo -e "      ${COLOR_CYAN}Status: $pod_status | Ready: $ready_status | Restarts: $restarts | Age: $age${COLOR_RESET}"
+          
+          # Get pod IP and node
+          local pod_ip=$(kubectl get pod $pod_name -n oauth2 -o jsonpath='{.status.podIP}' 2>/dev/null)
+          local node=$(kubectl get pod $pod_name -n oauth2 -o jsonpath='{.spec.nodeName}' 2>/dev/null)
+          echo -e "      ${COLOR_DIM}Pod IP: $pod_ip | Node: $node${COLOR_RESET}"
+          
+          # Check resource usage if verbose
+          if [[ "$verbose_mode" == "true" ]]; then
+            local cpu_usage=$(kubectl top pod $pod_name -n oauth2 --no-headers 2>/dev/null | awk '{print $2}' || echo "N/A")
+            local mem_usage=$(kubectl top pod $pod_name -n oauth2 --no-headers 2>/dev/null | awk '{print $3}' || echo "N/A")
+            echo -e "      ${COLOR_DIM}Resource Usage: CPU: $cpu_usage | Memory: $mem_usage${COLOR_RESET}"
+          fi
         else
-          echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+          echo -e "    ${COLOR_RED}❌ Pod: $pod_name - Status: $pod_status${COLOR_RESET}"
+          
+          # Show recent events for failed pods
+          echo -e "      ${COLOR_YELLOW}Recent events:${COLOR_RESET}"
+          kubectl get events -n oauth2 --field-selector involvedObject.name=$pod_name --sort-by='.lastTimestamp' -o custom-columns="TIME:.lastTimestamp,REASON:.reason,MESSAGE:.message" --no-headers 2>/dev/null | tail -3 | while read -r event_line; do
+            echo -e "        ${COLOR_DIM}$event_line${COLOR_RESET}"
+          done
         fi
       done
     else
-      echo -e "    ${COLOR_RED}✗ No OAuth2 Proxy pods found${COLOR_RESET}"
+      echo -e "    ${COLOR_RED}❌ No OAuth2 Proxy pods found${COLOR_RESET}"
     fi
     echo ""
   fi
 
-  # 3. Service Configuration
-  if [[ "$cluster_accessible" == "true" ]]; then
-    log_step "3" "Service Configuration"
-    local oauth2_service=$(kubectl get service oauth2proxy -n oauth2 --no-headers 2>/dev/null)
+  # 3. Service & Networking Analysis
+  if [[ -n "$service_name" ]]; then
+    log_step "3" "Service & Networking Configuration"
+    local oauth2_service=$(kubectl get service $service_name -n oauth2 --no-headers 2>/dev/null)
     if [[ -n "$oauth2_service" ]]; then
-      local service_type=$(kubectl get service oauth2proxy -n oauth2 -o jsonpath='{.spec.type}' 2>/dev/null)
-      local port=$(kubectl get service oauth2proxy -n oauth2 -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
-      echo -e "  ${COLOR_GREEN}✓ Service: oauth2proxy (Type: ${service_type}, Port: ${port})${COLOR_RESET}"
+      local service_type=$(kubectl get service $service_name -n oauth2 -o jsonpath='{.spec.type}' 2>/dev/null)
+      local cluster_ip=$(kubectl get service $service_name -n oauth2 -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
+      local ports=$(kubectl get service $service_name -n oauth2 -o jsonpath='{.spec.ports[*].port}' 2>/dev/null)
+      
+      echo -e "  ${COLOR_GREEN}✅ Service: $service_name${COLOR_RESET}"
+      echo -e "    ${COLOR_CYAN}Type: $service_type | ClusterIP: $cluster_ip | Ports: $ports${COLOR_RESET}"
+      
+      # Check service endpoints
+      local endpoints=$(kubectl get endpoints $service_name -n oauth2 -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | wc -w)
+      if [[ $endpoints -gt 0 ]]; then
+        echo -e "    ${COLOR_GREEN}✅ Endpoints: $endpoints active${COLOR_RESET}"
+        if [[ "$verbose_mode" == "true" ]]; then
+          local endpoint_ips=$(kubectl get endpoints $service_name -n oauth2 -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+          echo -e "    ${COLOR_DIM}Endpoint IPs: $endpoint_ips${COLOR_RESET}"
+        fi
+      else
+        echo -e "    ${COLOR_RED}❌ Endpoints: No active endpoints${COLOR_RESET}"
+      fi
     else
-      echo -e "  ${COLOR_RED}✗ OAuth2 Proxy service not found${COLOR_RESET}"
+      echo -e "  ${COLOR_RED}❌ OAuth2 Proxy service not found${COLOR_RESET}"
     fi
     echo ""
   fi
   
-  # 4. Available Commands
-  log_step "4" "Available Commands"
+  # 4. Ingress Configuration Analysis
+  log_step "4" "Ingress & SSL Configuration"
+  local ingress=$(kubectl get ingress oauth2-proxy -n oauth2 --no-headers 2>/dev/null)
+  if [[ -n "$ingress" ]]; then
+    local ingress_class=$(kubectl get ingress oauth2-proxy -n oauth2 -o jsonpath='{.spec.ingressClassName}' 2>/dev/null)
+    local hosts=$(kubectl get ingress oauth2-proxy -n oauth2 -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)
+    
+    echo -e "  ${COLOR_GREEN}✅ Ingress: oauth2-proxy${COLOR_RESET}"
+    echo -e "    ${COLOR_CYAN}Class: $ingress_class | Hosts: $hosts${COLOR_RESET}"
+    
+    # Check critical annotations
+    local buffer_size=$(kubectl get ingress oauth2-proxy -n oauth2 -o jsonpath='{.metadata.annotations.nginx\.ingress\.kubernetes\.io/proxy-buffer-size}' 2>/dev/null)
+    local ssl_redirect=$(kubectl get ingress oauth2-proxy -n oauth2 -o jsonpath='{.metadata.annotations.nginx\.ingress\.kubernetes\.io/ssl-redirect}' 2>/dev/null)
+    
+    if [[ -n "$buffer_size" ]]; then
+      if [[ "$buffer_size" == "128k" || "$buffer_size" == "256k" ]]; then
+        echo -e "    ${COLOR_GREEN}✅ Buffer Size: $buffer_size (optimized for OAuth2)${COLOR_RESET}"
+      else
+        echo -e "    ${COLOR_YELLOW}⚠️  Buffer Size: $buffer_size (may cause 502 errors)${COLOR_RESET}"
+      fi
+    else
+      echo -e "    ${COLOR_RED}❌ Buffer Size: Not configured (likely to cause 502 errors)${COLOR_RESET}"
+    fi
+    
+    echo -e "    ${COLOR_CYAN}SSL Redirect: ${ssl_redirect:-not-set}${COLOR_RESET}"
+    
+    # Check TLS configuration
+    local tls_hosts=$(kubectl get ingress oauth2-proxy -n oauth2 -o jsonpath='{.spec.tls[*].hosts[*]}' 2>/dev/null)
+    if [[ -n "$tls_hosts" ]]; then
+      echo -e "    ${COLOR_GREEN}✅ TLS: Configured for $tls_hosts${COLOR_RESET}"
+    else
+      echo -e "    ${COLOR_YELLOW}⚠️  TLS: Not configured${COLOR_RESET}"
+    fi
+  else
+    echo -e "  ${COLOR_RED}❌ Ingress not found${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 5. OAuth2 Configuration Analysis
+  if [[ -n "$deployment_name" ]]; then
+    log_step "5" "OAuth2 Configuration Analysis"
+    
+    # Get OAuth2 arguments
+    local args=$(kubectl get deployment $deployment_name -n oauth2 -o jsonpath='{.spec.template.spec.containers[0].args}' 2>/dev/null)
+    
+    if [[ -n "$args" ]]; then
+      local provider=$(echo "$args" | grep -o '\--provider=[^"]*' | cut -d'=' -f2 | tr -d '"[],' || echo "unknown")
+      local cookie_expire=$(echo "$args" | grep -o '\--cookie-expire=[^"]*' | cut -d'=' -f2 | tr -d '"[],' || echo "unknown")
+      local upstream=$(echo "$args" | grep -o '\--upstream=[^"]*' | cut -d'=' -f2 | tr -d '"[],' || echo "unknown")
+      local oidc_issuer=$(echo "$args" | grep -o '\--oidc-issuer-url=[^"]*' | cut -d'=' -f2 | tr -d '"[],' || echo "unknown")
+      
+      echo -e "  ${COLOR_GREEN}✅ OAuth2 Configuration Detected${COLOR_RESET}"
+      echo -e "    ${COLOR_CYAN}Provider: $provider${COLOR_RESET}"
+      echo -e "    ${COLOR_CYAN}Cookie Expire: $cookie_expire${COLOR_RESET}"
+      echo -e "    ${COLOR_CYAN}Upstream: $upstream${COLOR_RESET}"
+      if [[ "$oidc_issuer" != "unknown" ]]; then
+        echo -e "    ${COLOR_CYAN}OIDC Issuer: $oidc_issuer${COLOR_RESET}"
+      fi
+      
+      # Count total arguments
+      local arg_count=$(echo "$args" | tr ',' '\n' | grep -c '^--' || echo "0")
+      echo -e "    ${COLOR_DIM}Total Arguments: $arg_count${COLOR_RESET}"
+    else
+      echo -e "  ${COLOR_YELLOW}⚠️  OAuth2 arguments not found${COLOR_RESET}"
+    fi
+    echo ""
+  fi
+  
+  # 6. Connectivity Tests
+  log_step "6" "Connectivity & Health Tests"
+  
+  # Test OAuth2 endpoints
+  local oauth2_url="https://$(defaultSubdomain).$(rootDomain)/oauth2/start"
+  echo -e "  ${COLOR_CYAN}Testing OAuth2 Endpoints...${COLOR_RESET}"
+  
+  if command -v curl >/dev/null 2>&1; then
+    local start_response=$(curl -k -s -o /dev/null -w "%{http_code}" "$oauth2_url" 2>/dev/null || echo "000")
+    if [[ "$start_response" == "200" || "$start_response" == "302" ]]; then
+      echo -e "    ${COLOR_GREEN}✅ OAuth2 Start: $start_response (accessible)${COLOR_RESET}"
+    else
+      echo -e "    ${COLOR_RED}❌ OAuth2 Start: $start_response (not accessible)${COLOR_RESET}"
+    fi
+    
+    local ping_response=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$(defaultSubdomain).$(rootDomain)/oauth2/ping" 2>/dev/null || echo "000")
+    if [[ "$ping_response" == "200" ]]; then
+      echo -e "    ${COLOR_GREEN}✅ OAuth2 Ping: $ping_response (healthy)${COLOR_RESET}"
+    else
+      echo -e "    ${COLOR_YELLOW}⚠️  OAuth2 Ping: $ping_response (may not be exposed)${COLOR_RESET}"
+    fi
+  else
+    echo -e "    ${COLOR_YELLOW}⚠️  curl not available - skipping connectivity tests${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 7. Recent Events & Troubleshooting
+  log_step "7" "Recent Events & Troubleshooting"
+  
+  local recent_events=$(kubectl get events -n oauth2 --sort-by='.lastTimestamp' -o custom-columns="TIME:.lastTimestamp,TYPE:.type,REASON:.reason,OBJECT:.involvedObject.name,MESSAGE:.message" --no-headers 2>/dev/null | tail -5)
+  
+  if [[ -n "$recent_events" ]]; then
+    echo -e "  ${COLOR_CYAN}Recent Events (last 5):${COLOR_RESET}"
+    echo "$recent_events" | while read -r event_line; do
+      local event_type=$(echo "$event_line" | awk '{print $2}')
+      if [[ "$event_type" == "Warning" ]]; then
+        echo -e "    ${COLOR_YELLOW}⚠️  $event_line${COLOR_RESET}"
+      else
+        echo -e "    ${COLOR_DIM}$event_line${COLOR_RESET}"
+      fi
+    done
+  else
+    echo -e "  ${COLOR_GREEN}✅ No recent events (system stable)${COLOR_RESET}"
+  fi
+  echo ""
+  
+  # 8. Management Commands
+  log_step "8" "Management Commands & Debugging Tools"
   echo -e "  ${COLOR_CYAN}OAuth2 Proxy Management:${COLOR_RESET}"
-  echo -e "    ${COLOR_DIM}gok install oauth2              # Install OAuth2 Proxy${COLOR_RESET}"
-  echo -e "    ${COLOR_DIM}gok oauth2ProxySummary          # Show this summary${COLOR_RESET}"
-  echo -e "    ${COLOR_DIM}gok oauth2ProxyReset            # Reset OAuth2 Proxy${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok install oauth2                    # Install OAuth2 Proxy${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok reset oauth2                      # Reset OAuth2 Proxy${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok oauth2Summary                     # Show this comprehensive summary${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}gok oauth2Summary verbose             # Show detailed resource usage${COLOR_RESET}"
   echo ""
-  echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+  echo -e "  ${COLOR_CYAN}Debugging Tools:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl logs -n oauth2 -l app.kubernetes.io/name=oauth2-proxy -f    # Follow logs${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl get pods -n oauth2 -o wide                                 # Pod details${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl describe ingress oauth2-proxy -n oauth2                    # Ingress details${COLOR_RESET}"
   echo ""
+  echo -e "  ${COLOR_CYAN}OAuth2 Debugging Toolkit:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}cd install_k8s/oauth2-proxy/debug                                  # Go to debug tools${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}./oauth2-remote-debug.sh capture                                   # Capture configuration${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}./oauth2-remote-debug.sh validate                                  # Quick validation${COLOR_RESET}"
+  echo ""
+  
+  # 9. Summary & Recommendations
+  log_step "9" "Overall Status & Recommendations"
+  
+  local overall_status="unknown"
+  local recommendations=()
+  
+  if [[ -n "$deployment_name" && "$ready_replicas" == "$desired_replicas" && "$ready_replicas" != "0" ]]; then
+    if [[ -n "$ingress" && "$buffer_size" == "128k" || "$buffer_size" == "256k" ]]; then
+      overall_status="healthy"
+      echo -e "  ${COLOR_GREEN}🎉 Overall Status: HEALTHY & OPERATIONAL${COLOR_RESET}"
+      recommendations+=("✅ OAuth2 Proxy is running optimally")
+      recommendations+=("✅ All components are properly configured") 
+    else
+      overall_status="warning"
+      echo -e "  ${COLOR_YELLOW}⚠️  Overall Status: OPERATIONAL WITH WARNINGS${COLOR_RESET}"
+      recommendations+=("⚠️  Consider increasing nginx buffer size to 128k")
+      recommendations+=("⚠️  Monitor for 502 errors during authentication")
+    fi
+  elif [[ -n "$deployment_name" ]]; then
+    overall_status="degraded"
+    echo -e "  ${COLOR_RED}❌ Overall Status: DEGRADED${COLOR_RESET}"
+    recommendations+=("❌ OAuth2 Proxy deployment is not ready")
+    recommendations+=("🔧 Check pod logs for errors")
+    recommendations+=("🔧 Verify resource availability")
+  else
+    overall_status="not-installed"
+    echo -e "  ${COLOR_RED}❌ Overall Status: NOT INSTALLED${COLOR_RESET}"
+    recommendations+=("📦 Run 'gok install oauth2' to install OAuth2 Proxy")
+    recommendations+=("📖 Ensure Keycloak is installed and configured first")
+  fi
+  
+  echo ""
+  echo -e "  ${COLOR_CYAN}💡 Recommendations:${COLOR_RESET}"
+  for rec in "${recommendations[@]}"; do
+    echo -e "    $rec"
+  done
+  
+  echo ""
+  echo -e "${COLOR_BRIGHT_GREEN}📋 OAuth2 Proxy Summary Complete${COLOR_RESET}"
+  echo -e "${COLOR_DIM}Run 'gok oauth2Summary verbose' for detailed resource usage information${COLOR_RESET}"
+  echo ""
+}
+
+# Legacy OAuth2 Proxy Summary function (for backward compatibility)
+oauth2ProxySummary() {
+  oauth2Summary "$@"
 }
 
 # RabbitMQ Summary function
