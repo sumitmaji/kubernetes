@@ -5837,10 +5837,125 @@ oauth2Summary() {
   fi
   
   echo ""
-  echo -e "  ${COLOR_CYAN}💡 Recommendations:${COLOR_RESET}"
+  echo -e "  ${COLOR_CYAN}💡 System Recommendations:${COLOR_RESET}"
   for rec in "${recommendations[@]}"; do
     echo -e "    $rec"
   done
+  
+  echo ""
+  
+  # 10. Developer Integration Guide
+  log_step "10" "Developer Integration Guide - Using OAuth2 Proxy in App Ingresses"
+  
+  echo -e "  ${COLOR_CYAN}🔧 How to Secure Your Applications with OAuth2 Proxy:${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_BRIGHT_YELLOW}📋 Method 1: Annotation-Based Authentication (Recommended)${COLOR_RESET}"
+  echo -e "    ${COLOR_GREEN}✅ Easiest to implement and maintain${COLOR_RESET}"
+  echo -e "    ${COLOR_GREEN}✅ No changes to application code required${COLOR_RESET}"
+  echo -e "    ${COLOR_GREEN}✅ Centralized authentication management${COLOR_RESET}"
+  echo ""
+  echo -e "  ${COLOR_DIM}Add these annotations to your application ingress:${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}nginx.ingress.kubernetes.io/auth-url: \"https://$(defaultSubdomain).$(rootDomain)/oauth2/auth\"${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}nginx.ingress.kubernetes.io/auth-signin: \"https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=\$escaped_request_uri\"${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}nginx.ingress.kubernetes.io/auth-response-headers: \"X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Preferred-Username\"${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_BRIGHT_YELLOW}📋 Example Application Ingress (Complete):${COLOR_RESET}"
+  cat << 'EOF'
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: my-secure-app
+      namespace: my-namespace
+      annotations:
+        # OAuth2 Proxy Authentication
+        nginx.ingress.kubernetes.io/auth-url: "https://oauth2.yourdomain.com/oauth2/auth"
+        nginx.ingress.kubernetes.io/auth-signin: "https://oauth2.yourdomain.com/oauth2/start?rd=$escaped_request_uri"
+        nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Preferred-Username"
+        
+        # Essential for OAuth2 (prevents 502 errors)
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "128k"
+        nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+        
+        # Optional: SSL and other settings
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    spec:
+      ingressClassName: nginx
+      tls:
+      - hosts:
+        - myapp.yourdomain.com
+        secretName: myapp-tls
+      rules:
+      - host: myapp.yourdomain.com
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app-service
+                port:
+                  number: 80
+EOF
+  echo ""
+  
+  echo -e "  ${COLOR_BRIGHT_YELLOW}📋 Method 2: Upstream Configuration (Advanced)${COLOR_RESET}"
+  echo -e "    ${COLOR_YELLOW}⚠️  More complex but offers fine-grained control${COLOR_RESET}"
+  echo -e "    ${COLOR_YELLOW}⚠️  Requires OAuth2 Proxy configuration changes${COLOR_RESET}"
+  echo ""
+  echo -e "  ${COLOR_DIM}Configure OAuth2 Proxy with your app as upstream:${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}--upstream=http://my-app-service.my-namespace.svc.cluster.local:80${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}--skip-auth-regex=^/health|^/metrics|^/api/public${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_BRIGHT_YELLOW}🔐 Authentication Headers Available in Your App:${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}X-Auth-Request-User:${COLOR_RESET}               ${COLOR_DIM}# Username from identity provider${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}X-Auth-Request-Email:${COLOR_RESET}              ${COLOR_DIM}# User's email address${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}X-Auth-Request-Preferred-Username:${COLOR_RESET} ${COLOR_DIM}# Preferred username${COLOR_RESET}"
+  echo -e "    ${COLOR_CYAN}X-Auth-Request-Groups:${COLOR_RESET}             ${COLOR_DIM}# User's groups (if configured)${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_BRIGHT_YELLOW}💡 Best Practices & Tips:${COLOR_RESET}"
+  echo ""
+  echo -e "  ${COLOR_GREEN}✅ Essential Configurations:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Always set proxy-buffer-size to 128k or 256k${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Use consistent domain names (OAuth2 and app on same domain)${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Enable SSL redirect for security${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Test authentication flow after deployment${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_YELLOW}⚠️  Common Pitfalls to Avoid:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Forgetting proxy-buffer-size (causes 502 Bad Gateway)${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Using different domains for OAuth2 and app (cookie issues)${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Not handling /oauth2/* paths in app routing${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}• Missing OIDC configuration in Keycloak client${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_CYAN}🚀 Quick Start Commands:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}# Create ingress template${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl create ingress myapp --class=nginx --rule=\"myapp.$(rootDomain)/*=myapp:80\" --dry-run=client -o yaml > myapp-ingress.yaml${COLOR_RESET}"
+  echo ""
+  echo -e "    ${COLOR_DIM}# Add OAuth2 annotations to existing ingress${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl annotate ingress myapp nginx.ingress.kubernetes.io/auth-url=\"https://$(defaultSubdomain).$(rootDomain)/oauth2/auth\"${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}kubectl annotate ingress myapp nginx.ingress.kubernetes.io/auth-signin=\"https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=\\$escaped_request_uri\"${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_CYAN}🔍 Testing Your Integration:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}1. Deploy your application with OAuth2 annotations${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}2. Access https://myapp.$(rootDomain) (should redirect to login)${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}3. Login via Keycloak (should redirect back to your app)${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}4. Check authentication headers in your app logs${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}5. Test logout: https://$(defaultSubdomain).$(rootDomain)/oauth2/sign_out${COLOR_RESET}"
+  echo ""
+  
+  echo -e "  ${COLOR_CYAN}📚 Troubleshooting Resources:${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}OAuth2 Debug Tools:    cd install_k8s/oauth2-proxy/debug${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}Capture Configuration: ./oauth2-remote-debug.sh capture${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}Validate Setup:        ./oauth2-remote-debug.sh validate${COLOR_RESET}"
+  echo -e "    ${COLOR_DIM}Check Logs:           kubectl logs -n oauth2 -l app.kubernetes.io/name=oauth2-proxy -f${COLOR_RESET}"
+  echo ""
   
   echo ""
   echo -e "${COLOR_BRIGHT_GREEN}📋 OAuth2 Proxy Summary Complete${COLOR_RESET}"
