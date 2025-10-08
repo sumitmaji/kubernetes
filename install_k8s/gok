@@ -15792,7 +15792,10 @@ rabbitmqInst(){
   log_info "🔧 Config: Management UI enabled, admin user tags"
 
   # Create RabbitMQ cluster with progress tracking
-  if execute_with_suppression cat <<EOF | kubectl apply -f -
+  log_substep "Creating RabbitMQ cluster manifest"
+  local rabbitmq_manifest=$(mktemp)
+  
+  cat > "$rabbitmq_manifest" <<EOF
 apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
 metadata:
@@ -15832,10 +15835,13 @@ spec:
               - containerPort: 15672
                 name: management
 EOF
-  then
+
+  if execute_with_suppression kubectl apply -f "$rabbitmq_manifest"; then
     log_success "RabbitMQ cluster configuration applied"
+    rm -f "$rabbitmq_manifest"
   else
     log_error "Failed to apply RabbitMQ cluster configuration"
+    rm -f "$rabbitmq_manifest"
     return 1
   fi
 
@@ -15843,7 +15849,9 @@ EOF
   log_substep "Creating management UI ingress"
   log_info "🌐 Ingress: rabbitmq.$(rootDomain) → Management UI"
 
-  if execute_with_suppression cat <<EOF | kubectl apply -f -
+  local ingress_manifest=$(mktemp)
+  
+  cat > "$ingress_manifest" <<EOF
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -15865,10 +15873,13 @@ spec:
             port:
               number: 15672
 EOF
-  then
+
+  if execute_with_suppression kubectl apply -f "$ingress_manifest"; then
     log_success "RabbitMQ management ingress created"
+    rm -f "$ingress_manifest"
   else
     log_warning "RabbitMQ management ingress creation had issues"
+    rm -f "$ingress_manifest"
   fi
 
   log_step "7" "Waiting for RabbitMQ cluster to be ready"
