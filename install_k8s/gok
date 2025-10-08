@@ -17338,8 +17338,27 @@ check_service_status_statefulset() {
 }
 
 check_rabbitmq_status() {
-  # RabbitMQ typically uses StatefulSet for clustering
-  check_service_status_statefulset "rabbitmq" "rabbitmq" "rabbitmq" "statefulset"
+  # RabbitMQ uses RabbitMQ Cluster Operator with custom resource
+  if ! check_cluster_connectivity; then
+    echo "❌"
+    return
+  fi
+
+  # Check RabbitmqCluster custom resource status (primary check)
+  if kubectl get rabbitmqcluster rabbitmq -n rabbitmq &>/dev/null; then
+    local ready_status=$(kubectl get rabbitmqcluster rabbitmq -n rabbitmq -o jsonpath='{.status.conditions[?(@.type=="AllReplicasReady")].status}' 2>/dev/null)
+    if [[ "$ready_status" == "True" ]]; then
+      echo "✅"
+      return
+    fi
+  fi
+
+  # Fallback: check if RabbitMQ pods are running
+  if kubectl get pods -l app.kubernetes.io/name=rabbitmq -n rabbitmq -o jsonpath='{.items[*].status.phase}' 2>/dev/null | grep -q "Running"; then
+    echo "⚠️"  # Running but cluster not fully ready
+  else
+    echo "❌"
+  fi
 }
 
 check_vault_status() {
