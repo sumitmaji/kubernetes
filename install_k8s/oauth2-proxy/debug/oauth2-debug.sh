@@ -385,18 +385,27 @@ validate_config() {
     log "${GREEN}✓ Validation completed${NC}"
 }
 
-# Function to create comparison script for future deployments
+# Function to create enhanced comparison script with descriptive explanations
 create_comparison_script() {
     log "${BOLD}${BLUE}=== CREATING COMPARISON SCRIPT ===${NC}"
     
     cat << 'EOF' > "$DEBUG_DIR/compare_future_deployment.sh"
 #!/bin/bash
 
-# OAuth2 Proxy Configuration Comparison Script
-# This script compares current deployment with the baseline captured configuration
+# OAuth2 Proxy Configuration Comparison Script with Descriptive Analysis
+# This script compares current deployment with baseline and explains what changes mean
 
 BASELINE_DIR="$1"
 CURRENT_NAMESPACE="${2:-oauth2}"
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+BOLD='\033[1m'
 
 if [[ -z "$BASELINE_DIR" ]]; then
     echo "Usage: $0 <baseline_debug_dir> [namespace]"
@@ -405,72 +414,284 @@ if [[ -z "$BASELINE_DIR" ]]; then
 fi
 
 if [[ ! -d "$BASELINE_DIR" ]]; then
-    echo "Error: Baseline directory not found: $BASELINE_DIR"
+    echo -e "${RED}Error: Baseline directory not found: $BASELINE_DIR${NC}"
     exit 1
 fi
 
-echo "Comparing current OAuth2 configuration with baseline..."
-echo "Baseline: $BASELINE_DIR"
-echo "Current namespace: $CURRENT_NAMESPACE"
+echo -e "${BOLD}${CYAN}🔍 OAuth2 Configuration Change Analysis${NC}"
+echo "=========================================="
+echo -e "${YELLOW}Baseline:${NC} $BASELINE_DIR"
+echo -e "${YELLOW}Current:${NC} oauth2 namespace"
 echo ""
 
-# Compare deployment args
-echo "=== DEPLOYMENT ARGUMENTS COMPARISON ==="
-kubectl get deployment oauth2-proxy -n "$CURRENT_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].args}' > /tmp/current_args.json
+# Function to explain OAuth2 argument changes
+explain_arg_change() {
+    local arg="$1"
+    local old_val="$2" 
+    local new_val="$3"
+    
+    case "$arg" in
+        "--cookie-expire")
+            echo -e "  ${CYAN}Impact:${NC} User session duration changed from $old_val to $new_val"
+            if [[ "$new_val" > "$old_val" ]]; then
+                echo -e "  ${GREEN}Effect:${NC} Users will stay logged in longer, fewer re-authentications needed"
+            else
+                echo -e "  ${YELLOW}Effect:${NC} Users will need to re-authenticate more frequently, increased security"
+            fi
+            ;;
+        "--cookie-refresh")
+            echo -e "  ${CYAN}Impact:${NC} Cookie refresh interval changed from $old_val to $new_val"
+            echo -e "  ${GREEN}Effect:${NC} Affects how often OAuth2 proxy refreshes user tokens"
+            ;;
+        "--upstream")
+            echo -e "  ${CYAN}Impact:${NC} Backend service changed from $old_val to $new_val"
+            echo -e "  ${YELLOW}Effect:${NC} All authenticated requests will now be proxied to different upstream"
+            ;;
+        "--provider")
+            echo -e "  ${CYAN}Impact:${NC} Authentication provider changed from $old_val to $new_val"
+            echo -e "  ${RED}Effect:${NC} Major change - users may need to re-authenticate with different identity system"
+            ;;
+        "--oidc-issuer-url"|"--login-url"|"--redeem-url")
+            echo -e "  ${CYAN}Impact:${NC} OIDC endpoint changed from $old_val to $new_val"
+            echo -e "  ${YELLOW}Effect:${NC} OAuth2 will authenticate against different Keycloak realm or server"
+            ;;
+        "--allowed-group"|"--keycloak-group")
+            echo -e "  ${CYAN}Impact:${NC} Authorized groups changed from $old_val to $new_val"
+            echo -e "  ${YELLOW}Effect:${NC} User access permissions modified - some users may lose/gain access"
+            ;;
+        "--skip-provider-button")
+            if [[ "$new_val" == "true" ]]; then
+                echo -e "  ${CYAN}Impact:${NC} Provider selection button will be hidden"
+                echo -e "  ${GREEN}Effect:${NC} Users skip provider selection, direct to authentication"
+            else
+                echo -e "  ${CYAN}Impact:${NC} Provider selection button will be shown" 
+                echo -e "  ${GREEN}Effect:${NC} Users see provider choice before authentication"
+            fi
+            ;;
+        "--silence-ping-logging")
+            if [[ "$new_val" == "true" ]]; then
+                echo -e "  ${CYAN}Impact:${NC} Health check logging disabled"
+                echo -e "  ${GREEN}Effect:${NC} Reduced log noise from /ping endpoint checks"
+            else
+                echo -e "  ${CYAN}Impact:${NC} Health check logging enabled"
+                echo -e "  ${YELLOW}Effect:${NC} More verbose logging including ping requests"
+            fi
+            ;;
+        *)
+            echo -e "  ${CYAN}Impact:${NC} OAuth2 argument $arg changed from $old_val to $new_val"
+            echo -e "  ${BLUE}Effect:${NC} Check OAuth2 proxy documentation for specific impact"
+            ;;
+    esac
+}
 
-if [[ -f "$BASELINE_DIR/raw_args.json" ]]; then
-    if diff -u "$BASELINE_DIR/raw_args.json" /tmp/current_args.json; then
-        echo "✓ Deployment arguments match baseline"
-    else
-        echo "✗ Deployment arguments differ from baseline"
-        echo "Run: diff -u $BASELINE_DIR/raw_args.json /tmp/current_args.json"
+# Function to analyze argument differences with explanations
+analyze_args_with_explanations() {
+    echo -e "${BOLD}${BLUE}=== OAUTH2 ARGUMENTS ANALYSIS ===${NC}"
+    
+    # Get current arguments
+    kubectl get deployment oauth2-proxy -n "$CURRENT_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].args}' > /tmp/current_args.json 2>/dev/null
+    
+    if [[ ! -f "$BASELINE_DIR/raw_args.json" ]]; then
+        echo -e "${YELLOW}⚠ Baseline arguments not found - cannot compare${NC}"
+        return
     fi
-else
-    echo "⚠ Baseline args not found"
-fi
+    
+    # Parse and compare arguments using Python for better handling
+    python3 << 'EOEPY'
+import json
+import sys
 
-# Compare service
-echo -e "\n=== SERVICE COMPARISON ==="
-kubectl get service oauth2-proxy -n "$CURRENT_NAMESPACE" -o yaml > /tmp/current_service.yaml
+def parse_args(filename):
+    try:
+        with open(filename, 'r') as f:
+            args_list = json.load(f)
+        
+        args_dict = {}
+        for arg in args_list:
+            if '=' in arg:
+                key, value = arg.split('=', 1)
+                args_dict[key] = value
+            else:
+                args_dict[arg] = "enabled"
+        return args_dict
+    except:
+        return {}
 
-if [[ -f "$BASELINE_DIR/service.yaml" ]]; then
-    if diff -u <(grep -v "resourceVersion\|uid\|creationTimestamp" "$BASELINE_DIR/service.yaml") <(grep -v "resourceVersion\|uid\|creationTimestamp" /tmp/current_service.yaml) >/dev/null; then
-        echo "✓ Service configuration matches baseline"
-    else
-        echo "✗ Service configuration differs from baseline"
-        echo "Run: diff -u $BASELINE_DIR/service.yaml /tmp/current_service.yaml"
+baseline_args = parse_args('/baseline/raw_args.json')
+current_args = parse_args('/tmp/current_args.json')
+
+# Find differences
+added_args = set(current_args.keys()) - set(baseline_args.keys())
+removed_args = set(baseline_args.keys()) - set(current_args.keys()) 
+changed_args = {k: (baseline_args[k], current_args[k]) for k in baseline_args.keys() & current_args.keys() if baseline_args[k] != current_args[k]}
+
+if not added_args and not removed_args and not changed_args:
+    print("✅ No OAuth2 argument changes detected")
+    sys.exit(0)
+
+print("🔍 OAuth2 Configuration Changes Detected:")
+print("=" * 45)
+
+if added_args:
+    print(f"\n📋 ARGUMENTS ADDED ({len(added_args)}):")
+    for arg in sorted(added_args):
+        print(f"  + {arg} = {current_args[arg]}")
+
+if removed_args:
+    print(f"\n📋 ARGUMENTS REMOVED ({len(removed_args)}):")  
+    for arg in sorted(removed_args):
+        print(f"  - {arg} = {baseline_args[arg]}")
+
+if changed_args:
+    print(f"\n📋 ARGUMENTS CHANGED ({len(changed_args)}):")
+    for arg in sorted(changed_args.keys()):
+        old_val, new_val = changed_args[arg]
+        print(f"  ~ {arg}: {old_val} → {new_val}")
+
+# Output change details for shell processing
+with open('/tmp/oauth2_changes.txt', 'w') as f:
+    f.write("CHANGES_DETECTED=true\n")
+    for arg in changed_args:
+        old_val, new_val = changed_args[arg]
+        f.write(f"CHANGED:{arg}:{old_val}:{new_val}\n")
+    for arg in added_args:
+        f.write(f"ADDED:{arg}:{current_args[arg]}\n")
+    for arg in removed_args:
+        f.write(f"REMOVED:{arg}:{baseline_args[arg]}\n")
+        
+EOEPY
+    
+    # Source the changes and provide explanations
+    if [[ -f "/tmp/oauth2_changes.txt" ]]; then
+        source /tmp/oauth2_changes.txt
+        
+        if [[ "$CHANGES_DETECTED" == "true" ]]; then
+            echo ""
+            echo -e "${BOLD}${CYAN}📖 Change Impact Analysis:${NC}"
+            echo "========================="
+            
+            while IFS=: read -r change_type arg old_val new_val; do
+                case "$change_type" in
+                    "CHANGED")
+                        echo -e "\n${YELLOW}🔄 Changed: ${BOLD}$arg${NC}"
+                        explain_arg_change "$arg" "$old_val" "$new_val"
+                        ;;
+                    "ADDED")
+                        echo -e "\n${GREEN}➕ Added: ${BOLD}$arg${NC} = $old_val"
+                        echo -e "  ${CYAN}Impact:${NC} New OAuth2 functionality enabled"
+                        ;;
+                    "REMOVED")
+                        echo -e "\n${RED}➖ Removed: ${BOLD}$arg${NC} = $old_val"
+                        echo -e "  ${CYAN}Impact:${NC} OAuth2 functionality disabled or using defaults"
+                        ;;
+                esac
+            done < <(grep -E "^(CHANGED|ADDED|REMOVED):" /tmp/oauth2_changes.txt)
+        fi
     fi
-else
-    echo "⚠ Baseline service not found"
-fi
+}
 
-# Compare ingress annotations
-echo -e "\n=== INGRESS ANNOTATIONS COMPARISON ==="
-kubectl get ingress oauth2-proxy -n "$CURRENT_NAMESPACE" -o jsonpath='{.metadata.annotations}' > /tmp/current_annotations.json
-
-if [[ -f "$BASELINE_DIR/ingress_annotations.json" ]]; then
-    if diff -u "$BASELINE_DIR/ingress_annotations.json" /tmp/current_annotations.json; then
-        echo "✓ Ingress annotations match baseline"
-    else
-        echo "✗ Ingress annotations differ from baseline"
+# Function to analyze service changes
+analyze_service_changes() {
+    echo -e "\n${BOLD}${BLUE}=== SERVICE CONFIGURATION ANALYSIS ===${NC}"
+    
+    kubectl get service oauth2-proxy -n "$CURRENT_NAMESPACE" -o yaml > /tmp/current_service.yaml 2>/dev/null
+    
+    if [[ ! -f "$BASELINE_DIR/service.yaml" ]]; then
+        echo -e "${YELLOW}⚠ Baseline service not found - cannot compare${NC}"
+        return
     fi
-else
-    echo "⚠ Baseline ingress annotations not found"
-fi
+    
+    # Check for service IP changes
+    baseline_ip=$(grep -E "^\s*clusterIP:" "$BASELINE_DIR/service.yaml" | awk '{print $2}' || echo "unknown")
+    current_ip=$(grep -E "^\s*clusterIP:" /tmp/current_service.yaml | awk '{print $2}' || echo "unknown")
+    
+    if [[ "$baseline_ip" != "$current_ip" ]]; then
+        echo -e "${YELLOW}🔄 Service ClusterIP Changed:${NC}"
+        echo -e "  ${CYAN}Previous:${NC} $baseline_ip"
+        echo -e "  ${CYAN}Current:${NC} $current_ip"
+        echo -e "  ${GREEN}Impact:${NC} Service got new internal IP (normal for fresh deployment)"
+        echo -e "  ${GREEN}Effect:${NC} No impact on external access, internal cluster routing updated"
+    else
+        echo -e "${GREEN}✅ Service ClusterIP unchanged: $current_ip${NC}"
+    fi
+    
+    # Check endpoint changes
+    baseline_endpoints=$(grep -A5 -B5 "Addresses:" "$BASELINE_DIR/service_explained.txt" | grep "192.168" | head -1 | awk '{print $2}' || echo "unknown")
+    current_endpoints=$(kubectl get endpoints oauth2-proxy -n "$CURRENT_NAMESPACE" -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null || echo "unknown")
+    
+    if [[ "$baseline_endpoints" != "$current_endpoints" ]]; then
+        echo -e "\n${YELLOW}🔄 Service Endpoints Changed:${NC}"
+        echo -e "  ${CYAN}Previous Pod IP:${NC} $baseline_endpoints"
+        echo -e "  ${CYAN}Current Pod IP:${NC} $current_endpoints" 
+        echo -e "  ${GREEN}Impact:${NC} OAuth2 proxy pod was recreated with new IP"
+        echo -e "  ${GREEN}Effect:${NC} Service automatically routes to new pod, no downtime expected"
+    else
+        echo -e "\n${GREEN}✅ Service endpoints unchanged: $current_endpoints${NC}"
+    fi
+}
 
-# Check endpoints
-echo -e "\n=== ENDPOINTS CHECK ==="
-current_endpoints=$(kubectl get endpoints oauth2-proxy -n "$CURRENT_NAMESPACE" -o jsonpath='{.subsets[*].addresses[*].ip}' | wc -w)
-if [[ $current_endpoints -gt 0 ]]; then
-    echo "✓ Service has $current_endpoints endpoint(s)"
-else
-    echo "✗ Service has no endpoints - pods may not be ready"
-fi
+# Function to analyze ingress changes
+analyze_ingress_changes() {
+    echo -e "\n${BOLD}${BLUE}=== INGRESS CONFIGURATION ANALYSIS ===${NC}"
+    
+    kubectl get ingress oauth2-proxy -n "$CURRENT_NAMESPACE" -o jsonpath='{.metadata.annotations}' > /tmp/current_annotations.json 2>/dev/null
+    
+    if [[ ! -f "$BASELINE_DIR/ingress_annotations.json" ]]; then
+        echo -e "${YELLOW}⚠ Baseline ingress not found - cannot compare${NC}"
+        return
+    fi
+    
+    # Check critical annotations
+    check_annotation() {
+        local annotation="$1"
+        local description="$2"
+        local impact="$3"
+        
+        baseline_val=$(python3 -c "import json; data=json.load(open('$BASELINE_DIR/ingress_annotations.json')); print(data.get('$annotation', 'missing'))" 2>/dev/null)
+        current_val=$(python3 -c "import json; data=json.load(open('/tmp/current_annotations.json')); print(data.get('$annotation', 'missing'))" 2>/dev/null)
+        
+        if [[ "$baseline_val" != "$current_val" ]]; then
+            echo -e "\n${YELLOW}🔄 $description Changed:${NC}"
+            echo -e "  ${CYAN}Previous:${NC} $baseline_val"
+            echo -e "  ${CYAN}Current:${NC} $current_val"
+            echo -e "  ${GREEN}Impact:${NC} $impact"
+            return 1
+        else
+            echo -e "${GREEN}✅ $description unchanged: $current_val${NC}"
+            return 0
+        fi
+    }
+    
+    changes=0
+    
+    check_annotation "nginx.ingress.kubernetes.io/proxy-buffer-size" \
+        "Proxy Buffer Size" \
+        "Affects OAuth2 callback handling - smaller buffers may cause 502 errors" || ((changes++))
+        
+    check_annotation "nginx.ingress.kubernetes.io/proxy-buffers" \
+        "Proxy Buffers" \
+        "Changes response buffering capacity for OAuth2 authentication" || ((changes++))
+        
+    check_annotation "nginx.ingress.kubernetes.io/ssl-redirect" \
+        "SSL Redirect" \
+        "Controls automatic HTTP to HTTPS redirection" || ((changes++))
+        
+    if [[ $changes -eq 0 ]]; then
+        echo -e "\n${GREEN}✅ No critical ingress annotation changes detected${NC}"
+    fi
+}
+
+# Main execution
+analyze_args_with_explanations
+analyze_service_changes  
+analyze_ingress_changes
 
 # Cleanup
-rm -f /tmp/current_args.json /tmp/current_service.yaml /tmp/current_annotations.json
+rm -f /tmp/current_args.json /tmp/current_service.yaml /tmp/current_annotations.json /tmp/oauth2_changes.txt
 
-echo -e "\nComparison completed. Check diff outputs above for details."
+echo ""
+echo -e "${BOLD}${GREEN}🎯 Summary:${NC} Configuration comparison completed with detailed impact analysis"
+echo -e "${CYAN}💡 Tip:${NC} Review the 'Impact' and 'Effect' descriptions above to understand how changes affect your OAuth2 authentication"
 EOF
 
     chmod +x "$DEBUG_DIR/compare_future_deployment.sh"
