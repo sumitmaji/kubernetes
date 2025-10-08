@@ -8,11 +8,11 @@
 #   2. Or add to ~/.bashrc: source /path/to/gok-completion.bash
 #   3. Or install system-wide: sudo cp gok-completion.bash /etc/bash_completion.d/
 
-_gok_completion() {
-    local cur prev words cword split
-    _init_completion -s || return
-
-    # Get current word position and words
+_gok_new_completion() {
+    local cur prev words cword
+    
+    # Initialize completion variables manually
+    COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     words=("${COMP_WORDS[@]}")
@@ -347,10 +347,9 @@ _gok_completion() {
 } &&
 
 # Register the completion function for gok-new
-complete -F _gok_completion gok-new
+complete -F _gok_new_completion gok-new
 
-# Also register for common aliases
-complete -F _gok_completion gok
+# Don't register for 'gok' to avoid conflicts with system gok
 
 # Completion function for remote aliases (dynamic loading)
 _gok_remote_aliases() {
@@ -390,21 +389,10 @@ _gok_k8s_resources() {
     fi
 }
 
-# Enhanced _init_completion function for older bash versions
-if ! declare -F _init_completion >/dev/null 2>&1; then
-    _init_completion() {
-        COMPREPLY=()
-        cur="${COMP_WORDS[COMP_CWORD]}"
-        prev="${COMP_WORDS[COMP_CWORD-1]}"
-        words=("${COMP_WORDS[@]}")
-        cword=$COMP_CWORD
-        split=false
-        return 0
-    }
-fi
+# Note: _init_completion removed for compatibility
 
 # Export functions for use in subshells
-export -f _gok_completion
+export -f _gok_new_completion
 export -f _gok_remote_aliases  
 export -f _gok_k8s_resources
 
