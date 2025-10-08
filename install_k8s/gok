@@ -20007,6 +20007,9 @@ if [[ $# -gt 0 ]]; then
             ;;
         esac
         ;;
+      status)
+        statusCmd "$@"
+        ;;
       *)
         # Check if the command is a valid function
         if declare -f "$command" >/dev/null 2>&1; then
