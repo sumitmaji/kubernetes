@@ -11755,11 +11755,29 @@ build_vault_with_progress() {
     log_warning "Vault unsealer role application had issues but continuing"
   fi
 
-  log_substep "Copying registry credentials to Vault namespace"
-  if execute_with_suppression copySecret regcred default vault; then
-    log_success "Registry credentials copied to Vault namespace"
+  log_substep "Waiting for Kyverno to propagate registry credentials to Vault namespace"
+  local wait_start=$(date +%s)
+  local timeout=60
+  local found_secret=false
+  
+  # Wait for Kyverno to copy the secret automatically
+  while [[ $(($(date +%s) - wait_start)) -lt $timeout ]]; do
+    if kubectl get secret regcred -n vault >/dev/null 2>&1; then
+      found_secret=true
+      break
+    fi
+    sleep 3
+  done
+  
+  if [[ "$found_secret" == "true" ]]; then
+    log_success "Registry credentials automatically propagated by Kyverno"
   else
-    log_warning "Registry credentials not available - continuing without private registry access"
+    log_info "Kyverno auto-propagation timed out, attempting manual copy"
+    if execute_with_suppression copySecret regcred kube-system vault; then
+      log_success "Registry credentials manually copied to Vault namespace"
+    else
+      log_warning "Registry credentials not available - continuing without private registry access"
+    fi
   fi
 
   log_substep "Setting up Vault unsealer scripts"
