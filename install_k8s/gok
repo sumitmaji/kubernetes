@@ -2841,27 +2841,49 @@ wait_for_pods_ready() {
             return 1
         fi
         
-        # Get pod status information
+        # Get pod status information with more precise readiness check
         local pod_status=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null)
-        local not_ready_pods=$(echo "$pod_status" | grep -v -E "1/1.*Running|.*Completed" | wc -l)
         local total_pods=$(echo "$pod_status" | wc -l)
-        local ready_pods=$((total_pods - not_ready_pods))
+        
+        # For Vault, use a more specific readiness check since Vault pods can show as Running but not actually ready
+        if [[ "$namespace" == "vault" ]]; then
+            # Check actual Ready condition for vault pods
+            local ready_pods=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' 2>/dev/null | grep -c "True")
+            local not_ready_pods=$((total_pods - ready_pods))
+        else
+            # Standard check for other namespaces
+            local not_ready_pods=$(echo "$pod_status" | grep -v -E "1/1.*Running|.*Completed|2/2.*Running|3/3.*Running" | wc -l)
+            local ready_pods=$((total_pods - not_ready_pods))
+        fi
         
         # Show progress every 30 seconds or on status change
         if [[ $((elapsed - last_status_check)) -ge 30 ]] || [[ $not_ready_pods -ne ${prev_not_ready:-$not_ready_pods} ]]; then
             if [[ $total_pods -gt 0 ]]; then
                 echo -e "${COLOR_YELLOW}  📊 Progress: ${COLOR_BOLD}${ready_pods}/${total_pods}${COLOR_RESET} pods ready (${elapsed}s elapsed)"
                 
-                # Show not ready pods briefly
+                # Show not ready pods with detailed status
                 if [[ $not_ready_pods -gt 0 ]]; then
-                    echo "$pod_status" | grep -v -E "1/1.*Running|.*Completed" | head -3 | while read -r pod_line; do
-                        local pod_name=$(echo "$pod_line" | awk '{print $1}')
-                        local pod_status_detail=$(echo "$pod_line" | awk '{print $3}')
-                        echo -e "${COLOR_DIM}    • $pod_name: $pod_status_detail${COLOR_RESET}"
-                    done
+                    echo -e "${COLOR_CYAN}  ⏳ Waiting for pods to become ready:${COLOR_RESET}"
                     
-                    if [[ $not_ready_pods -gt 3 ]]; then
-                        echo -e "${COLOR_DIM}    ... and $((not_ready_pods - 3)) more${COLOR_RESET}"
+                    if [[ "$namespace" == "vault" ]]; then
+                        # For Vault, show pods that don't have Ready=True condition
+                        kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].status}{" "}{.status.phase}{"\n"}{end}' 2>/dev/null | while read -r pod_name ready_status phase; do
+                            if [[ "$ready_status" != "True" ]]; then
+                                echo -e "${COLOR_DIM}    • ${COLOR_YELLOW}$pod_name${COLOR_RESET}${COLOR_DIM}: Ready=$ready_status, Phase=$phase${COLOR_RESET}"
+                            fi
+                        done
+                    else
+                        # For other namespaces, show pods that don't match running patterns
+                        echo "$pod_status" | grep -v -E "1/1.*Running|.*Completed|2/2.*Running|3/3.*Running" | head -5 | while read -r pod_line; do
+                            local pod_name=$(echo "$pod_line" | awk '{print $1}')
+                            local pod_ready=$(echo "$pod_line" | awk '{print $2}')
+                            local pod_status_detail=$(echo "$pod_line" | awk '{print $3}')
+                            echo -e "${COLOR_DIM}    • ${COLOR_YELLOW}$pod_name${COLOR_RESET}${COLOR_DIM}: $pod_ready $pod_status_detail${COLOR_RESET}"
+                        done
+                        
+                        if [[ $not_ready_pods -gt 5 ]]; then
+                            echo -e "${COLOR_DIM}    ... and $((not_ready_pods - 5)) more pods${COLOR_RESET}"
+                        fi
                     fi
                 fi
             else
