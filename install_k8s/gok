@@ -11432,7 +11432,27 @@ vaultInstall() {
   log_component_start "vault-install" "Installing HashiCorp Vault secrets management system"
 
   log_step "1" "Installing CSI Secrets Store driver"
-  csiDriverInstall
+  log_substep "Adding CSI Secrets Store Helm repository"
+  if execute_with_suppression helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts; then
+    log_success "CSI Secrets Store Helm repository added"
+  else
+    log_info "CSI Secrets Store repository may already exist"
+  fi
+
+  log_substep "Updating Helm repositories"
+  if execute_with_suppression helm repo update; then
+    log_success "Helm repositories updated"
+  else
+    log_warning "Helm repository update had issues but continuing"
+  fi
+
+  log_substep "Installing CSI Secrets Store driver"
+  if execute_with_suppression helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver --namespace kube-system; then
+    log_success "CSI Secrets Store driver installed successfully"
+  else
+    log_error "Failed to install CSI Secrets Store driver"
+    return 1
+  fi
 
   log_step "2" "Creating Vault namespace and storage"
   log_substep "Creating namespace: vault"
@@ -11736,10 +11756,10 @@ build_vault_with_progress() {
   fi
 
   log_substep "Copying registry credentials to Vault namespace"
-  if copySecret regcred default vault; then
+  if execute_with_suppression copySecret regcred default vault; then
     log_success "Registry credentials copied to Vault namespace"
   else
-    log_warning "Registry credentials copy had issues but continuing"
+    log_warning "Registry credentials not available - continuing without private registry access"
   fi
 
   log_substep "Setting up Vault unsealer scripts"
@@ -11751,13 +11771,22 @@ build_vault_with_progress() {
     fi
 
     log_substep "Running Vault CI pipeline"
-    if execute_with_suppression ./ci.sh; then
+    local temp_ci_log=$(mktemp)
+    local temp_ci_error=$(mktemp)
+    
+    if ./ci.sh >"$temp_ci_log" 2>"$temp_ci_error"; then
       log_success "Vault CI pipeline completed"
     else
-      log_error "Vault CI pipeline failed"
+      log_error "Vault CI pipeline failed - error details:"
+      if [[ -s "$temp_ci_error" ]]; then
+        cat "$temp_ci_error" >&2
+      fi
+      rm -f "$temp_ci_log" "$temp_ci_error"
       execute_with_suppression popd
       return 1
     fi
+    
+    rm -f "$temp_ci_log" "$temp_ci_error"
 
     execute_with_suppression popd
   else
@@ -14054,14 +14083,33 @@ copySecret(){
 
   if [[ -z "$SECRET_NAME" || -z "$SOURCE_NAMESPACE" || -z "$TARGET_NAMESPACE" ]]; then
     echo "Usage: $0 <secret-name> <source-namespace> <target-namespace>"
-    exit 1
+    return 1
   fi
 
-  # Export the secret from the source namespace
-  kubectl get secret "$SECRET_NAME" -n "$SOURCE_NAMESPACE" -o yaml | \
-  # Update the namespace in the YAML and apply it to the target namespace
-  sed "s/namespace: $SOURCE_NAMESPACE/namespace: $TARGET_NAMESPACE/" | \
-  kubectl apply -n "$TARGET_NAMESPACE" -f -
+  # Check if the secret exists in the source namespace
+  if ! kubectl get secret "$SECRET_NAME" -n "$SOURCE_NAMESPACE" >/dev/null 2>&1; then
+    echo "Secret '$SECRET_NAME' not found in namespace '$SOURCE_NAMESPACE'"
+    return 1
+  fi
+
+  # Check if target namespace exists, create if it doesn't
+  if ! kubectl get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
+    kubectl create namespace "$TARGET_NAMESPACE" >/dev/null 2>&1
+  fi
+
+  # Export the secret from the source namespace and apply to target
+  local temp_secret_file=$(mktemp)
+  if kubectl get secret "$SECRET_NAME" -n "$SOURCE_NAMESPACE" -o yaml > "$temp_secret_file" 2>/dev/null; then
+    # Update the namespace in the YAML and apply it to the target namespace
+    sed "s/namespace: $SOURCE_NAMESPACE/namespace: $TARGET_NAMESPACE/" "$temp_secret_file" | \
+    kubectl apply -n "$TARGET_NAMESPACE" -f - >/dev/null 2>&1
+    local result=$?
+    rm -f "$temp_secret_file"
+    return $result
+  else
+    rm -f "$temp_secret_file"
+    return 1
+  fi
 }
 
 # createUserGroup -u skmaji -p sumit -e skm@outlook.com -f Sumit -l Maji -g hadoop -s create_ldap_user.sh
