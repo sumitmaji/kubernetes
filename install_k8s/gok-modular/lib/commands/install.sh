@@ -180,7 +180,175 @@ installCmd() {
         
         # Infrastructure components
         "kubernetes")
-            k8sInst "kubernetes"
+            # Enhanced Kubernetes installation with comprehensive logging and validation
+
+            # Step 1: Install Docker first (prerequisite)
+            log_info "Ensuring Docker is installed and running..."
+            if ! dockrInst; then
+                log_error "Docker installation failed - required for Kubernetes"
+                fail_component "kubernetes" "Docker prerequisite installation failed"
+                return 1
+            fi
+            log_success "Docker prerequisite satisfied"
+
+            # Step 2: Handle HA proxy setup automatically if needed
+            log_info "Checking High Availability requirements for Kubernetes installation"
+
+            # Check if HA is required
+            local ha_required=false
+            local ha_reason=""
+
+            # Method 1: Check API_SERVERS configuration
+            if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
+                ha_required=true
+                ha_reason="Multiple API servers configured in API_SERVERS: $API_SERVERS"
+            fi
+
+            # Method 2: Check if HA_PROXY_PORT is configured and not default
+            if [[ -n "$HA_PROXY_PORT" ]] && [[ "$HA_PROXY_PORT" != "6443" ]]; then
+                ha_required=true
+                ha_reason="Custom HA proxy port configured: $HA_PROXY_PORT"
+            fi
+
+            # Check if HA is already installed and working
+            local ha_already_installed=false
+            if validate_ha_proxy_installation "$verbose_flag" >/dev/null 2>&1; then
+                ha_already_installed=true
+                log_success "HA proxy is already installed and running"
+            fi
+
+            if [[ "$ha_required" == "true" ]] || [[ "$ha_already_installed" == "false" ]]; then
+                if [[ "$ha_required" == "true" ]]; then
+                    log_info "HA setup required: $ha_reason"
+                else
+                    log_info "HA proxy not detected - installing for Kubernetes cluster stability"
+                fi
+
+                # If HA is not already installed, install it
+                if [[ "$ha_already_installed" == "false" ]]; then
+                    log_info "Installing HA proxy locally for Kubernetes cluster"
+
+                    if haproxyInst; then
+                        log_success "HA proxy installed successfully locally"
+
+                        # Validate local HA installation
+                        if validate_ha_proxy_installation "$verbose_flag"; then
+                            log_success "Local HA proxy validation passed - proceeding with Kubernetes installation"
+                        else
+                            log_error "Local HA proxy validation failed after installation"
+                            fail_component "kubernetes" "Local HA proxy validation failed after installation"
+                            return 1
+                        fi
+                    else
+                        log_error "Local HA proxy installation failed"
+                        echo -e ""
+                        echo -e "${COLOR_BRIGHT_RED}${COLOR_BOLD}❌ KUBERNETES INSTALLATION BLOCKED${COLOR_RESET}"
+                        echo -e "${COLOR_RED}HA proxy installation failed and is required for Kubernetes.${COLOR_RESET}"
+                        echo -e ""
+                        echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}1. Check Docker status: ${COLOR_BOLD}systemctl status docker${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}2. Verify configuration: ${COLOR_BOLD}echo \$API_SERVERS${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}3. Manual HA install: ${COLOR_BOLD}gok install haproxy${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}4. Set up remote host: ${COLOR_BOLD}gok remote setup <host> <user>${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}5. Retry Kubernetes installation${COLOR_RESET}"
+                        echo -e ""
+                        fail_component "kubernetes" "HA proxy installation required but local installation failed"
+                        return 1
+                    fi
+                fi
+            else
+                log_info "HA proxy already running - proceeding with Kubernetes installation"
+            fi
+
+            # Step 3: Install Kubernetes cluster
+            if k8sInst "kubernetes" "$verbose_flag"; then
+                log_success "Kubernetes master node installation completed"
+
+                # Validate Kubernetes installation before proceeding
+                if validate_component_installation "kubernetes" 300; then
+                    log_success "Kubernetes cluster validation passed"
+                else
+                    log_warning "Kubernetes cluster validation had issues"
+                fi
+            else
+                log_error "Kubernetes installation failed"
+                fail_component "kubernetes" "Kubernetes cluster installation failed"
+                return 1
+            fi
+
+            # Step 4: Install Helm package manager
+            log_info "Installing Helm package manager..."
+            if helmInst; then
+                log_success "Helm package manager installed"
+            else
+                log_warning "Helm installation failed - some deployments may not work"
+            fi
+
+            # Step 5: Network plugin (Calico) is now installed within k8sInst
+            log_info "Network plugin (Calico) was installed during cluster setup"
+
+            # Step 6: Wait for system services to be ready
+            log_info "Waiting for Kubernetes system services..."
+            # Simple wait for core services
+            local attempts=0
+            local max_attempts=30
+            while [[ $attempts -lt $max_attempts ]]; do
+                if kubectl get pods -n kube-system --no-headers 2>/dev/null | grep -q "Running"; then
+                    log_success "Kubernetes system services are ready"
+                    break
+                fi
+                attempts=$((attempts + 1))
+                sleep 2
+            done
+            if [[ $attempts -eq $max_attempts ]]; then
+                log_warning "Some system services may not be ready yet"
+            fi
+
+            # Step 7: Install additional utilities (simplified)
+            log_info "Installing cluster utilities..."
+            # Create basic utility pods for DNS testing
+            if kubectl run dnsutils --image=jessie-dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
+                log_success "DNS utilities installed"
+                echo -e "    ${COLOR_DIM}• Pod: dnsutils (jessie-dnsutils:1.3) in default namespace${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Usage: kubectl exec dnsutils -- nslookup <domain>${COLOR_RESET}"
+            else
+                log_warning "DNS utilities installation failed"
+            fi
+
+            # Create curl utility pod
+            if kubectl run curl --image=curlimages/curl --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
+                log_success "kubectl curl utility installed"
+                echo -e "    ${COLOR_DIM}• Pod: curl (curlimages/curl) in default namespace${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Usage: kubectl exec curl -- curl <url>${COLOR_RESET}"
+            else
+                log_warning "kubectl curl utility failed"
+            fi
+
+            # Step 8: Setup system integration (simplified)
+            log_info "Setting up system integration..."
+            {
+                # Create symlink for gok command if it doesn't exist
+                if [[ ! -L "/bin/gok" ]]; then
+                    ln -sf "$GOK_ROOT/gok-new" /bin/gok 2>/dev/null || true
+                fi
+
+                # Add to bashrc if not already present
+                local gok_source_line="source $GOK_ROOT/gok-new"
+                if ! grep -q "$gok_source_line" ~/.bashrc 2>/dev/null; then
+                    echo "$gok_source_line" >> ~/.bashrc
+                fi
+            } >/dev/null 2>&1
+
+            log_success "System integration configured"
+
+            # Final validation and next steps
+            if validate_component_installation "kubernetes" 180; then
+                complete_component "kubernetes" "Kubernetes cluster installation completed and validated"
+                show_component_next_steps "kubernetes"
+            else
+                complete_component "kubernetes" "Kubernetes cluster installed but validation had warnings"
+                show_component_next_steps "kubernetes"
+            fi
             ;;
         "kubernetes-worker")
             k8sInst "kubernetes-worker"
