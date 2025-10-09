@@ -91,23 +91,29 @@ _log() {
     local color="$3"
     local symbol="$4"
     local message="$5"
-    
+
+    # Defensive: Ensure level_num is a number
+    if ! [[ "$level_num" =~ ^[0-9]+$ ]]; then
+        echo "[LOGGING ERROR] Invalid log level_num: '$level_num' (should be a number). Args: level='$level', color='$color', symbol='$symbol', message='$message'" >&2
+        return 1
+    fi
+
     # Check if we should log this level
     if [[ $level_num -lt $GOK_LOG_LEVEL_NUM ]]; then
         return 0
     fi
-    
+
     # Skip if in quiet mode (unless it's an error)
     if [[ "$GOK_LOG_QUIET" == "true" ]] && [[ $level_num -lt $LOG_LEVEL_ERROR ]]; then
         return 0
     fi
-    
+
     # Format timestamp if enabled
     local timestamp=""
     if [[ "$GOK_LOG_TIMESTAMP" == "true" ]]; then
         timestamp="$(date '+%Y-%m-%d %H:%M:%S') "
     fi
-    
+
     # Format caller information if enabled
     local caller_info=""
     if [[ "$GOK_LOG_CALLER" == "true" ]]; then
@@ -117,13 +123,13 @@ _log() {
         local caller_file="$(basename "${BASH_SOURCE[2]:-}")"
         caller_info="[${caller_file}:${caller_func}:${caller_line}] "
     fi
-    
+
     # Determine output stream
     local output_stream=1  # stdout
     if [[ $level_num -ge $LOG_LEVEL_ERROR ]]; then
         output_stream=2  # stderr for errors
     fi
-    
+
     # Format the log message
     local formatted_message
     if [[ "$GOK_LOG_NO_COLORS" == "true" ]] || [[ "${GOK_COLORS_ENABLED:-}" != "true" ]]; then
@@ -133,10 +139,10 @@ _log() {
         # With colors
         formatted_message="${COLOR_DIM}${timestamp}${COLOR_RESET}${COLOR_DIM}${caller_info}${COLOR_RESET}${color}[${level}]${COLOR_RESET} ${color}${symbol}${COLOR_RESET} ${message}"
     fi
-    
+
     # Output the message
     echo -e "$formatted_message" >&$output_stream
-    
+
     # Write to log file if configured
     if [[ -n "$GOK_LOG_FILE" ]] && [[ -w "$(dirname "$GOK_LOG_FILE")" ]]; then
         echo "$(date '+%Y-%m-%d %H:%M:%S') ${caller_info}[${level}] ${message}" >> "$GOK_LOG_FILE"
