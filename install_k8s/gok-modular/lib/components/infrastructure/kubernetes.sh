@@ -2,60 +2,156 @@
 
 # GOK Infrastructure Components - Core infrastructure installation functions
 
-# Docker installation
+# Docker installation with comprehensive validation and configuration
 dockrInst() {
     log_component_start "docker" "Installing Docker container runtime"
     
-    # Check if Docker is already installed
-    if command -v docker >/dev/null 2>&1; then
-        log_info "Docker is already installed"
-        docker --version
-        return 0
+    # Pre-installation validation
+    log_step "1" "Validating system requirements for Docker"
+    
+    # Check if running as root or with sudo
+    if [[ $EUID -ne 0 ]]; then
+        log_error "Docker installation requires root privileges"
+        return 1
     fi
     
-    log_info "Installing Docker CE..."
+    # Check system compatibility
+    local os_info=$(lsb_release -d 2>/dev/null | cut -f2 || echo "Unknown")
+    log_info "Operating System: $os_info"
     
-    # Update package index
-    execute_with_suppression apt-get update
+    # Check if Docker is already installed
+    if command -v docker >/dev/null 2>&1; then
+        local docker_version=$(docker --version 2>/dev/null | cut -d' ' -f3 | cut -d',' -f1)
+        log_warning "Docker is already installed (version: $docker_version)"
+        
+        # Validate existing installation
+        if validate_docker_installation; then
+            log_component_success "docker" "Existing Docker installation is working correctly"
+            show_docker_next_steps
+            return 0
+        else
+            log_warning "Existing Docker installation has issues, proceeding with reinstallation"
+        fi
+    fi
     
-    # Install prerequisites
-    execute_with_suppression apt-get install -y \
+    # Step 2: Install prerequisites
+    log_step "2" "Installing Docker prerequisites and dependencies"
+    log_substep "Installing required packages"
+    
+    if ! apt-get update; then
+        log_error "Failed to update package list"
+        return 1
+    fi
+    
+    if ! apt-get install -y \
         apt-transport-https \
         ca-certificates \
         curl \
+        software-properties-common \
         gnupg \
-        lsb-release
-    
-    # Add Docker GPG key
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    
-    # Add Docker repository
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    # Update package index again
-    execute_with_suppression apt-get update
-    
-    # Install Docker
-    execute_with_suppression apt-get install -y docker-ce docker-ce-cli containerd.io
-    
-    # Add current user to docker group
-    usermod -aG docker "${USER:-$(whoami)}"
-    
-    # Start and enable Docker service
-    systemctl enable docker
-    systemctl start docker
-    
-    # Verify installation
-    if docker --version >/dev/null 2>&1; then
-        log_component_success "docker" "Docker installation completed successfully"
-        docker --version
-        return 0
-    else
-        log_component_error "docker" "Docker installation failed"
+        lsb-release; then
+        log_error "Failed to install prerequisite packages"
         return 1
     fi
+    
+    log_success "Prerequisites installed successfully"
+    
+    # Step 3: Add Docker repository
+    log_step "3" "Adding Docker official repository"
+    
+    log_substep "Creating keyrings directory"
+    if ! install -m 0755 -d /etc/apt/keyrings; then
+        log_error "Failed to create keyrings directory"
+        return 1
+    fi
+    
+    log_substep "Adding Docker GPG key"
+    if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc; then
+        log_error "Failed to download Docker GPG key"
+        return 1
+    fi
+    
+    if ! chmod a+r /etc/apt/keyrings/docker.asc; then
+        log_error "Failed to set permissions on Docker GPG key"
+        return 1
+    fi
+    
+    log_substep "Adding Docker repository to sources"
+    if ! echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+        $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        tee /etc/apt/sources.list.d/docker.list > /dev/null; then
+        log_error "Failed to add Docker repository"
+        return 1
+    fi
+    
+    log_substep "Updating package list with Docker repository"
+    if ! apt-get update; then
+        log_error "Failed to update package list after adding Docker repository"
+        return 1
+    fi
+    
+    log_success "Docker repository added successfully"
+    
+    # Step 4: Install Docker Engine
+    log_step "4" "Installing Docker Engine and components"
+    
+    local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+    log_substep "Installing: $docker_packages"
+    
+    if ! apt-get install -y $docker_packages; then
+        log_error "Failed to install Docker packages"
+        return 1
+    fi
+    
+    log_success "Docker Engine installed successfully"
+    
+    # Step 5: Configure Docker daemon
+    log_step "5" "Configuring Docker daemon for Kubernetes compatibility"
+    
+    configure_docker_daemon || return 1
+    
+    # Step 6: Configure and start services
+    log_step "6" "Starting and enabling Docker services"
+    
+    configure_docker_services || return 1
+    
+    # Step 7: Set up user permissions (if not root)
+    if [[ -n "$SUDO_USER" ]]; then
+        log_step "7" "Configuring user permissions for Docker"
+        log_substep "Adding user $SUDO_USER to docker group"
+        
+        if ! usermod -aG docker "$SUDO_USER"; then
+            log_warning "Failed to add user to docker group - manual setup may be required"
+        else
+            log_success "User $SUDO_USER added to docker group"
+            log_info "User $SUDO_USER will need to log out and back in for group membership to take effect"
+        fi
+    fi
+    
+    # Step 8: Post-installation validation
+    log_step "8" "Validating Docker installation"
+    
+    if validate_docker_installation; then
+        log_success "Docker installation validation passed"
+    else
+        log_error "Docker installation validation failed"
+        return 1
+    fi
+    
+    # Show Docker information
+    local docker_version=$(docker --version | cut -d' ' -f3 | cut -d',' -f1)
+    local containerd_version=$(containerd --version | cut -d' ' -f3)
+    
+    log_component_success "docker" "Docker installation completed successfully!"
+    log_info "Docker version: $docker_version"
+    log_info "Containerd version: $containerd_version"
+    
+    # Show next steps and system status
+    show_docker_next_steps
+    show_docker_system_status
+    
+    return 0
 }
 
 # Kubernetes master installation
@@ -157,6 +253,262 @@ helmInst() {
     else
         log_component_error "helm" "Helm installation failed"
         return 1
+    fi
+}
+
+# =============================================================================
+# DOCKER CONFIGURATION AND VALIDATION FUNCTIONS
+# =============================================================================
+
+# Configure Docker daemon for Kubernetes compatibility
+configure_docker_daemon() {
+    log_substep "Creating systemd service directory"
+    if ! mkdir -p /etc/systemd/system/docker.service.d; then
+        log_error "Failed to create Docker systemd directory"
+        return 1
+    fi
+    
+    log_substep "Creating Docker daemon configuration"
+    if ! tee /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true"
+  ],
+  "live-restore": true,
+  "default-address-pools": [
+    {
+      "base": "172.17.0.0/12",
+      "size": 24
+    }
+  ]
+}
+EOF
+    then
+        log_error "Failed to create Docker daemon configuration"
+        return 1
+    fi
+    
+    log_success "Docker daemon configured for Kubernetes"
+    return 0
+}
+
+# Configure Docker and containerd services
+configure_docker_services() {
+    log_substep "Reloading systemd daemon"
+    if ! systemctl daemon-reload; then
+        log_error "Failed to reload systemd daemon"
+        return 1
+    fi
+    
+    log_substep "Starting Docker service"
+    if ! systemctl start docker; then
+        log_error "Failed to start Docker service"
+        return 1
+    fi
+    
+    log_substep "Enabling Docker service for auto-start"
+    if ! systemctl enable docker; then
+        log_error "Failed to enable Docker service"
+        return 1
+    fi
+    
+    # Configure containerd
+    log_substep "Configuring containerd for Kubernetes"
+    
+    if ! systemctl enable containerd; then
+        log_error "Failed to enable containerd service"
+        return 1
+    fi
+    
+    if ! systemctl start containerd; then
+        log_error "Failed to start containerd service"
+        return 1
+    fi
+    
+    # Remove default containerd config to use defaults
+    if [[ -f /etc/containerd/config.toml ]]; then
+        log_substep "Removing default containerd configuration"
+        rm /etc/containerd/config.toml
+        systemctl restart containerd
+    fi
+    
+    log_success "Docker and containerd services started successfully"
+    return 0
+}
+
+# Docker installation validation function
+validate_docker_installation() {
+    log_substep "Checking Docker daemon status"
+    if ! systemctl is-active --quiet docker; then
+        log_error "Docker service is not running"
+        return 1
+    else
+        log_success "Docker daemon is running"
+    fi
+    
+    log_substep "Checking containerd status"
+    if ! systemctl is-active --quiet containerd; then
+        log_error "Containerd service is not running"
+        return 1
+    else
+        log_success "Containerd service is running"
+    fi
+    
+    log_substep "Testing Docker functionality"
+    if ! docker info >/dev/null 2>&1; then
+        log_error "Docker daemon is not responding properly"
+        return 1
+    else
+        log_success "Docker daemon is responding correctly"
+    fi
+    
+    log_substep "Testing container creation"
+    if ! timeout 30 docker run --rm hello-world >/dev/null 2>&1; then
+        log_warning "Docker hello-world test failed - may need internet connectivity"
+    else
+        log_success "Container creation test passed"
+    fi
+    
+    log_substep "Checking Docker configuration"
+    local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
+    if [[ "$cgroup_driver" != "systemd" ]]; then
+        log_warning "Docker cgroup driver is not set to systemd (current: $cgroup_driver)"
+    else
+        log_success "Cgroup driver correctly set to systemd"
+    fi
+    
+    return 0
+}
+
+# Show Docker system status
+show_docker_system_status() {
+    echo
+    log_section "Docker System Status" "🔍"
+    
+    # Docker daemon status
+    log_substep "Checking Docker daemon status"
+    if systemctl is-active --quiet docker; then
+        log_success "Docker daemon: Running"
+    else
+        log_error "Docker daemon: Not running"
+    fi
+    
+    # Containerd status
+    log_substep "Checking containerd status"
+    if systemctl is-active --quiet containerd; then
+        log_success "Containerd: Running"
+    else
+        log_error "Containerd: Not running"
+    fi
+    
+    # Docker version info
+    log_substep "Checking Docker versions"
+    local docker_version=$(docker --version 2>/dev/null | cut -d' ' -f3 | cut -d',' -f1)
+    local containerd_version=$(containerd --version 2>/dev/null | cut -d' ' -f3)
+    
+    if [[ -n "$docker_version" ]]; then
+        log_success "Docker version: $docker_version"
+    else
+        log_warning "Docker version: Unknown"
+    fi
+    
+    if [[ -n "$containerd_version" ]]; then
+        log_success "Containerd version: $containerd_version"
+    else
+        log_warning "Containerd version: Unknown"
+    fi
+    
+    # Docker configuration check
+    log_substep "Validating Docker configuration"
+    local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
+    if [[ "$cgroup_driver" == "systemd" ]]; then
+        log_success "Cgroup driver: systemd (Kubernetes compatible)"
+    else
+        log_warning "Cgroup driver: $cgroup_driver (may need systemd for Kubernetes)"
+    fi
+    
+    # Storage driver check
+    local storage_driver=$(docker info 2>/dev/null | grep "Storage Driver" | cut -d: -f2 | tr -d ' ')
+    if [[ -n "$storage_driver" ]]; then
+        log_success "Storage driver: $storage_driver"
+    else
+        log_warning "Storage driver: Unknown"
+    fi
+    
+    # Container count check
+    log_substep "Checking container status"
+    local running_containers=$(docker ps -q 2>/dev/null | wc -l)
+    local total_containers=$(docker ps -aq 2>/dev/null | wc -l)
+    if [[ $? -eq 0 ]]; then
+        log_success "Containers: $running_containers running, $total_containers total"
+    else
+        log_warning "Unable to check container status"
+    fi
+}
+
+# Show Docker next steps
+show_docker_next_steps() {
+    log_next_steps "Docker Installation Complete" \
+        "Test Docker functionality: docker run hello-world" \
+        "Check Docker service status: systemctl status docker" \
+        "View Docker system information: docker info" \
+        "Verify container runtime: docker version" \
+        "Install Kubernetes cluster: gok-new install kubernetes"
+    
+    log_urls "Docker Resources & Documentation" \
+        "Docker Documentation: https://docs.docker.com/" \
+        "Docker Hub Registry: https://hub.docker.com/" \
+        "Kubernetes Container Runtime Guide: https://kubernetes.io/docs/setup/production-environment/container-runtimes/" \
+        "Docker Best Practices: https://docs.docker.com/develop/best-practices/"
+    
+    log_credentials "Docker Management" "Current User" \
+        "Docker group membership: Required for non-root access" \
+        "Restart required: Log out and back in to apply group changes" \
+        "Test access: docker ps (should work without sudo)"
+    
+    # Enhanced HA proxy detection and recommendation
+    check_and_suggest_ha_setup
+    
+    log_info "Docker container runtime is now ready for Kubernetes installation"
+}
+
+# Enhanced HA setup detection and suggestions
+check_and_suggest_ha_setup() {
+    local suggest_ha=false
+    local ha_reason=""
+    
+    # Check for multiple API servers configuration
+    if [[ -n "$API_SERVERS" ]] && [[ "$API_SERVERS" == *","* ]]; then
+        suggest_ha=true
+        local server_count=$(echo "$API_SERVERS" | tr ',' '\n' | wc -l)
+        ha_reason="Multiple API servers detected ($server_count servers) in API_SERVERS configuration"
+    fi
+    
+    # Check for multiple network interfaces (potential multi-node setup)
+    local interface_count=$(ip -o link show | grep -v lo | wc -l)
+    if [[ $interface_count -gt 1 ]]; then
+        suggest_ha=true
+        ha_reason="${ha_reason:+$ha_reason; }Multiple network interfaces detected"
+    fi
+    
+    # Check available memory for multi-node capacity
+    local mem_gb=$(free -g | awk '/^Mem:/{print $2}')
+    if [[ $mem_gb -ge 8 ]]; then
+        suggest_ha=true
+        ha_reason="${ha_reason:+$ha_reason; }Sufficient memory for multi-node setup (${mem_gb}GB available)"
+    fi
+    
+    if [[ "$suggest_ha" == true ]]; then
+        log_info "HA Setup Recommendation: $ha_reason"
+        log_substep "Consider setting up HA cluster with multiple control planes"
+        log_substep "Use: gok-new install kubernetes-ha for high availability setup"
     fi
 }
 
