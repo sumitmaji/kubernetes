@@ -334,7 +334,7 @@ validate_generic_component() {
     local timeout="$2"
     local validation_passed=true
     
-    log_step "1" "Checking $component deployments"
+    log_step "1. Checking $component deployments"
     local deployments=$(kubectl get deployment -A --no-headers 2>/dev/null | grep "$component" | head -3)
     if [[ -n "$deployments" ]]; then
         echo "$deployments" | while read -r deploy_line; do
@@ -348,7 +348,7 @@ validate_generic_component() {
         done
     fi
     
-    log_step "2" "Checking $component pods"
+    log_step "2. Checking $component pods"
     if ! wait_for_pods_ready "$component" "$timeout" "$component"; then
         log_error "Pods not ready for $component"
         validation_passed=false
@@ -356,7 +356,7 @@ validate_generic_component() {
         log_success "All $component pods are ready"
     fi
     
-    log_step "3" "Checking $component services"
+    log_step "3. Checking $component services"
     local services=$(kubectl get svc -A --no-headers 2>/dev/null | grep "$component" | head -5)
     if [[ -n "$services" ]]; then
         log_success "$component services are available"
@@ -385,7 +385,7 @@ validate_docker_installation() {
     local timeout="${1:-60}"
     local validation_passed=true
     
-    log_step "1" "Checking Docker daemon status"
+    log_step "1. Checking Docker daemon status"
     if systemctl is-active --quiet docker; then
         log_success "Docker daemon is running"
     else
@@ -393,7 +393,7 @@ validate_docker_installation() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking Docker version"
+    log_step "2. Checking Docker version"
     if docker --version >/dev/null 2>&1; then
         local version=$(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
         log_success "Docker version: $version"
@@ -402,14 +402,14 @@ validate_docker_installation() {
         validation_passed=false
     fi
     
-    log_step "3" "Testing Docker functionality"
+    log_step "3. Testing Docker functionality"
     if docker run --rm hello-world >/dev/null 2>&1; then
         log_success "Docker can run containers successfully"
     else
         log_warning "Docker container test failed (may require proxy configuration)"
     fi
     
-    log_step "4" "Checking Docker group membership"
+    log_step "4. Checking Docker group membership"
     if groups $USER | grep -q docker; then
         log_success "User is in docker group"
     else
@@ -428,7 +428,7 @@ validate_helm_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Helm binary"
+    log_step "1. Checking Helm binary"
     if command -v helm >/dev/null 2>&1; then
         local version=$(helm version --short --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         log_success "Helm is installed (version: $version)"
@@ -438,7 +438,7 @@ validate_helm_installation() {
         return 1
     fi
     
-    log_step "2" "Testing Helm functionality"
+    log_step "2. Testing Helm functionality"
     if helm version --short >/dev/null 2>&1; then
         log_success "Helm version command works"
     else
@@ -446,7 +446,7 @@ validate_helm_installation() {
         validation_passed=false
     fi
     
-    log_step "3" "Checking Helm repositories"
+    log_step "3. Checking Helm repositories"
     local repo_count=$(helm repo list 2>/dev/null | tail -n +2 | wc -l)
     if [[ $repo_count -gt 0 ]]; then
         log_success "Helm has $repo_count repositories configured"
@@ -454,7 +454,7 @@ validate_helm_installation() {
         log_info "No Helm repositories configured yet (this is normal for new installations)"
     fi
     
-    log_step "4" "Testing repository access"
+    log_step "4. Testing repository access"
     if helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 && \
        helm repo update >/dev/null 2>&1; then
         log_success "Helm can access remote repositories"
@@ -476,7 +476,7 @@ validate_kubernetes_cluster() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking cluster API server connectivity"
+    log_step "1. Checking cluster API server connectivity"
     if kubectl cluster-info >/dev/null 2>&1; then
         log_success "Kubernetes API server is accessible"
     else
@@ -484,7 +484,7 @@ validate_kubernetes_cluster() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking node status"
+    log_step "2. Checking node status"
     local ready_nodes=$(kubectl get nodes --no-headers | grep -c " Ready ")
     local total_nodes=$(kubectl get nodes --no-headers | wc -l)
     
@@ -495,7 +495,7 @@ validate_kubernetes_cluster() {
         validation_passed=false
     fi
     
-    log_step "3" "Checking system components"
+    log_step "3. Checking system components"
     if wait_for_pods_ready "kube-system" "$timeout"; then
         log_success "All system components are ready"
     else
@@ -515,7 +515,7 @@ validate_cert_manager() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking cert-manager deployment"
+    log_step "1. Checking cert-manager deployment"
     if check_deployment_readiness "cert-manager" "cert-manager"; then
         log_success "Cert-manager deployment is ready"
     else
@@ -523,7 +523,7 @@ validate_cert_manager() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking cert-manager pods"
+    log_step "2. Checking cert-manager pods"
     if ! wait_for_pods_ready "cert-manager" "$timeout" "cert-manager"; then
         log_error "Cert-manager pods not ready"
         validation_passed=false
@@ -531,7 +531,7 @@ validate_cert_manager() {
         log_success "Cert-manager pods are ready"
     fi
     
-    log_step "2" "Checking cert-manager webhook"
+    log_step "2. Checking cert-manager webhook"
     if kubectl get validatingwebhookconfiguration cert-manager-webhook >/dev/null 2>&1; then
         log_success "Cert-manager webhook is configured"
     else
@@ -539,7 +539,7 @@ validate_cert_manager() {
         validation_passed=false
     fi
     
-    log_step "3" "Testing cert-manager functionality"
+    log_step "3. Testing cert-manager functionality"
     # Create a test certificate using the correct ClusterIssuer name
     cat <<EOF | kubectl apply -f - >/dev/null 2>&1
 apiVersion: cert-manager.io/v1
@@ -586,7 +586,7 @@ validate_ingress_controller() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking ingress controller deployment"
+    log_step "1. Checking ingress controller deployment"
     if check_deployment_readiness "ingress-nginx-controller" "ingress-nginx"; then
         log_success "Ingress controller deployment is ready"
     else
@@ -594,7 +594,7 @@ validate_ingress_controller() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking ingress controller pods"
+    log_step "2. Checking ingress controller pods"
     if ! wait_for_pods_ready "ingress-nginx" "$timeout" "ingress-nginx"; then
         log_error "Ingress controller pods not ready"
         validation_passed=false
@@ -602,7 +602,7 @@ validate_ingress_controller() {
         log_success "Ingress controller pods are ready"
     fi
     
-    log_step "3" "Checking ingress controller service"
+    log_step "3. Checking ingress controller service"
     if check_service_connectivity "ingress-nginx-controller" "ingress-nginx"; then
         log_success "Ingress controller service is accessible"
         
@@ -624,7 +624,7 @@ validate_ingress_controller() {
         validation_passed=false
     fi
     
-    log_step "4" "Checking ingress class"
+    log_step "4. Checking ingress class"
     if kubectl get ingressclass nginx >/dev/null 2>&1; then
         log_success "Nginx ingress class is available"
     else
@@ -643,7 +643,7 @@ validate_monitoring_stack() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking monitoring namespace pods"
+    log_step "1. Checking monitoring namespace pods"
     if ! wait_for_pods_ready "monitoring" "$timeout"; then
         log_error "Monitoring pods not ready"
         validation_passed=false
@@ -651,7 +651,7 @@ validate_monitoring_stack() {
         log_success "Monitoring pods are ready"
     fi
     
-    log_step "2" "Checking Prometheus"
+    log_step "2. Checking Prometheus"
     if kubectl get statefulset -n monitoring prometheus-prometheus >/dev/null 2>&1; then
         log_success "Prometheus is deployed"
     else
@@ -659,7 +659,7 @@ validate_monitoring_stack() {
         validation_passed=false
     fi
     
-    log_step "3" "Checking Grafana"
+    log_step "3. Checking Grafana"
     if kubectl get deployment -n monitoring grafana >/dev/null 2>&1; then
         log_success "Grafana is deployed"
     else
@@ -679,7 +679,7 @@ validate_vault_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Vault pods"
+    log_step "1. Checking Vault pods"
     if ! wait_for_pods_ready "vault" "$timeout"; then
         log_error "Vault pods not ready"
         validation_passed=false
@@ -687,7 +687,7 @@ validate_vault_installation() {
         log_success "Vault pods are ready"
     fi
     
-    log_step "2" "Checking Vault status"
+    log_step "2. Checking Vault status"
     local vault_status=$(kubectl exec -n vault vault-0 -- vault status -format=json 2>/dev/null | jq -r '.sealed // "unknown"')
     case "$vault_status" in
         "false")
@@ -713,7 +713,7 @@ validate_gok_controller_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking GOK Controller pods"
+    log_step "1. Checking GOK Controller pods"
     if ! wait_for_pods_ready "gok-controller" "$timeout"; then
         log_error "GOK Controller pods not ready"
         validation_passed=false
@@ -721,7 +721,7 @@ validate_gok_controller_installation() {
         log_success "GOK Controller pods are ready"
     fi
     
-    log_step "2" "Checking GOK Agent pods"
+    log_step "2. Checking GOK Agent pods"
     if ! wait_for_pods_ready "gok-agent" "$timeout"; then
         log_error "GOK Agent pods not ready"
         validation_passed=false
@@ -740,7 +740,7 @@ validate_keycloak_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Keycloak StatefulSet status"
+    log_step "1. Checking Keycloak StatefulSet status"
     if check_statefulset_readiness "keycloak" "keycloak"; then
         log_success "Keycloak StatefulSet is ready"
     else
@@ -748,7 +748,7 @@ validate_keycloak_installation() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking Keycloak pods"
+    log_step "2. Checking Keycloak pods"
     if ! wait_for_pods_ready "keycloak" "$timeout" "keycloak"; then
         log_error "Keycloak pods not ready"
         validation_passed=false
@@ -756,14 +756,14 @@ validate_keycloak_installation() {
         log_success "Keycloak pods are ready"
     fi
     
-    log_step "3" "Checking Keycloak service connectivity"
+    log_step "3. Checking Keycloak service connectivity"
     if check_service_connectivity "keycloak-http" "keycloak"; then
         log_success "Keycloak service is accessible"
     else
         log_warning "Keycloak service connectivity issues detected"
     fi
     
-    log_step "4" "Checking Keycloak ingress configuration"
+    log_step "4. Checking Keycloak ingress configuration"
     if kubectl get ingress keycloak -n keycloak >/dev/null 2>&1; then
         if check_ingress_status "keycloak" "keycloak"; then
             log_success "Keycloak ingress is configured and ready"
@@ -786,7 +786,7 @@ validate_argocd_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking ArgoCD server deployment"
+    log_step "1. Checking ArgoCD server deployment"
     if check_deployment_readiness "argocd-server" "argocd"; then
         log_success "ArgoCD server deployment is ready"
     else
@@ -794,7 +794,7 @@ validate_argocd_installation() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking ArgoCD pods"
+    log_step "2. Checking ArgoCD pods"
     if ! wait_for_pods_ready "argocd" "$timeout" "argocd"; then
         log_error "ArgoCD pods not ready"
         validation_passed=false
@@ -802,7 +802,7 @@ validate_argocd_installation() {
         log_success "ArgoCD pods are ready"
     fi
     
-    log_step "3" "Checking ArgoCD services"
+    log_step "3. Checking ArgoCD services"
     if check_service_connectivity "argocd-server" "argocd"; then
         log_success "ArgoCD server service is accessible"
     else
@@ -821,7 +821,7 @@ validate_jupyter_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking JupyterHub hub deployment"
+    log_step "1. Checking JupyterHub hub deployment"
     if check_deployment_readiness "hub" "jupyterhub"; then
         log_success "JupyterHub hub deployment is ready"
     else
@@ -829,7 +829,7 @@ validate_jupyter_installation() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking JupyterHub pods"
+    log_step "2. Checking JupyterHub pods"
     if ! wait_for_pods_ready "jupyterhub" "$timeout" "jupyterhub"; then
         log_error "JupyterHub pods not ready"
         validation_passed=false
@@ -837,7 +837,7 @@ validate_jupyter_installation() {
         log_success "JupyterHub pods are ready"
     fi
     
-    log_step "3" "Checking JupyterHub proxy service"
+    log_step "3. Checking JupyterHub proxy service"
     if check_service_connectivity "proxy-public" "jupyterhub"; then
         log_success "JupyterHub proxy service is accessible"
     else
@@ -856,7 +856,7 @@ validate_registry_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking Registry deployment"
+    log_step "1. Checking Registry deployment"
     if check_deployment_readiness "registry" "registry"; then
         log_success "Registry deployment is ready"
     else
@@ -864,7 +864,7 @@ validate_registry_installation() {
         validation_passed=false
     fi
     
-    log_step "2" "Checking Registry pods"
+    log_step "2. Checking Registry pods"
     if ! wait_for_pods_ready "registry" "$timeout" "registry"; then
         log_error "Registry pods not ready"
         validation_passed=false
@@ -872,14 +872,14 @@ validate_registry_installation() {
         log_success "Registry pods are ready"
     fi
     
-    log_step "3" "Checking Registry service"
+    log_step "3. Checking Registry service"
     if check_service_connectivity "registry" "registry"; then
         log_success "Registry service is accessible"
     else
         log_warning "Registry service connectivity issues detected"
     fi
     
-    log_step "4" "Checking Registry ingress"
+    log_step "4. Checking Registry ingress"
     if kubectl get ingress registry -n registry >/dev/null 2>&1; then
         if check_ingress_status "registry" "registry"; then
             log_success "Registry ingress is configured and ready"
@@ -902,7 +902,7 @@ validate_base_installation() {
     local timeout="$1"
     local validation_passed=true
     
-    log_step "1" "Checking base installation marker"
+    log_step "1. Checking base installation marker"
     if kubectl get configmap base-config -n kube-system >/dev/null 2>&1; then
         log_success "Base installation marker found"
     else
@@ -910,7 +910,7 @@ validate_base_installation() {
         # Don't fail validation for missing marker as it's not critical
     fi
     
-    log_step "2" "Checking base platform components"
+    log_step "2. Checking base platform components"
     local base_dir="${MOUNT_PATH:-/home/sumit/Documents/repository}/kubernetes/install_k8s/base"
     if [[ -d "$base_dir" ]]; then
         log_success "Base platform directory exists"
