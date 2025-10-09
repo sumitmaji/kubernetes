@@ -345,6 +345,15 @@ fix_broken_repositories() {
         if [[ -n "$repo" ]]; then
             log_info "Attempting to fix repository: $repo"
             
+            # Special handling for Kubernetes repository
+            if [[ "$repo" == *"kubernetes-xenial"* ]] || [[ "$repo" == *"apt.kubernetes.io"* ]]; then
+                log_info "Fixing Kubernetes repository with modern URL"
+                if fix_kubernetes_repository; then
+                    log_success "Kubernetes repository fixed"
+                    continue
+                fi
+            fi
+            
             # Try to find and disable the problematic repository
             local repo_file=$(grep -l "$repo" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null | head -1)
             
@@ -406,6 +415,36 @@ clean_package_cache() {
     fi
     
     return $([[ "$cleaned" == "true" ]] && echo 0 || echo 1)
+}
+
+# Fix Kubernetes repository specifically
+fix_kubernetes_repository() {
+    local repo_file="/etc/apt/sources.list.d/kubernetes.list"
+    
+    # Backup current file
+    sudo cp "$repo_file" "${repo_file}.bak" 2>/dev/null || true
+    
+    # Install correct GPG key
+    sudo mkdir -p /etc/apt/keyrings
+    if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
+        log_success "Kubernetes GPG key installed"
+    else
+        log_warning "Failed to install Kubernetes GPG key"
+        return 1
+    fi
+    
+    # Replace with modern repository
+    sudo bash -c "cat > $repo_file << 'EOF'
+deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /
+EOF"
+    
+    if [[ $? -eq 0 ]]; then
+        log_success "Kubernetes repository updated to modern URL"
+        return 0
+    else
+        log_error "Failed to update Kubernetes repository"
+        return 1
+    fi
 }
 
 # Verify all repositories are accessible
@@ -571,3 +610,4 @@ export -f fix_package_repository_issues
 export -f setup_modern_repositories
 export -f clean_old_helm_repositories
 export -f analyze_helm_installation
+export -f fix_kubernetes_repository
