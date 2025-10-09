@@ -75,6 +75,9 @@ load_utility_modules() {
         "validation"
         "verification"
         "interactive"
+        "system_update"
+        "dependency_manager"
+        "ha_validation"
     )
     
     for module in "${util_modules[@]}"; do
