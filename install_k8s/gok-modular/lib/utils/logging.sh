@@ -39,12 +39,12 @@ fi
 : ${GOK_LOG_QUIET:=false}
 
 # Log level constants
-declare -r LOG_LEVEL_DEBUG=0
-declare -r LOG_LEVEL_INFO=1
-declare -r LOG_LEVEL_SUCCESS=2
-declare -r LOG_LEVEL_WARNING=3
-declare -r LOG_LEVEL_ERROR=4
-declare -r LOG_LEVEL_CRITICAL=5
+readonly LOG_LEVEL_DEBUG=0
+readonly LOG_LEVEL_INFO=1
+readonly LOG_LEVEL_SUCCESS=2
+readonly LOG_LEVEL_WARNING=3
+readonly LOG_LEVEL_ERROR=4
+readonly LOG_LEVEL_CRITICAL=5
 
 # Current log level (converted from string)
 GOK_LOG_LEVEL_NUM=1
@@ -58,13 +58,13 @@ get_log_level_num() {
     local level="${1^^}"  # Convert to uppercase
     
     case "$level" in
-        "DEBUG"|"DBG") echo $LOG_LEVEL_NUM_DEBUG ;;
-        "INFO"|"INF") echo $LOG_LEVEL_NUM_INFO ;;
-        "SUCCESS"|"SUC"|"OK") echo $LOG_LEVEL_NUM_SUCCESS ;;
-        "WARNING"|"WARN"|"WRN") echo $LOG_LEVEL_NUM_WARNING ;;
-        "ERROR"|"ERR") echo $LOG_LEVEL_NUM_ERROR ;;
-        "CRITICAL"|"CRIT"|"FATAL") echo $LOG_LEVEL_NUM_CRITICAL ;;
-        *) echo $LOG_LEVEL_NUM_INFO ;;
+        "DEBUG"|"DBG") echo $LOG_LEVEL_DEBUG ;;
+        "INFO"|"INF") echo $LOG_LEVEL_INFO ;;
+        "SUCCESS"|"SUC"|"OK") echo $LOG_LEVEL_SUCCESS ;;
+        "WARNING"|"WARN"|"WRN") echo $LOG_LEVEL_WARNING ;;
+        "ERROR"|"ERR") echo $LOG_LEVEL_ERROR ;;
+        "CRITICAL"|"CRIT"|"FATAL") echo $LOG_LEVEL_CRITICAL ;;
+        *) echo $LOG_LEVEL_INFO ;;
     esac
 }
 
@@ -104,7 +104,7 @@ _log() {
     fi
 
     # Skip if in quiet mode (unless it's an error)
-    if [[ "$GOK_LOG_QUIET" == "true" ]] && [[ $level_num -lt $LOG_LEVEL_NUM_ERROR ]]; then
+    if [[ "$GOK_LOG_QUIET" == "true" ]] && [[ $level_num -lt $LOG_LEVEL_ERROR ]]; then
         return 0
     fi
 
@@ -126,7 +126,7 @@ _log() {
 
     # Determine output stream
     local output_stream=1  # stdout
-    if [[ $level_num -ge $LOG_LEVEL_NUM_ERROR ]]; then
+    if [[ $level_num -ge $LOG_LEVEL_ERROR ]]; then
         output_stream=2  # stderr for errors
     fi
 

@@ -107,16 +107,15 @@ log_error() {
     echo -e "${COLOR_RED}${COLOR_BOLD}[$timestamp] ${EMOJI_ERROR} $message${COLOR_RESET}" >&2
 }
 
+# Minimal core logging functions - will be enhanced by utils/logging.sh
 log_warning() {
-    local message="$1"
-    local timestamp=$(get_timestamp)
-    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}[$timestamp] ${EMOJI_WARNING} $message${COLOR_RESET}"
+    # Stub function - will be overridden by utils/logging.sh
+    return 0
 }
 
 log_info() {
-    local message="$1"
-    local timestamp=$(get_timestamp)
-    echo -e "${COLOR_BRIGHT_CYAN}[$timestamp] ${EMOJI_INFO} $message${COLOR_RESET}"
+    # Stub function - will be overridden by utils/logging.sh
+    return 0
 }
 
 log_step() {
@@ -132,11 +131,8 @@ log_substep() {
 }
 
 log_debug() {
-    local message="$1"
-    # Simple debug logging that will be overridden by utils/logging.sh
-    if [[ "${GOK_DEBUG:-}" == "true" ]]; then
-        echo -e "${COLOR_DIM}[DEBUG] $message${COLOR_RESET}" >&2
-    fi
+    # Stub function - will be overridden by utils/logging.sh
+    return 0
 }
 
 log_progress() {
