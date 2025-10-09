@@ -26,7 +26,7 @@ _gok_new_completion() {
     "
 
     # Infrastructure components
-    local infrastructure_components="docker kubernetes kubernetes-worker helm calico ingress cluster master node tools k8s"
+    local infrastructure_components="docker kubernetes kubernetes-worker helm calico ingress haproxy cluster master node tools k8s"
     
     # Monitoring components
     local monitoring_components="prometheus grafana cadvisor metric-server monitoring heapster"
