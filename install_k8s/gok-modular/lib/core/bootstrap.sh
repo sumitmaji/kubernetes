@@ -47,8 +47,9 @@ load_module() {
 load_core_modules() {
     local core_modules=(
         "constants"
-        "environment" 
         "logging"
+        "config"
+        "environment"
     )
     
     for module in "${core_modules[@]}"; do
@@ -171,6 +172,12 @@ bootstrap_gok() {
     
     load_core_modules || {
         echo "ERROR: Failed to load core modules" >&2
+        return 1
+    }
+    
+    # Initialize configuration system after core modules are loaded
+    init_gok_configuration || {
+        echo "ERROR: Failed to initialize GOK configuration" >&2
         return 1
     }
     
