@@ -494,6 +494,286 @@ recommend_installation_path() {
     echo
 }
 
+# Show component-specific next steps after successful installation
+show_component_next_steps() {
+    local component="$1"
+    
+    case "$component" in
+        "docker")
+            log_next_steps "Docker Engine" \
+                "Verify Docker: docker --version && docker info" \
+                "Test container: docker run hello-world" \
+                "Configure user permissions: sudo usermod -aG docker $USER" \
+                "Next: Install Kubernetes: gok install kubernetes"
+            
+            log_info "Docker is ready for container operations"
+            ;;
+            
+        "kubernetes"|"k8s")
+            log_next_steps "Kubernetes Cluster" \
+                "Check cluster: kubectl get nodes" \
+                "Verify system pods: kubectl get pods -n kube-system" \
+                "Deploy test workload: kubectl create deployment nginx --image=nginx" \
+                "Next: Install ingress controller: gok install ingress"
+            
+            log_info "Kubernetes cluster is operational and ready for workloads"
+            ;;
+            
+        "ingress"|"nginx-ingress")
+            log_next_steps "NGINX Ingress Controller" \
+                "Check ingress: kubectl get pods -n ingress-nginx" \
+                "Verify service: kubectl get svc -n ingress-nginx" \
+                "Test external access to cluster services" \
+                "Next: Install certificate manager: gok install cert-manager"
+            
+            log_urls "Ingress Configuration" \
+                "Default Backend: http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'):30080" \
+                "HTTPS: https://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}'):30443"
+            
+            log_info "Ingress controller enables external HTTP/HTTPS access to cluster services"
+            ;;
+            
+        "cert-manager")
+            log_next_steps "Certificate Manager" \
+                "Check cert-manager: kubectl get pods -n cert-manager" \
+                "Verify CRDs: kubectl get crd | grep cert-manager" \
+                "Create test certificate issuer" \
+                "Configure Let's Encrypt for automatic certificates"
+            
+            log_info "Cert-manager provides automated TLS certificate management"
+            ;;
+            
+        "kyverno")
+            log_next_steps "Kyverno Policy Engine" \
+                "Check Kyverno: kubectl get pods -n kyverno" \
+                "Review policies: kubectl get policies -A" \
+                "Test policy enforcement with sample resources" \
+                "Configure custom security policies"
+            
+            log_info "Kyverno enforces security policies and governance across the cluster"
+            ;;
+            
+        "registry"|"docker-registry")
+            log_next_steps "Container Registry" \
+                "Check registry: kubectl get pods -n registry" \
+                "Configure Docker to use registry" \
+                "Push test image: docker push registry.$(rootDomain)/hello:latest" \
+                "Set up registry webhooks and scanning"
+            
+            log_urls "Registry Access" \
+                "Registry UI: https://registry.$(rootDomain)" \
+                "Registry API: https://registry.$(rootDomain)/v2/"
+            
+            log_info "Private container registry is ready for image storage and distribution"
+            ;;
+            
+        "base"|"base-services")
+            log_next_steps "Base Platform Services" \
+                "Verify core services: kubectl get pods -n kube-system" \
+                "Check platform configurations" \
+                "Test shared service connectivity" \
+                "Next: Install LDAP: gok install ldap"
+            
+            log_info "Base platform services and shared infrastructure are configured"
+            ;;
+            
+        "ldap"|"openldap")
+            log_next_steps "LDAP Directory Service" \
+                "Check LDAP: kubectl get pods -n ldap" \
+                "Verify LDAP service: kubectl get svc -n ldap" \
+                "Test LDAP connectivity: ldapsearch -x -H ldap://ldap.$(rootDomain)" \
+                "Configure user and group entries"
+            
+            log_urls "LDAP Access" \
+                "LDAP Server: ldap://ldap.$(rootDomain):389" \
+                "LDAP Admin: cn=admin,dc=$(rootDomain | sed 's/\..*$//')"
+            
+            log_credentials "LDAP Admin" "admin" \
+                "Run: kubectl get secret -n ldap ldap-admin-password -o jsonpath='{.data.password}' | base64 -d"
+            
+            log_info "LDAP directory service provides centralized user and group management"
+            ;;
+            
+        "oauth2"|"oauth2-proxy")
+            log_next_steps "OAuth2 Authentication Proxy" \
+                "Check OAuth2 proxy: kubectl get pods -n oauth2" \
+                "Test SSO integration with LDAP" \
+                "Configure application protection policies" \
+                "Verify authentication flow"
+            
+            log_urls "OAuth2 Configuration" \
+                "OAuth2 Proxy: https://oauth2.$(rootDomain)" \
+                "Authentication Endpoint: https://oauth2.$(rootDomain)/oauth2/auth"
+            
+            log_info "OAuth2 proxy provides SSO and application security"
+            ;;
+            
+        "rabbitmq"|"message-queue")
+            log_next_steps "RabbitMQ Message Broker" \
+                "Check RabbitMQ: kubectl get pods -n rabbitmq" \
+                "Access management UI" \
+                "Create queues and exchanges" \
+                "Configure clustering and high availability"
+            
+            log_urls "RabbitMQ Access" \
+                "Management UI: https://rabbitmq.$(rootDomain)" \
+                "AMQP Endpoint: amqp://rabbitmq.$(rootDomain):5672"
+            
+            log_credentials "RabbitMQ Admin" "admin" \
+                "Run: kubectl get secret -n rabbitmq rabbitmq-admin-password -o jsonpath='{.data.password}' | base64 -d"
+            
+            log_info "RabbitMQ provides reliable message queuing for distributed applications"
+            ;;
+            
+        "jenkins")
+            log_next_steps "Jenkins CI/CD" \
+                "Access Jenkins dashboard" \
+                "Install required plugins" \
+                "Configure build agents and pipelines" \
+                "Set up Git integration and webhooks"
+            
+            log_urls "Jenkins Access" \
+                "Jenkins UI: https://jenkins.$(rootDomain)" \
+                "Build Agents: Configure in Jenkins > Manage Jenkins > Manage Nodes"
+            
+            log_credentials "Jenkins Admin" "admin" \
+                "Run: kubectl get secret -n jenkins jenkins-admin-password -o jsonpath='{.data.password}' | base64 -d"
+            
+            log_info "Jenkins is configured for continuous integration and deployment"
+            ;;
+            
+        "monitoring"|"prometheus"|"grafana")
+            log_next_steps "Monitoring Stack" \
+                "Access Grafana dashboards" \
+                "Configure Prometheus targets" \
+                "Set up alerting rules" \
+                "Configure alerting rules"
+            
+            log_urls "Monitoring Dashboards" \
+                "Grafana: https://grafana.$(rootDomain)" \
+                "Prometheus: https://prometheus.$(rootDomain)" \
+                "AlertManager: https://alertmanager.$(rootDomain)"
+            
+            log_credentials "Grafana" "admin" \
+                "Run: kubectl get secret -n monitoring grafana-admin-password -o jsonpath='{.data.password}' | base64 -d"
+            
+            log_info "Pre-configured dashboards: Kubernetes cluster, node metrics, pod metrics"
+            ;;
+            
+        "vault")
+            log_next_steps "HashiCorp Vault" \
+                "Check vault status: kubectl get pods -n vault" \
+                "Initialize vault: kubectl exec -n vault vault-0 -- vault operator init" \
+                "Unseal vault with generated keys" \
+                "Configure authentication methods" \
+                "Set up secret engines and policies"
+            
+            log_urls "Vault Access" \
+                "Vault UI: https://$(fullVaultUrl)" \
+                "Vault API: https://$(fullVaultUrl)/v1/"
+            
+            log_warning "IMPORTANT: Save vault unseal keys and root token securely!"
+            log_info "Vault is running in HA mode with auto-unseal configured"
+            ;;
+            
+        "keycloak")
+            log_next_steps "Keycloak Identity Management" \
+                "Access Keycloak admin console" \
+                "Create realms and clients" \
+                "Configure user federation (LDAP if needed)" \
+                "Set up OAuth2 integration: gok install oauth2"
+            
+            log_urls "Keycloak Access" \
+                "Admin Console: https://$(fullKeycloakUrl)/admin" \
+                "Account Console: https://$(fullKeycloakUrl)/realms/master/account"
+            
+            log_credentials "Keycloak Admin" "admin" \
+                "Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d"
+            
+            log_info "Default realm 'master' created. Create application-specific realms as needed."
+            ;;
+            
+        "argocd")
+            log_next_steps "ArgoCD GitOps" \
+                "Access ArgoCD UI" \
+                "Connect Git repositories" \
+                "Create applications and sync policies" \
+                "Set up RBAC and SSO integration"
+            
+            log_urls "ArgoCD Access" \
+                "ArgoCD UI: https://argocd.$(rootDomain)" \
+                "ArgoCD CLI: argocd login argocd.$(rootDomain)"
+            
+            log_credentials "ArgoCD Admin" "admin" \
+                "Run: kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
+            
+            log_info "ArgoCD is configured for GitOps deployment workflows"
+            ;;
+            
+        "jupyter")
+            log_next_steps "JupyterHub Development Environment" \
+                "Access JupyterHub" \
+                "Configure user authentication" \
+                "Install additional Python packages" \
+                "Create shared notebooks and datasets"
+            
+            log_urls "JupyterHub Access" \
+                "JupyterHub: https://jupyter.$(rootDomain)" \
+                "Admin Panel: https://jupyter.$(rootDomain)/hub/admin"
+            
+            log_info "Default spawner configured with data science libraries pre-installed"
+            ;;
+            
+        "registry")
+            log_next_steps "Container Registry" \
+                "Configure Docker daemon to use registry" \
+                "Push first image: docker push $(fullRegistryUrl)/my-app:latest" \
+                "Set up image scanning and policies" \
+                "Configure registry webhooks"
+            
+            log_urls "Registry Access" \
+                "Registry UI: https://$(fullRegistryUrl)" \
+                "Registry API: https://$(fullRegistryUrl)/v2/"
+            
+            log_info "Registry is configured with TLS and basic authentication"
+            ;;
+            
+        "gok-controller"|"controller")
+            log_next_steps "GOK Platform Services" \
+                "Verify controller: kubectl get pods -n gok-controller" \
+                "Check agent: kubectl get pods -n gok-agent" \
+                "Test command execution through web interface" \
+                "Configure authentication and authorization"
+            
+            log_urls "GOK Platform Access" \
+                "GOK Controller: https://gok-controller.$(rootDomain)" \
+                "GOK Agent: Internal service for command execution"
+            
+            log_info "GOK distributed command execution platform is ready"
+            ;;
+            
+        "istio")
+            log_next_steps "Istio Service Mesh" \
+                "Enable automatic sidecar injection for namespaces" \
+                "Deploy sample applications with Istio" \
+                "Configure traffic management and security policies" \
+                "Set up observability with Kiali and Jaeger"
+            
+            log_info "Istio service mesh is installed and ready for microservices"
+            ;;
+            
+        *)
+            log_next_steps "$component Installation Complete" \
+                "Check component status: kubectl get pods -A | grep $component" \
+                "Review component logs: kubectl logs -l app=$component" \
+                "Verify service endpoints: kubectl get svc | grep $component" \
+                "Check ingress configuration: kubectl get ingress"
+            
+            log_info "Component $component has been installed successfully"
+            ;;
+    esac
+}
+
 # Export functions for use by other modules
 export -f display_platform_overview
 export -f check_and_display_component
@@ -501,3 +781,4 @@ export -f suggest_next_installations
 export -f suggest_and_install_next_module
 export -f show_component_guidance
 export -f recommend_installation_path
+export -f show_component_next_steps
