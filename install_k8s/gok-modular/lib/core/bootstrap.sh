@@ -116,6 +116,7 @@ load_command_modules() {
         "create"
         "exec"
         "completion"
+        "show"
     )
     
     for module in "${command_modules[@]}"; do

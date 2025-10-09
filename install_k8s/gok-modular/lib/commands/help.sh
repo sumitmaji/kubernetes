@@ -149,8 +149,14 @@ DIAGNOSTIC COMMANDS:
   bash                   Open shell in selected pod
                          Examples: gok bash
 
+  show <info>            Display system information
+                         Examples: gok show configuration
+
   status                 Check system and component status
                          Examples: gok status
+
+  show <info>            Display system information
+                         Examples: gok show configuration
 
 SYSTEM COMMANDS:
   remote <action>        Manage remote host operations

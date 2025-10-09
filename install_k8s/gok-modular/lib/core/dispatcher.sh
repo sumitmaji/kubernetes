@@ -83,6 +83,9 @@ dispatch_command() {
         "cache")
             cacheCmd "$@"
             ;;
+        "show")
+            showCmd "$@"
+            ;;
         "taint-node")
             taintNodeCmd "$@"
             ;;
@@ -181,7 +184,7 @@ is_command_available() {
     local command="$1"
     local available_commands=(
         "install" "reset" "start" "deploy" "patch" "create" "generate" "status"
-        "desc" "logs" "bash" "remote" "completion" "cache" "help"
+        "desc" "logs" "bash" "remote" "completion" "cache" "show" "help"
     )
     
     for cmd in "${available_commands[@]}"; do

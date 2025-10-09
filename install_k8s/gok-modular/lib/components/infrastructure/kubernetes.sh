@@ -530,7 +530,7 @@ haproxyInst() {
     log_component_start "haproxy" "Installing HAProxy load balancer for Kubernetes API servers"
     
     # Pre-installation validation
-    log_step "1" "Validating prerequisites for HAProxy installation"
+    log_step "1 Validating prerequisites for HAProxy installation"
     
     # Check if running as root or with sudo
     if [[ $EUID -ne 0 ]]; then
@@ -561,8 +561,8 @@ haproxyInst() {
     log_success "Prerequisites validation passed"
     
     # Step 2: Clean up existing HAProxy container and configuration
-    log_step "2" "Cleaning up existing HAProxy installation"
-    
+    log_step "2 Cleaning up existing HAProxy installation"
+
     # Stop and remove existing container
     if docker ps -q -f name=master-proxy | grep -q .; then
         log_substep "Stopping existing HAProxy container"
@@ -583,8 +583,8 @@ haproxyInst() {
     log_success "Cleanup completed"
     
     # Step 3: Generate HAProxy configuration
-    log_step "3" "Generating HAProxy configuration"
-    
+    log_step "3 Generating HAProxy configuration"
+
     log_substep "Creating HAProxy configuration file at /opt/haproxy.cfg"
     
     if cat > /opt/haproxy.cfg << EOF
