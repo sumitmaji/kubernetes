@@ -386,14 +386,22 @@ validate_docker_installation() {
     local validation_passed=true
     
     log_step "1. Checking Docker daemon status"
-    if systemctl is-active --quiet docker; then
+    if sudo systemctl is-active --quiet docker; then
         log_success "Docker daemon is running"
     else
         log_error "Docker daemon is not running"
         validation_passed=false
     fi
     
-    log_step "2. Checking Docker version"
+    log_step "2. Checking containerd status"
+    if sudo systemctl is-active --quiet containerd; then
+        log_success "Containerd runtime is running"
+    else
+        log_error "Containerd runtime is not running"
+        validation_passed=false
+    fi
+    
+    log_step "3. Checking Docker version"
     if docker --version >/dev/null 2>&1; then
         local version=$(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
         log_success "Docker version: $version"
@@ -402,14 +410,30 @@ validate_docker_installation() {
         validation_passed=false
     fi
     
-    log_step "3. Testing Docker functionality"
-    if docker run --rm hello-world >/dev/null 2>&1; then
-        log_success "Docker can run containers successfully"
+    log_step "4. Testing Docker functionality"
+    if docker info >/dev/null 2>&1; then
+        log_success "Docker daemon is responding properly"
     else
-        log_warning "Docker container test failed (may require proxy configuration)"
+        log_error "Docker daemon is not responding properly"
+        validation_passed=false
     fi
     
-    log_step "4. Checking Docker group membership"
+    log_step "5. Testing container creation"
+    if timeout 30 docker run --rm hello-world >/dev/null 2>&1; then
+        log_success "Container creation test passed"
+    else
+        log_warning "Docker hello-world test failed - may need internet connectivity"
+    fi
+    
+    log_step "6. Checking Docker configuration"
+    local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
+    if [[ "$cgroup_driver" == "systemd" ]]; then
+        log_success "Cgroup driver correctly set to systemd"
+    else
+        log_warning "Docker cgroup driver is not set to systemd (current: $cgroup_driver)"
+    fi
+    
+    log_step "7. Checking Docker group membership"
     if groups $USER | grep -q docker; then
         log_success "User is in docker group"
     else
