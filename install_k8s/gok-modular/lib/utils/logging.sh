@@ -39,12 +39,12 @@ fi
 : ${GOK_LOG_QUIET:=false}
 
 # Log level constants
-declare -r LOG_LEVEL_NUM_DEBUG=0
-declare -r LOG_LEVEL_NUM_INFO=1
-declare -r LOG_LEVEL_NUM_SUCCESS=2
-declare -r LOG_LEVEL_NUM_WARNING=3
-declare -r LOG_LEVEL_NUM_ERROR=4
-declare -r LOG_LEVEL_NUM_CRITICAL=5
+declare -r LOG_LEVEL_DEBUG=0
+declare -r LOG_LEVEL_INFO=1
+declare -r LOG_LEVEL_SUCCESS=2
+declare -r LOG_LEVEL_WARNING=3
+declare -r LOG_LEVEL_ERROR=4
+declare -r LOG_LEVEL_CRITICAL=5
 
 # Current log level (converted from string)
 GOK_LOG_LEVEL_NUM=1
@@ -156,37 +156,37 @@ _log() {
 # Debug logging
 log_debug() {
     local message="$1"
-    _log "DEBUG" $LOG_LEVEL_NUM_DEBUG "${COLOR_DEBUG:-}" "🔍" "$message"
+    _log "DEBUG" $LOG_LEVEL_DEBUG "${COLOR_DEBUG:-}" "🔍" "$message"
 }
 
 # Info logging
 log_info() {
     local message="$1"
-    _log "INFO" $LOG_LEVEL_NUM_INFO "${COLOR_INFO:-}" "ℹ" "$message"
+    _log "INFO" $LOG_LEVEL_INFO "${COLOR_INFO:-}" "ℹ" "$message"
 }
 
 # Success logging
 log_success() {
     local message="$1"
-    _log "SUCCESS" $LOG_LEVEL_NUM_SUCCESS "${COLOR_SUCCESS:-}" "✅" "$message"
+    _log "SUCCESS" $LOG_LEVEL_SUCCESS "${COLOR_SUCCESS:-}" "✅" "$message"
 }
 
 # Warning logging
 log_warning() {
     local message="$1"
-    _log "WARNING" $LOG_LEVEL_NUM_WARNING "${COLOR_WARNING:-}" "⚠️" "$message"
+    _log "WARNING" $LOG_LEVEL_WARNING "${COLOR_WARNING:-}" "⚠️" "$message"
 }
 
 # Error logging
 log_error() {
     local message="$1"
-    _log "ERROR" $LOG_LEVEL_NUM_ERROR "${COLOR_ERROR:-}" "❌" "$message"
+    _log "ERROR" $LOG_LEVEL_ERROR "${COLOR_ERROR:-}" "❌" "$message"
 }
 
 # Critical error logging
 log_critical() {
     local message="$1"
-    _log "CRITICAL" $LOG_LEVEL_NUM_CRITICAL "${COLOR_ERROR:-}" "💀" "$message"
+    _log "CRITICAL" $LOG_LEVEL_CRITICAL "${COLOR_ERROR:-}" "💀" "$message"
 }
 
 # =============================================================================

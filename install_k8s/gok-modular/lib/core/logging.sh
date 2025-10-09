@@ -133,10 +133,9 @@ log_substep() {
 
 log_debug() {
     local message="$1"
-    local timestamp=$(get_timestamp)
-    # Only show debug/system logs in verbose mode or when there's an error
-    if is_verbose_mode || [[ "${2:-}" == "error" ]]; then
-        echo -e "${COLOR_DIM}[$timestamp] ${EMOJI_DEBUG} $message${COLOR_RESET}"
+    # Simple debug logging that will be overridden by utils/logging.sh
+    if [[ "${GOK_DEBUG:-}" == "true" ]]; then
+        echo -e "${COLOR_DIM}[DEBUG] $message${COLOR_RESET}" >&2
     fi
 }
 

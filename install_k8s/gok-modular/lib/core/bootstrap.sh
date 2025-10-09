@@ -101,7 +101,9 @@ load_utility_modules() {
 load_validation_modules() {
     # Validation modules are now loaded as part of utility modules
     # This function is kept for backward compatibility
-    log_debug "Validation modules loaded via utility modules system"
+    if [[ "${GOK_DEBUG:-}" == "true" ]]; then
+        echo "[DEBUG] Validation modules loaded via utility modules system" >&2
+    fi
 }
 
 # Load command modules
@@ -191,9 +193,13 @@ bootstrap_gok() {
         return 1
     }
     
-    # Initialize component tracking
-    init_component_tracking
+    # Initialize tracking system directories
+    mkdir -p "${GOK_CACHE_DIR}"
+    [[ ! -f "${GOK_CACHE_DIR}/component_status" ]] && touch "${GOK_CACHE_DIR}/component_status"
     
-    log_debug "GOK system initialized successfully"
+    # Use simple debug output to avoid logging conflicts
+    if [[ "${GOK_DEBUG:-}" == "true" ]]; then
+        echo "[DEBUG] GOK system initialized successfully" >&2
+    fi
     return 0
 }
