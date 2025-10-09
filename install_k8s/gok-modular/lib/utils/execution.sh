@@ -1,0 +1,233 @@
+#!/bin/bash
+
+# GOK Execution Module - Command execution with logging and suppression
+# This module provides enhanced command execution with error handling and output management
+
+# Global variables for execution control
+export GOK_SUPPRESS_OUTPUT="${GOK_SUPPRESS_OUTPUT:-false}"
+export GOK_SHOW_COMMANDS="${GOK_SHOW_COMMANDS:-true}"
+export GOK_TEMP_DIR="${GOK_TEMP_DIR:-/tmp/gok}"
+
+# Ensure temp directory exists
+mkdir -p "$GOK_TEMP_DIR"
+
+# Execute a command with suppressed output and return status
+execute_with_suppression() {
+    local temp_file="$GOK_TEMP_DIR/stdout_$(date +%s%N)"
+    local error_file="$GOK_TEMP_DIR/stderr_$(date +%s%N)"
+    local command_display="$*"
+    
+    # Show command being executed if verbose mode
+    if [[ "$GOK_SHOW_COMMANDS" == "true" ]]; then
+        log_debug "Executing: $command_display"
+    fi
+    
+    # Execute command with both stdout and stderr captured
+    if "$@" >"$temp_file" 2>"$error_file"; then
+        # Success - clean up and return
+        rm -f "$temp_file" "$error_file" 2>/dev/null
+        return 0
+    else
+        local exit_code=$?
+        
+        # Show formatted error information
+        show_execution_error "$command_display" "$exit_code" "$temp_file" "$error_file"
+        
+        # Clean up temp files
+        rm -f "$temp_file" "$error_file" 2>/dev/null
+        return $exit_code
+    fi
+}
+
+# Show detailed error information when command fails
+show_execution_error() {
+    local command="$1"
+    local exit_code="$2"
+    local stdout_file="$3"
+    local stderr_file="$4"
+    
+    echo >&2
+    log_error "Command execution failed"
+    echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}" >&2
+    echo -e "${COLOR_RED}${COLOR_BOLD}│ 🚨 COMMAND EXECUTION FAILED - DEBUGGING INFORMATION            │${COLOR_RESET}" >&2
+    echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}" >&2
+    
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}⚙️  Failed Command:${COLOR_RESET}" >&2
+    echo -e "${COLOR_WHITE}  $command${COLOR_RESET}" >&2
+    echo -e "${COLOR_YELLOW}${COLOR_BOLD}❌ Exit Code: ${COLOR_RED}$exit_code${COLOR_RESET}" >&2
+    
+    # Show error output if available
+    if [[ -s "$stderr_file" ]]; then
+        echo -e "${COLOR_RED}${COLOR_BOLD}🚨 Error Output:${COLOR_RESET}" >&2
+        echo -e "${COLOR_RED}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+        cat "$stderr_file" >&2
+        echo -e "${COLOR_RED}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+    fi
+    
+    # Show standard output if available (may contain useful debugging info)
+    if [[ -s "$stdout_file" ]]; then
+        echo -e "${COLOR_YELLOW}${COLOR_BOLD}ℹ️  Standard Output:${COLOR_RESET}" >&2
+        echo -e "${COLOR_YELLOW}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+        cat "$stdout_file" >&2
+        echo -e "${COLOR_YELLOW}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+    fi
+    
+    # Show debugging tips
+    show_debugging_tips "$command"
+    echo >&2
+}
+
+# Show debugging tips based on command type
+show_debugging_tips() {
+    local command="$1"
+    
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}💡 Debugging Tips:${COLOR_RESET}" >&2
+    
+    case "$command" in
+        *kubectl*)
+            echo -e "  ${COLOR_CYAN}• Check cluster: kubectl cluster-info${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Verify resources: kubectl get all -A${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Check events: kubectl get events --sort-by='.lastTimestamp'${COLOR_RESET}" >&2
+            ;;
+        *helm*)
+            echo -e "  ${COLOR_CYAN}• Check helm status: helm list -A${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Verify values: helm get values <release>${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Check helm repo: helm repo list${COLOR_RESET}" >&2
+            ;;
+        *docker*)
+            echo -e "  ${COLOR_CYAN}• Check docker: docker system info${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Verify service: systemctl status docker${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Check logs: journalctl -u docker${COLOR_RESET}" >&2
+            ;;
+        *)
+            echo -e "  ${COLOR_CYAN}• Check system logs: journalctl -u kubelet${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Verify system resources: df -h && free -m${COLOR_RESET}" >&2
+            echo -e "  ${COLOR_CYAN}• Check system status: systemctl status${COLOR_RESET}" >&2
+            ;;
+    esac
+    
+    echo -e "  ${COLOR_CYAN}• Run with debug: GOK_DEBUG=true gok-new <command>${COLOR_RESET}" >&2
+}
+
+# Execute helm install with log suppression and summary
+helm_install_with_summary() {
+    local component="$1"
+    local namespace="${2:-default}"
+    shift 2
+    
+    log_info "Installing $component via Helm..."
+    local temp_file="$GOK_TEMP_DIR/helm_stdout_$(date +%s%N)"
+    local error_file="$GOK_TEMP_DIR/helm_stderr_$(date +%s%N)"
+    local start_time=$(date +%s)
+    
+    if helm install "$@" >"$temp_file" 2>"$error_file"; then
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        
+        # Extract useful information from output
+        local release_info=$(grep -E "NAME:|NAMESPACE:|STATUS:|REVISION:" "$temp_file" 2>/dev/null || echo "")
+        
+        log_success "Helm installation completed for $component"
+        show_helm_summary "$component" "$namespace" "$duration" "$release_info"
+        
+        rm -f "$temp_file" "$error_file" 2>/dev/null
+        return 0
+    else
+        local exit_code=$?
+        show_execution_error "helm install $*" "$exit_code" "$temp_file" "$error_file"
+        rm -f "$temp_file" "$error_file" 2>/dev/null
+        return $exit_code
+    fi
+}
+
+# Show helm installation summary
+show_helm_summary() {
+    local component="$1"
+    local namespace="$2"
+    local duration="$3"
+    local release_info="$4"
+    
+    echo -e "${COLOR_CYAN}${COLOR_BOLD}📋 Installation Summary:${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}• Component: ${COLOR_BOLD}$component${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}• Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}• Duration: ${COLOR_BOLD}${duration}s${COLOR_RESET}"
+    
+    if [[ -n "$release_info" ]]; then
+        echo -e "  ${COLOR_GREEN}• Release Info:${COLOR_RESET}"
+        echo "$release_info" | sed 's/^/    /'
+    fi
+}
+
+# Execute kubectl apply with enhanced error reporting
+kubectl_apply_with_summary() {
+    local description="$1"
+    shift
+    
+    log_info "Applying Kubernetes resources: $description"
+    local temp_file="$GOK_TEMP_DIR/kubectl_stdout_$(date +%s%N)"
+    local error_file="$GOK_TEMP_DIR/kubectl_stderr_$(date +%s%N)"
+    
+    if kubectl apply "$@" >"$temp_file" 2>"$error_file"; then
+        # Show applied resources summary
+        local resources_applied=$(grep -c "configured\|created\|unchanged" "$temp_file" 2>/dev/null || echo "0")
+        log_success "Applied $resources_applied Kubernetes resources"
+        
+        # Show details if verbose
+        if [[ "$GOK_VERBOSE" == "true" ]]; then
+            cat "$temp_file"
+        fi
+        
+        rm -f "$temp_file" "$error_file" 2>/dev/null
+        return 0
+    else
+        local exit_code=$?
+        show_execution_error "kubectl apply $*" "$exit_code" "$temp_file" "$error_file"
+        rm -f "$temp_file" "$error_file" 2>/dev/null
+        return $exit_code
+    fi
+}
+
+# Execute command with retry mechanism
+execute_with_retry() {
+    local max_attempts="${1:-3}"
+    local delay="${2:-5}"
+    shift 2
+    
+    local attempt=1
+    local exit_code=0
+    
+    while [[ $attempt -le $max_attempts ]]; do
+        log_debug "Attempt $attempt/$max_attempts: $*"
+        
+        if execute_with_suppression "$@"; then
+            return 0
+        else
+            exit_code=$?
+            if [[ $attempt -lt $max_attempts ]]; then
+                log_warning "Attempt $attempt failed, retrying in ${delay}s..."
+                sleep "$delay"
+            fi
+        fi
+        
+        ((attempt++))
+    done
+    
+    log_error "All $max_attempts attempts failed"
+    return $exit_code
+}
+
+# Cleanup temporary files on exit
+cleanup_execution_temp_files() {
+    if [[ -d "$GOK_TEMP_DIR" ]]; then
+        find "$GOK_TEMP_DIR" -name "stdout_*" -o -name "stderr_*" -o -name "helm_*" -o -name "kubectl_*" -mmin +60 -delete 2>/dev/null || true
+    fi
+}
+
+# Register cleanup trap
+trap cleanup_execution_temp_files EXIT
+
+# Export functions for use by other modules
+export -f execute_with_suppression
+export -f helm_install_with_summary
+export -f kubectl_apply_with_summary
+export -f execute_with_retry

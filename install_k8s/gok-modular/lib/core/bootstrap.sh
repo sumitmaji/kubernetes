@@ -6,10 +6,12 @@
 init_gok_environment() {
     # Set base directories
     export GOK_ROOT_DIR="${GOK_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+    export GOK_ROOT="${GOK_ROOT:-$GOK_ROOT_DIR}"  # Alias for compatibility
     export GOK_LIB_DIR="${GOK_ROOT_DIR}/lib"
     export GOK_CONFIG_DIR="${GOK_ROOT_DIR}/config"
     export GOK_CACHE_DIR="${GOK_ROOT_DIR}/.cache"
     export GOK_LOGS_DIR="${GOK_ROOT_DIR}/logs"
+    export GOK_LOG_DIR="${GOK_LOGS_DIR}"  # Alias for compatibility
     
     # Create necessary directories
     mkdir -p "$GOK_CACHE_DIR" "$GOK_LOGS_DIR"
@@ -62,35 +64,35 @@ load_core_modules() {
 # Load utility modules
 load_utility_modules() {
     local util_modules=(
+        "colors"
+        "logging"
         "helm"
         "kubectl"
         "tracking"
+        "execution"
+        "guidance"
+        "repository_fix"
+        "validation"
+        "verification"
+        "interactive"
     )
     
     for module in "${util_modules[@]}"; do
         local module_path="${GOK_LIB_DIR}/utils/${module}.sh"
         if [[ -f "$module_path" ]]; then
             source "$module_path"
+            log_debug "Loaded utility module: $module"
         else
             echo "Warning: Utility module $module not found at $module_path" >&2
         fi
     done
 }
 
-# Load validation modules
+# Load validation modules (legacy - now integrated into utils)
 load_validation_modules() {
-    local validation_modules=(
-        "validation"
-    )
-    
-    for module in "${validation_modules[@]}"; do
-        local module_path="${GOK_LIB_DIR}/validation/${module}.sh"
-        if [[ -f "$module_path" ]]; then
-            source "$module_path"
-        else
-            echo "Warning: Validation module $module not found at $module_path" >&2
-        fi
-    done
+    # Validation modules are now loaded as part of utility modules
+    # This function is kept for backward compatibility
+    log_debug "Validation modules loaded via utility modules system"
 }
 
 # Load command modules

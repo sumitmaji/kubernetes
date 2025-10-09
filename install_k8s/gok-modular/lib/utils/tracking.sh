@@ -1,33 +1,82 @@
 #!/bin/bash
 
-# GOK Component Tracking Module - Installation progress and status tracking
+# GOK Component Tracking Module - Enhanced installation status and progress tracking
+# This module provides comprehensive component lifecycle tracking
+
+# Component status tracking
+declare -A GOK_COMPONENT_STATUS
+declare -A GOK_COMPONENT_START_TIME
+declare -A GOK_COMPONENT_END_TIME
+declare -A GOK_COMPONENT_DESCRIPTION
+declare -A GOK_COMPONENT_VERSION
+declare -A GOK_COMPONENT_NAMESPACE
+declare -A GOK_COMPONENT_ERROR_COUNT
+
+# Status constants
+readonly STATUS_IDLE="idle"
+readonly STATUS_STARTING="starting"
+readonly STATUS_IN_PROGRESS="in_progress"
+readonly STATUS_SUCCESS="success"
+readonly STATUS_FAILED="failed"
+readonly STATUS_SKIPPED="skipped"
+readonly STATUS_PARTIAL="partial"
 
 # Initialize component tracking system
 init_component_tracking() {
+    local component="$1"
+    local description="$2"
+    local version="${3:-latest}"
+    local namespace="${4:-default}"
+    
     local tracking_file="${GOK_CACHE_DIR}/component_status"
     [[ ! -f "$tracking_file" ]] && touch "$tracking_file"
+    
+    GOK_COMPONENT_STATUS["$component"]="$STATUS_IDLE"
+    GOK_COMPONENT_DESCRIPTION["$component"]="$description"
+    GOK_COMPONENT_VERSION["$component"]="$version"
+    GOK_COMPONENT_NAMESPACE["$component"]="$namespace"
+    GOK_COMPONENT_ERROR_COUNT["$component"]="0"
+    
+    log_debug "Initialized tracking for component: $component"
 }
 
 # Start tracking a component installation
 start_component() {
     local component="$1"
-    local tracking_file="${GOK_CACHE_DIR}/component_status"
+    local description="${2:-Installing $component}"
     
-    # Remove any existing entry for this component
+    GOK_COMPONENT_STATUS["$component"]="$STATUS_STARTING"
+    GOK_COMPONENT_START_TIME["$component"]=$(date +%s)
+    
+    # Update tracking file
+    local tracking_file="${GOK_CACHE_DIR}/component_status"
     if [[ -f "$tracking_file" ]]; then
         grep -v "^${component}:" "$tracking_file" > "${tracking_file}.tmp" 2>/dev/null || true
         mv "${tracking_file}.tmp" "$tracking_file" 2>/dev/null || true
     fi
+    echo "${component}:${STATUS_IN_PROGRESS}:$(date +%s):$description" >> "$tracking_file"
     
-    # Add new entry with in-progress status
-    echo "${component}:in-progress:$(date +%s)" >> "$tracking_file"
+    log_component_start "$component" "$description"
+    GOK_COMPONENT_STATUS["$component"]="$STATUS_IN_PROGRESS"
     
-    log_info "Started tracking installation of: $component"
+    # Create component-specific log file
+    local log_dir="${GOK_LOG_DIR:-${GOK_ROOT}/logs}/components"
+    mkdir -p "$log_dir"
+    export GOK_COMPONENT_LOG="$log_dir/${component}_$(date +%Y%m%d_%H%M%S).log"
+    
+    echo "=== Component Installation Started: $component ===" >> "$GOK_COMPONENT_LOG"
+    echo "Description: $description" >> "$GOK_COMPONENT_LOG"
+    echo "Start Time: $(date)" >> "$GOK_COMPONENT_LOG"
+    echo "Version: ${GOK_COMPONENT_VERSION[$component]:-unknown}" >> "$GOK_COMPONENT_LOG"
+    echo "Namespace: ${GOK_COMPONENT_NAMESPACE[$component]:-default}" >> "$GOK_COMPONENT_LOG"
+    echo "===========================================" >> "$GOK_COMPONENT_LOG"
 }
 
 # Mark component installation as completed
 complete_component() {
     local component="$1"
+    local message="${2:-Installation completed successfully}"
+    local details="${3:-}"
     local tracking_file="${GOK_CACHE_DIR}/component_status"
     
     # Update status to completed
