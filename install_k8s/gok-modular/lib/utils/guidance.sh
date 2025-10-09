@@ -762,6 +762,49 @@ show_component_next_steps() {
             log_info "Istio service mesh is installed and ready for microservices"
             ;;
             
+        "haproxy"|"ha-proxy"|"load-balancer")
+            log_next_steps "HA Proxy Load Balancer" \
+                "Check proxy status: docker ps | grep master-proxy" \
+                "View proxy logs: docker logs master-proxy" \
+                "Test connectivity: curl -k https://localhost:$HA_PROXY_PORT/healthz" \
+                "Install Kubernetes masters using HA endpoint" \
+                "Configure kubectl to use HA endpoint: https://localhost:$HA_PROXY_PORT"
+            
+            log_urls "HA Proxy Access Points" \
+                "Load Balancer Endpoint: https://localhost:$HA_PROXY_PORT" \
+                "HAProxy Stats: http://localhost:$HA_PROXY_PORT/stats (if enabled)" \
+                "Configuration File: /opt/haproxy.cfg"
+            
+            log_credentials "HA Proxy Management" "docker" \
+                "Container name: master-proxy" \
+                "Restart: docker restart master-proxy" \
+                "Stop: docker stop master-proxy"
+            
+            log_info "HA proxy is now load balancing across $(($(echo "$API_SERVERS" | tr ',' '\n' | wc -l))) Kubernetes API servers"
+            
+            log_troubleshooting "HA Proxy" \
+                "Check container logs: docker logs master-proxy" \
+                "Verify port availability: netstat -tlnp | grep $HA_PROXY_PORT" \
+                "Test backend connectivity: nc -z <backend-ip> 6443" \
+                "Validate configuration: docker exec master-proxy haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg" \
+                "Restart proxy: docker restart master-proxy"
+            
+            echo
+            log_header "Kubernetes Installation with HA" "Ready for Multi-Master Setup"
+            
+            echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Your HA proxy is ready! Next steps:${COLOR_RESET}"
+            echo
+            echo -e "${COLOR_CYAN}1. ${COLOR_BOLD}Install first Kubernetes master:${COLOR_RESET}"
+            echo -e "   ${COLOR_DIM}Use the HA proxy endpoint for --control-plane-endpoint${COLOR_RESET}"
+            echo
+            echo -e "${COLOR_CYAN}2. ${COLOR_BOLD}Join additional masters:${COLOR_RESET}"
+            echo -e "   ${COLOR_DIM}Each additional master will connect through the HA proxy${COLOR_RESET}"
+            echo
+            echo -e "${COLOR_CYAN}3. ${COLOR_BOLD}Configure kubectl:${COLOR_RESET}"
+            echo -e "   ${COLOR_DIM}Point kubectl to https://localhost:$HA_PROXY_PORT${COLOR_RESET}"
+            echo
+            ;;
+            
         *)
             log_next_steps "$component Installation Complete" \
                 "Check component status: kubectl get pods -A | grep $component" \

@@ -525,6 +525,185 @@ ingressInst() {
     return 0
 }
 
+# HAProxy installation for Kubernetes API server load balancing
+haproxyInst() {
+    log_component_start "haproxy" "Installing HAProxy load balancer for Kubernetes API servers"
+    
+    # Pre-installation validation
+    log_step "1" "Validating prerequisites for HAProxy installation"
+    
+    # Check if running as root or with sudo
+    if [[ $EUID -ne 0 ]]; then
+        log_error "HAProxy installation requires root privileges"
+        return 1
+    fi
+    
+    # Check if Docker is installed and running
+    if ! validate_docker_installation 10; then
+        log_error "Docker is required for HAProxy installation"
+        return 1
+    fi
+    
+    # Check if API_SERVERS is configured
+    if [[ -z "$API_SERVERS" ]]; then
+        log_error "API_SERVERS environment variable is not set"
+        log_info "Please configure API_SERVERS with comma-separated list of master nodes (format: ip1:hostname1,ip2:hostname2)"
+        return 1
+    fi
+    
+    # Check if HA_PROXY_PORT is configured
+    if [[ -z "$HA_PROXY_PORT" ]]; then
+        log_error "HA_PROXY_PORT environment variable is not set"
+        log_info "Please configure HA_PROXY_PORT (default: 6443)"
+        return 1
+    fi
+    
+    log_success "Prerequisites validation passed"
+    
+    # Step 2: Clean up existing HAProxy container and configuration
+    log_step "2" "Cleaning up existing HAProxy installation"
+    
+    # Stop and remove existing container
+    if docker ps -q -f name=master-proxy | grep -q .; then
+        log_substep "Stopping existing HAProxy container"
+        docker stop master-proxy >/dev/null 2>&1 || log_warning "Failed to stop existing container"
+    fi
+    
+    if docker ps -a -q -f name=master-proxy | grep -q .; then
+        log_substep "Removing existing HAProxy container"
+        docker rm master-proxy >/dev/null 2>&1 || log_warning "Failed to remove existing container"
+    fi
+    
+    # Remove existing configuration file
+    if [[ -f /opt/haproxy.cfg ]]; then
+        log_substep "Removing existing HAProxy configuration"
+        rm -f /opt/haproxy.cfg || log_warning "Failed to remove existing configuration"
+    fi
+    
+    log_success "Cleanup completed"
+    
+    # Step 3: Generate HAProxy configuration
+    log_step "3" "Generating HAProxy configuration"
+    
+    log_substep "Creating HAProxy configuration file at /opt/haproxy.cfg"
+    
+    if cat > /opt/haproxy.cfg << EOF
+global
+        log /dev/log local0
+        log /dev/log local1 notice
+        chroot /var/lib/haproxy
+        stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+        stats timeout 30s
+        user haproxy
+        group haproxy
+        daemon
+
+defaults
+        log global
+        mode tcp
+        option tcplog
+        option dontlognull
+        option redispatch
+        retries 3
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+        
+frontend kubernetes-apiserver
+        bind *:$HA_PROXY_PORT
+        mode tcp
+        option tcplog
+        default_backend kubernetes-apiserver
+
+backend kubernetes-apiserver
+        mode tcp
+        balance roundrobin
+        option tcp-check
+        option tcplog
+$(
+    # Generate backend servers from API_SERVERS
+    IFS=','
+    counter=0
+    for worker in $API_SERVERS; do
+      oifs=$IFS
+      IFS=':'
+      read -r ip node <<<"$worker"
+      counter=$((counter + 1))
+      echo "        server $node $ip:6443 check fall 3 rise 2"
+      IFS=$oifs
+    done
+    unset IFS
+)
+EOF
+    then
+        log_error "Failed to create HAProxy configuration file"
+        return 1
+    fi
+    
+    log_success "HAProxy configuration generated"
+    
+    # Display configuration summary
+    log_info "Configuration summary:"
+    log_substep "Frontend port: $HA_PROXY_PORT"
+    log_substep "Backend servers:"
+    
+    IFS=','
+    counter=0
+    for worker in $API_SERVERS; do
+        oifs=$IFS
+        IFS=':'
+        read -r ip node <<<"$worker"
+        counter=$((counter + 1))
+        log_substep "  $counter. $node ($ip:6443)"
+        IFS=$oifs
+    done
+    unset IFS
+    
+    # Step 4: Pull HAProxy image
+    log_step "4" "Pulling HAProxy Docker image"
+    
+    if ! docker pull haproxy:latest; then
+        log_error "Failed to pull HAProxy Docker image"
+        return 1
+    fi
+    
+    log_success "HAProxy image pulled successfully"
+    
+    # Step 5: Start HAProxy container
+    log_step "5" "Starting HAProxy container"
+    
+    log_substep "Running HAProxy container with host networking"
+    
+    if ! docker run -d --name master-proxy \
+        --restart=unless-stopped \
+        -v /opt/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
+        --net=host \
+        haproxy:latest; then
+        log_error "Failed to start HAProxy container"
+        return 1
+    fi
+    
+    log_success "HAProxy container started successfully"
+    
+    # Step 6: Validate installation
+    log_step "6" "Validating HA proxy installation"
+    
+    # Wait a moment for container to start
+    sleep 3
+    
+    if validate_haproxy_installation; then
+        log_success "HA proxy installation validation passed"
+    else
+        log_error "HA proxy installation validation failed"
+        return 1
+    fi
+    
+    # Show next steps
+    show_component_next_steps "haproxy"
+    
+    return 0
+}
+
 # Network policy setup
 setup_network_policies() {
     log_info "Setting up default network policies..."
