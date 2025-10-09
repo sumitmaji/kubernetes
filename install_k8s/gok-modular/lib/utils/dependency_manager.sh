@@ -692,6 +692,128 @@ init_dependency_manager_utility() {
     log_debug "Dependency manager utility initialized (cache dir: $GOK_CACHE_DIR, timeout: ${GOK_DEPS_CACHE_HOURS}h)"
 }
 
+# =============================================================================
+# SAFE WRAPPER FUNCTIONS WITH AUTOMATIC FALLBACK
+# =============================================================================
+
+# Safe wrapper for dependency installation with automatic fallback
+safe_install_system_dependencies() {
+    # Try to use the modular function first
+    if declare -f install_system_dependencies >/dev/null 2>&1; then
+        install_system_dependencies "$@"
+        return $?
+    fi
+    
+    # Fallback to basic dependency installation
+    if declare -f log_warning >/dev/null 2>&1; then
+        log_warning "install_system_dependencies not available, using fallback dependency installation"
+    else
+        echo "WARNING: install_system_dependencies not available, using fallback dependency installation"
+    fi
+    
+    local skip_deps=false
+    local force_deps=false
+    
+    # Parse arguments for fallback
+    for arg in "$@"; do
+        case "$arg" in
+            --skip-deps)
+                skip_deps=true
+                ;;
+            --force-deps)
+                force_deps=true
+                ;;
+        esac
+    done
+    
+    # Skip if requested
+    if [[ "$skip_deps" == "true" ]]; then
+        if declare -f log_info >/dev/null 2>&1; then
+            log_info "Dependencies installation skipped (--skip-deps flag)"
+        else
+            echo "INFO: Dependencies installation skipped (--skip-deps flag)"
+        fi
+        return 0
+    fi
+    
+    # Check cache unless force install
+    local cache_file="/tmp/gok-cache/last_deps_install"
+    local cache_hours=6
+    
+    if [[ "$force_deps" == "false" ]] && [[ -f "$cache_file" ]]; then
+        local cache_time=$(cat "$cache_file" 2>/dev/null || echo "0")
+        local current_time=$(date +%s)
+        local cache_age_hours=$(( (current_time - cache_time) / 3600 ))
+        
+        if [[ $cache_age_hours -lt $cache_hours ]]; then
+            if declare -f log_info >/dev/null 2>&1; then
+                log_info "Dependencies installation skipped (cache is fresh, ${cache_age_hours}h old)"
+            else
+                echo "INFO: Dependencies installation skipped (cache is fresh, ${cache_age_hours}h old)"
+            fi
+            return 0
+        fi
+    fi
+    
+    # Install essential dependencies
+    if declare -f log_info >/dev/null 2>&1; then
+        log_info "Installing essential system dependencies..."
+    else
+        echo "INFO: Installing essential system dependencies..."
+    fi
+    
+    local essential_packages=(
+        "curl"
+        "wget" 
+        "jq"
+        "python3"
+        "python3-pip"
+        "net-tools"
+        "gnupg"
+        "software-properties-common"
+        "apt-transport-https"
+        "ca-certificates"
+        "unzip"
+        "git"
+        "vim"
+    )
+    
+    local failed_packages=()
+    local successful_packages=0
+    
+    for package in "${essential_packages[@]}"; do
+        if apt-get install -y "$package" >/dev/null 2>&1; then
+            successful_packages=$((successful_packages + 1))
+        else
+            failed_packages+=("$package")
+            if declare -f log_warning >/dev/null 2>&1; then
+                log_warning "Failed to install $package"
+            else
+                echo "WARNING: Failed to install $package"
+            fi
+        fi
+    done
+    
+    # Mark cache as fresh if most packages installed successfully
+    if [[ ${#failed_packages[@]} -lt 3 ]]; then
+        mkdir -p "$(dirname "$cache_file")"
+        date +%s > "$cache_file"
+        if declare -f log_success >/dev/null 2>&1; then
+            log_success "Dependencies installation completed ($successful_packages/${#essential_packages[@]} packages)"
+        else
+            echo "SUCCESS: Dependencies installation completed ($successful_packages/${#essential_packages[@]} packages)"
+        fi
+        return 0
+    else
+        if declare -f log_error >/dev/null 2>&1; then
+            log_error "Dependencies installation failed (${#failed_packages[@]} packages failed)"
+        else
+            echo "ERROR: Dependencies installation failed (${#failed_packages[@]} packages failed)"
+        fi
+        return 1
+    fi
+}
+
 # Module cleanup function
 cleanup_dependency_manager_utility() {
     # Clean up any temporary files older than 24 hours

@@ -174,13 +174,37 @@ update_system() {
 run_system_update_verbose() {
     log_info "Downloading package information with detailed output:"
     
-    if ! apt-get update; then
-        log_error "apt-get update failed"
-        return 1
+    # First attempt: try normal update
+    if apt-get update; then
+        log_success "Package information updated successfully"
+        return 0
     fi
     
-    log_success "Package information updated successfully"
-    return 0
+    # If update failed, try automatic repository fix
+    log_warning "Initial package update failed, attempting automatic repository fix..."
+    
+    # Attempt automatic repository fixes
+    if auto_fix_repository_issues; then
+        log_info "Repository issues fixed, retrying package update..."
+        
+        # Retry update after fixes
+        if apt-get update; then
+            log_success "Package information updated successfully after repository fix"
+            return 0
+        fi
+    fi
+    
+    # Final fallback: try basic update ignoring some errors
+    log_warning "Package update still failing, attempting basic update with error tolerance..."
+    
+    # Try to at least update what we can
+    if apt-get update -o APT::Get::List-Cleanup=0 2>/dev/null; then
+        log_warning "Package update completed with warnings - some repositories may be broken"
+        return 0
+    fi
+    
+    log_error "apt-get update failed even after repository fixes"
+    return 1
 }
 
 # Run system update with progress indication
@@ -215,10 +239,45 @@ run_system_update_with_progress() {
     
     # Check for errors
     if [[ $exit_code -ne 0 ]]; then
-        log_error "System update failed - showing detailed output:"
+        log_warning "Initial system update failed, attempting automatic repository fix..."
         cat "$temp_log"
-        rm -f "$temp_log" "$temp_exit"
-        return 1
+        
+        # Attempt automatic repository fixes
+        if auto_fix_repository_issues; then
+            log_info "Repository issues fixed, retrying system update..."
+            
+            # Retry update with progress after fixes
+            {
+                apt-get update > "$temp_log" 2>&1
+                echo $? > "$temp_exit"
+            } &
+            pid=$!
+            
+            # Show progress while update is running
+            show_system_update_progress $pid "$temp_log"
+            
+            # Wait for process to complete and get exit code
+            wait $pid 2>/dev/null || true
+            if [[ -f "$temp_exit" ]]; then
+                exit_code=$(cat "$temp_exit")
+            else
+                exit_code=1
+            fi
+            
+            printf "\r${COLOR_GREEN}  Repository update completed [✓] 100%%${COLOR_RESET}\n"
+            
+            # Check retry results
+            if [[ $exit_code -ne 0 ]]; then
+                log_error "System update failed even after repository fixes:"
+                cat "$temp_log"
+                rm -f "$temp_log" "$temp_exit"
+                return 1
+            fi
+        else
+            log_error "System update failed and repository fix was unsuccessful:"
+            rm -f "$temp_log" "$temp_exit"
+            return 1
+        fi
     fi
     
     # Check for important warnings in output
@@ -448,6 +507,202 @@ init_system_update_utility() {
     : ${GOK_UPDATE_CACHE_HOURS:=6}
     
     log_debug "System update utility initialized (cache dir: $GOK_CACHE_DIR, timeout: ${GOK_UPDATE_CACHE_HOURS}h)"
+}
+
+# =============================================================================
+# SAFE WRAPPER FUNCTIONS WITH AUTOMATIC FALLBACK
+# =============================================================================
+
+# Safe wrapper for system updates with automatic fallback
+safe_update_system_with_cache() {
+    # Try to use the modular function first
+    if declare -f update_system_with_cache >/dev/null 2>&1; then
+        update_system_with_cache "$@"
+        return $?
+    fi
+    
+    # Fallback to basic system update
+    if declare -f log_warning >/dev/null 2>&1; then
+        log_warning "update_system_with_cache not available, using fallback system update"
+    else
+        echo "WARNING: update_system_with_cache not available, using fallback system update"
+    fi
+    
+    local skip_update=false
+    local force_update=false
+    
+    # Parse arguments for fallback
+    for arg in "$@"; do
+        case "$arg" in
+            --skip-update)
+                skip_update=true
+                ;;
+            --force-update)
+                force_update=true
+                ;;
+        esac
+    done
+    
+    # Skip if requested
+    if [[ "$skip_update" == "true" ]]; then
+        if declare -f log_info >/dev/null 2>&1; then
+            log_info "System update skipped (--skip-update flag)"
+        else
+            echo "INFO: System update skipped (--skip-update flag)"
+        fi
+        return 0
+    fi
+    
+    # Check cache unless force update
+    local cache_file="/tmp/gok-cache/last_system_update"
+    local cache_hours=6
+    
+    if [[ "$force_update" == "false" ]] && [[ -f "$cache_file" ]]; then
+        local cache_time=$(cat "$cache_file" 2>/dev/null || echo "0")
+        local current_time=$(date +%s)
+        local cache_age_hours=$(( (current_time - cache_time) / 3600 ))
+        
+        if [[ $cache_age_hours -lt $cache_hours ]]; then
+            if declare -f log_info >/dev/null 2>&1; then
+                log_info "System update skipped (cache is fresh, ${cache_age_hours}h old)"
+            else
+                echo "INFO: System update skipped (cache is fresh, ${cache_age_hours}h old)"
+            fi
+            return 0
+        fi
+    fi
+    
+    # Perform basic system update with automatic repository fixing
+    if declare -f log_info >/dev/null 2>&1; then
+        log_info "Updating system packages..."
+    else
+        echo "INFO: Updating system packages..."
+    fi
+    
+    # First attempt: try normal update
+    if apt-get update >/dev/null 2>&1; then
+        # Update successful, proceed with upgrade
+        if apt-get upgrade -y >/dev/null 2>&1; then
+            # Mark cache as fresh
+            mkdir -p "$(dirname "$cache_file")"
+            date +%s > "$cache_file"
+            if declare -f log_success >/dev/null 2>&1; then
+                log_success "System update completed successfully"
+            else
+                echo "SUCCESS: System update completed successfully"
+            fi
+            return 0
+        fi
+    fi
+    
+    # If update failed, try automatic repository fix
+    if declare -f log_warning >/dev/null 2>&1; then
+        log_warning "Initial system update failed, attempting automatic repository fix..."
+    else
+        echo "WARNING: Initial system update failed, attempting automatic repository fix..."
+    fi
+    
+    # Attempt automatic repository fixes
+    if auto_fix_repository_issues; then
+        if declare -f log_info >/dev/null 2>&1; then
+            log_info "Repository issues fixed, retrying system update..."
+        else
+            echo "INFO: Repository issues fixed, retrying system update..."
+        fi
+        
+        # Retry update after fixes
+        if apt-get update >/dev/null 2>&1 && apt-get upgrade -y >/dev/null 2>&1; then
+            # Mark cache as fresh
+            mkdir -p "$(dirname "$cache_file")"
+            date +%s > "$cache_file"
+            if declare -f log_success >/dev/null 2>&1; then
+                log_success "System update completed successfully after repository fix"
+            else
+                echo "SUCCESS: System update completed successfully after repository fix"
+            fi
+            return 0
+        fi
+    fi
+    
+    # Final fallback: basic update ignoring errors
+    if declare -f log_warning >/dev/null 2>&1; then
+        log_warning "System update still failing, proceeding with basic update..."
+    else
+        echo "WARNING: System update still failing, proceeding with basic update..."
+    fi
+    
+    # Try to at least update what we can
+    apt-get update 2>/dev/null || true
+    
+    if declare -f log_warning >/dev/null 2>&1; then
+        log_warning "System update completed with warnings - some repositories may be broken"
+    else
+        echo "WARNING: System update completed with warnings - some repositories may be broken"
+    fi
+    return 0  # Don't fail the entire installation due to repository issues
+}
+
+# Automatic repository fix function (fallback implementation)
+auto_fix_repository_issues() {
+    # Try to use the modular repository fix utility if available
+    if declare -f fix_package_repository_issues >/dev/null 2>&1; then
+        fix_package_repository_issues
+        return $?
+    fi
+    
+    # Fallback repository fixes
+    local fixes_applied=false
+    
+    # Fix 1: Remove broken Kubernetes repositories
+    if [[ -f "/etc/apt/sources.list.d/kubernetes.list" ]]; then
+        if declare -f log_info >/dev/null 2>&1; then
+            log_info "Fixing broken Kubernetes repositories..."
+        else
+            echo "INFO: Fixing broken Kubernetes repositories..."
+        fi
+        
+        # Backup original file
+        cp /etc/apt/sources.list.d/kubernetes.list /etc/apt/sources.list.d/kubernetes.list.bak 2>/dev/null || true
+        
+        # Remove old kubernetes repository entries
+        sed -i '/apt.kubernetes.io/d' /etc/apt/sources.list.d/kubernetes.list 2>/dev/null || true
+        sed -i '/packages.cloud.google.com.*kubernetes-xenial/d' /etc/apt/sources.list.d/kubernetes.list 2>/dev/null || true
+        
+        # Add modern kubernetes repository if not present
+        if ! grep -q "pkgs.k8s.io" /etc/apt/sources.list.d/kubernetes.list 2>/dev/null; then
+            echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+        fi
+        
+        fixes_applied=true
+    fi
+    
+    # Fix 2: Remove broken Helm repositories
+    if [[ -f "/etc/apt/sources.list.d/helm-stable-debian.list" ]]; then
+        if declare -f log_info >/dev/null 2>&1; then
+            log_info "Removing problematic Helm repository..."
+        else
+            echo "INFO: Removing problematic Helm repository..."
+        fi
+        
+        rm -f /etc/apt/sources.list.d/helm-stable-debian.list 2>/dev/null || true
+        fixes_applied=true
+    fi
+    
+    # Fix 3: Clean package cache
+    if [[ "$fixes_applied" == "true" ]]; then
+        if declare -f log_info >/dev/null 2>&1; then
+            log_info "Cleaning package cache after repository fixes..."
+        else
+            echo "INFO: Cleaning package cache after repository fixes..."
+        fi
+        
+        apt-get clean 2>/dev/null || true
+        rm -rf /var/lib/apt/lists/* 2>/dev/null || true
+        
+        return 0
+    fi
+    
+    return 1
 }
 
 # Module cleanup function

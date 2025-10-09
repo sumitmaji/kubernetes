@@ -59,13 +59,13 @@ installCmd() {
     # Start component installation with enhanced logging
     start_component "$component" "Installing $component component"
     
-    # Run smart system updates with caching
-    if ! update_system_with_cache $verbose_flag $update_flags; then
+    # Run smart system updates with caching (with automatic fallback)
+    if ! safe_update_system_with_cache $verbose_flag $update_flags; then
         fail_component "$component" "System update failed"
         return 1
     fi
     
-    if ! install_system_dependencies $verbose_flag $deps_flags; then
+    if ! safe_install_system_dependencies $verbose_flag $deps_flags; then
         fail_component "$component" "Dependency installation failed"
         return 1
     fi
@@ -621,3 +621,4 @@ log_component_error() {
     local component="$1"
     log_error "❌ $component installation failed"
 }
+
