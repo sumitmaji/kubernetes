@@ -978,6 +978,23 @@ show_component_help() {
 
 # Export functions for use by other modules
 export -f interactive_installation
-export -f show_installation_wizard
-export -f check_prerequisites
-export -f interactive_component_selection
+export -f show_welcome_message
+export -f show_installation_options
+export -f get_installation_choice
+export -f interactive_profile_installation
+export -f interactive_custom_installation
+export -f interactive_guided_installation
+export -f interactive_quick_installation
+export -f get_profile_choice
+export -f guided_component_choice
+export -f show_component_detailed_help
+export -f validate_component_selection
+export -f is_component_installed
+export -f install_profile
+export -f install_custom_components
+export -f install_guided_components
+export -f install_quick_components
+export -f execute_component_installation
+export -f install_single_component
+export -f calculate_installation_time
+export -f resolve_dependencies

@@ -29,9 +29,9 @@ fi
 # Default configuration paths and settings
 : ${MOUNT_PATH:=/home/sumit/Documents/repository}
 : ${WORKING_DIR:=$MOUNT_PATH/kubernetes/install_k8s}
-: "${GOK_CONFIG_DIR:=${GOK_CONFIG_DIR:-$HOME/.gok}}"
-: "${GOK_ROOT_CONFIG:=${MOUNT_PATH}/root_config}"
-: ${GOK_PROJECT_CONFIG:="${WORKING_DIR}/config"}
+: ${GOK_CONFIG_DIR:=$HOME/.gok}
+: ${GOK_ROOT_CONFIG:=$MOUNT_PATH/root_config}
+: ${GOK_PROJECT_CONFIG:=$WORKING_DIR/config}
 
 # Default identity provider and authentication settings
 : ${IDENTITY_PROVIDER:=keycloak}

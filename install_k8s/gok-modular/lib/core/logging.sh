@@ -2,24 +2,26 @@
 
 # GOK Logging Module - Comprehensive logging and output functions
 
-# Color definitions for output formatting
-readonly COLOR_RED='\033[0;31m'
-readonly COLOR_GREEN='\033[0;32m'
-readonly COLOR_YELLOW='\033[1;33m'
-readonly COLOR_BLUE='\033[0;34m'
-readonly COLOR_MAGENTA='\033[0;35m'
-readonly COLOR_CYAN='\033[0;36m'
-readonly COLOR_WHITE='\033[1;37m'
-readonly COLOR_BRIGHT_RED='\033[1;31m'
-readonly COLOR_BRIGHT_GREEN='\033[1;32m'
-readonly COLOR_BRIGHT_YELLOW='\033[1;33m'
-readonly COLOR_BRIGHT_BLUE='\033[1;34m'
-readonly COLOR_BRIGHT_MAGENTA='\033[1;35m'
-readonly COLOR_BRIGHT_CYAN='\033[1;36m'
-readonly COLOR_BOLD='\033[1m'
-readonly COLOR_DIM='\033[2m'
-readonly COLOR_RESET='\033[0m'
-readonly COLOR_NC='\033[0m' # No Color
+# Color definitions for output formatting (only define if not already set by colors utility module)
+if [[ -z "${COLOR_RED:-}" ]]; then
+    readonly COLOR_RED='\033[0;31m'
+    readonly COLOR_GREEN='\033[0;32m'
+    readonly COLOR_YELLOW='\033[1;33m'
+    readonly COLOR_BLUE='\033[0;34m'
+    readonly COLOR_MAGENTA='\033[0;35m'
+    readonly COLOR_CYAN='\033[0;36m'
+    readonly COLOR_WHITE='\033[1;37m'
+    readonly COLOR_BRIGHT_RED='\033[1;31m'
+    readonly COLOR_BRIGHT_GREEN='\033[1;32m'
+    readonly COLOR_BRIGHT_YELLOW='\033[1;33m'
+    readonly COLOR_BRIGHT_BLUE='\033[1;34m'
+    readonly COLOR_BRIGHT_MAGENTA='\033[1;35m'
+    readonly COLOR_BRIGHT_CYAN='\033[1;36m'
+    readonly COLOR_BOLD='\033[1m'
+    readonly COLOR_DIM='\033[2m'
+    readonly COLOR_RESET='\033[0m'
+    readonly COLOR_NC='\033[0m' # No Color
+fi
 
 # Emoji definitions for better visual feedback
 readonly EMOJI_SUCCESS="✅"

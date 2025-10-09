@@ -45,6 +45,12 @@ load_module() {
 
 # Load core system modules
 load_core_modules() {
+    # First load colors utility to avoid readonly variable conflicts
+    local colors_module_path="${GOK_LIB_DIR}/utils/colors.sh"
+    if [[ -f "$colors_module_path" ]]; then
+        source "$colors_module_path"
+    fi
+    
     local core_modules=(
         "constants"
         "logging"
@@ -65,7 +71,6 @@ load_core_modules() {
 # Load utility modules
 load_utility_modules() {
     local util_modules=(
-        "colors"
         "logging"
         "helm"
         "kubectl"
