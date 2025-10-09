@@ -25,7 +25,7 @@ dockrInst() {
         log_warning "Docker is already installed (version: $docker_version)"
         
         # Validate existing installation
-        if validate_docker_installation; then
+        if validate_docker_installation 30; then
             log_component_success "docker" "Existing Docker installation is working correctly"
             show_docker_next_steps
             return 0
@@ -132,7 +132,7 @@ dockrInst() {
     # Step 8: Post-installation validation
     log_step "8" "Validating Docker installation"
     
-    if validate_docker_installation; then
+    if validate_docker_installation 30; then
         log_success "Docker installation validation passed"
     else
         log_error "Docker installation validation failed"
@@ -343,49 +343,7 @@ configure_docker_services() {
     return 0
 }
 
-# Docker installation validation function
-validate_docker_installation() {
-    log_substep "Checking Docker daemon status"
-    if ! systemctl is-active --quiet docker; then
-        log_error "Docker service is not running"
-        return 1
-    else
-        log_success "Docker daemon is running"
-    fi
-    
-    log_substep "Checking containerd status"
-    if ! systemctl is-active --quiet containerd; then
-        log_error "Containerd service is not running"
-        return 1
-    else
-        log_success "Containerd service is running"
-    fi
-    
-    log_substep "Testing Docker functionality"
-    if ! docker info >/dev/null 2>&1; then
-        log_error "Docker daemon is not responding properly"
-        return 1
-    else
-        log_success "Docker daemon is responding correctly"
-    fi
-    
-    log_substep "Testing container creation"
-    if ! timeout 30 docker run --rm hello-world >/dev/null 2>&1; then
-        log_warning "Docker hello-world test failed - may need internet connectivity"
-    else
-        log_success "Container creation test passed"
-    fi
-    
-    log_substep "Checking Docker configuration"
-    local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
-    if [[ "$cgroup_driver" != "systemd" ]]; then
-        log_warning "Docker cgroup driver is not set to systemd (current: $cgroup_driver)"
-    else
-        log_success "Cgroup driver correctly set to systemd"
-    fi
-    
-    return 0
-}
+# Note: validate_docker_installation is provided by lib/utils/validation.sh
 
 # Show Docker system status
 show_docker_system_status() {
