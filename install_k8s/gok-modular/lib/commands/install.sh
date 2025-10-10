@@ -86,12 +86,11 @@ installCmd() {
         # Infrastructure components with validation
         "docker")
             if dockrInst; then
-                if validate_component_installation "docker" 120; then
-                    complete_component "docker" "Docker installation completed and validated"
-                    show_component_next_steps "docker"
-                else
-                    complete_component "docker" "Docker installed but validation had warnings"
-                fi
+                # Show comprehensive installation summary
+                show_component_summary "docker"
+
+                # Show next steps
+                show_component_next_steps "docker"
             else
                 fail_component "docker" "Docker installation failed"
                 return 1

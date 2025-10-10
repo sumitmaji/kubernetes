@@ -128,20 +128,13 @@ dockrInst() {
     log_step "8" "Validating Docker installation"
     
     if validate_docker_installation 30; then
-        log_success "Docker installation validation passed"
+        complete_component "docker" "Docker installation completed and validated"
     else
-        log_error "Docker installation validation failed"
+        complete_component "docker" "Docker installed but validation had warnings"
         return 1
     fi
-    
-    # Show Docker information
-    local docker_version=$(docker --version | cut -d' ' -f3 | cut -d',' -f1)
-    local containerd_version=$(containerd --version | cut -d' ' -f3)
-    
+        
     log_component_success "docker" "Docker installation completed successfully!"
-    
-    # Show comprehensive installation summary
-    show_component_summary "docker"
     
     return 0
 }
