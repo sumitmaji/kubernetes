@@ -301,6 +301,27 @@ EOF
 
 # Configure Docker and containerd services
 configure_docker_services() {
+    log_substep "Creating Docker data directory"
+    if ! mkdir -p /var/lib/docker; then
+        log_error "Failed to create Docker data directory"
+        return 1
+    fi
+    
+    if ! mkdir -p /var/lib/docker/tmp; then
+        log_error "Failed to create Docker tmp directory"
+        return 1
+    fi
+    
+    if ! chown root:root /var/lib/docker; then
+        log_error "Failed to set ownership on Docker data directory"
+        return 1
+    fi
+    
+    if ! chmod 755 /var/lib/docker; then
+        log_error "Failed to set permissions on Docker data directory"
+        return 1
+    fi
+    
     log_substep "Reloading systemd daemon"
     if ! systemctl daemon-reload; then
         log_error "Failed to reload systemd daemon"

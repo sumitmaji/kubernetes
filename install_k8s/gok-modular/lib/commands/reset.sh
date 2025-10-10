@@ -266,43 +266,271 @@ post_reset_cleanup() {
 
 # Clean up Kubernetes files and directories
 cleanup_kubernetes_files() {
-    log_info "Cleaning up Kubernetes files..."
-    
+    local verbose_mode="$1"
+    local is_verbose=false
+
+    if [[ "$verbose_mode" == "--verbose" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
+        is_verbose=true
+    fi
+
+    log_step 1 "Cleaning up Kubernetes configuration files"
+
+    # Kubernetes config directories
     local k8s_dirs=(
         "/etc/kubernetes"
         "/var/lib/kubelet"
+        "/var/lib/kube-proxy"
+        "/var/lib/kube-scheduler"
+        "/var/lib/kube-controller-manager"
         "/var/lib/etcd"
+        "/opt/cni/bin"
+        "/etc/cni/net.d"
         "/var/lib/cni"
-        "/etc/cni"
+        "/var/run/kubernetes"
+        "/etc/systemd/system/kubelet.service.d"
     )
-    
-    for dir in "${k8s_dirs[@]}"; do
-        if [[ -d "$dir" ]]; then
-            log_substep "Removing $dir"
-            rm -rf "$dir" 2>/dev/null || true
-        fi
-    done
-    
-    # Clean up systemd services
-    local services=("kubelet" "kubeadm")
+
+    # User kubeconfig files
+    local user_configs=(
+        "$HOME/.kube"
+        "/root/.kube"
+    )
+
+    # Container runtime directories (enhanced)
+    local container_dirs=(
+        "/var/lib/docker/containers"
+        "/var/lib/containerd"
+        "/run/containerd"
+        "/var/lib/dockershim"
+        "/var/lib/cri-o"
+        "/var/run/cri-o"
+        "/var/lib/containers"
+    )
+
+    # Network configuration (enhanced)
+    local network_files=(
+        "/etc/cni/net.d/*"
+        "/opt/cni/bin/*"
+        "/var/lib/calico"
+        "/var/lib/canal"
+        "/var/lib/weave"
+        "/var/lib/flannel"
+        "/var/lib/kube-router"
+        "/var/lib/cilium"
+        "/etc/kubernetes/addons"
+    )
+
+    log_info "Stopping Kubernetes services..."
+
+    # Stop services gracefully (enhanced list)
+    local services=("kubelet" "kube-proxy" "kube-scheduler" "kube-controller-manager" "kube-apiserver" "etcd" "docker" "containerd" "cri-o" "flanneld" "calico-node" "cilium")
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service" 2>/dev/null; then
-            log_substep "Stopping $service"
-            systemctl stop "$service" 2>/dev/null || true
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Stopping $service service"
+            fi
+            systemctl stop "$service" 2>/dev/null || log_warning "Failed to stop $service"
         fi
         if systemctl is-enabled --quiet "$service" 2>/dev/null; then
-            log_substep "Disabling $service"
-            systemctl disable "$service" 2>/dev/null || true
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Disabling $service service"
+            fi
+            systemctl disable "$service" 2>/dev/null || log_warning "Failed to disable $service"
         fi
     done
+
+    # Remove Kubernetes directories
+    log_info "Removing Kubernetes directories..."
+    for dir in "${k8s_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing directory: $dir"
+            fi
+            rm -rf "$dir" 2>/dev/null || log_warning "Failed to remove $dir"
+        fi
+    done
+
+    # Handle user kubeconfig files
+    log_info "Cleaning up kubeconfig files..."
+    for config in "${user_configs[@]}"; do
+        if [ -d "$config" ]; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Backing up and removing: $config"
+            fi
+            # Create backup before removing
+            if [ -f "$config/config" ]; then
+                cp "$config/config" "$config/config.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
+                if [[ "$is_verbose" == "true" ]]; then
+                    log_substep "Created backup: $config/config.backup.$(date +%Y%m%d_%H%M%S)"
+                fi
+            fi
+            rm -rf "$config" 2>/dev/null || log_warning "Failed to remove $config"
+        fi
+    done
+
+    # Clean network configurations
+    log_info "Cleaning up network configurations..."
+    for net_path in "${network_files[@]}"; do
+        if ls $net_path 1> /dev/null 2>&1; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing network files: $net_path"
+            fi
+            rm -rf $net_path 2>/dev/null || log_warning "Failed to remove $net_path"
+        fi
+    done
+
+    # Clean container runtime (always do full cleanup for kubernetes reset)
+    log_info "Performing container runtime cleanup..."
+
+        # Stop and remove all containers
+        if command -v docker &> /dev/null; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Stopping and removing Docker containers"
+            fi
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+            docker system prune -af 2>/dev/null || true
+        fi
+
+        # Clean containerd
+        if command -v ctr &> /dev/null; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Cleaning containerd containers and images"
+            fi
+            ctr -n k8s.io containers rm $(ctr -n k8s.io containers list -q) 2>/dev/null || true
+            ctr -n k8s.io images rm $(ctr -n k8s.io images list -q) 2>/dev/null || true
+        fi
+
+        # Clean CRI-O
+        if command -v crictl &> /dev/null; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Cleaning CRI-O containers and images"
+            fi
+            crictl rm $(crictl ps -aq) 2>/dev/null || true
+            crictl rmi $(crictl images -q) 2>/dev/null || true
+        fi
+
+        # Clean container directories
+        for dir in "${container_dirs[@]}"; do
+            if [ -d "$dir" ]; then
+                if [[ "$is_verbose" == "true" ]]; then
+                    log_substep "Cleaning container directory: $dir"
+                fi
+                find "$dir" -type f -name "*.pid" -delete 2>/dev/null || true
+                find "$dir" -type f -name "*.lock" -delete 2>/dev/null || true
+            fi
+        done
+
+    # Clean systemd files (enhanced)
+    log_info "Cleaning up systemd service files..."
+    local systemd_files=(
+        "/etc/systemd/system/kubelet.service"
+        "/etc/systemd/system/kubelet.service.d"
+        "/etc/systemd/system/kube-proxy.service"
+        "/etc/systemd/system/kube-scheduler.service"
+        "/etc/systemd/system/kube-controller-manager.service"
+        "/etc/systemd/system/kube-apiserver.service"
+        "/etc/systemd/system/etcd.service"
+        "/etc/systemd/system/calico-node.service"
+        "/etc/systemd/system/flanneld.service"
+        "/etc/systemd/system/cri-o.service"
+        "/lib/systemd/system/kubelet.service"
+        "/lib/systemd/system/kube-proxy.service"
+        "/lib/systemd/system/etcd.service"
+    )
+
+    for file in "${systemd_files[@]}"; do
+        if [ -e "$file" ]; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing systemd file: $file"
+            fi
+            rm -rf "$file" 2>/dev/null || log_warning "Failed to remove $file"
+        fi
+    done
+
+    # Reload systemd daemon
+    if [[ "$is_verbose" == "true" ]]; then
+        log_substep "Reloading systemd daemon"
+    fi
+    systemctl daemon-reload 2>/dev/null || log_warning "Failed to reload systemd daemon"
+
+    # Clean up iptables rules (optional)
+    log_info "Cleaning up iptables rules..."
+    iptables -F 2>/dev/null || log_warning "Failed to flush iptables rules"
+    iptables -t nat -F 2>/dev/null || log_warning "Failed to flush NAT rules"
+    iptables -t mangle -F 2>/dev/null || log_warning "Failed to flush mangle rules"
+
+    # Clean up network interfaces
+    log_info "Cleaning up network interfaces..."
+    local interfaces
+    interfaces=$(ip link show 2>/dev/null | grep -E "(cni|flannel|calico|weave|cilium|kube-router)" | awk -F: '{print $2}' | tr -d ' ' | grep -v '^$')
+
+    if [[ -n "$interfaces" ]]; then
+        while IFS= read -r iface; do
+            if [[ -n "$iface" && "$iface" != "ee" ]]; then  # Skip invalid interface names
+                if [[ "$is_verbose" == "true" ]]; then
+                    log_substep "Removing network interface: $iface"
+                fi
+                ip link delete "$iface" 2>/dev/null || log_warning "Failed to remove interface $iface"
+            fi
+        done <<< "$interfaces"
+    else
+        if [[ "$is_verbose" == "true" ]]; then
+            log_substep "No network interfaces to clean up"
+        fi
+    fi
+
+    # Clean up certificates and secrets
+    log_info "Cleaning up certificates and secrets..."
+    local cert_files=(
+        "/etc/kubernetes/pki"
+        "/var/lib/kubernetes/pki"
+        "/etc/ssl/certs/kubernetes"
+    )
+
+    for cert_dir in "${cert_files[@]}"; do
+        if [ -d "$cert_dir" ]; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing certificate directory: $cert_dir"
+            fi
+            rm -rf "$cert_dir" 2>/dev/null || log_warning "Failed to remove certificates from $cert_dir"
+        fi
+    done
+
+    # Clean up logs
+    log_info "Cleaning up Kubernetes logs..."
+    local log_files=(
+        "/var/log/kubelet.log"
+        "/var/log/kube-proxy.log"
+        "/var/log/kube-apiserver.log"
+        "/var/log/kube-scheduler.log"
+        "/var/log/kube-controller-manager.log"
+        "/var/log/etcd.log"
+    )
+
+    for log_file in "${log_files[@]}"; do
+        if [ -f "$log_file" ]; then
+            if [[ "$is_verbose" == "true" ]]; then
+                log_substep "Removing log file: $log_file"
+            fi
+            rm -f "$log_file" 2>/dev/null || log_warning "Failed to remove log file $log_file"
+        fi
+    done
+
+    log_success "Kubernetes file cleanup completed"
 }
 
 # Clean up Docker files
 cleanup_docker_files() {
     log_info "Cleaning up Docker files..."
     
-    # Stop and remove all containers
+    # Stop Docker daemon first
     if command -v docker >/dev/null 2>&1; then
+        if systemctl is-active --quiet docker; then
+            log_substep "Stopping Docker daemon"
+            systemctl stop docker 2>/dev/null || true
+        fi
+        
         log_substep "Stopping and removing all containers"
         docker stop $(docker ps -aq) 2>/dev/null || true
         docker rm $(docker ps -aq) 2>/dev/null || true
@@ -314,13 +542,41 @@ cleanup_docker_files() {
         docker system prune -af 2>/dev/null || true
     fi
     
-    # Remove Docker directories
-    local docker_dirs=(
-        "/var/lib/docker"
+    # Remove Docker data subdirectories but preserve structure
+    local docker_data_dirs=(
+        "/var/lib/docker/containers"
+        "/var/lib/docker/image"
+        "/var/lib/docker/volumes"
+        "/var/lib/docker/network"
+        "/var/lib/docker/plugins"
+        "/var/lib/docker/swarm"
+        "/var/lib/docker/tmp"
+    )
+    
+    for dir in "${docker_data_dirs[@]}"; do
+        if [[ -d "$dir" ]]; then
+            log_substep "Removing $dir"
+            rm -rf "$dir" 2>/dev/null || true
+        fi
+    done
+    
+    # Recreate essential directories
+    log_substep "Recreating essential Docker directories"
+    mkdir -p /var/lib/docker/tmp 2>/dev/null || true
+    mkdir -p /var/lib/docker/containers 2>/dev/null || true
+    mkdir -p /var/lib/docker/image 2>/dev/null || true
+    
+    # Set proper permissions
+    chown root:root /var/lib/docker 2>/dev/null || true
+    chmod 755 /var/lib/docker 2>/dev/null || true
+    chmod 1777 /var/lib/docker/tmp 2>/dev/null || true
+    
+    # Remove configuration directories
+    local config_dirs=(
         "/etc/docker"
     )
     
-    for dir in "${docker_dirs[@]}"; do
+    for dir in "${config_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
             log_substep "Removing $dir"
             rm -rf "$dir" 2>/dev/null || true
