@@ -689,7 +689,17 @@ EOF
     # Step 4: Pull HAProxy image
     log_step "4 Pulling HAProxy Docker image"
     
-    if ! docker pull haproxy:latest; then
+    # Start Docker pull in background and show spinner
+    docker pull haproxy:latest &
+    local pull_pid=$!
+    
+    show_spinner $pull_pid "Pulling HAProxy Docker image"
+    
+    # Wait for pull to complete and check result
+    wait $pull_pid
+    local pull_exit_code=$?
+    
+    if [[ $pull_exit_code -ne 0 ]]; then
         log_error "Failed to pull HAProxy Docker image"
         return 1
     fi
