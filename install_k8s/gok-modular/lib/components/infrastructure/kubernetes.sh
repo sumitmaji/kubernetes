@@ -529,6 +529,13 @@ ingressInst() {
 haproxyInst() {
     log_component_start "haproxy" "Installing HAProxy load balancer for Kubernetes API servers"
     
+    # Debug: Show environment variables
+    log_debug "Debug: Environment variables check"
+    log_debug "API_SERVERS='${API_SERVERS:-<not set>}'"
+    log_debug "HA_PROXY_PORT='${HA_PROXY_PORT:-<not set>}'"
+    log_debug "Current working directory: $(pwd)"
+    log_debug "Config file location: /root/kubernetes/install_k8s/config"
+    
     # Pre-installation validation
     log_step "1 Validating prerequisites for HAProxy installation"
     
@@ -543,6 +550,11 @@ haproxyInst() {
         log_error "Docker is required for HAProxy installation"
         return 1
     fi
+    
+    # Debug: Show variable values before validation
+    log_debug "Debug: Variable validation check"
+    log_debug "API_SERVERS value: '${API_SERVERS}' (length: ${#API_SERVERS})"
+    log_debug "HA_PROXY_PORT value: '${HA_PROXY_PORT}' (length: ${#HA_PROXY_PORT})"
     
     # Check if API_SERVERS is configured
     if [[ -z "$API_SERVERS" ]]; then
@@ -586,6 +598,11 @@ haproxyInst() {
     log_step "3 Generating HAProxy configuration"
 
     log_substep "Creating HAProxy configuration file at /opt/haproxy.cfg"
+    
+    # Debug: Show configuration generation details
+    log_debug "Debug: Configuration generation"
+    log_debug "HA_PROXY_PORT for bind: '${HA_PROXY_PORT}'"
+    log_debug "API_SERVERS for backend: '${API_SERVERS}'"
     
     if cat > /opt/haproxy.cfg << EOF
 global
@@ -636,31 +653,31 @@ $(
 )
 EOF
     then
+        log_success "HAProxy configuration generated"
+        
+        # Display configuration summary
+        log_info "Configuration summary:"
+        log_substep "Frontend port: $HA_PROXY_PORT"
+        log_substep "Backend servers:"
+        
+        IFS=','
+        counter=0
+        for worker in $API_SERVERS; do
+            oifs=$IFS
+            IFS=':'
+            read -r ip node <<<"$worker"
+            counter=$((counter + 1))
+            log_substep "  $counter. $node ($ip:6443)"
+            IFS=$oifs
+        done
+        unset IFS
+    else
         log_error "Failed to create HAProxy configuration file"
         return 1
     fi
     
-    log_success "HAProxy configuration generated"
-    
-    # Display configuration summary
-    log_info "Configuration summary:"
-    log_substep "Frontend port: $HA_PROXY_PORT"
-    log_substep "Backend servers:"
-    
-    IFS=','
-    counter=0
-    for worker in $API_SERVERS; do
-        oifs=$IFS
-        IFS=':'
-        read -r ip node <<<"$worker"
-        counter=$((counter + 1))
-        log_substep "  $counter. $node ($ip:6443)"
-        IFS=$oifs
-    done
-    unset IFS
-    
     # Step 4: Pull HAProxy image
-    log_step "4" "Pulling HAProxy Docker image"
+    log_step "4 Pulling HAProxy Docker image"
     
     if ! docker pull haproxy:latest; then
         log_error "Failed to pull HAProxy Docker image"
@@ -670,7 +687,7 @@ EOF
     log_success "HAProxy image pulled successfully"
     
     # Step 5: Start HAProxy container
-    log_step "5" "Starting HAProxy container"
+    log_step "5 Starting HAProxy container"
     
     log_substep "Running HAProxy container with host networking"
     
@@ -686,7 +703,7 @@ EOF
     log_success "HAProxy container started successfully"
     
     # Step 6: Validate installation
-    log_step "6" "Validating HA proxy installation"
+    log_step "6 Validating HA proxy installation"
     
     # Wait a moment for container to start
     sleep 3
