@@ -410,8 +410,8 @@ EOF
     log_info "Installing kubectl, kubeadm, and kubelet..."
     local apt_install_output
     if [[ "$verbose_mode" == "true" ]]; then
-        log_debug "Executing: sudo apt-get install -y kubectl kubeadm kubelet"
-        if apt_install_output=$(sudo apt-get install -y kubectl kubeadm kubelet 2>&1); then
+        log_debug "Executing: sudo apt-get install -y --allow-change-held-packages kubectl kubeadm kubelet"
+        if apt_install_output=$(sudo apt-get install -y --allow-change-held-packages kubectl kubeadm kubelet 2>&1); then
             log_success "Kubernetes components installed successfully"
             log_debug "$apt_install_output"
         else
@@ -420,7 +420,7 @@ EOF
             return 1
         fi
     else
-        if apt_install_output=$(sudo apt-get install -y kubectl kubeadm kubelet 2>&1); then
+        if apt_install_output=$(sudo apt-get install -y --allow-change-held-packages kubectl kubeadm kubelet 2>&1); then
             log_success "Kubernetes components installed successfully"
         else
             log_error "Failed to install Kubernetes components"
