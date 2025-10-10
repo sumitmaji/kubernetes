@@ -630,11 +630,8 @@ haproxyInst() {
     
     if cat > /opt/haproxy.cfg << EOF
 global
-        log /dev/log local0
-        log /dev/log local1 notice
-        chroot /var/lib/haproxy
-        stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
-        stats timeout 30s
+        log stdout local0
+        log stdout local1 notice
         user haproxy
         group haproxy
         daemon
@@ -650,17 +647,16 @@ defaults
         timeout client 50000ms
         timeout server 50000ms
         
-frontend kubernetes-apiserver
+frontend k8s-api-frontend
         bind *:$HA_PROXY_PORT
         mode tcp
         option tcplog
-        default_backend kubernetes-apiserver
+        default_backend k8s-api-backend
 
-backend kubernetes-apiserver
+backend k8s-api-backend
         mode tcp
         balance roundrobin
         option tcp-check
-        option tcplog
 $(
     # Generate backend servers from API_SERVERS
     IFS=','
