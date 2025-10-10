@@ -139,12 +139,9 @@ dockrInst() {
     local containerd_version=$(containerd --version | cut -d' ' -f3)
     
     log_component_success "docker" "Docker installation completed successfully!"
-    log_info "Docker version: $docker_version"
-    log_info "Containerd version: $containerd_version"
     
-    # Show next steps and system status
-    show_docker_next_steps
-    show_docker_system_status
+    # Show comprehensive installation summary
+    show_component_summary "docker"
     
     return 0
 }
@@ -199,6 +196,9 @@ k8sInst() {
         kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
         
         log_component_success "kubernetes" "Kubernetes master installation completed"
+        
+        # Show comprehensive installation summary
+        show_component_summary "kubernetes"
     else
         log_component_success "kubernetes-worker" "Kubernetes worker installation completed"
         log_info "To join this node to a cluster, run the 'kubeadm join' command from the master"
@@ -243,7 +243,9 @@ helmInst() {
     
     if command -v helm >/dev/null 2>&1; then
         log_component_success "helm" "Helm installation completed successfully"
-        helm version --short
+        
+        # Show comprehensive installation summary
+        show_component_summary "helm"
         return 0
     else
         log_component_error "helm" "Helm installation failed"
@@ -734,8 +736,8 @@ EOF
         return 1
     fi
     
-    # Show next steps
-    show_component_next_steps "haproxy"
+    # Show comprehensive installation summary
+    show_component_summary "haproxy"
     
     return 0
 }

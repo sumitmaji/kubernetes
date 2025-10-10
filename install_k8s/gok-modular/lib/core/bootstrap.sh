@@ -85,6 +85,7 @@ load_utility_modules() {
         "system_update"
         "dependency_manager"
         "ha_validation"
+        "summaries"
     )
     
     for module in "${util_modules[@]}"; do

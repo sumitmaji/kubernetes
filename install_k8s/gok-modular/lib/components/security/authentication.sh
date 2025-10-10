@@ -68,8 +68,10 @@ EOF
         execute_with_suppression "kubectl apply -f $issuer_yaml" "Creating ClusterIssuers"
         
         log_success "Cert-Manager installed successfully"
-        log_info "ClusterIssuers created: letsencrypt-prod, letsencrypt-staging"
         complete_component "cert-manager"
+        
+        # Show comprehensive installation summary
+        show_component_summary "cert-manager" "$namespace"
     else
         log_error "Cert-Manager installation failed"
         fail_component "cert-manager" "Helm installation failed"
@@ -136,9 +138,10 @@ EOF
     
     if [[ $? -eq 0 ]]; then
         log_success "Keycloak installed successfully"
-        log_info "Admin credentials: admin / admin123"
-        log_info "Access Keycloak at: http://<node-ip>:30080"
         complete_component "keycloak"
+        
+        # Show comprehensive installation summary
+        show_component_summary "keycloak" "$namespace"
     else
         log_error "Keycloak installation failed"
         fail_component "keycloak" "Helm installation failed"

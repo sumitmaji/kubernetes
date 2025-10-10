@@ -70,9 +70,10 @@ EOF
     
     if [[ $? -eq 0 ]]; then
         log_success "JupyterHub installed successfully"
-        log_info "Default password: jupyter123"
-        log_info "Access JupyterHub at: http://<node-ip>:30084"
         complete_component "jupyter"
+        
+        # Show comprehensive installation summary
+        show_component_summary "jupyter" "$namespace"
     else
         log_error "JupyterHub installation failed"
         fail_component "jupyter" "Helm installation failed"

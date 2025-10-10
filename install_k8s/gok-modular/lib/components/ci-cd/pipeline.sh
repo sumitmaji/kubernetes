@@ -77,11 +77,11 @@ EOF
     
     if [[ $? -eq 0 ]]; then
         log_success "ArgoCD installed successfully"
-        log_info "Default credentials: admin / admin"
-        log_info "Access ArgoCD UI at: http://<node-ip>:30090"
-        log_info "Get admin password with:"
-        log_info "kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
+        log_success "ArgoCD installed successfully"
         complete_component "argocd"
+        
+        # Show comprehensive installation summary
+        show_component_summary "argocd" "$namespace"
     else
         log_error "ArgoCD installation failed"
         fail_component "argocd" "Helm installation failed"
