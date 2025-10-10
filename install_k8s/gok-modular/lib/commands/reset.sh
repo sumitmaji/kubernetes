@@ -1039,11 +1039,6 @@ EOF
     log_info "Removing Kubernetes packages..."
     remove_kubernetes_packages "$verbose_flag"
 
-
-
-    log_info "Cleaning up Kubernetes files and configurations..."
-    cleanup_kubernetes_files "$verbose_flag"
-
     # Reset related components
     log_info "Resetting Helm package manager..."
     helmReset
