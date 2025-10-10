@@ -59,6 +59,9 @@ resetCmd() {
         "ingress")
             ingressReset
             ;;
+        "haproxy"|"ha-proxy"|"ha")
+            haproxyReset
+            ;;
         
         # Security components
         "cert-manager")
@@ -198,8 +201,7 @@ show_reset_help() {
     echo "WARNING: This operation will permanently remove the component and its data!"
     echo ""
     echo "Infrastructure:"
-    echo "  docker             Complete Docker uninstallation (packages, data, configs)"
-    echo "  kubernetes, helm, calico, ingress"
+    echo "  docker, haproxy, kubernetes, helm, calico, ingress"
     echo ""
     echo "Security:"
     echo "  cert-manager, keycloak, oauth2, vault, ldap"
@@ -871,6 +873,29 @@ k8sReset() { log_info "Resetting Kubernetes..."; cleanup_kubernetes_files; }
 helmReset() { log_info "Resetting Helm..."; helm reset --force 2>/dev/null || true; }
 calicoReset() { helm_component_reset "calico" "kube-system"; }
 ingressReset() { helm_component_reset "ingress-nginx" "ingress-nginx"; }
+haproxyReset() { 
+    log_info "Resetting HAProxy..."
+    
+    # Stop and remove HAProxy container
+    if docker ps -q -f name=master-proxy | grep -q .; then
+        execute_controlled "Stopping HAProxy container" "docker stop master-proxy" || true
+    fi
+    
+    if docker ps -a -q -f name=master-proxy | grep -q .; then
+        execute_controlled "Removing HAProxy container" "docker rm master-proxy" || true
+    fi
+    
+    # Remove HAProxy configuration file
+    if [[ -f /opt/haproxy.cfg ]]; then
+        log_substep "Removing HAProxy configuration file"
+        rm -f /opt/haproxy.cfg || log_warning "Failed to remove HAProxy configuration"
+    fi
+    
+    # Remove HAProxy image (optional, as it's commonly used)
+    # docker rmi haproxy:latest 2>/dev/null || true
+    
+    log_success "HAProxy reset completed"
+}
 certManagerReset() { helm_component_reset "cert-manager" "cert-manager"; }
 keycloakReset() { helm_component_reset "keycloak" "keycloak"; }
 oauth2Reset() { helm_component_reset "oauth2-proxy" "oauth2-proxy"; }
