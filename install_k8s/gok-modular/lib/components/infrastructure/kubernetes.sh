@@ -462,6 +462,58 @@ initialize_kubernetes_master() {
 
     log_step "6 Initializing Kubernetes master node"
 
+    # Pre-flight check: Detect existing Kubernetes cluster
+    log_info "Running pre-flight checks..."
+    
+    # Check if port 6443 is in use (existing kube-apiserver)
+    if sudo lsof -i :6443 >/dev/null 2>&1; then
+        log_warning "Port 6443 is in use - existing Kubernetes cluster detected"
+        
+        local existing_processes=$(sudo lsof -i :6443 | grep LISTEN | awk '{print $1}' | sort -u | tr '\n' ', ' | sed 's/,$//')
+        log_info "Processes using port 6443: $existing_processes"
+        
+        # Prompt for cleanup
+        log_info "An existing Kubernetes cluster must be reset before installing a new one."
+        read -p "Do you want to reset the existing cluster and continue? (y/n): " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Resetting existing Kubernetes cluster..."
+            
+            # Run kubeadm reset to clean up existing cluster
+            if command -v kubeadm >/dev/null 2>&1; then
+                log_substep "Running kubeadm reset..."
+                if [[ "$verbose_mode" == "true" ]]; then
+                    sudo kubeadm reset --force
+                else
+                    sudo kubeadm reset --force >/dev/null 2>&1
+                fi
+                log_success "Existing cluster reset completed"
+                
+                # Wait a moment for cleanup to complete
+                sleep 5
+                
+                # Verify port is now free
+                if sudo lsof -i :6443 >/dev/null 2>&1; then
+                    log_error "Port 6443 is still in use after reset. Manual cleanup required."
+                    log_info "You may need to: sudo pkill -f kube-apiserver"
+                    return 1
+                else
+                    log_success "Port 6443 is now available for new cluster"
+                fi
+            else
+                log_error "kubeadm not found - cannot reset existing cluster"
+                log_info "Manual cleanup required: sudo pkill -f kube-apiserver"
+                return 1
+            fi
+        else
+            log_info "Installation cancelled by user"
+            return 1
+        fi
+    else
+        log_success "Port 6443 is available - ready for cluster initialization"
+    fi
+
     # Disable swap
     log_info "Disabling swap for Kubernetes..."
     sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
