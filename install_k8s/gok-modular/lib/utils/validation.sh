@@ -1126,7 +1126,6 @@ export -f check_resource_constraints
 export -f validate_component_installation
 export -f validate_generic_component
 export -f validate_docker_installation
-export -f validate_haproxy_installation
 export -f validate_helm_installation
 export -f validate_kubernetes_cluster
 export -f validate_cert_manager

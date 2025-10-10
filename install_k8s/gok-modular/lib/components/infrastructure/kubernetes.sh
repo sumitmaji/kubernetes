@@ -731,7 +731,7 @@ EOF
     # Wait a moment for container to start
     sleep 3
     
-    if validate_haproxy_installation; then
+    if validate_ha_proxy_installation; then
         log_success "HA proxy installation validation passed"
     else
         log_error "HA proxy installation validation failed"
