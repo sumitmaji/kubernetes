@@ -139,65 +139,540 @@ dockrInst() {
     return 0
 }
 
-# Kubernetes master installation
+# Kubernetes installation with comprehensive system configuration
 k8sInst() {
-    local install_type="${1:-kubernetes}"
-    
-    log_component_start "kubernetes" "Installing Kubernetes $install_type"
-    
-    # Prerequisites check
-    if ! command -v docker >/dev/null 2>&1; then
-        log_error "Docker is required before installing Kubernetes"
+    local k8s_type="${1:-kubernetes}"
+    local verbose_mode="${GOK_VERBOSE:-false}"
+
+    # Check for verbose flags in all arguments
+    for arg in "$@"; do
+        if [[ "$arg" == "--verbose" ]] || [[ "$arg" == "-v" ]]; then
+            verbose_mode="true"
+            break
+        fi
+    done
+
+    # Also check if GOK_VERBOSE environment variable is set
+    if [[ "${GOK_VERBOSE}" == "true" ]]; then
+        verbose_mode="true"
+    fi
+
+    log_component_start "kubernetes" "Installing Kubernetes $k8s_type"
+
+    # Step 1: System Prerequisites and Kernel Modules
+    log_step "1" "Configuring system prerequisites and kernel modules"
+
+    if ! validate_system_requirements; then
+        log_error "System requirements validation failed"
         return 1
     fi
-    
-    log_info "Installing Kubernetes components..."
-    
-    # Update package index
-    execute_with_suppression apt-get update
-    
-    # Install prerequisites
-    execute_with_suppression apt-get install -y apt-transport-https ca-certificates curl
-    
-    # Add Kubernetes GPG key
-    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-    
+
+    log_info "Loading required kernel modules..."
+    local mod_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo modprobe overlay br_netfilter"
+        if mod_output=$(sudo modprobe overlay && sudo modprobe br_netfilter 2>&1); then
+            log_success "Kernel modules loaded successfully"
+            [[ -n "$mod_output" ]] && log_debug "$mod_output"
+        else
+            log_error "Failed to load kernel modules"
+            log_error "Error details: $mod_output"
+            return 1
+        fi
+    else
+        if mod_output=$(sudo modprobe overlay && sudo modprobe br_netfilter 2>&1); then
+            log_success "Kernel modules loaded successfully"
+        else
+            log_error "Failed to load kernel modules"
+            log_error "Error details: $mod_output"
+            return 1
+        fi
+    fi
+
+    # Configure persistent module loading
+    log_info "Configuring persistent kernel modules..."
+    sudo tee /etc/modules-load.d/containerd.conf <<EOF >/dev/null
+overlay
+br_netfilter
+EOF
+    log_success "Kernel modules configured for persistence"
+
+    # Step 2: Network Configuration
+    log_step "2" "Configuring network settings for Kubernetes"
+
+    log_info "Setting up network bridge configurations..."
+    sudo tee /etc/sysctl.d/kubernetes.conf <<EOF >/dev/null
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+    local sysctl_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo sysctl --system"
+        if sysctl_output=$(sudo sysctl --system 2>&1); then
+            log_success "Network settings applied successfully"
+            log_debug "$sysctl_output"
+        else
+            log_error "Failed to apply network settings"
+            log_error "Error details: $sysctl_output"
+            return 1
+        fi
+    else
+        if sysctl_output=$(sudo sysctl --system 2>&1); then
+            log_success "Network settings applied successfully"
+        else
+            log_error "Failed to apply network settings"
+            log_error "Error details: $sysctl_output"
+            return 1
+        fi
+    fi
+
+    # Step 3: Container Runtime Configuration
+    log_step "3" "Configuring containerd container runtime"
+
+    log_info "Setting up containerd configuration..."
+    sudo mkdir -p /etc/containerd
+
+    local containerd_config_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Creating /etc/containerd directory and configuration..."
+        log_debug "Executing: containerd config default | sudo tee /etc/containerd/config.toml"
+        if containerd_config_output=$(containerd config default 2>&1) && echo "$containerd_config_output" | sudo tee /etc/containerd/config.toml >/dev/null; then
+            log_success "Default containerd configuration created"
+            log_debug "Configuration written to /etc/containerd/config.toml"
+        else
+            log_error "Failed to create containerd configuration"
+            log_error "Error details: $containerd_config_output"
+            return 1
+        fi
+    else
+        if containerd_config_output=$(containerd config default 2>&1) && echo "$containerd_config_output" | sudo tee /etc/containerd/config.toml >/dev/null; then
+            log_success "Default containerd configuration created"
+        else
+            log_error "Failed to create containerd configuration"
+            log_error "Error details: $containerd_config_output"
+            return 1
+        fi
+    fi
+
+    # Configure systemd cgroup driver
+    log_info "Configuring systemd cgroup driver..."
+    local sed_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Updating containerd config: SystemdCgroup = false -> SystemdCgroup = true"
+        log_debug "Executing: sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml"
+        if sed_output=$(sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml 2>&1); then
+            log_success "Systemd cgroup driver configured"
+            log_debug "Verification:"
+            local cgroup_check=$(grep -n "SystemdCgroup" /etc/containerd/config.toml || echo "SystemdCgroup setting not found")
+            log_debug "$cgroup_check"
+        else
+            log_warning "Cgroup driver configuration may have failed"
+            log_warning "Warning details: $sed_output"
+        fi
+    else
+        if sed_output=$(sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml 2>&1); then
+            log_success "Systemd cgroup driver configured"
+        else
+            log_warning "Cgroup driver configuration may have failed"
+            log_warning "Warning details: $sed_output"
+        fi
+    fi
+
+    # Restart and enable containerd
+    log_info "Starting containerd service..."
+    local containerd_service_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo systemctl restart containerd && sudo systemctl enable containerd"
+        if containerd_service_output=$(sudo systemctl restart containerd 2>&1 && sudo systemctl enable containerd 2>&1); then
+            log_success "Containerd service started and enabled"
+            [[ -n "$containerd_service_output" ]] && log_debug "$containerd_service_output"
+        else
+            log_error "Failed to start containerd service"
+            log_error "Error details: $containerd_service_output"
+            log_info "Try: sudo systemctl status containerd for more details"
+            return 1
+        fi
+    else
+        if containerd_service_output=$(sudo systemctl restart containerd 2>&1 && sudo systemctl enable containerd 2>&1); then
+            log_success "Containerd service started and enabled"
+        else
+            log_error "Failed to start containerd service"
+            log_error "Error details: $containerd_service_output"
+            log_info "Try: sudo systemctl status containerd for more details"
+            return 1
+        fi
+    fi
+
+    # Step 4: Kubernetes Repository Setup
+    log_step "4" "Setting up Kubernetes package repository"
+
+    log_info "Installing required packages..."
+    local repo_packages_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl"
+        if repo_packages_output=$(sudo apt-get update 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
+            log_success "Required packages installed"
+            log_debug "$repo_packages_output"
+        else
+            log_error "Failed to install required packages"
+            log_error "Error details: $repo_packages_output"
+            return 1
+        fi
+    else
+        if repo_packages_output=$(sudo apt-get update 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
+            log_success "Required packages installed"
+        else
+            log_error "Failed to install required packages"
+            log_error "Error details: $repo_packages_output"
+            return 1
+        fi
+    fi
+
+    # Setup Kubernetes signing key
+    log_info "Adding Kubernetes signing key..."
+    sudo mkdir -p -m 755 /etc/apt/keyrings
+
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Downloading Kubernetes signing key from pkgs.k8s.io..."
+        if curl -fsSL --show-error https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | \
+           sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
+            sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            log_success "Kubernetes signing key added"
+            log_debug "Key location: /etc/apt/keyrings/kubernetes-apt-keyring.gpg"
+        else
+            log_error "Failed to add Kubernetes signing key"
+            return 1
+        fi
+    else
+        if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key 2>/dev/null | \
+           sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg 2>/dev/null; then
+            sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            log_success "Kubernetes signing key added"
+        else
+            log_error "Failed to add Kubernetes signing key"
+            return 1
+        fi
+    fi
+
     # Add Kubernetes repository
-    echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | tee -a /etc/apt/sources.list.d/kubernetes.list
-    
-    # Update package index
-    execute_with_suppression apt-get update
-    
-    # Install Kubernetes components
-    execute_with_suppression apt-get install -y kubelet kubeadm kubectl
-    
+    log_info "Adding Kubernetes repository..."
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Creating repository configuration: /etc/apt/sources.list.d/kubernetes.list"
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | \
+          sudo tee /etc/apt/sources.list.d/kubernetes.list
+    else
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | \
+          sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
+    fi
+    sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
+    log_success "Kubernetes repository added"
+
+    # Step 5: Kubernetes Components Installation
+    log_step "5" "Installing Kubernetes components"
+
+    log_info "Updating package lists..."
+    local apt_update_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo apt-get update"
+        if apt_update_output=$(sudo apt-get update 2>&1); then
+            log_success "Package lists updated"
+            log_debug "$apt_update_output"
+        else
+            log_error "Failed to update package lists"
+            log_error "Error details: $apt_update_output"
+            return 1
+        fi
+    else
+        if apt_update_output=$(sudo apt-get update 2>&1); then
+            log_success "Package lists updated"
+        else
+            log_error "Failed to update package lists"
+            log_error "Error details: $apt_update_output"
+            return 1
+        fi
+    fi
+
+    log_info "Installing kubectl, kubeadm, and kubelet..."
+    local apt_install_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo apt-get install -y kubectl kubeadm kubelet"
+        if apt_install_output=$(sudo apt-get install -y kubectl kubeadm kubelet 2>&1); then
+            log_success "Kubernetes components installed successfully"
+            log_debug "$apt_install_output"
+        else
+            log_error "Failed to install Kubernetes components"
+            log_error "Error details: $apt_install_output"
+            return 1
+        fi
+    else
+        if apt_install_output=$(sudo apt-get install -y kubectl kubeadm kubelet 2>&1); then
+            log_success "Kubernetes components installed successfully"
+        else
+            log_error "Failed to install Kubernetes components"
+            log_error "Error details: $apt_install_output"
+            return 1
+        fi
+    fi
+
+    # Show installed versions
+    local kubectl_version=$(kubectl version --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+    local kubeadm_version=$(kubeadm version -o short 2>/dev/null || echo "unknown")
+    local kubelet_version=$(kubelet --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+    log_info "Installed versions:"
+    log_info "  kubectl: $kubectl_version"
+    log_info "  kubeadm: $kubeadm_version"
+    log_info "  kubelet: $kubelet_version"
+
     # Hold packages to prevent automatic updates
     apt-mark hold kubelet kubeadm kubectl
-    
-    if [[ "$install_type" == "kubernetes" ]]; then
-        # Initialize master node
-        log_info "Initializing Kubernetes master node..."
-        kubeadm init --pod-network-cidr=192.168.0.0/16
-        
-        # Setup kubectl for current user
-        mkdir -p "$HOME/.kube"
-        cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config"
-        chown "$(id -u):$(id -g)" "$HOME/.kube/config"
-        
-        # Remove master node taint to allow scheduling on master (for single-node clusters)
-        kubectl taint nodes --all node-role.kubernetes.io/master- 2>/dev/null || true
-        kubectl taint nodes --all node-role.kubernetes.io/control-plane- 2>/dev/null || true
-        
-        log_component_success "kubernetes" "Kubernetes master installation completed"
-        
-        # Show comprehensive installation summary
-        show_component_summary "kubernetes"
+
+    # Step 6: Cluster Initialization (Master) or Worker Setup
+    if [[ "$k8s_type" == "kubernetes" ]]; then
+        initialize_kubernetes_master "$verbose_mode"
+    elif [[ "$k8s_type" == "kubernetes-worker" ]]; then
+        setup_kubernetes_worker "$verbose_mode"
     else
-        log_component_success "kubernetes-worker" "Kubernetes worker installation completed"
-        log_info "To join this node to a cluster, run the 'kubeadm join' command from the master"
+        log_error "Unknown Kubernetes installation type: $k8s_type"
+        return 1
     fi
-    
-    return 0
+}
+
+# Initialize Kubernetes master node
+initialize_kubernetes_master() {
+    local verbose_mode="${1:-false}"
+
+    log_step "6" "Initializing Kubernetes master node"
+
+    # Disable swap
+    log_info "Disabling swap for Kubernetes..."
+    sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    sudo swapoff -a
+    log_success "Swap disabled successfully"
+
+    # Enable kubelet service
+    log_info "Enabling kubelet service..."
+    if sudo systemctl enable kubelet >/dev/null 2>&1; then
+        log_success "Kubelet service enabled"
+    else
+        log_warning "Kubelet service enable may have failed"
+    fi
+
+    # Pull container images
+    log_info "Pulling required container images..."
+    local pull_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: kubeadm config images pull"
+        if pull_output=$(kubeadm config images pull 2>&1); then
+            log_success "Container images pulled successfully"
+            log_debug "$pull_output"
+        else
+            log_warning "Some container images may not have been pulled"
+            log_warning "Warning details: $pull_output"
+        fi
+    else
+        if pull_output=$(kubeadm config images pull 2>&1); then
+            log_success "Container images pulled successfully"
+        else
+            log_warning "Some container images may not have been pulled"
+            log_warning "Warning details: $pull_output"
+        fi
+    fi
+
+    # Initialize the cluster
+    log_info "Initializing Kubernetes cluster (this may take several minutes)..."
+
+    local init_cmd="kubeadm init --pod-network-cidr=192.168.0.0/16 --upload-certs"
+
+    local init_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Executing: sudo $init_cmd"
+        log_debug "This will initialize the control plane and may take 5-10 minutes..."
+        if init_output=$(sudo $init_cmd 2>&1); then
+            log_success "Kubernetes cluster initialized successfully"
+            log_debug "$init_output"
+        else
+            log_error "Kubernetes cluster initialization failed"
+            log_error "Error details: $init_output"
+            log_info "Troubleshooting commands:"
+            log_info "  sudo journalctl -xeu kubelet"
+            log_info "  sudo kubeadm reset -f (to reset and try again)"
+            return 1
+        fi
+    else
+        if init_output=$(sudo $init_cmd 2>&1); then
+            log_success "Kubernetes cluster initialized successfully"
+        else
+            log_error "Kubernetes cluster initialization failed"
+            log_error "Error details: $init_output"
+            log_info "Troubleshooting commands:"
+            log_info "  sudo journalctl -xeu kubelet"
+            log_info "  sudo kubeadm reset -f (to reset and try again)"
+            return 1
+        fi
+    fi
+
+    # Setup kubectl configuration
+    log_info "Setting up kubectl configuration..."
+    export KUBECONFIG=/etc/kubernetes/admin.conf
+    mkdir -p "$HOME/.kube"
+
+    local config_output
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Copying admin.conf to ~/.kube/config"
+        log_debug "Setting proper ownership and permissions..."
+        if config_output=$(sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>&1 && sudo chown $(id -u):$(id -g) "$HOME/.kube/config" 2>&1); then
+            log_success "Kubectl configuration completed"
+            log_debug "Config location: $HOME/.kube/config"
+            [[ -n "$config_output" ]] && log_debug "$config_output"
+        else
+            log_error "Failed to setup kubectl configuration"
+            log_error "Error details: $config_output"
+            return 1
+        fi
+    else
+        if config_output=$(sudo cp -i /etc/kubernetes/admin.conf "$HOME/.kube/config" 2>&1 && sudo chown $(id -u):$(id -g) "$HOME/.kube/config" 2>&1); then
+            log_success "Kubectl configuration completed"
+        else
+            log_error "Failed to setup kubectl configuration"
+            log_error "Error details: $config_output"
+            return 1
+        fi
+    fi
+
+    # Configure master node (remove taints for single-node scheduling)
+    log_info "Configuring master node for pod scheduling..."
+
+    # Remove the taint to allow scheduling on master node
+    local taint_output
+    if taint_output=$(kubectl taint nodes --all node-role.kubernetes.io/control-plane:NoSchedule- 2>&1); then
+        log_success "Master node configured for pod scheduling"
+        if [[ "$verbose_mode" == "true" ]] && [[ -n "$taint_output" ]]; then
+            log_debug "Taint removal output: $taint_output"
+        fi
+    else
+        # Check if taint was already removed
+        if [[ "$taint_output" == *"not found"* ]]; then
+            log_info "Master node taint already removed - node ready for scheduling"
+        else
+            log_warning "Master node taint removal failed: $taint_output"
+            log_info "Master node may not schedule pods. Manual fix: kubectl taint nodes --all node-role.kubernetes.io/control-plane-"
+        fi
+    fi
+
+    # Install Calico network plugin
+    log_info "Installing Calico network plugin..."
+
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Installing container networking for pod communication..."
+    fi
+
+    # Check if Calico is already installed
+    if kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep -q "Running"; then
+        log_info "Calico appears to be already running - skipping installation"
+    else
+        # Install Calico network plugin
+        local calico_version="v3.25.1"
+        local calico_manifest="https://raw.githubusercontent.com/projectcalico/calico/$calico_version/manifests/calico.yaml"
+
+        log_substep "Applying Calico network plugin..."
+        local calico_apply_output
+        if [[ "$verbose_mode" == "true" ]]; then
+            log_debug "Executing: kubectl create -f $calico_manifest"
+            if calico_apply_output=$(kubectl create -f "$calico_manifest" 2>&1); then
+                log_success "Calico manifest applied successfully"
+                log_debug "$calico_apply_output"
+            else
+                log_warning "Failed to apply Calico manifest"
+                log_warning "Error details: $calico_apply_output"
+                log_warning "You may need to install a network plugin manually"
+            fi
+        else
+            if calico_apply_output=$(kubectl create -f "$calico_manifest" 2>&1); then
+                log_success "Calico manifest applied successfully"
+            else
+                log_warning "Failed to apply Calico manifest"
+                log_warning "You may need to install a network plugin manually"
+            fi
+        fi
+
+        # Wait briefly for Calico pods to start
+        log_substep "Waiting for Calico pods to start..."
+        sleep 15
+
+        # Get Calico pod status
+        local pod_output
+        pod_output=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null || true)
+
+        local ready_pods=0
+        local total_pods=0
+
+        if [[ -n "$pod_output" ]]; then
+            total_pods=$(echo "$pod_output" | wc -l)
+            ready_pods=$(echo "$pod_output" | grep -c "Running" || echo "0")
+        fi
+
+        if [[ "$ready_pods" -gt 0 ]]; then
+            log_success "Calico network plugin is starting ($ready_pods/$total_pods pods running)"
+        else
+            log_info "Calico pods are initializing (this may take 1-2 minutes)"
+        fi
+    fi
+
+    # Validate cluster is running
+    log_info "Validating cluster status..."
+    sleep 10  # Give cluster time to start
+
+    if [[ "$verbose_mode" == "true" ]]; then
+        log_debug "Checking cluster connectivity and status..."
+        if kubectl cluster-info; then
+            log_success "Kubernetes cluster is running and accessible"
+            log_debug "Checking node status:"
+            kubectl get nodes
+            log_debug "Checking system pods:"
+            kubectl get pods -n kube-system
+        else
+            log_error "Cluster validation failed"
+            return 1
+        fi
+    else
+        if kubectl cluster-info >/dev/null 2>&1; then
+            log_success "Kubernetes cluster is running and accessible"
+        else
+            log_error "Cluster validation failed"
+            return 1
+        fi
+    fi
+
+    log_component_success "kubernetes" "Kubernetes master installation completed"
+
+    # Show comprehensive installation summary
+    show_component_summary "kubernetes"
+}
+
+# Setup Kubernetes worker node
+setup_kubernetes_worker() {
+    local verbose_mode="${1:-false}"
+
+    log_step "6" "Setting up Kubernetes worker node"
+
+    # Disable swap
+    log_info "Disabling swap for Kubernetes..."
+    sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+    sudo swapoff -a
+    log_success "Swap disabled successfully"
+
+    # Enable kubelet service
+    log_info "Enabling kubelet service..."
+    if sudo systemctl enable kubelet >/dev/null 2>&1; then
+        log_success "Kubelet service enabled"
+    else
+        log_warning "Kubelet service enable may have failed"
+    fi
+
+    log_component_success "kubernetes-worker" "Kubernetes worker setup completed"
+    log_info "To join this node to a cluster, run the 'kubeadm join' command from the master"
 }
 
 # Helm installation
