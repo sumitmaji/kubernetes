@@ -1040,14 +1040,14 @@ EOF
     remove_kubernetes_packages "$verbose_flag"
 
     # Reset related components
-    log_info "Resetting Helm package manager..."
-    helmReset
+    # log_info "Resetting Helm package manager..."
+    # helmReset
 
-    log_info "Resetting HAProxy load balancer..."
-    haproxyReset
+    # log_info "Resetting HAProxy load balancer..."
+    # haproxyReset
 
-    log_info "Resetting Docker container runtime..."
-    dockrReset
+    # log_info "Resetting Docker container runtime..."
+    # dockrReset
 
     log_success "Kubernetes reset completed successfully."
 }
