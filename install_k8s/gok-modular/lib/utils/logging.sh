@@ -262,20 +262,20 @@ log_separator() {
 }
 
 # Log header with separator
-log_header() {
-    local title="$1"
-    local char="${2:-=}"
+# log_header() {
+#     local title="$1"
+#     local char="${2:-=}"
     
-    echo
-    log_separator "$char"
-    if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
-        echo -e "${COLOR_HEADER}${COLOR_BOLD}${title}${COLOR_RESET}"
-    else
-        echo "$title"
-    fi
-    log_separator "$char"
-    echo
-}
+#     echo
+#     log_separator "$char"
+#     if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+#         echo -e "${COLOR_HEADER}${COLOR_BOLD}${title}${COLOR_RESET}"
+#     else
+#         echo "$title"
+#     fi
+#     log_separator "$char"
+#     echo
+# }
 
 # Log with custom format
 log_custom() {
