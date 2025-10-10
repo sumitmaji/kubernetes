@@ -157,12 +157,6 @@ show_docker_summary() {
 }
 
 show_kubernetes_summary() {
-    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
-    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-    echo "║                    KUBERNETES INSTALLATION SUMMARY                          ║"
-    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
-    echo -e "${COLOR_RESET}"
-    echo ""
     
     # Check if we can connect to cluster
     local cluster_accessible=false
@@ -171,7 +165,7 @@ show_kubernetes_summary() {
     fi
     
     # 1. System Components Status
-    log_step "1" "System Components"
+    log_step "1 System Components"
     
     # Check component versions
     local kubectl_version=$(kubectl version --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "not-installed")
@@ -206,7 +200,7 @@ show_kubernetes_summary() {
     echo ""
     
     # 2. Cluster Status
-    log_step "2" "Cluster Status"
+    log_step "2 Cluster Status"
     
     if [[ "$cluster_accessible" == "true" ]]; then
         echo -e "  ${COLOR_GREEN}✓ Cluster: accessible${COLOR_RESET}"
@@ -247,7 +241,7 @@ show_kubernetes_summary() {
     
     # 3. System Pods Status
     if [[ "$cluster_accessible" == "true" ]]; then
-        log_step "3" "System Pods"
+        log_step "3 System Pods"
         
         # Check critical system pods
         local system_pods=$(kubectl get pods -n kube-system --no-headers 2>/dev/null)
@@ -275,7 +269,7 @@ show_kubernetes_summary() {
     fi
     
     # 4. Network Configuration
-    log_step "4" "Network Configuration"
+    log_step "4 Network Configuration"
     
     if [[ "$cluster_accessible" == "true" ]]; then
         # Check for Calico
@@ -303,7 +297,7 @@ show_kubernetes_summary() {
     echo ""
     
     # 5. Utility Pods
-    log_step "5" "Utility Pods"
+    log_step "5 Utility Pods"
     
     if [[ "$cluster_accessible" == "true" ]]; then
         # Check dnsutils pod
@@ -340,7 +334,7 @@ show_kubernetes_summary() {
     echo ""
     
     # 6. RBAC Configuration
-    log_step "6" "RBAC Configuration"
+    log_step "6 RBAC Configuration"
     
     if [[ "$cluster_accessible" == "true" ]]; then
         # Check OAuth admin role binding
@@ -359,7 +353,7 @@ show_kubernetes_summary() {
     echo ""
     
     # 7. Next Steps
-    log_step "7" "Available Commands"
+    log_step "7 Available Commands"
     
     echo -e "  ${COLOR_CYAN}Cluster Management:${COLOR_RESET}"
     echo -e "    ${COLOR_DIM}gok k8sInst                     # Install/reinstall Kubernetes${COLOR_RESET}"

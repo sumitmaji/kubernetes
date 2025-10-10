@@ -760,9 +760,6 @@ EOF
     fi
 
     log_component_success "kubernetes" "Kubernetes master installation completed"
-
-    # Show comprehensive installation summary
-    show_component_summary "kubernetes"
 }
 
 # Setup Kubernetes worker node

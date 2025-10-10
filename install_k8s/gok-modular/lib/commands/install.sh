@@ -336,23 +336,12 @@ installCmd() {
                     ln -sf "$GOK_ROOT/gok-new" /bin/gok 2>/dev/null || true
                 fi
 
-                # Add to bashrc if not already present
-                local gok_source_line="source $GOK_ROOT/gok-new"
-                if ! grep -q "$gok_source_line" ~/.bashrc 2>/dev/null; then
-                    echo "$gok_source_line" >> ~/.bashrc
-                fi
             } >/dev/null 2>&1
 
             log_success "System integration configured"
 
-            # Final validation and next steps
-            if validate_component_installation "kubernetes" 180; then
-                complete_component "kubernetes" "Kubernetes cluster installation completed and validated"
-                show_component_next_steps "kubernetes"
-            else
-                complete_component "kubernetes" "Kubernetes cluster installed but validation had warnings"
-                show_component_next_steps "kubernetes"
-            fi
+            # Show comprehensive installation summary
+            show_component_summary "kubernetes"
             ;;
         "kubernetes-worker")
             k8sInst "kubernetes-worker"
