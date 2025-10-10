@@ -157,7 +157,7 @@ k8sInst() {
         verbose_mode="true"
     fi
 
-    log_component_start "kubernetes" "Installing Kubernetes $k8s_type"
+    log_component_start "kubernetes" "Installing $k8s_type"
 
     # Step 1: System Prerequisites and Kernel Modules
     log_step "1 Configuring system prerequisites and kernel modules"
@@ -581,10 +581,23 @@ EOF
         fi
     fi
 
+    # Generate cluster configuration
+    log_info "Generating cluster configuration..."
+    if [ -f "$WORKING_DIR/cluster-config-master.yaml" ]; then
+        envsubst <"$WORKING_DIR/cluster-config-master.yaml" >"$WORKING_DIR/config.yaml"
+        log_success "Cluster configuration generated"
+    else
+        log_warning "Using default cluster configuration"
+    fi
+
     # Initialize the cluster
     log_info "Initializing Kubernetes cluster (this may take several minutes)..."
 
-    local init_cmd="kubeadm init --pod-network-cidr=192.168.0.0/16 --upload-certs"
+    local init_cmd="kubeadm init"
+    if [ -f "$WORKING_DIR/config.yaml" ]; then
+        init_cmd="$init_cmd --config=$WORKING_DIR/config.yaml"
+    fi
+    init_cmd="$init_cmd --upload-certs"
 
     local init_output
     if [[ "$verbose_mode" == "true" ]]; then

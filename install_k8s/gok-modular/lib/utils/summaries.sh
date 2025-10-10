@@ -157,49 +157,228 @@ show_docker_summary() {
 }
 
 show_kubernetes_summary() {
-    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}☸️ Kubernetes Cluster${COLOR_RESET}"
-    echo -e "${COLOR_DIM}Container orchestration platform${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+    echo "║                    KUBERNETES INSTALLATION SUMMARY                          ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+    echo -e "${COLOR_RESET}"
     echo ""
     
-    # Cluster Status
-    log_info "📋 Cluster Status"
-    local k8s_version=$(kubectl version --client=true -o json 2>/dev/null | jq -r '.clientVersion.gitVersion' 2>/dev/null || echo "Unknown")
-    local node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l || echo "0")
-    local cluster_status=$(kubectl cluster-info 2>/dev/null | head -1 | grep -q "running" && echo "Active" || echo "Inactive")
+    # Check if we can connect to cluster
+    local cluster_accessible=false
+    if kubectl cluster-info >/dev/null 2>&1; then
+        cluster_accessible=true
+    fi
     
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Version: ${COLOR_BOLD}$k8s_version${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Nodes: ${COLOR_BOLD}$node_count${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Status: ${COLOR_BOLD}$cluster_status${COLOR_RESET}"
+    # 1. System Components Status
+    log_step "1" "System Components"
+    
+    # Check component versions
+    local kubectl_version=$(kubectl version --client 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "not-installed")
+    local kubeadm_version=$(kubeadm version -o short 2>/dev/null || echo "not-installed")
+    local kubelet_version=$(kubelet --version 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "not-installed")
+    local docker_version=$(docker --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "not-installed")
+    
+    if [[ "$kubectl_version" != "not-installed" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ kubectl: ${kubectl_version}${COLOR_RESET}"
+    else
+        echo -e "  ${COLOR_RED}✗ kubectl: not installed${COLOR_RESET}"
+    fi
+    
+    if [[ "$kubeadm_version" != "not-installed" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ kubeadm: ${kubeadm_version}${COLOR_RESET}"
+    else
+        echo -e "  ${COLOR_RED}✗ kubeadm: not installed${COLOR_RESET}"
+    fi
+    
+    if [[ "$kubelet_version" != "not-installed" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ kubelet: ${kubelet_version}${COLOR_RESET}"
+    else
+        echo -e "  ${COLOR_RED}✗ kubelet: not installed${COLOR_RESET}"
+    fi
+    
+    if [[ "$docker_version" != "not-installed" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ docker: ${docker_version}${COLOR_RESET}"
+    else
+        echo -e "  ${COLOR_RED}✗ docker: not installed${COLOR_RESET}"
+    fi
+    
     echo ""
     
-    # Key Endpoints
-    log_info "🌐 Key Endpoints"
-    local api_server=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || echo "Not configured")
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} API Server: ${COLOR_BOLD}$api_server${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} kubectl config: ${COLOR_DIM}~/.kube/config${COLOR_RESET}"
+    # 2. Cluster Status
+    log_step "2" "Cluster Status"
+    
+    if [[ "$cluster_accessible" == "true" ]]; then
+        echo -e "  ${COLOR_GREEN}✓ Cluster: accessible${COLOR_RESET}"
+        
+        # Show cluster info
+        local cluster_info=$(kubectl cluster-info 2>/dev/null)
+        if [[ -n "$cluster_info" ]]; then
+            echo -e "    ${COLOR_DIM}$(echo "$cluster_info" | head -2)${COLOR_RESET}"
+        fi
+        
+        # Node status
+        echo ""
+        log_substep "Node Status:"
+        if kubectl get nodes --no-headers 2>/dev/null | while read -r line; do
+            local node_name=$(echo "$line" | awk '{print $1}')
+            local node_status=$(echo "$line" | awk '{print $2}')
+            local node_roles=$(echo "$line" | awk '{print $3}')
+            local node_age=$(echo "$line" | awk '{print $4}')
+            local node_version=$(echo "$line" | awk '{print $5}')
+            
+            if [[ "$node_status" == "Ready" ]]; then
+                echo -e "    ${COLOR_GREEN}✓ ${node_name} (${node_roles}): ${node_status} - ${node_version} (${node_age})${COLOR_RESET}"
+            else
+                echo -e "    ${COLOR_YELLOW}⚠ ${node_name} (${node_roles}): ${node_status} - ${node_version} (${node_age})${COLOR_RESET}"
+            fi
+        done; then
+            :
+        else
+            echo -e "    ${COLOR_RED}✗ Unable to get node status${COLOR_RESET}"
+        fi
+        
+    else
+        echo -e "  ${COLOR_RED}✗ Cluster: not accessible${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}Run: gok k8sInst to install Kubernetes${COLOR_RESET}"
+    fi
+    
     echo ""
     
-    # Quick Commands
-    log_info "⚡ Quick Commands"
-    echo -e "  ${COLOR_CYAN}Cluster info:${COLOR_RESET}     ${COLOR_BOLD}kubectl cluster-info${COLOR_RESET}"
-    echo -e "  ${COLOR_CYAN}Get nodes:${COLOR_RESET}        ${COLOR_BOLD}kubectl get nodes${COLOR_RESET}"
-    echo -e "  ${COLOR_CYAN}Get namespaces:${COLOR_RESET}   ${COLOR_BOLD}kubectl get namespaces${COLOR_RESET}"
-    echo -e "  ${COLOR_CYAN}Get all pods:${COLOR_RESET}     ${COLOR_BOLD}kubectl get pods --all-namespaces${COLOR_RESET}"
+    # 3. System Pods Status
+    if [[ "$cluster_accessible" == "true" ]]; then
+        log_step "3" "System Pods"
+        
+        # Check critical system pods
+        local system_pods=$(kubectl get pods -n kube-system --no-headers 2>/dev/null)
+        if [[ -n "$system_pods" ]]; then
+            echo "$system_pods" | while read -r line; do
+                local pod_name=$(echo "$line" | awk '{print $1}')
+                local ready_status=$(echo "$line" | awk '{print $2}')
+                local pod_status=$(echo "$line" | awk '{print $3}')
+                local restarts=$(echo "$line" | awk '{print $4}')
+                local age=$(echo "$line" | awk '{print $5}')
+                
+                if [[ "$pod_status" == "Running" ]]; then
+                    echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status}) - ${age}${COLOR_RESET}"
+                elif [[ "$pod_status" == "Pending" ]]; then
+                    echo -e "    ${COLOR_YELLOW}⚠ ${pod_name}: ${pod_status} (${ready_status}) - ${age}${COLOR_RESET}"
+                else
+                    echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status}) - ${age}${COLOR_RESET}"
+                fi
+            done
+        else
+            echo -e "    ${COLOR_RED}✗ Unable to get system pods status${COLOR_RESET}"
+        fi
+        
+        echo ""
+    fi
+    
+    # 4. Network Configuration
+    log_step "4" "Network Configuration"
+    
+    if [[ "$cluster_accessible" == "true" ]]; then
+        # Check for Calico
+        local calico_pods=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | wc -l || echo "0")
+        if [[ "$calico_pods" -gt 0 ]]; then
+            local calico_running=$(kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers 2>/dev/null | grep "Running" | wc -l || echo "0")
+            echo -e "  ${COLOR_GREEN}✓ Calico CNI: installed (${calico_running}/${calico_pods} pods running)${COLOR_RESET}"
+        else
+            echo -e "  ${COLOR_RED}✗ Calico CNI: not installed${COLOR_RESET}"
+        fi
+        
+        # Check CoreDNS custom configuration
+        local coredns_config=$(kubectl get configmap coredns -n kube-system -o jsonpath='{.data.Corefile}' 2>/dev/null)
+        if [[ -n "$coredns_config" ]] && echo "$coredns_config" | grep -q "cloud.com\|gokcloud.com"; then
+            echo -e "  ${COLOR_GREEN}✓ Custom DNS: configured${COLOR_RESET}"
+            echo -e "    ${COLOR_DIM}• CoreDNS custom zones: cloud.com, gokcloud.com → ${MASTER_HOST_IP:-<master-ip>}${COLOR_RESET}"
+            echo -e "    ${COLOR_DIM}• Kubernetes internal DNS: cloud.uat domain with 30s TTL${COLOR_RESET}"
+        else
+            echo -e "  ${COLOR_YELLOW}⚠ Custom DNS: default CoreDNS configuration${COLOR_RESET}"
+        fi
+    else
+        echo -e "  ${COLOR_RED}✗ Network status: cluster not accessible${COLOR_RESET}"
+    fi
+    
     echo ""
     
-    # Next Steps
-    log_info "🎯 Next Steps"
-    echo -e "  ${COLOR_YELLOW}1.${COLOR_RESET} Install network plugin: ${COLOR_BOLD}gok install calico${COLOR_RESET}"
-    echo -e "  ${COLOR_YELLOW}2.${COLOR_RESET} Install ingress controller: ${COLOR_BOLD}gok install ingress${COLOR_RESET}"
-    echo -e "  ${COLOR_YELLOW}3.${COLOR_RESET} Install Helm: ${COLOR_BOLD}gok install helm${COLOR_RESET}"
-    echo -e "  ${COLOR_YELLOW}4.${COLOR_RESET} Install cert-manager: ${COLOR_BOLD}gok install cert-manager${COLOR_RESET}"
+    # 5. Utility Pods
+    log_step "5" "Utility Pods"
+    
+    if [[ "$cluster_accessible" == "true" ]]; then
+        # Check dnsutils pod
+        if kubectl get pod dnsutils -n default >/dev/null 2>&1; then
+            local dns_status=$(kubectl get pod dnsutils -n default --no-headers 2>/dev/null | awk '{print $3}')
+            if [[ "$dns_status" == "Running" ]]; then
+                echo -e "  ${COLOR_GREEN}✓ DNS utilities: available${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Pod: dnsutils (jessie-dnsutils:1.3) in default namespace${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Usage: gok checkDns <domain> for DNS resolution testing${COLOR_RESET}"
+            else
+                echo -e "  ${COLOR_YELLOW}⚠ DNS utilities: ${dns_status}${COLOR_RESET}"
+            fi
+        else
+            echo -e "  ${COLOR_RED}✗ DNS utilities: not installed${COLOR_RESET}"
+        fi
+        
+        # Check curl pod
+        if kubectl get pod curl -n default >/dev/null 2>&1; then
+            local curl_status=$(kubectl get pod curl -n default --no-headers 2>/dev/null | awk '{print $3}')
+            if [[ "$curl_status" == "Running" ]]; then
+                echo -e "  ${COLOR_GREEN}✓ Curl utility: available${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Pod: curl (curlimages/curl) in default namespace${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Usage: gok checkCurl <url> for HTTP testing within cluster${COLOR_RESET}"
+            else
+                echo -e "  ${COLOR_YELLOW}⚠ Curl utility: ${curl_status}${COLOR_RESET}"
+            fi
+        else
+            echo -e "  ${COLOR_RED}✗ Curl utility: not installed${COLOR_RESET}"
+        fi
+    else
+        echo -e "  ${COLOR_RED}✗ Utility pods: cluster not accessible${COLOR_RESET}"
+    fi
+    
     echo ""
     
-    # Troubleshooting
-    log_info "🔧 Troubleshooting"
-    echo -e "  ${COLOR_RED}•${COLOR_RESET} Node issues: ${COLOR_DIM}kubectl describe nodes${COLOR_RESET}"
-    echo -e "  ${COLOR_RED}•${COLOR_RESET} Pod issues: ${COLOR_DIM}kubectl describe pod <pod-name>${COLOR_RESET}"
-    echo -e "  ${COLOR_RED}•${COLOR_RESET} Config issues: ${COLOR_DIM}kubectl config view${COLOR_RESET}"
+    # 6. RBAC Configuration
+    log_step "6" "RBAC Configuration"
+    
+    if [[ "$cluster_accessible" == "true" ]]; then
+        # Check OAuth admin role binding
+        if kubectl get clusterrolebinding oauth-cluster-admin >/dev/null 2>&1; then
+            echo -e "  ${COLOR_GREEN}✓ OAuth admin: configured${COLOR_RESET}"
+            echo -e "    ${COLOR_DIM}• ClusterRoleBinding: oauth-cluster-admin${COLOR_RESET}"
+            echo -e "    ${COLOR_DIM}• Role: cluster-admin (full cluster access)${COLOR_RESET}"
+            echo -e "    ${COLOR_DIM}• Subject: Group 'administrators' (OAuth group mapping)${COLOR_RESET}"
+        else
+            echo -e "  ${COLOR_RED}✗ OAuth admin: not configured${COLOR_RESET}"
+        fi
+    else
+        echo -e "  ${COLOR_RED}✗ RBAC status: cluster not accessible${COLOR_RESET}"
+    fi
+    
+    echo ""
+    
+    # 7. Next Steps
+    log_step "7" "Available Commands"
+    
+    echo -e "  ${COLOR_CYAN}Cluster Management:${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok k8sInst                     # Install/reinstall Kubernetes${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok k8sSummary                  # Show installation summary (this command)${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok calicoInst                  # Install Calico network plugin${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok k8sReset                    # Reset cluster${COLOR_RESET}"
+    
+    echo -e "  ${COLOR_CYAN}Utilities:${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok dnsUtils                    # Install DNS testing utilities${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok kcurl                       # Install curl testing utilities${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok checkDns <domain>           # Test DNS resolution${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok checkCurl <url>             # Test HTTP connectivity${COLOR_RESET}"
+    
+    echo -e "  ${COLOR_CYAN}Configuration:${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok customDns                   # Configure custom DNS zones${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok oauthAdmin                  # Configure OAuth admin access${COLOR_RESET}"
+    
+    echo ""
+    echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Summary complete! Use the commands above to manage your cluster.${COLOR_RESET}"
 }
 
 show_haproxy_summary() {
