@@ -198,7 +198,8 @@ show_reset_help() {
     echo "WARNING: This operation will permanently remove the component and its data!"
     echo ""
     echo "Infrastructure:"
-    echo "  docker, kubernetes, helm, calico, ingress"
+    echo "  docker             Complete Docker uninstallation (packages, data, configs)"
+    echo "  kubernetes, helm, calico, ingress"
     echo ""
     echo "Security:"
     echo "  cert-manager, keycloak, oauth2, vault, ldap"
@@ -233,11 +234,24 @@ confirm_reset() {
     echo
     log_warning "You are about to reset/uninstall: $component"
     echo
-    echo "This will:"
-    echo "  • Remove all $component resources from Kubernetes"
-    echo "  • Delete persistent data and configurations"
-    echo "  • Remove associated secrets and certificates"
-    echo "  • Clean up related namespaces"
+    case "$component" in
+        "docker")
+            echo "This will:"
+            echo "  • Stop and disable Docker services"
+            echo "  • Remove all Docker containers and images"
+            echo "  • Uninstall Docker packages completely"
+            echo "  • Delete Docker data directories (/var/lib/docker, /etc/docker)"
+            echo "  • Clean up Docker network namespaces and mount points"
+            echo "  • Remove Docker user groups and repository configuration"
+            ;;
+        *)
+            echo "This will:"
+            echo "  • Remove all $component resources from Kubernetes"
+            echo "  • Delete persistent data and configurations"
+            echo "  • Remove associated secrets and certificates"
+            echo "  • Clean up related namespaces"
+            ;;
+    esac
     echo
     
     read -p "Are you sure you want to continue? (yes/no): " -r
@@ -532,12 +546,84 @@ cleanup_kubernetes_files() {
     log_success "Kubernetes file cleanup completed"
 }
 
+# Helper function to safely remove directories with mounted content
+safe_remove_docker_dir() {
+    local dir="$1"
+    local description="$2"
+    
+    if [[ ! -d "$dir" ]]; then
+        log_verbose "Directory $dir does not exist, skipping"
+        return 0
+    fi
+    
+    log_verbose "Attempting safe removal of directory: $dir"
+    
+    # Check if anything is mounted within this directory
+    local mounted_paths=$(mount | grep " $dir" | awk '{print $3}' || true)
+    
+    if [[ -n "$mounted_paths" ]]; then
+        log_verbose "Found mounted paths in $dir, attempting to unmount"
+        echo "$mounted_paths" | while IFS= read -r mount_path; do
+            if [[ -n "$mount_path" ]]; then
+                log_verbose "Unmounting: $mount_path"
+                umount "$mount_path" 2>/dev/null || umount -l "$mount_path" 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Try normal removal first
+    if rm -rf "$dir" 2>/dev/null; then
+        log_verbose "Successfully removed $dir"
+        return 0
+    fi
+    
+    # If that failed, try more aggressive cleanup
+    log_verbose "Standard removal failed for $dir, trying forced cleanup"
+    
+    # Kill any processes using files in this directory
+    if command -v lsof >/dev/null 2>&1; then
+        local pids=$(lsof +D "$dir" 2>/dev/null | awk 'NR>1 {print $2}' | sort -u || true)
+        if [[ -n "$pids" ]]; then
+            log_verbose "Killing processes using $dir: $pids"
+            echo "$pids" | xargs -r kill -TERM 2>/dev/null || true
+            sleep 2
+            echo "$pids" | xargs -r kill -KILL 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+    
+    # Check for network namespaces specifically in /run/docker/netns
+    if [[ "$dir" == "/run/docker" && -d "$dir/netns" ]]; then
+        log_verbose "Cleaning up Docker network namespaces"
+        for netns_file in "$dir/netns"/*; do
+            if [[ -f "$netns_file" ]]; then
+                log_verbose "Unmounting netns: $netns_file"
+                umount "$netns_file" 2>/dev/null || true
+            fi
+        done
+    fi
+    
+    # Try lazy unmount for the entire directory
+    umount -l "$dir" 2>/dev/null || true
+    
+    # Final removal attempt
+    if rm -rf "$dir" 2>/dev/null; then
+        log_verbose "Successfully removed $dir after cleanup"
+        return 0
+    else
+        log_warning "Could not completely remove $dir - some files may remain (this is often normal for runtime directories)"
+        # Try to remove contents but leave directory structure
+        find "$dir" -mindepth 1 -delete 2>/dev/null || true
+        return 0  # Don't fail the whole operation for runtime directories
+    fi
+}
+
 # Clean up Docker files and uninstall Docker packages
 cleanup_docker_files() {
     log_info "Cleaning up Docker installation and data..."
     
     # Step 1: Stop Docker services
-    log_step "1" "Stopping Docker services"
+    log_step "1 Stopping Docker services"
     local docker_services=("docker" "docker.socket" "containerd")
     
     for service in "${docker_services[@]}"; do
@@ -550,7 +636,7 @@ cleanup_docker_files() {
     done
     
     # Step 2: Clean up Docker containers and images (if Docker is still available)
-    log_step "2" "Cleaning up Docker containers and images"
+    log_step "2 Cleaning up Docker containers and images"
     if command -v docker >/dev/null 2>&1; then
         execute_controlled "Stopping all Docker containers" "docker stop \$(docker ps -aq) 2>/dev/null || true"
         execute_controlled "Removing all Docker containers" "docker rm \$(docker ps -aq) 2>/dev/null || true"
@@ -559,7 +645,7 @@ cleanup_docker_files() {
     fi
     
     # Step 3: Uninstall Docker packages
-    log_step "3" "Uninstalling Docker packages"
+    log_step "3 Uninstalling Docker packages"
     local docker_packages=(
         "docker-ce"
         "docker-ce-cli"
@@ -594,7 +680,7 @@ cleanup_docker_files() {
     fi
     
     # Step 4: Remove Docker APT repository and keys
-    log_step "4" "Removing Docker repository and GPG keys"
+    log_step "4 Removing Docker repository and GPG keys"
     execute_controlled "Removing Docker APT repository" "rm -f /etc/apt/sources.list.d/docker.list"
     execute_controlled "Removing Docker GPG key" "rm -f /etc/apt/keyrings/docker.asc"
     execute_controlled "Removing legacy Docker GPG key" "rm -f /usr/share/keyrings/docker-archive-keyring.gpg"
@@ -623,32 +709,71 @@ cleanup_docker_files() {
         fi
     done
     
-    # Step 5: Remove Docker data and configuration directories
-    log_step "5" "Removing Docker data and configuration directories"
-    local all_docker_dirs=(
+    # Step 5: Clean up Docker network namespaces and mounted resources
+    log_step "5 Cleaning up Docker network namespaces and mounted resources"
+    
+    # Clean up network namespaces first
+    if [[ -d "/run/docker/netns" ]]; then
+        log_verbose "Cleaning up Docker network namespaces"
+        for netns in /run/docker/netns/*; do
+            if [[ -f "$netns" ]]; then
+                local netns_name=$(basename "$netns")
+                log_verbose "Unmounting network namespace: $netns_name"
+                execute_controlled "Unmounting netns $netns_name" "umount \"$netns\" 2>/dev/null || true"
+            fi
+        done
+    fi
+    
+    # Clean up any remaining Docker mount points
+    log_verbose "Cleaning up Docker mount points"
+    local docker_mounts=$(mount | grep -E "(docker|containerd)" | awk '{print $3}' || true)
+    if [[ -n "$docker_mounts" ]]; then
+        echo "$docker_mounts" | while IFS= read -r mount_point; do
+            if [[ -n "$mount_point" ]]; then
+                log_verbose "Unmounting: $mount_point"
+                execute_controlled "Unmounting $mount_point" "umount \"$mount_point\" 2>/dev/null || true"
+            fi
+        done
+    fi
+    
+    # Step 6: Remove Docker data and configuration directories
+    log_step "6 Removing Docker data and configuration directories"
+    
+    # Define directories to remove with special handling for runtime directories
+    local persistent_dirs=(
         "/var/lib/docker"
         "/var/lib/containerd"
         "/etc/docker"
         "/etc/containerd"
-        "/run/docker"
-        "/run/containerd"
         "/opt/containerd"
     )
     
-    for dir in "${all_docker_dirs[@]}"; do
+    local runtime_dirs=(
+        "/run/docker"
+        "/run/containerd"
+    )
+    
+    # Remove persistent directories first
+    for dir in "${persistent_dirs[@]}"; do
+        safe_remove_docker_dir "$dir" "Removing Docker directory $dir"
+    done
+    
+    # Handle runtime directories with extra care
+    for dir in "${runtime_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
-            execute_controlled "Removing Docker directory $dir" "rm -rf \"$dir\""
+            log_verbose "Attempting safe removal of runtime directory: $dir"
+            safe_remove_docker_dir "$dir" "Removing Docker runtime directory $dir"
         fi
     done
     
-    # Step 6: Remove Docker users and groups
-    log_step "6" "Cleaning up Docker users and groups"
+    # Step 7: Remove Docker users and groups
+    log_step "7 Cleaning up Docker users and groups"
     if getent group docker >/dev/null 2>&1; then
         execute_controlled "Removing docker group" "groupdel docker 2>/dev/null || true"
     fi
     
-    # Step 7: Remove systemd service files
-    log_step "7" "Removing Docker systemd service files"
+    # Step 8: Remove systemd service files
+    log_step "8 Removing Docker systemd service files"
     local service_files=(
         "/lib/systemd/system/docker.service"
         "/lib/systemd/system/docker.socket"
@@ -667,8 +792,8 @@ cleanup_docker_files() {
     # Reload systemd after removing service files
     execute_controlled "Reloading systemd daemon" "systemctl daemon-reload"
     
-    # Step 8: Clean up remaining packages and dependencies
-    log_step "8" "Cleaning up remaining dependencies"
+    # Step 9: Clean up remaining packages and dependencies
+    log_step "9 Cleaning up remaining dependencies"
     if apt_autoremove_controlled; then
         log_success "Unused packages cleaned up successfully"
     else
