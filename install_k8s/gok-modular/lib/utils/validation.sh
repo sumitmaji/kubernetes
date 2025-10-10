@@ -10,6 +10,9 @@ fi
 if [[ -f "${BASH_SOURCE[0]%/*}/colors.sh" ]]; then
     source "${BASH_SOURCE[0]%/*}/colors.sh"
 fi
+if [[ -f "${BASH_SOURCE[0]%/*}/verbosity.sh" ]]; then
+    source "${BASH_SOURCE[0]%/*}/verbosity.sh"
+fi
 
 # =============================================================================
 # HELPER FUNCTIONS FOR VALIDATION
@@ -31,11 +34,21 @@ wait_for_pods_ready() {
     fi
     
     while [[ $wait_time -lt $max_wait_time ]]; do
-        local pending_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -E "(Pending|ContainerCreating|Init:|PodInitializing)" | wc -l)
-        local failed_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -E "(Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError)" | wc -l)
+        local pending_pods
+        local failed_pods
+        if is_verbose; then
+            log_debug "Getting pod status in namespace $namespace"
+        fi
+        pending_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -E "(Pending|ContainerCreating|Init:|PodInitializing)" | wc -l)
+        failed_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -E "(Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError)" | wc -l)
+        
+        # Clean up whitespace from wc output
+        pending_pods=$(echo "$pending_pods" | tr -d '[:space:]')
+        failed_pods=$(echo "$failed_pods" | tr -d '[:space:]')
         
         if [[ $pending_pods -eq 0 && $failed_pods -eq 0 ]]; then
             local ready_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -c "Running\|Completed" || echo "0")
+            ready_pods=$(echo "$ready_pods" | tr -d '[:space:]')
             if [[ $ready_pods -gt 0 ]]; then
                 log_success "All pods are ready in namespace '$namespace'"
                 return 0
@@ -44,12 +57,14 @@ wait_for_pods_ready() {
         
         if [[ $failed_pods -gt 0 ]]; then
             log_warning "Found $failed_pods failed pods in namespace '$namespace'"
-            kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -E "(Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull)" || true
+            if is_verbose; then
+                execute_controlled "Showing failed pods" "kubectl get pods -n \"$namespace\" --no-headers | grep -E '(Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull)'"
+            fi
         fi
         
         sleep $check_interval
         wait_time=$((wait_time + check_interval))
-        log_info "Waiting... ($wait_time/$max_wait_time seconds elapsed)"
+        log_verbose "Waiting... ($wait_time/$max_wait_time seconds elapsed)"
     done
     
     log_error "Timeout waiting for pods in namespace '$namespace'"
@@ -69,6 +84,9 @@ check_deployment_readiness() {
     log_info "🚀 Analyzing deployment readiness: $deployment"
     
     # Get deployment status
+    if is_verbose; then
+        log_debug "Getting deployment status for $deployment in namespace $namespace"
+    fi
     local deployment_info=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.status.readyReplicas}/{.status.replicas} {.status.conditions[?(@.type=="Available")].status} {.status.conditions[?(@.type=="Progressing")].status}' 2>/dev/null)
     
     if [[ -z "$deployment_info" ]]; then
@@ -100,6 +118,9 @@ check_statefulset_readiness() {
         return 1
     fi
     
+    if is_verbose; then
+        log_debug "Getting StatefulSet status for $statefulset in namespace $namespace"
+    fi
     local ready_replicas=$(kubectl get statefulset "$statefulset" -n "$namespace" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
     local total_replicas=$(kubectl get statefulset "$statefulset" -n "$namespace" -o jsonpath='{.spec.replicas}' 2>/dev/null)
     
@@ -127,6 +148,9 @@ check_service_connectivity() {
         return 1
     fi
     
+    if is_verbose; then
+        log_debug "Getting service details for $service in namespace $namespace"
+    fi
     local service_ip=$(kubectl get svc "$service" -n "$namespace" -o jsonpath='{.spec.clusterIP}' 2>/dev/null)
     local service_port=$(kubectl get svc "$service" -n "$namespace" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null)
     
@@ -161,6 +185,9 @@ check_ingress_status() {
         return 1
     fi
     
+    if is_verbose; then
+        log_debug "Getting ingress details for $ingress in namespace $namespace"
+    fi
     local ingress_class=$(kubectl get ingress "$ingress" -n "$namespace" -o jsonpath='{.spec.ingressClassName}' 2>/dev/null)
     local load_balancer_ip=$(kubectl get ingress "$ingress" -n "$namespace" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
     
@@ -186,6 +213,9 @@ check_image_pull_issues() {
     log_info "🐳 Checking for Docker image pull issues in $component..."
     
     # Get pods with image pull errors
+    if is_verbose; then
+        log_debug "Checking for image pull issues in namespace $namespace"
+    fi
     local image_pull_pods=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}' 2>/dev/null | grep -E "(ImagePullBackOff|ErrImagePull)" | cut -d' ' -f1)
     
     if [[ -n "$image_pull_pods" ]]; then
@@ -195,10 +225,12 @@ check_image_pull_issues() {
                 echo -e "${COLOR_RED}  ❌ Pod: ${COLOR_BOLD}$pod${COLOR_RESET}"
                 
                 # Get detailed image pull error information
-                local image_error=$(kubectl describe pod "$pod" -n "$namespace" 2>/dev/null | grep -A 3 -B 1 "Failed to pull image\|Error response from daemon")
-                if [[ -n "$image_error" ]]; then
-                    echo -e "${COLOR_YELLOW}     Error details:${COLOR_RESET}"
-                    echo "$image_error" | sed 's/^/       /'
+                if is_verbose; then
+                    local image_error=$(kubectl describe pod "$pod" -n "$namespace" 2>/dev/null | grep -A 3 -B 1 "Failed to pull image\|Error response from daemon")
+                    if [[ -n "$image_error" ]]; then
+                        echo -e "${COLOR_YELLOW}     Error details:${COLOR_RESET}"
+                        echo "$image_error" | sed 's/^/       /'
+                    fi
                 fi
                 
                 # Get the image name causing issues
@@ -386,7 +418,7 @@ validate_docker_installation() {
     local validation_passed=true
     
     log_step "1. Checking Docker daemon status"
-    if sudo systemctl is-active --quiet docker; then
+    if execute_silent "Checking Docker daemon status" "sudo systemctl is-active --quiet docker"; then
         log_success "Docker daemon is running"
     else
         log_error "Docker daemon is not running"
@@ -394,7 +426,7 @@ validate_docker_installation() {
     fi
     
     log_step "2. Checking containerd status"
-    if sudo systemctl is-active --quiet containerd; then
+    if execute_silent "Checking containerd status" "sudo systemctl is-active --quiet containerd"; then
         log_success "Containerd runtime is running"
     else
         log_error "Containerd runtime is not running"
@@ -402,8 +434,8 @@ validate_docker_installation() {
     fi
     
     log_step "3. Checking Docker version"
-    if docker --version >/dev/null 2>&1; then
-        local version=$(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+    if execute_controlled "Getting Docker version" "docker --version"; then
+        local version=$(execute_silent "Extracting Docker version" "docker --version | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+'")
         log_success "Docker version: $version"
     else
         log_error "Cannot get Docker version"
@@ -411,7 +443,7 @@ validate_docker_installation() {
     fi
     
     log_step "4. Testing Docker functionality"
-    if docker info >/dev/null 2>&1; then
+    if execute_controlled "Testing Docker info" "docker info"; then
         log_success "Docker daemon is responding properly"
     else
         log_error "Docker daemon is not responding properly"
@@ -419,7 +451,7 @@ validate_docker_installation() {
     fi
     
     log_step "5. Testing container creation"
-    if timeout 30 docker run --rm hello-world >/dev/null 2>&1; then
+    if execute_with_progress "Testing container creation" "Running hello-world container test" "timeout 30 docker run --rm hello-world"; then
         log_success "Container creation test passed"
     else
         log_warning "Docker hello-world test failed - may need internet connectivity"
@@ -463,7 +495,7 @@ validate_helm_installation() {
     fi
     
     log_step "2. Testing Helm functionality"
-    if helm version --short >/dev/null 2>&1; then
+    if execute_controlled "Testing Helm functionality" "helm version --short"; then
         log_success "Helm version command works"
     else
         log_error "Helm version command failed"
@@ -471,7 +503,11 @@ validate_helm_installation() {
     fi
     
     log_step "3. Checking Helm repositories"
+    if is_verbose; then
+        log_debug "Getting Helm repository count"
+    fi
     local repo_count=$(helm repo list 2>/dev/null | tail -n +2 | wc -l)
+    repo_count=$(echo "$repo_count" | tr -d '[:space:]')
     if [[ $repo_count -gt 0 ]]; then
         log_success "Helm has $repo_count repositories configured"
     else
@@ -479,11 +515,10 @@ validate_helm_installation() {
     fi
     
     log_step "4. Testing repository access"
-    if helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 && \
-       helm repo update >/dev/null 2>&1; then
+    if execute_with_progress "Testing Helm repository access" "Adding and updating Helm repository" "helm repo add bitnami https://charts.bitnami.com/bitnami && helm repo update"; then
         log_success "Helm can access remote repositories"
         # Clean up test repository
-        helm repo remove bitnami >/dev/null 2>&1 || true
+        execute_silent "Cleaning up test repository" "helm repo remove bitnami || true"
     else
         log_warning "Cannot access remote repositories (may require proxy configuration)"
     fi
@@ -501,7 +536,7 @@ validate_kubernetes_cluster() {
     local validation_passed=true
     
     log_step "1. Checking cluster API server connectivity"
-    if kubectl cluster-info >/dev/null 2>&1; then
+    if execute_controlled "Checking cluster API server" "kubectl cluster-info"; then
         log_success "Kubernetes API server is accessible"
     else
         log_error "Cannot connect to Kubernetes API server"
@@ -509,8 +544,15 @@ validate_kubernetes_cluster() {
     fi
     
     log_step "2. Checking node status"
-    local ready_nodes=$(kubectl get nodes --no-headers | grep -c " Ready ")
-    local total_nodes=$(kubectl get nodes --no-headers | wc -l)
+    if is_verbose; then
+        log_debug "Getting node status information"
+    fi
+    local ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c " Ready ")
+    local total_nodes=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
+    
+    # Clean up whitespace from wc output
+    ready_nodes=$(echo "$ready_nodes" | tr -d '[:space:]')
+    total_nodes=$(echo "$total_nodes" | tr -d '[:space:]')
     
     if [[ $ready_nodes -eq $total_nodes && $ready_nodes -gt 0 ]]; then
         log_success "All $total_nodes nodes are ready"
