@@ -7,7 +7,7 @@ dockrInst() {
     log_component_start "docker" "Installing Docker container runtime"
     
     # Pre-installation validation
-    log_step "1" "Validating system requirements for Docker"
+    log_step "1 Validating system requirements for Docker"
     
     # Check if running as root or with sudo
     if [[ $EUID -ne 0 ]]; then
@@ -35,7 +35,7 @@ dockrInst() {
     fi
     
     # Step 2: Install prerequisites
-    log_step "2" "Installing Docker prerequisites and dependencies"
+    log_step "2 Installing Docker prerequisites and dependencies"
     
     if ! apt_update_controlled; then
         log_error "Failed to update package list"
@@ -56,8 +56,8 @@ dockrInst() {
     log_success "Prerequisites installed successfully"
     
     # Step 3: Add Docker repository
-    log_step "3" "Adding Docker official repository"
-    
+    log_step "3 Adding Docker official repository"
+
     if ! execute_controlled "Creating keyrings directory" "install -m 0755 -d /etc/apt/keyrings"; then
         log_error "Failed to create keyrings directory"
         return 1
@@ -90,7 +90,7 @@ dockrInst() {
     log_success "Docker repository added successfully"
     
     # Step 4: Install Docker Engine
-    log_step "4" "Installing Docker Engine and components"
+    log_step "4 Installing Docker Engine and components"
     
     local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
     
@@ -102,18 +102,18 @@ dockrInst() {
     log_success "Docker Engine installed successfully"
     
     # Step 5: Configure Docker daemon
-    log_step "5" "Configuring Docker daemon for Kubernetes compatibility"
+    log_step "5 Configuring Docker daemon for Kubernetes compatibility"
     
     configure_docker_daemon || return 1
     
     # Step 6: Configure and start services
-    log_step "6" "Starting and enabling Docker services"
-    
+    log_step "6 Starting and enabling Docker services"
+
     configure_docker_services || return 1
     
     # Step 7: Set up user permissions (if not root)
     if [[ -n "$SUDO_USER" ]]; then
-        log_step "7" "Configuring user permissions for Docker"
+        log_step "7 Configuring user permissions for Docker"
         log_substep "Adding user $SUDO_USER to docker group"
         
         if ! usermod -aG docker "$SUDO_USER"; then
@@ -125,8 +125,8 @@ dockrInst() {
     fi
     
     # Step 8: Post-installation validation
-    log_step "8" "Validating Docker installation"
-    
+    log_step "8 Validating Docker installation"
+
     if validate_docker_installation 30; then
         complete_component "docker" "Docker installation completed and validated"
     else
