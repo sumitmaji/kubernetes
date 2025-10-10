@@ -179,7 +179,7 @@ resetCmd() {
     
     # Post-reset handling
     if [[ $reset_result -eq 0 ]]; then
-        complete_component "$component"
+        complete_component "$component" "Reset completed successfully"
         post_reset_cleanup "$component"
         log_component_success "$component" "Reset completed successfully"
     else
