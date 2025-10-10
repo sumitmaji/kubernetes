@@ -146,7 +146,7 @@ update_system() {
         log_info "Force update requested - clearing cache"
     fi
     
-    if [[ "$verbose_mode" == "true" ]] || [[ "${GOK_VERBOSE:-false}" == "true" ]]; then
+    if is_verbose; then
         log_info "Running system update in verbose mode"
         if ! run_system_update_verbose; then
             log_error "System update failed"

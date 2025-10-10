@@ -11,6 +11,24 @@ resetCmd() {
         return 1
     fi
     
+    # Parse verbose flags
+    shift  # Remove component name
+    local verbose_flag=""
+    for arg in "$@"; do
+        case "$arg" in
+            --verbose|-v)
+                verbose_flag="--verbose"
+                export GOK_VERBOSE="true"
+                log_info "Verbose logging enabled for reset operation"
+                ;;
+        esac
+    done
+    
+    # Initialize verbosity for this reset operation
+    if [[ -n "$verbose_flag" ]]; then
+        set_verbosity_level "verbose"
+    fi
+    
     log_header "Component Reset" "Uninstalling: $component"
     
     # Confirmation prompt for destructive operations
@@ -172,7 +190,10 @@ resetCmd() {
 show_reset_help() {
     echo "gok reset - Reset and uninstall Kubernetes components"
     echo ""
-    echo "Usage: gok reset <component>"
+    echo "Usage: gok reset <component> [--verbose|-v]"
+    echo ""
+    echo "Options:"
+    echo "  --verbose, -v      Show detailed cleanup output and system logs"
     echo ""
     echo "WARNING: This operation will permanently remove the component and its data!"
     echo ""
@@ -326,16 +347,10 @@ cleanup_kubernetes_files() {
     local services=("kubelet" "kube-proxy" "kube-scheduler" "kube-controller-manager" "kube-apiserver" "etcd" "docker" "containerd" "cri-o" "flanneld" "calico-node" "cilium")
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service" 2>/dev/null; then
-            if [[ "$is_verbose" == "true" ]]; then
-                log_substep "Stopping $service service"
-            fi
-            systemctl stop "$service" 2>/dev/null || log_warning "Failed to stop $service"
+            systemctl_controlled "stop" "$service" "Stopping $service service"
         fi
         if systemctl is-enabled --quiet "$service" 2>/dev/null; then
-            if [[ "$is_verbose" == "true" ]]; then
-                log_substep "Disabling $service service"
-            fi
-            systemctl disable "$service" 2>/dev/null || log_warning "Failed to disable $service"
+            systemctl_controlled "disable" "$service" "Disabling $service service"
         fi
     done
 
@@ -343,10 +358,7 @@ cleanup_kubernetes_files() {
     log_info "Removing Kubernetes directories..."
     for dir in "${k8s_dirs[@]}"; do
         if [ -d "$dir" ]; then
-            if [[ "$is_verbose" == "true" ]]; then
-                log_substep "Removing directory: $dir"
-            fi
-            rm -rf "$dir" 2>/dev/null || log_warning "Failed to remove $dir"
+            execute_controlled "Removing Kubernetes directory $dir" "rm -rf \"$dir\""
         fi
     done
 
@@ -527,19 +539,13 @@ cleanup_docker_files() {
     # Stop Docker daemon first
     if command -v docker >/dev/null 2>&1; then
         if systemctl is-active --quiet docker; then
-            log_substep "Stopping Docker daemon"
-            systemctl stop docker 2>/dev/null || true
+            systemctl_controlled "stop" "docker" "Stopping Docker daemon"
         fi
         
-        log_substep "Stopping and removing all containers"
-        docker stop $(docker ps -aq) 2>/dev/null || true
-        docker rm $(docker ps -aq) 2>/dev/null || true
-        
-        log_substep "Removing all images"
-        docker rmi $(docker images -q) 2>/dev/null || true
-        
-        log_substep "Pruning Docker system"
-        docker system prune -af 2>/dev/null || true
+        execute_controlled "Stopping all Docker containers" "docker stop \$(docker ps -aq) 2>/dev/null || true"
+        execute_controlled "Removing all Docker containers" "docker rm \$(docker ps -aq) 2>/dev/null || true"
+        execute_controlled "Removing all Docker images" "docker rmi \$(docker images -q) 2>/dev/null || true"
+        execute_controlled "Pruning Docker system" "docker system prune -af"
     fi
     
     # Remove Docker data subdirectories but preserve structure
@@ -555,21 +561,20 @@ cleanup_docker_files() {
     
     for dir in "${docker_data_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
-            log_substep "Removing $dir"
-            rm -rf "$dir" 2>/dev/null || true
+            execute_controlled "Removing Docker directory $dir" "rm -rf \"$dir\""
         fi
     done
     
     # Recreate essential directories
-    log_substep "Recreating essential Docker directories"
-    mkdir -p /var/lib/docker/tmp 2>/dev/null || true
-    mkdir -p /var/lib/docker/containers 2>/dev/null || true
-    mkdir -p /var/lib/docker/image 2>/dev/null || true
+    log_verbose "Recreating essential Docker directories"
+    execute_controlled "Creating Docker tmp directory" "mkdir -p /var/lib/docker/tmp"
+    execute_controlled "Creating Docker containers directory" "mkdir -p /var/lib/docker/containers"
+    execute_controlled "Creating Docker image directory" "mkdir -p /var/lib/docker/image"
     
     # Set proper permissions
-    chown root:root /var/lib/docker 2>/dev/null || true
-    chmod 755 /var/lib/docker 2>/dev/null || true
-    chmod 1777 /var/lib/docker/tmp 2>/dev/null || true
+    execute_controlled "Setting Docker directory ownership" "chown root:root /var/lib/docker"
+    execute_controlled "Setting Docker directory permissions" "chmod 755 /var/lib/docker"
+    execute_controlled "Setting Docker tmp permissions" "chmod 1777 /var/lib/docker/tmp"
     
     # Remove configuration directories
     local config_dirs=(
@@ -578,8 +583,7 @@ cleanup_docker_files() {
     
     for dir in "${config_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
-            log_substep "Removing $dir"
-            rm -rf "$dir" 2>/dev/null || true
+            execute_controlled "Removing Docker config directory $dir" "rm -rf \"$dir\""
         fi
     done
 }

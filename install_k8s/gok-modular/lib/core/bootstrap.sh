@@ -72,6 +72,7 @@ load_core_modules() {
 load_utility_modules() {
     local util_modules=(
         "logging"
+        "verbosity"
         "helm"
         "kubectl"
         "tracking"

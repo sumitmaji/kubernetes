@@ -36,14 +36,13 @@ dockrInst() {
     
     # Step 2: Install prerequisites
     log_step "2" "Installing Docker prerequisites and dependencies"
-    log_substep "Installing required packages"
     
-    if ! apt-get update; then
+    if ! apt_update_controlled; then
         log_error "Failed to update package list"
         return 1
     fi
     
-    if ! apt-get install -y \
+    if ! apt_install_controlled \
         apt-transport-https \
         ca-certificates \
         curl \
@@ -59,24 +58,22 @@ dockrInst() {
     # Step 3: Add Docker repository
     log_step "3" "Adding Docker official repository"
     
-    log_substep "Creating keyrings directory"
-    if ! install -m 0755 -d /etc/apt/keyrings; then
+    if ! execute_controlled "Creating keyrings directory" "install -m 0755 -d /etc/apt/keyrings"; then
         log_error "Failed to create keyrings directory"
         return 1
     fi
     
-    log_substep "Adding Docker GPG key"
-    if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc; then
+    if ! execute_controlled "Adding Docker GPG key" "curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc"; then
         log_error "Failed to download Docker GPG key"
         return 1
     fi
     
-    if ! chmod a+r /etc/apt/keyrings/docker.asc; then
+    if ! execute_controlled "Setting GPG key permissions" "chmod a+r /etc/apt/keyrings/docker.asc"; then
         log_error "Failed to set permissions on Docker GPG key"
         return 1
     fi
     
-    log_substep "Adding Docker repository to sources"
+    log_verbose "Adding Docker repository to sources"
     if ! echo \
         "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
         $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
@@ -85,8 +82,7 @@ dockrInst() {
         return 1
     fi
     
-    log_substep "Updating package list with Docker repository"
-    if ! apt-get update; then
+    if ! apt_update_controlled; then
         log_error "Failed to update package list after adding Docker repository"
         return 1
     fi
@@ -97,9 +93,8 @@ dockrInst() {
     log_step "4" "Installing Docker Engine and components"
     
     local docker_packages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
-    log_substep "Installing: $docker_packages"
     
-    if ! apt-get install -y $docker_packages; then
+    if ! apt_install_controlled $docker_packages; then
         log_error "Failed to install Docker packages"
         return 1
     fi
@@ -608,13 +603,11 @@ haproxyInst() {
 
     # Stop and remove existing container
     if docker ps -q -f name=master-proxy | grep -q .; then
-        log_substep "Stopping existing HAProxy container"
-        docker stop master-proxy >/dev/null 2>&1 || log_warning "Failed to stop existing container"
+        execute_controlled "Stopping existing HAProxy container" "docker stop master-proxy"
     fi
     
     if docker ps -a -q -f name=master-proxy | grep -q .; then
-        log_substep "Removing existing HAProxy container"
-        docker rm master-proxy >/dev/null 2>&1 || log_warning "Failed to remove existing container"
+        execute_controlled "Removing existing HAProxy container" "docker rm master-proxy"
     fi
     
     # Remove existing configuration file
@@ -710,17 +703,7 @@ EOF
     # Step 4: Pull HAProxy image
     log_step "4 Pulling HAProxy Docker image"
     
-    # Start Docker pull in background and show spinner
-    docker pull haproxy:latest &
-    local pull_pid=$!
-    
-    show_spinner $pull_pid "Pulling HAProxy Docker image"
-    
-    # Wait for pull to complete and check result
-    wait $pull_pid
-    local pull_exit_code=$?
-    
-    if [[ $pull_exit_code -ne 0 ]]; then
+    if ! docker_pull_controlled "haproxy:latest"; then
         log_error "Failed to pull HAProxy Docker image"
         return 1
     fi
@@ -730,13 +713,12 @@ EOF
     # Step 5: Start HAProxy container
     log_step "5 Starting HAProxy container"
     
-    log_substep "Running HAProxy container with host networking"
-    
-    if ! docker run -d --name master-proxy \
+    if ! docker_run_controlled "Running HAProxy container with host networking" \
+        "-d --name master-proxy \
         --restart=unless-stopped \
         -v /opt/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
         --net=host \
-        haproxy:latest; then
+        haproxy:latest"; then
         log_error "Failed to start HAProxy container"
         return 1
     fi

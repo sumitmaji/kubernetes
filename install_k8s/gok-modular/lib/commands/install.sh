@@ -59,6 +59,11 @@ installCmd() {
     # Start component installation with enhanced logging
     start_component "$component" "Installing $component component"
     
+    # Initialize verbosity for this installation
+    if [[ -n "$verbose_flag" ]]; then
+        set_verbosity_level "verbose"
+    fi
+    
     # Run smart system updates with caching (with automatic fallback)
     if ! safe_update_system_with_cache $verbose_flag $update_flags; then
         fail_component "$component" "System update failed"
