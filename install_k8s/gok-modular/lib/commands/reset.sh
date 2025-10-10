@@ -304,7 +304,7 @@ post_reset_cleanup() {
 # Clean up Kubernetes files and directories
 cleanup_kubernetes_files() {
     local verbose_mode="$1"
-    local is_verbose=false
+    local is_verbose=false``
 
     if [[ "$verbose_mode" == "--verbose" ]] || [[ "$GOK_VERBOSE" == "true" ]]; then
         is_verbose=true
@@ -418,6 +418,7 @@ cleanup_kubernetes_files() {
             docker stop $(docker ps -aq) 2>/dev/null || true
             docker rm $(docker ps -aq) 2>/dev/null || true
             docker system prune -af 2>/dev/null || true
+            dockrReset
         fi
 
         # Clean containerd
