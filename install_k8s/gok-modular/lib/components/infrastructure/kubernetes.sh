@@ -724,7 +724,8 @@ EOF
 
         if [[ -n "$pod_output" ]]; then
             total_pods=$(echo "$pod_output" | wc -l)
-            ready_pods=$(echo "$pod_output" | grep -c "Running" || echo "0")
+            ready_pods=$(echo "$pod_output" | grep -c "Running" 2>/dev/null)
+            ready_pods=${ready_pods:-0}
         fi
 
         if [[ "$ready_pods" -gt 0 ]]; then
