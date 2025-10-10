@@ -405,7 +405,7 @@ EOF
     fi
 
     # Step 5: Kubernetes Components Installation
-    log_step "5" "Installing Kubernetes components"
+    log_step "5 Installing Kubernetes components"
 
     log_info "Installing kubectl, kubeadm, and kubelet..."
     local apt_install_output
@@ -439,7 +439,11 @@ EOF
     log_info "  kubelet: $kubelet_version"
 
     # Hold packages to prevent automatic updates
-    apt-mark hold kubelet kubeadm kubectl
+    if sudo apt-mark hold kubelet kubeadm kubectl >/dev/null 2>&1; then
+        log_info "Kubernetes packages held to prevent automatic updates"
+    else
+        log_warning "Failed to hold Kubernetes packages (kubelet, kubeadm, kubectl)"
+    fi
 
     # Step 6: Cluster Initialization (Master) or Worker Setup
     if [[ "$k8s_type" == "kubernetes" ]]; then
@@ -456,7 +460,7 @@ EOF
 initialize_kubernetes_master() {
     local verbose_mode="${1:-false}"
 
-    log_step "6" "Initializing Kubernetes master node"
+    log_step "6 Initializing Kubernetes master node"
 
     # Disable swap
     log_info "Disabling swap for Kubernetes..."
