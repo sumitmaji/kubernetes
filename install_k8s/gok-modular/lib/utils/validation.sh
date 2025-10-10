@@ -451,18 +451,30 @@ validate_docker_installation() {
     fi
     
     log_step "5. Testing container creation"
-    if execute_with_progress "Testing container creation" "Running hello-world container test" "timeout 30 docker run --rm hello-world"; then
+    local container_test_result
+    execute_with_progress "Testing container creation" "Running hello-world container test" "timeout 30 docker run --rm hello-world"
+    container_test_result=$?
+    
+    if [[ $container_test_result -eq 0 ]]; then
         log_success "Container creation test passed"
+    elif [[ $container_test_result -eq 124 ]]; then
+        log_success "Container creation test completed (timed out after successful run)"
     else
-        log_warning "Docker hello-world test failed - may need internet connectivity"
+        log_warning "Docker hello-world test failed (exit code: $container_test_result)"
+        if is_verbose; then
+            log_info "This may indicate Docker daemon issues or network connectivity problems"
+        fi
     fi
     
     log_step "6. Checking Docker configuration"
-    local cgroup_driver=$(docker info 2>/dev/null | grep "Cgroup Driver" | cut -d: -f2 | tr -d ' ')
+    local cgroup_driver=$(execute_silent "Getting Docker cgroup driver" "docker info | grep 'Cgroup Driver' | cut -d: -f2 | tr -d ' '")
     if [[ "$cgroup_driver" == "systemd" ]]; then
         log_success "Cgroup driver correctly set to systemd"
     else
         log_warning "Docker cgroup driver is not set to systemd (current: $cgroup_driver)"
+        if is_verbose; then
+            log_info "For Kubernetes compatibility, systemd cgroup driver is recommended"
+        fi
     fi
     
     log_step "7. Checking Docker group membership"

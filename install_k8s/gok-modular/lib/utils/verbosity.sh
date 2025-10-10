@@ -160,10 +160,17 @@ execute_controlled() {
     local command="$*"
     
     if is_verbose; then
-        # In verbose mode, show everything
+        # In verbose mode, show everything including the command being executed
         log_info "$description"
         log_debug "Executing: $command"
         eval "$command"
+        local exit_code=$?
+        
+        if [[ $exit_code -ne 0 ]]; then
+            log_error "Command failed with exit code: $exit_code"
+        fi
+        
+        return $exit_code
     else
         # In normal mode, suppress output unless error
         execute_silent "$description" "$command"
@@ -197,9 +204,39 @@ execute_with_progress() {
         log_debug "Executing: $command"
         eval "$command"
     else
-        # Show progress indicator
+        # Show progress indicator, but still capture output for error display
         log_info "$progress_message"
-        execute_silent "$description" "$command"
+        
+        local stdout_file="$GOK_TEMP_DIR/stdout_$$_$(date +%s%N)"
+        local stderr_file="$GOK_TEMP_DIR/stderr_$$_$(date +%s%N)"
+        local exit_code=0
+        
+        # Execute command with output capture
+        if eval "$command" >"$stdout_file" 2>"$stderr_file"; then
+            exit_code=0
+        else
+            exit_code=$?
+            
+            # Show error details even in non-verbose mode
+            log_error "Command failed: $description"
+            log_error "Command: $command"
+            log_error "Exit code: $exit_code"
+            
+            if [[ -s "$stderr_file" ]]; then
+                log_error "Error output:"
+                cat "$stderr_file" | sed 's/^/  /' >&2
+            fi
+            
+            if [[ -s "$stdout_file" ]]; then
+                log_error "Standard output:"
+                cat "$stdout_file" | sed 's/^/  /' >&2
+            fi
+        fi
+        
+        # Cleanup
+        rm -f "$stdout_file" "$stderr_file" 2>/dev/null
+        
+        return $exit_code
     fi
 }
 
