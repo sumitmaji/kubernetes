@@ -270,6 +270,31 @@ apt_install_controlled() {
     fi
 }
 
+apt_remove_controlled() {
+    local packages="$*"
+    local description="Removing packages: $packages"
+    
+    if is_verbose; then
+        log_info "$description"
+        apt-get remove --purge -y $packages
+    else
+        log_info "Removing packages: $packages"
+        execute_silent "$description" "apt-get remove --purge -y $packages"
+    fi
+}
+
+apt_autoremove_controlled() {
+    local description="Removing unused packages and dependencies"
+    
+    if is_verbose; then
+        log_info "$description"
+        apt-get autoremove -y
+    else
+        log_info "Cleaning up unused packages..."
+        execute_silent "$description" "apt-get autoremove -y"
+    fi
+}
+
 # Docker operations with verbosity control
 docker_pull_controlled() {
     local image="$1"
@@ -488,7 +513,7 @@ trap cleanup_verbosity_temp EXIT
 
 # Export key functions
 export -f execute_silent execute_controlled execute_verbose_only execute_debug_only
-export -f execute_with_progress apt_update_controlled apt_install_controlled
+export -f execute_with_progress apt_update_controlled apt_install_controlled apt_remove_controlled apt_autoremove_controlled
 export -f docker_pull_controlled docker_run_controlled kubectl_apply_controlled
 export -f systemctl_controlled log_verbose log_debug_verbose log_progress_controlled
 export -f show_spinner_background set_verbosity_level is_verbose is_debug

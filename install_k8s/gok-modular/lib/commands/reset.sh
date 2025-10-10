@@ -532,20 +532,78 @@ cleanup_kubernetes_files() {
     log_success "Kubernetes file cleanup completed"
 }
 
-# Clean up Docker files
+# Clean up Docker files and uninstall Docker packages
 cleanup_docker_files() {
-    log_info "Cleaning up Docker files..."
+    log_info "Cleaning up Docker installation and data..."
     
-    # Stop Docker daemon first
-    if command -v docker >/dev/null 2>&1; then
-        if systemctl is-active --quiet docker; then
-            systemctl_controlled "stop" "docker" "Stopping Docker daemon"
+    # Step 1: Stop Docker services
+    log_step "1" "Stopping Docker services"
+    local docker_services=("docker" "docker.socket" "containerd")
+    
+    for service in "${docker_services[@]}"; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            systemctl_controlled "stop" "$service" "Stopping $service service"
         fi
-        
+        if systemctl is-enabled --quiet "$service" 2>/dev/null; then
+            systemctl_controlled "disable" "$service" "Disabling $service service"
+        fi
+    done
+    
+    # Step 2: Clean up Docker containers and images (if Docker is still available)
+    log_step "2" "Cleaning up Docker containers and images"
+    if command -v docker >/dev/null 2>&1; then
         execute_controlled "Stopping all Docker containers" "docker stop \$(docker ps -aq) 2>/dev/null || true"
         execute_controlled "Removing all Docker containers" "docker rm \$(docker ps -aq) 2>/dev/null || true"
         execute_controlled "Removing all Docker images" "docker rmi \$(docker images -q) 2>/dev/null || true"
-        execute_controlled "Pruning Docker system" "docker system prune -af"
+        execute_controlled "Pruning Docker system" "docker system prune -af 2>/dev/null || true"
+    fi
+    
+    # Step 3: Uninstall Docker packages
+    log_step "3" "Uninstalling Docker packages"
+    local docker_packages=(
+        "docker-ce"
+        "docker-ce-cli"
+        "docker-buildx-plugin"
+        "docker-compose-plugin"
+        "containerd.io"
+        "docker.io"
+        "docker-doc"
+        "docker-compose"
+        "podman-docker"
+        "containerd"
+        "runc"
+    )
+    
+    # Remove packages that are installed
+    local packages_to_remove=""
+    for package in "${docker_packages[@]}"; do
+        if dpkg -l | grep -q "^ii.*$package "; then
+            packages_to_remove="$packages_to_remove $package"
+        fi
+    done
+    
+    if [[ -n "$packages_to_remove" ]]; then
+        log_verbose "Packages to remove:$packages_to_remove"
+        if apt_remove_controlled $packages_to_remove; then
+            log_success "Docker packages removed successfully"
+        else
+            log_warning "Some Docker packages may not have been removed completely"
+        fi
+    else
+        log_info "No Docker packages found to remove"
+    fi
+    
+    # Step 4: Remove Docker APT repository and keys
+    log_step "4" "Removing Docker repository and GPG keys"
+    execute_controlled "Removing Docker APT repository" "rm -f /etc/apt/sources.list.d/docker.list"
+    execute_controlled "Removing Docker GPG key" "rm -f /etc/apt/keyrings/docker.asc"
+    execute_controlled "Removing legacy Docker GPG key" "rm -f /usr/share/keyrings/docker-archive-keyring.gpg"
+    
+    # Update package cache after removing repository
+    if apt_update_controlled; then
+        log_success "Package cache updated after Docker repository removal"
+    else
+        log_warning "Failed to update package cache - continuing with cleanup"
     fi
     
     # Remove Docker data subdirectories but preserve structure
@@ -565,27 +623,59 @@ cleanup_docker_files() {
         fi
     done
     
-    # Recreate essential directories
-    log_verbose "Recreating essential Docker directories"
-    execute_controlled "Creating Docker tmp directory" "mkdir -p /var/lib/docker/tmp"
-    execute_controlled "Creating Docker containers directory" "mkdir -p /var/lib/docker/containers"
-    execute_controlled "Creating Docker image directory" "mkdir -p /var/lib/docker/image"
-    
-    # Set proper permissions
-    execute_controlled "Setting Docker directory ownership" "chown root:root /var/lib/docker"
-    execute_controlled "Setting Docker directory permissions" "chmod 755 /var/lib/docker"
-    execute_controlled "Setting Docker tmp permissions" "chmod 1777 /var/lib/docker/tmp"
-    
-    # Remove configuration directories
-    local config_dirs=(
+    # Step 5: Remove Docker data and configuration directories
+    log_step "5" "Removing Docker data and configuration directories"
+    local all_docker_dirs=(
+        "/var/lib/docker"
+        "/var/lib/containerd"
         "/etc/docker"
+        "/etc/containerd"
+        "/run/docker"
+        "/run/containerd"
+        "/opt/containerd"
     )
     
-    for dir in "${config_dirs[@]}"; do
+    for dir in "${all_docker_dirs[@]}"; do
         if [[ -d "$dir" ]]; then
-            execute_controlled "Removing Docker config directory $dir" "rm -rf \"$dir\""
+            execute_controlled "Removing Docker directory $dir" "rm -rf \"$dir\""
         fi
     done
+    
+    # Step 6: Remove Docker users and groups
+    log_step "6" "Cleaning up Docker users and groups"
+    if getent group docker >/dev/null 2>&1; then
+        execute_controlled "Removing docker group" "groupdel docker 2>/dev/null || true"
+    fi
+    
+    # Step 7: Remove systemd service files
+    log_step "7" "Removing Docker systemd service files"
+    local service_files=(
+        "/lib/systemd/system/docker.service"
+        "/lib/systemd/system/docker.socket"
+        "/lib/systemd/system/containerd.service"
+        "/etc/systemd/system/docker.service"
+        "/etc/systemd/system/docker.socket" 
+        "/etc/systemd/system/containerd.service"
+    )
+    
+    for service_file in "${service_files[@]}"; do
+        if [[ -f "$service_file" ]]; then
+            execute_controlled "Removing service file $service_file" "rm -f \"$service_file\""
+        fi
+    done
+    
+    # Reload systemd after removing service files
+    execute_controlled "Reloading systemd daemon" "systemctl daemon-reload"
+    
+    # Step 8: Clean up remaining packages and dependencies
+    log_step "8" "Cleaning up remaining dependencies"
+    if apt_autoremove_controlled; then
+        log_success "Unused packages cleaned up successfully"
+    else
+        log_warning "Failed to clean up all unused packages"
+    fi
+    
+    log_success "Docker uninstallation completed successfully"
 }
 
 # Clean up monitoring data
