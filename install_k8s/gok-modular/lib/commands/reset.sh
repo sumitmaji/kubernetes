@@ -39,7 +39,7 @@ resetCmd() {
     
     # Initialize component tracking
     init_component_tracking
-    start_component "$component" "Starting reset operation for "
+    start_component "$component" "Starting reset operation for $component"
     
     # Dispatch to appropriate reset function
     case "$component" in
