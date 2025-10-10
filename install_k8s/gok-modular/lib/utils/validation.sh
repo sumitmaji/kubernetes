@@ -1007,66 +1007,63 @@ validate_base_installation() {
 validate_ha_proxy_installation() {
     local verbose_flag="${1:-}"
     local validation_passed=true
-    
-    log_substep "Checking HA proxy container status"
-    
-    # Check if Docker is available for HA proxy
-    if ! command -v docker >/dev/null 2>&1; then
-        log_error "Docker not found - required for HA proxy container"
+
+    log_substep "Checking HAProxy container status"
+    if ! docker ps --format "table {{.Names}}\t{{.Status}}" | grep -q "master-proxy.*Up"; then
+        log_error "HAProxy container is not running"
+        docker logs master-proxy 2>&1 | tail -5 | while read line; do
+            log_error "Container log: $line"
+        done
         return 1
     fi
-    
-    # Check if HA proxy container exists and is running
-    local ha_container=$(docker ps --filter "name=master-proxy" --format "{{.Names}}" 2>/dev/null || true)
-    if [[ -z "$ha_container" ]]; then
-        # Check if container exists but is stopped
-        local ha_container_stopped=$(docker ps -a --filter "name=master-proxy" --format "{{.Names}}" 2>/dev/null || true)
-        if [[ -n "$ha_container_stopped" ]]; then
-            log_error "HA proxy container 'master-proxy' exists but is not running"
-            if [[ "$verbose_flag" == "true" ]]; then
-                log_info "Container status:"
-                docker ps -a --filter "name=master-proxy" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
-            fi
-            validation_passed=false
-        else
-            log_error "HA proxy container 'master-proxy' not found"
-            validation_passed=false
-        fi
-    else
-        log_success "HA proxy container 'master-proxy' is running"
-        
-        if [[ "$verbose_flag" == "true" ]]; then
-            log_info "HA proxy container details:"
-            docker ps --filter "name=master-proxy" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
-        fi
-    fi
-    
-    # Check if HA proxy port is accessible
+
+    log_substep "Checking HAProxy port binding"
     local ha_port="${HA_PROXY_PORT:-6643}"
-    local ha_host="${HA_PROXY_HOSTNAME:-localhost}"
-    
-    log_substep "Testing HA proxy connectivity on ${ha_host}:${ha_port}"
-    
-    # Test port connectivity
-    if command -v nc >/dev/null 2>&1; then
-        if nc -z "$ha_host" "$ha_port" 2>/dev/null; then
-            log_success "HA proxy port ${ha_port} is accessible"
+    if ! netstat -tlnp 2>/dev/null | grep -q ":$ha_port.*LISTEN" && ! ss -tlnp 2>/dev/null | grep -q ":$ha_port.*LISTEN"; then
+        log_error "HAProxy is not listening on port $ha_port"
+        return 1
+    fi
+
+    log_substep "Testing HAProxy configuration"
+    if ! docker exec master-proxy haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg >/dev/null 2>&1; then
+        log_error "HAProxy configuration validation failed"
+        return 1
+    fi
+
+    log_substep "Checking backend server connectivity"
+    local healthy_backends=0
+    local total_backends=0
+
+    # Check if API_SERVERS is defined
+    if [[ -n "${API_SERVERS:-}" ]]; then
+        IFS=','
+        for worker in $API_SERVERS; do
+            oifs=$IFS
+            IFS=':'
+            read -r ip node <<<"$worker"
+            total_backends=$((total_backends + 1))
+
+            if timeout 5 nc -z "$ip" 6443 2>/dev/null; then
+                log_substep "  Backend $node ($ip:6443): ${EMOJI_SUCCESS:-✓} Reachable"
+                healthy_backends=$((healthy_backends + 1))
+            else
+                log_substep "  Backend $node ($ip:6443): ${EMOJI_WARNING:-⚠} Not reachable (may not be ready yet)"
+            fi
+            IFS=$oifs
+        done
+        unset IFS
+
+        if [[ $healthy_backends -eq 0 ]]; then
+            log_warning "No backend servers are currently reachable"
+            log_info "This is normal if Kubernetes masters are not yet installed"
         else
-            log_error "HA proxy port ${ha_port} is not accessible on ${ha_host}"
-            validation_passed=false
-        fi
-    elif command -v telnet >/dev/null 2>&1; then
-        if timeout 5 bash -c "</dev/tcp/${ha_host}/${ha_port}" 2>/dev/null; then
-            log_success "HA proxy port ${ha_port} is accessible"
-        else
-            log_error "HA proxy port ${ha_port} is not accessible on ${ha_host}"
-            validation_passed=false
+            log_success "$healthy_backends out of $total_backends backend servers are reachable"
         fi
     else
-        log_warning "Cannot test port connectivity (nc/telnet not available)"
+        log_info "API_SERVERS not configured - skipping backend connectivity checks"
     fi
-    
-    return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+
+    return 0
 }
 
 # =============================================================================
