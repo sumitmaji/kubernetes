@@ -160,7 +160,7 @@ k8sInst() {
     log_component_start "kubernetes" "Installing Kubernetes $k8s_type"
 
     # Step 1: System Prerequisites and Kernel Modules
-    log_step "1" "Configuring system prerequisites and kernel modules"
+    log_step "1 Configuring system prerequisites and kernel modules"
 
     if ! validate_system_requirements; then
         log_error "System requirements validation failed"
@@ -198,7 +198,7 @@ EOF
     log_success "Kernel modules configured for persistence"
 
     # Step 2: Network Configuration
-    log_step "2" "Configuring network settings for Kubernetes"
+    log_step "2 Configuring network settings for Kubernetes"
 
     log_info "Setting up network bridge configurations..."
     sudo tee /etc/sysctl.d/kubernetes.conf <<EOF >/dev/null
@@ -229,7 +229,7 @@ EOF
     fi
 
     # Step 3: Container Runtime Configuration
-    log_step "3" "Configuring containerd container runtime"
+    log_step "3 Configuring containerd container runtime"
 
     log_info "Setting up containerd configuration..."
     sudo mkdir -p /etc/containerd
@@ -306,13 +306,25 @@ EOF
     fi
 
     # Step 4: Kubernetes Repository Setup
-    log_step "4" "Setting up Kubernetes package repository"
+    log_step "4 Setting up Kubernetes package repository"
+
+    # Clean up old Kubernetes repositories first
+    log_info "Cleaning up old Kubernetes repositories..."
+    sudo rm -f /etc/apt/sources.list.d/kubernetes.list
+    sudo rm -f /etc/apt/sources.list.d/kubernetes-xenial.list
+    sudo rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    sudo rm -f /usr/share/keyrings/kubernetes-apt-keyring.gpg
+
+    # Remove any old Google repository references
+    if grep -q "packages.cloud.google.com" /etc/apt/sources.list 2>/dev/null; then
+        sudo sed -i '/packages.cloud.google.com/d' /etc/apt/sources.list
+    fi
 
     log_info "Installing required packages..."
     local repo_packages_output
     if [[ "$verbose_mode" == "true" ]]; then
-        log_debug "Executing: sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl"
-        if repo_packages_output=$(sudo apt-get update 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
+        log_debug "Executing: sudo apt-get install -y apt-transport-https ca-certificates curl"
+        if repo_packages_output=$(sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
             log_success "Required packages installed"
             log_debug "$repo_packages_output"
         else
@@ -321,7 +333,7 @@ EOF
             return 1
         fi
     else
-        if repo_packages_output=$(sudo apt-get update 2>&1 && sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
+        if repo_packages_output=$(sudo apt-get install -y apt-transport-https ca-certificates curl 2>&1); then
             log_success "Required packages installed"
         else
             log_error "Failed to install required packages"
@@ -369,10 +381,8 @@ EOF
     sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
     log_success "Kubernetes repository added"
 
-    # Step 5: Kubernetes Components Installation
-    log_step "5" "Installing Kubernetes components"
-
-    log_info "Updating package lists..."
+    # Now update package lists with the new repository
+    log_info "Updating package lists with new repository..."
     local apt_update_output
     if [[ "$verbose_mode" == "true" ]]; then
         log_debug "Executing: sudo apt-get update"
@@ -393,6 +403,9 @@ EOF
             return 1
         fi
     fi
+
+    # Step 5: Kubernetes Components Installation
+    log_step "5" "Installing Kubernetes components"
 
     log_info "Installing kubectl, kubeadm, and kubelet..."
     local apt_install_output
