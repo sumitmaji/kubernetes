@@ -434,8 +434,26 @@ cleanup_kubernetes_files() {
             if [[ "$is_verbose" == "true" ]]; then
                 log_substep "Cleaning CRI-O containers and images"
             fi
+            
+            # Create temporary crictl config to suppress warnings
+            local crictl_config_created=false
+            if [[ ! -f /etc/crictl.yaml ]]; then
+                sudo tee /etc/crictl.yaml > /dev/null <<EOF
+runtime-endpoint: unix:///run/crio/crio.sock
+image-endpoint: unix:///run/crio/crio.sock
+timeout: 10
+debug: false
+EOF
+                crictl_config_created=true
+            fi
+            
             crictl rm $(crictl ps -aq) 2>/dev/null || true
             crictl rmi $(crictl images -q) 2>/dev/null || true
+            
+            # Clean up temporary config if we created it
+            if [[ "$crictl_config_created" == "true" ]]; then
+                sudo rm -f /etc/crictl.yaml
+            fi
         fi
 
         # Clean container directories
