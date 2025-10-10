@@ -470,10 +470,19 @@ initialize_kubernetes_master() {
 
     # Enable kubelet service
     log_info "Enabling kubelet service..."
-    if sudo systemctl enable kubelet >/dev/null 2>&1; then
+    local kubelet_enable_output
+    if kubelet_enable_output=$(sudo systemctl enable kubelet 2>&1); then
         log_success "Kubelet service enabled"
+        if [[ "$verbose_mode" == "true" ]] && [[ -n "$kubelet_enable_output" ]]; then
+            log_debug "$kubelet_enable_output"
+        fi
     else
         log_warning "Kubelet service enable may have failed"
+        if [[ "$verbose_mode" == "true" ]] || [[ -n "$kubelet_enable_output" ]]; then
+            log_info "Kubelet enable output:"
+            log_info "$kubelet_enable_output"
+            log_info "You can check system logs with: sudo journalctl -xeu kubelet"
+        fi
     fi
 
     # Pull container images
