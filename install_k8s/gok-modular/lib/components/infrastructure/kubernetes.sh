@@ -562,6 +562,16 @@ haproxyInst() {
         log_info "Please configure API_SERVERS with comma-separated list of master nodes (format: ip1:hostname1,ip2:hostname2)"
         return 1
     fi
+
+    # Validate API_SERVERS format and count
+    local server_count=$(echo "$API_SERVERS" | tr ',' '\n' | wc -l)
+    if [[ $server_count -lt 2 ]]; then
+        log_warning "Only $server_count API server configured - HA proxy is recommended for 2+ servers"
+        log_info "Current API_SERVERS: $API_SERVERS"
+    else
+        log_success "Multiple API servers detected ($server_count servers) - HA setup recommended"
+        log_info "API servers: $API_SERVERS"
+    fi
     
     # Check if HA_PROXY_PORT is configured
     if [[ -z "$HA_PROXY_PORT" ]]; then
