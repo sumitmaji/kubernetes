@@ -468,27 +468,44 @@ initialize_kubernetes_master() {
     sudo swapoff -a
     log_success "Swap disabled successfully"
 
-    # Check and enable kubelet service (if service file exists)
-    log_info "Checking kubelet service..."
-    if systemctl list-unit-files kubelet.service >/dev/null 2>&1; then
-        log_info "Enabling kubelet service..."
-        local kubelet_enable_output
-        if kubelet_enable_output=$(sudo systemctl enable kubelet 2>&1); then
-            log_success "Kubelet service enabled"
-            if [[ "$verbose_mode" == "true" ]] && [[ -n "$kubelet_enable_output" ]]; then
-                log_debug "$kubelet_enable_output"
-            fi
-            if [[ "$verbose_mode" == "true" ]]; then
-                log_debug "Showing recent kubelet logs:"
-                sudo journalctl -u kubelet --no-pager -n 20
-            fi
-        else
-            log_warning "Kubelet service enable failed: $kubelet_enable_output"
-            log_info "Showing recent kubelet logs for troubleshooting:"
-            sudo journalctl -u kubelet --no-pager -n 20
+    # Create kubelet service file (required for modern Kubernetes)
+    log_info "Setting up kubelet systemd service..."
+    if ! systemctl list-unit-files kubelet.service >/dev/null 2>&1; then
+        log_substep "Creating base kubelet.service file (missing from kubelet package)"
+        
+        # Create the base kubelet.service file that should have been provided by the package
+        sudo tee /lib/systemd/system/kubelet.service > /dev/null << 'EOF'
+[Unit]
+Description=kubelet: The Kubernetes Node Agent
+Documentation=https://kubernetes.io/docs/home/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/kubelet
+Restart=always
+StartLimitInterval=0
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        
+        # Reload systemd to recognize the new service
+        sudo systemctl daemon-reload
+        log_success "Base kubelet.service file created"
+    fi
+    
+    # Now enable the kubelet service
+    log_info "Enabling kubelet service..."
+    local kubelet_enable_output
+    if kubelet_enable_output=$(sudo systemctl enable kubelet 2>&1); then
+        log_success "Kubelet service enabled"
+        if [[ "$verbose_mode" == "true" ]] && [[ -n "$kubelet_enable_output" ]]; then
+            log_debug "$kubelet_enable_output"
         fi
     else
-        log_info "Kubelet service file not found - will be created during cluster initialization"
+        log_warning "Kubelet service enable failed: $kubelet_enable_output"
     fi
 
     # Pull container images
@@ -695,17 +712,40 @@ setup_kubernetes_worker() {
     sudo swapoff -a
     log_success "Swap disabled successfully"
 
-    # Check and enable kubelet service (if service file exists)
-    log_info "Checking kubelet service..."
-    if systemctl list-unit-files kubelet.service >/dev/null 2>&1; then
-        log_info "Enabling kubelet service..."
-        if sudo systemctl enable kubelet >/dev/null 2>&1; then
-            log_success "Kubelet service enabled"
-        else
-            log_warning "Kubelet service enable failed"
-        fi
+    # Create kubelet service file (required for modern Kubernetes)
+    log_info "Setting up kubelet systemd service..."
+    if ! systemctl list-unit-files kubelet.service >/dev/null 2>&1; then
+        log_substep "Creating base kubelet.service file (missing from kubelet package)"
+        
+        # Create the base kubelet.service file
+        sudo tee /lib/systemd/system/kubelet.service > /dev/null << 'EOF'
+[Unit]
+Description=kubelet: The Kubernetes Node Agent
+Documentation=https://kubernetes.io/docs/home/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/kubelet
+Restart=always
+StartLimitInterval=0
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        
+        # Reload systemd to recognize the new service
+        sudo systemctl daemon-reload
+        log_success "Base kubelet.service file created"
+    fi
+    
+    # Now enable the kubelet service
+    log_info "Enabling kubelet service..."
+    if sudo systemctl enable kubelet >/dev/null 2>&1; then
+        log_success "Kubelet service enabled"
     else
-        log_info "Kubelet service file not found - will be created when joining cluster"
+        log_warning "Kubelet service enable failed"
     fi
 
     log_component_success "kubernetes-worker" "Kubernetes worker setup completed"
