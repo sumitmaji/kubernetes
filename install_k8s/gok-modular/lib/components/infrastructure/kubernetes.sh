@@ -1120,7 +1120,7 @@ calicoInst() {
 
 # NGINX Ingress Controller installation
 ingressInst() {
-    log_component_start "ingress" "Installing NGINX Ingress Controller"
+    # log_component_start "ingress" "Installing NGINX Ingress Controller"
     
     if ! command -v helm >/dev/null 2>&1; then
         log_error "Helm is required before installing Ingress Controller"
