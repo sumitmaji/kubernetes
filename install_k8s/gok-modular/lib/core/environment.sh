@@ -152,8 +152,8 @@ validate_environment() {
 # Set default environment values if not provided
 set_default_environment() {
     # Set defaults for common variables
-    : ${ROOT_DOMAIN:="example.com"}
-    : ${DEFAULT_SUBDOMAIN:="www"}
+    : ${ROOT_DOMAIN:="gokcloud.com"}
+    : ${DEFAULT_SUBDOMAIN:="kube"}
     : ${REGISTRY_SUBDOMAIN:="registry"}
     : ${KEYCLOAK_SUBDOMAIN:="keycloak"}
     : ${ARGOCD_SUBDOMAIN:="argocd"}
