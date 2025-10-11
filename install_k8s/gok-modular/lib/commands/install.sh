@@ -86,11 +86,11 @@ installCmd() {
         # Infrastructure components with validation
         "docker")
             if dockrInst; then
-                # Show comprehensive installation summary
-                show_component_summary "docker"
-
-                # Show next steps
-                show_component_next_steps "docker"
+                if validate_component_installation "docker" 60; then
+                    complete_component "docker" "Docker installation completed and validated"
+                else
+                    complete_component "docker" "Docker installed but validation had warnings"
+                fi
             else
                 fail_component "docker" "Docker installation failed"
                 return 1
@@ -101,7 +101,6 @@ installCmd() {
             if helmInst; then
                 if validate_component_installation "helm" 60; then
                     complete_component "helm" "Helm installation completed and validated"
-                    show_component_next_steps "helm"
                 else
                     complete_component "helm" "Helm installed but validation had warnings"
                 fi
@@ -115,10 +114,8 @@ installCmd() {
             if certManagerInst && setupCertiIssuers; then
                 if validate_component_installation "cert-manager" 300; then
                     complete_component "cert-manager" "Cert-manager installation completed and validated"
-                    suggest_and_install_next_module "cert-manager"
                 else
                     complete_component "cert-manager" "Cert-manager installed but validation had warnings"
-                    suggest_and_install_next_module "cert-manager"
                 fi
             else
                 fail_component "cert-manager" "Cert-manager installation failed"
@@ -130,7 +127,6 @@ installCmd() {
             if installPrometheusGrafanaWithCertMgr; then
                 if validate_component_installation "monitoring" 600; then
                     complete_component "monitoring" "Monitoring stack installation completed and validated"
-                    show_component_next_steps "monitoring"
                 else
                     complete_component "monitoring" "Monitoring stack installed but validation had warnings"
                 fi
@@ -144,7 +140,6 @@ installCmd() {
             if argocdInst; then
                 if validate_component_installation "argocd" 300; then
                     complete_component "argocd" "ArgoCD installation completed and validated"
-                    show_component_next_steps "argocd"
                 else
                     complete_component "argocd" "ArgoCD installed but validation had warnings"
                 fi
@@ -158,7 +153,6 @@ installCmd() {
             if gokAgentInstall; then
                 if validate_component_installation "gok-agent" 180; then
                     complete_component "gok-agent" "GOK Agent installation completed and validated"
-                    show_component_next_steps "gok-agent"
                 else
                     complete_component "gok-agent" "GOK Agent installed but validation had warnings"
                 fi
@@ -172,7 +166,6 @@ installCmd() {
             if gokControllerInstall; then
                 if validate_component_installation "gok-controller" 180; then
                     complete_component "gok-controller" "GOK Controller installation completed and validated"
-                    show_component_next_steps "gok-controller"
                 else
                     complete_component "gok-controller" "GOK Controller installed but validation had warnings"
                 fi
@@ -467,7 +460,8 @@ installCmd() {
     if [[ $install_result -eq 0 ]]; then
         # Only complete if not already completed in the case statement
         if ! is_component_completed "$component"; then
-            complete_component "$component"
+            # complete_component is present after sucessful installation
+            # complete_component "$component"
             post_install_actions "$component"
             log_component_success "$component"
             # Map component to namespace
@@ -669,9 +663,10 @@ post_install_actions() {
     log_info "Running post-installation actions for $component..."
     
     # Validate installation
-    if ! validate_component_installation "$component"; then
-        log_warning "Post-installation validation failed for $component"
-    fi
+    # valation is now done in after successful installation 
+    # if ! validate_component_installation "$component"; then
+    #     log_warning "Post-installation validation failed for $component"
+    # fi
     
     # Update installation tracking
     echo "$component:$(date +%s)" >> "${GOK_CACHE_DIR}/installed_components"
@@ -815,10 +810,11 @@ provide_component_troubleshooting() {
 }
 
 # Log component success
-log_component_success() {
-    local component="$1"
-    log_success "✅ $component installation completed successfully"
-}
+# Using comprehensive version declared in logging.sh
+# log_component_success() {
+#     local component="$1"
+#     log_success "✅ $component installation completed successfully"
+# }
 
 # Log component error
 log_component_error() {
