@@ -22,7 +22,7 @@ _gok_new_completion() {
     local main_commands="
         install reset start deploy patch create generate status
         desc describe logs bash shell exec remote completion
-        cache show taint-node checkDns checkCurl help
+        cache show taint-node checkDns checkCurl debug troubleshoot help
     "
 
     # Infrastructure components
@@ -165,6 +165,16 @@ _gok_new_completion() {
                         COMPREPLY=($(compgen -W "$nodes" -- "$cur"))
                     fi
                     ;;
+                "debug"|"troubleshoot")
+                    local debug_commands="
+                        init setup context ctx namespace ns shell bash exec logs log tail
+                        describe desc watch resources top pods pod services svc forward
+                        pf port-forward network net ingress ing decode secret cert certificate
+                        config cfg cluster status health troubleshoot fix performance perf
+                        dashboard dash summary overview events utils utilities aliases help
+                    "
+                    COMPREPLY=($(compgen -W "$debug_commands" -- "$cur"))
+                    ;;
                 "help")
                     COMPREPLY=($(compgen -W "$main_commands" -- "$cur"))
                     ;;
@@ -282,6 +292,49 @@ _gok_new_completion() {
                         "
                         COMPREPLY=($(compgen -W "$common_commands" -- "$cur"))
                     fi
+                    ;;
+                "debug"|"troubleshoot")
+                    case "${words[2]}" in
+                        "init")
+                            COMPREPLY=($(compgen -W "--force --verbose --check" -- "$cur"))
+                            ;;
+                        "shell"|"bash")
+                            # Complete with pod names if kubectl is available
+                            if command -v kubectl >/dev/null 2>&1; then
+                                local pods=$(kubectl get pods -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+                                COMPREPLY=($(compgen -W "$pods" -- "$cur"))
+                            fi
+                            ;;
+                        "logs"|"tail"|"watch")
+                            # Complete with pod names
+                            if command -v kubectl >/dev/null 2>&1; then
+                                local pods=$(kubectl get pods -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+                                COMPREPLY=($(compgen -W "$pods" -- "$cur"))
+                            fi
+                            ;;
+                        "desc"|"describe")
+                            COMPREPLY=($(compgen -W "pod service deployment node pv pvc configmap secret ingress" -- "$cur"))
+                            ;;
+                        "decode")
+                            # Complete with secret names
+                            if command -v kubectl >/dev/null 2>&1; then
+                                local secrets=$(kubectl get secrets -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+                                COMPREPLY=($(compgen -W "$secrets" -- "$cur"))
+                            fi
+                            ;;
+                        "network")
+                            COMPREPLY=($(compgen -W "--test --trace --verbose" -- "$cur"))
+                            ;;
+                        "performance")
+                            COMPREPLY=($(compgen -W "--cpu --memory --disk --network" -- "$cur"))
+                            ;;
+                        "context"|"current")
+                            if command -v kubectl >/dev/null 2>&1; then
+                                local contexts=$(kubectl config get-contexts -o name 2>/dev/null)
+                                COMPREPLY=($(compgen -W "$contexts" -- "$cur"))
+                            fi
+                            ;;
+                    esac
                     ;;
                 "completion")
                     case "${words[2]}" in

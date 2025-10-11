@@ -98,6 +98,11 @@ dispatch_command() {
             checkCurl "$@"
             ;;
         
+        # Debug and troubleshooting
+        "debug"|"troubleshoot")
+            debugCmd "$@"
+            ;;
+        
         # Legacy commands for backward compatibility
         "fix")
             log_info "The 'fix' command has been integrated into component-specific operations"

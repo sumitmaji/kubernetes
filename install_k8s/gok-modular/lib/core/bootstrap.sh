@@ -86,6 +86,8 @@ load_utility_modules() {
         "dependency_manager"
         "ha_validation"
         "summaries"
+        "debug"
+        "kubectl_helpers"
     )
     
     for module in "${util_modules[@]}"; do
@@ -119,6 +121,7 @@ load_command_modules() {
         "exec"
         "completion"
         "show"
+        "debug"
     )
     
     for module in "${command_modules[@]}"; do
