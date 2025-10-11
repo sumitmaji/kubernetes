@@ -11,8 +11,9 @@ opensearchInst() {
     ensure_namespace "$namespace"
     
     # Add OpenSearch Helm repository
-    helm repo add opensearch https://opensearch-project.github.io/helm-charts/
-    helm repo update
+    log_info "Adding OpenSearch Helm repository"
+    execute_with_suppression helm repo add opensearch https://opensearch-project.github.io/helm-charts/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/opensearch-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -135,8 +136,9 @@ rabbitmqInst() {
     ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
+    log_info "Adding Bitnami Helm repository"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/rabbitmq-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -239,8 +241,9 @@ kafkaInst() {
     ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
+    log_info "Adding Bitnami Helm repository"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/kafka-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -321,8 +324,9 @@ postgresqlInst() {
     ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
+    log_info "Adding Bitnami Helm repository"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/postgresql-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -403,8 +407,9 @@ mysqlInst() {
     ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
+    log_info "Adding Bitnami Helm repository"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/mysql-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -480,8 +485,9 @@ redisInst() {
     ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
+    log_info "Adding Bitnami Helm repository"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/redis-values.yaml"
     if [[ ! -f "$values_file" ]]; then

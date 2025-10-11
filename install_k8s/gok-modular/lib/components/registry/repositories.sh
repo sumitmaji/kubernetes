@@ -11,8 +11,9 @@ registryInst() {
     ensure_namespace "$namespace"
     
     # Add Twuni Helm repository for Docker Registry
-    helm repo add twuni https://helm.twun.io
-    helm repo update
+    log_info "Adding Twuni Helm repository"
+    execute_with_suppression helm repo add twuni https://helm.twun.io
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/registry-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -172,8 +173,9 @@ chartRegistryInst() {
     ensure_namespace "$namespace"
     
     # Add ChartMuseum Helm repository
-    helm repo add chartmuseum https://chartmuseum.github.io/charts
-    helm repo update
+    log_info "Adding ChartMuseum Helm repository"
+    execute_with_suppression helm repo add chartmuseum https://chartmuseum.github.io/charts
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/chartmuseum-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -266,8 +268,9 @@ harborInst() {
     ensure_namespace "$namespace"
     
     # Add Harbor Helm repository
-    helm repo add harbor https://helm.goharbor.io
-    helm repo update
+    log_info "Adding Harbor Helm repository"
+    execute_with_suppression helm repo add harbor https://helm.goharbor.io
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/harbor-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -429,8 +432,9 @@ nexusInst() {
     ensure_namespace "$namespace"
     
     # Add Sonatype Helm repository
-    helm repo add sonatype https://sonatype.github.io/helm3-charts/
-    helm repo update
+    log_info "Adding Sonatype Helm repository"
+    execute_with_suppression helm repo add sonatype https://sonatype.github.io/helm3-charts/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/nexus-values.yaml"
     if [[ ! -f "$values_file" ]]; then

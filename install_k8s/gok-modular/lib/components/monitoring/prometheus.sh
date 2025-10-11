@@ -13,8 +13,9 @@ prometheusInst() {
     ensure_namespace "$namespace"
     
     # Add Prometheus Helm repository
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    helm repo update
+    log_info "Adding Prometheus Helm repository"
+    execute_with_suppression helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    execute_with_suppression helm repo update
     
     # Install Prometheus with custom values
     local values_file="${GOK_CONFIG_DIR}/prometheus-values.yaml"
@@ -84,8 +85,10 @@ grafanaInst() {
     fi
     
     # Install standalone Grafana
-    helm repo add grafana https://grafana.github.io/helm-charts
-    helm repo update
+    # Add Grafana Helm repository
+    log_info "Adding Grafana Helm repository"
+    execute_with_suppression helm repo add grafana https://grafana.github.io/helm-charts
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/grafana-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -269,8 +272,10 @@ metricServerInst() {
     start_component "metric-server"
     
     # Install Metrics Server
-    helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-    helm repo update
+    # Add Metrics Server Helm repository
+    log_info "Adding Metrics Server Helm repository"
+    execute_with_suppression helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/metrics-server-values.yaml"
     if [[ ! -f "$values_file" ]]; then

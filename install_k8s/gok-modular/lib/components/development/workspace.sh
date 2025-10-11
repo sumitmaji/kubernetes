@@ -11,8 +11,9 @@ jupyterInst() {
     ensure_namespace "$namespace"
     
     # Add JupyterHub Helm repository
-    helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
-    helm repo update
+    log_info "Adding JupyterHub Helm repository"
+    execute_with_suppression helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/jupyter-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -95,8 +96,9 @@ dashboardInst() {
     ensure_namespace "$namespace"
     
     # Add Kubernetes Dashboard Helm repository
-    helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-    helm repo update
+    log_info "Adding Kubernetes Dashboard Helm repository"
+    execute_with_suppression helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/dashboard-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -267,8 +269,9 @@ eclipsecheInst() {
     ensure_namespace "$namespace"
     
     # Add Eclipse Che Helm repository
-    helm repo add eclipse-che https://eclipse.github.io/che-operator/
-    helm repo update
+    log_info "Adding Eclipse Che Helm repository"
+    execute_with_suppression helm repo add eclipse-che https://eclipse.github.io/che-operator/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/eclipse-che-values.yaml"
     if [[ ! -f "$values_file" ]]; then

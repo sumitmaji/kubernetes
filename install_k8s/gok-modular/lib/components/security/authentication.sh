@@ -13,8 +13,9 @@ certManagerInst() {
     ensure_namespace "$namespace"
     
     # Add Jetstack Helm repository
-    helm repo add jetstack https://charts.jetstack.io
-    helm repo update
+    log_info "Adding Jetstack Helm repository"
+    execute_with_suppression helm repo add jetstack https://charts.jetstack.io
+    execute_with_suppression helm repo update
     
     # Install cert-manager CRDs
     execute_with_suppression \
@@ -88,8 +89,9 @@ keycloakInst() {
     ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository
-    helm repo add bitnami https://charts.bitnami.com/bitnami
-    helm repo update
+    log_info "Adding Bitnami Helm repository"
+    execute_with_suppression helm repo add bitnami https://charts.bitnami.com/bitnami
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/keycloak-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -158,8 +160,9 @@ oauth2ProxyInst() {
     ensure_namespace "$namespace"
     
     # Add OAuth2 Proxy Helm repository
-    helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests
-    helm repo update
+    log_info "Adding OAuth2 Proxy Helm repository"
+    execute_with_suppression helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/oauth2-proxy-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -222,8 +225,9 @@ vaultInst() {
     ensure_namespace "$namespace"
     
     # Add HashiCorp Helm repository
-    helm repo add hashicorp https://helm.releases.hashicorp.com
-    helm repo update
+    log_info "Adding HashiCorp Helm repository"
+    execute_with_suppression helm repo add hashicorp https://helm.releases.hashicorp.com
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/vault-values.yaml"
     if [[ ! -f "$values_file" ]]; then

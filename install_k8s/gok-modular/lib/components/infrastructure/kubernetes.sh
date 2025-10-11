@@ -1138,10 +1138,13 @@ ingressInst() {
     execute_with_suppression helm repo update
 
     helm_install_with_summary "ingress-nginx" "ingress-nginx" \
-        ingress-nginx ingress-nginx/ingress-nginx \
+        ingress-nginx ingress-nginx/ingress-nginx --version 4.12.1 \
         --namespace ingress-nginx \
-        --set controller.service.type=LoadBalancer \
-        --set controller.service.externalIPs='{192.168.1.100}' \
+        --create-namespace \
+        --set controller.service.nodePorts.http=80 \
+        --set controller.service.nodePorts.https=443 \
+        --set controller.service.type=NodePort \
+        --set defaultBackend.enabled=true \
         --wait
     
     # Wait for deployment to be ready

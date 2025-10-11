@@ -11,8 +11,9 @@ argocdInst() {
     ensure_namespace "$namespace"
     
     # Add ArgoCD Helm repository
-    helm repo add argo https://argoproj.github.io/argo-helm
-    helm repo update
+    log_info "Adding ArgoCD Helm repository"
+    execute_with_suppression helm repo add argo https://argoproj.github.io/argo-helm
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/argocd-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -98,8 +99,9 @@ jenkinsInst() {
     ensure_namespace "$namespace"
     
     # Add Jenkins Helm repository
-    helm repo add jenkinsci https://charts.jenkins.io
-    helm repo update
+    log_info "Adding Jenkins Helm repository"
+    execute_with_suppression helm repo add jenkinsci https://charts.jenkins.io
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/jenkins-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -219,8 +221,9 @@ spinnakerInst() {
     ensure_namespace "$namespace"
     
     # Add Spinnaker Helm repository
-    helm repo add spinnaker https://opsmx.github.io/spinnaker-helm/
-    helm repo update
+    log_info "Adding Spinnaker Helm repository"
+    execute_with_suppression helm repo add spinnaker https://opsmx.github.io/spinnaker-helm/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/spinnaker-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -389,8 +392,9 @@ gitlabInst() {
     ensure_namespace "$namespace"
     
     # Add GitLab Helm repository
-    helm repo add gitlab https://charts.gitlab.io/
-    helm repo update
+    log_info "Adding GitLab Helm repository"
+    execute_with_suppression helm repo add gitlab https://charts.gitlab.io/
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/gitlab-values.yaml"
     if [[ ! -f "$values_file" ]]; then

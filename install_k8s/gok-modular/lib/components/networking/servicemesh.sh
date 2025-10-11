@@ -11,8 +11,9 @@ istioInst() {
     ensure_namespace "$namespace"
     
     # Add Istio Helm repository
-    helm repo add istio https://istio-release.storage.googleapis.com/charts
-    helm repo update
+    log_info "Adding Istio Helm repository"
+    execute_with_suppression helm repo add istio https://istio-release.storage.googleapis.com/charts
+    execute_with_suppression helm repo update
     
     # Install Istio base (CRDs and cluster-wide resources)
     local base_values="${GOK_CONFIG_DIR}/istio-base-values.yaml"
@@ -274,8 +275,9 @@ fluentdInst() {
     ensure_namespace "$namespace"
     
     # Add Fluent Helm repository
-    helm repo add fluent https://fluent.github.io/helm-charts
-    helm repo update
+    log_info "Adding Fluent Helm repository"
+    execute_with_suppression helm repo add fluent https://fluent.github.io/helm-charts
+    execute_with_suppression helm repo update
     
     local values_file="${GOK_CONFIG_DIR}/fluentd-values.yaml"
     if [[ ! -f "$values_file" ]]; then
@@ -509,8 +511,9 @@ metallbInst() {
     ensure_namespace "$namespace"
     
     # Add MetalLB Helm repository
-    helm repo add metallb https://metallb.github.io/metallb
-    helm repo update
+    log_info "Adding MetalLB Helm repository"
+    execute_with_suppression helm repo add metallb https://metallb.github.io/metallb
+    execute_with_suppression helm repo update
     
     helm_install_with_summary "metallb" "metallb/metallb" \
         "--namespace $namespace" \

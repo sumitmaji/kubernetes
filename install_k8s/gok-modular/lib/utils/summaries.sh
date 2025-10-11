@@ -156,6 +156,28 @@ show_docker_summary() {
     echo -e "  ${COLOR_RED}•${COLOR_RESET} Storage issues: ${COLOR_DIM}docker system df${COLOR_RESET}"
 }
 
+show_ingress_summary() {
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Version:${COLOR_RESET} 4.12.1"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Namespace:${COLOR_RESET} ingress-nginx"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Service Type:${COLOR_RESET} NodePort"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}HTTP Port:${COLOR_RESET} 80"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}HTTPS Port:${COLOR_RESET} 443"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Default Backend:${COLOR_RESET} Enabled"
+    echo ""
+    
+    # Extract useful information from helm output
+    if grep -q "STATUS: deployed" "$temp_log"; then
+      echo -e "${COLOR_GREEN}📦 Deployment Status:${COLOR_RESET} Successfully deployed"
+    fi
+    
+    # Show next steps
+    echo -e "${COLOR_CYAN}🚀 Next Steps:${COLOR_RESET}"
+    echo -e "   • Ingress controller will be available shortly"
+    echo -e "   • Check status: ${COLOR_BOLD}kubectl get pods -n ingress-nginx${COLOR_RESET}"
+    echo -e "   • Create ingress resources to route traffic"
+    echo ""
+}
+
 show_kubernetes_summary() {
     
     # Check if we can connect to cluster
