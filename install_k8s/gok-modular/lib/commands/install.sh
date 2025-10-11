@@ -340,7 +340,16 @@ installCmd() {
             calicoInst
             ;;
         "ingress")
-            ingressInst
+            if ingressInst; then
+                if validate_component_installation "ingress" 60; then
+                    complete_component "ingress" "Ingress installation completed and validated"
+                else
+                    complete_component "ingress" "Ingress installed but validation had warnings"
+                fi
+            else
+                fail_component "ingress" "Ingress installation failed"
+                return 1
+            fi
             ;;
         "haproxy"|"ha-proxy"|"ha")
             haproxyInst
