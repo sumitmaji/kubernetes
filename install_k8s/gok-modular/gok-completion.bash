@@ -22,7 +22,7 @@ _gok_new_completion() {
     local main_commands="
         install reset start deploy patch create generate status
         desc describe logs bash shell exec remote completion
-        cache show taint-node checkDns checkCurl debug troubleshoot help
+        cache show summary taint-node checkDns checkCurl debug troubleshoot help
     "
 
     # Infrastructure components
@@ -120,6 +120,9 @@ _gok_new_completion() {
                     ;;
                 "show")
                     COMPREPLY=($(compgen -W "configuration config" -- "$cur"))
+                    ;;
+                "summary")
+                    COMPREPLY=($(compgen -W "$install_components" -- "$cur"))
                     ;;
                 "desc"|"describe")
                     COMPREPLY=($(compgen -W "pod service deployment ingress node namespace configmap secret" -- "$cur"))
