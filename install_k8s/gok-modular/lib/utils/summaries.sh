@@ -440,7 +440,7 @@ show_kubernetes_summary() {
         
         if [[ -n "$apiserver_pod" ]]; then
             # Check the API server pod's command line arguments for OIDC parameters
-            local api_args=$(kubectl describe pod "$apiserver_pod" -n kube-system 2>/dev/null | grep -A 20 "Args:" | grep "oidc" || echo "")
+            local api_args=$(kubectl describe pod "$apiserver_pod" -n kube-system 2>/dev/null | grep "oidc" || echo "")
             
             if [[ -n "$api_args" ]]; then
                 oidc_configured=true
