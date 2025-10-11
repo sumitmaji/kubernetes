@@ -67,7 +67,8 @@ certManagerInst() {
         --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/cert-manager/values.yaml \
         --wait; then
         
-        show_installation_summary "cert-manager" "cert-manager" "TLS certificate management system"
+        # No need to show summary now
+        # show_installation_summary "cert-manager" "cert-manager" "TLS certificate management system"
         log_component_success "cert-manager" "Certificate management system installed successfully"
     else
         log_error "cert-manager installation failed"
