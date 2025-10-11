@@ -649,6 +649,7 @@ EOF
     local init_cmd="kubeadm init"
     if [ -f "$WORKING_DIR/config.yaml" ]; then
         init_cmd="$init_cmd --config=$WORKING_DIR/config.yaml"
+        log_info "Using cluster configuration file: $WORKING_DIR/config.yaml"
     fi
     init_cmd="$init_cmd --upload-certs"
 

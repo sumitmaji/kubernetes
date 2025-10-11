@@ -432,29 +432,39 @@ show_kubernetes_summary() {
         echo ""
         log_substep "OIDC Integration:"
         
-        # Check if OIDC is configured by looking for related resources
+        # Check if OIDC is configured by looking at the running API server pod
         local oidc_configured=false
         
-        # Check for OIDC-related secrets or configmaps
-        if kubectl get configmap kube-apiserver -n kube-system >/dev/null 2>&1; then
-            local api_config=$(kubectl get configmap kube-apiserver -n kube-system -o jsonpath='{.data.kube-apiserver}' 2>/dev/null || echo "")
-            if [[ -n "$api_config" ]] && echo "$api_config" | grep -q "oidc-issuer-url"; then
+        # Get the kube-apiserver pod name
+        local apiserver_pod=$(kubectl get pods -n kube-system --no-headers -l component=kube-apiserver 2>/dev/null | head -1 | awk '{print $1}' || echo "")
+        
+        if [[ -n "$apiserver_pod" ]]; then
+            # Check the API server pod's command line arguments for OIDC parameters
+            local api_args=$(kubectl describe pod "$apiserver_pod" -n kube-system 2>/dev/null | grep -A 20 "Args:" | grep "oidc" || echo "")
+            
+            if [[ -n "$api_args" ]]; then
                 oidc_configured=true
-                local oidc_issuer_url=$(echo "$api_config" | grep -oP 'oidc-issuer-url=\K[^\s]*' || echo "")
+                echo -e "  ${COLOR_GREEN}✓ OIDC: configured in API server${COLOR_RESET}"
+                
+                # Extract OIDC configuration details
+                local oidc_issuer_url=$(echo "$api_args" | grep -oP 'oidc-issuer-url=\K[^\s]*' || echo "")
                 if [[ -n "$oidc_issuer_url" ]]; then
-                    echo -e "  ${COLOR_GREEN}✓ OIDC: configured in API server${COLOR_RESET}"
                     echo -e "    ${COLOR_DIM}• Issuer URL: ${oidc_issuer_url}${COLOR_RESET}"
-                    
-                    # Check for other OIDC settings
-                    local oidc_client_id=$(echo "$api_config" | grep -oP 'oidc-client-id=\K[^\s]*' || echo "")
-                    if [[ -n "$oidc_client_id" ]]; then
-                        echo -e "    ${COLOR_DIM}• Client ID: ${oidc_client_id}${COLOR_RESET}"
-                    fi
-                    
-                    local oidc_jwks_uri=$(echo "$api_config" | grep -oP 'oidc-jwks-uri=\K[^\s]*' || echo "")
-                    if [[ -n "$oidc_jwks_uri" ]]; then
-                        echo -e "    ${COLOR_DIM}• JWKS URI: ${oidc_jwks_uri}${COLOR_RESET}"
-                    fi
+                fi
+                
+                local oidc_client_id=$(echo "$api_args" | grep -oP 'oidc-client-id=\K[^\s]*' || echo "")
+                if [[ -n "$oidc_client_id" ]]; then
+                    echo -e "    ${COLOR_DIM}• Client ID: ${oidc_client_id}${COLOR_RESET}"
+                fi
+                
+                local oidc_username_claim=$(echo "$api_args" | grep -oP 'oidc-username-claim=\K[^\s]*' || echo "")
+                if [[ -n "$oidc_username_claim" ]]; then
+                    echo -e "    ${COLOR_DIM}• Username Claim: ${oidc_username_claim}${COLOR_RESET}"
+                fi
+                
+                local oidc_groups_claim=$(echo "$api_args" | grep -oP 'oidc-groups-claim=\K[^\s]*' || echo "")
+                if [[ -n "$oidc_groups_claim" ]]; then
+                    echo -e "    ${COLOR_DIM}• Groups Claim: ${oidc_groups_claim}${COLOR_RESET}"
                 fi
             fi
         fi
