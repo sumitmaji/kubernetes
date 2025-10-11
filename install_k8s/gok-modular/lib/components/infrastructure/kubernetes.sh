@@ -1133,10 +1133,11 @@ ingressInst() {
     ensure_namespace "ingress-nginx"
     
     # Add ingress-nginx repository if not already added
-    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null || true
-    helm repo update
-    
-    # Install NGINX Ingress Controller
+    log_info "Adding Nginx Ingress Helm repository"
+    execute_with_suppression helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    execute_with_suppression helm repo update
+
+    log_info "Installing NGINX Ingress Controller"
     helm_install_with_summary "ingress-nginx" "ingress-nginx" \
         ingress-nginx ingress-nginx/ingress-nginx \
         --namespace ingress-nginx \
