@@ -305,9 +305,9 @@ installCmd() {
             log_info "Installing cluster utilities..."
             
             # DNS testing utilities
-            if kubectl run dnsutils --image=jessie-dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
+            if kubectl run dnsutils --image=gcr.io/kubernetes-e2e-test-images/dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
                 log_success "DNS utilities installed"
-                echo -e "    ${COLOR_DIM}• Pod: dnsutils (jessie-dnsutils:1.3) in default namespace${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Pod: dnsutils (gcr.io/kubernetes-e2e-test-images/dnsutils:1.3) in default namespace${COLOR_RESET}"
                 echo -e "    ${COLOR_DIM}• Usage: kubectl exec dnsutils -- nslookup <domain>${COLOR_RESET}"
             else
                 log_warning "DNS utilities installation failed"

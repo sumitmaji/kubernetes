@@ -1637,10 +1637,10 @@ dnsUtils() {
         fi
     fi
 
-    # Install DNS utilities pod
-    if kubectl run dnsutils --image=jessie-dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
+    # Install DNS utilities pod using a working image
+    if kubectl run dnsutils --image=gcr.io/kubernetes-e2e-test-images/dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
         log_success "DNS utilities installed"
-        log_info "Pod: dnsutils (jessie-dnsutils:1.3) in default namespace"
+        log_info "Pod: dnsutils (gcr.io/kubernetes-e2e-test-images/dnsutils:1.3) in default namespace"
         log_info "Usage: kubectl exec dnsutils -- nslookup <domain>"
         log_info "Usage: gok checkDns <domain> for DNS resolution testing"
     else
