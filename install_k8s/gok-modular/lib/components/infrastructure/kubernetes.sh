@@ -1384,3 +1384,48 @@ EOF
     
     log_info "Container runtime configuration completed"
 }
+
+# Start HAProxy service with proper error handling and validation
+startHa() {
+  # Check if HAProxy configuration exists
+  if [ ! -f /opt/haproxy.cfg ]; then
+    log_error "HAProxy configuration file not found: /opt/haproxy.cfg"
+    return 1
+  fi
+  
+  # Stop existing container if running
+  if docker ps -q -f name=master-proxy | grep -q .; then
+    if ! docker stop master-proxy >/dev/null 2>&1; then
+      log_warning "Failed to stop existing master-proxy container"
+    fi
+  fi
+  
+  # Remove existing container if exists
+  if docker ps -a -q -f name=master-proxy | grep -q .; then
+    if ! docker rm master-proxy >/dev/null 2>&1; then
+      log_warning "Failed to remove existing master-proxy container"
+    fi
+  fi
+  
+  # Start new HAProxy container
+  if docker run -d --name master-proxy \
+    -v /opt/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
+    --net=host haproxy >/dev/null 2>&1; then
+    
+    # Wait a moment and verify container is running
+    sleep 2
+    if docker ps -q -f name=master-proxy -f status=running | grep -q .; then
+      return 0
+    else
+      log_error "HAProxy container started but is not running"
+      docker logs master-proxy 2>/dev/null || true
+      return 1
+    fi
+  else
+    log_error "Failed to start HAProxy container"
+    return 1
+  fi
+}
+
+# Export the startHa function for use by other modules
+export -f startHa

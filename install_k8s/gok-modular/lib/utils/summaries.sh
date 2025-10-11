@@ -489,32 +489,105 @@ show_helm_summary() {
 
 show_cert_manager_summary() {
     local namespace="${1:-cert-manager}"
-    
-    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔐 cert-manager${COLOR_RESET}"
-    echo -e "${COLOR_DIM}Automatic TLS certificate management for Kubernetes${COLOR_RESET}"
+    local verbose_mode="${2:-false}"
+
+    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
+    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+    echo "║                      CERT-MANAGER SUMMARY                                   ║"
+    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+    echo -e "${COLOR_RESET}"
     echo ""
-    
-    # Service Status
-    log_info "📋 Service Status"
-    local pod_count=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | wc -l || echo "0")
-    local ready_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | grep -c "Running" || echo "0")
-    
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Pods: ${COLOR_BOLD}$ready_pods/$pod_count${COLOR_RESET} running"
+
+    local cluster_accessible=false
+    if kubectl cluster-info >/dev/null 2>&1; then
+        cluster_accessible=true
+    fi
+
+    # 1. Installation Status
+    log_step "1" "Installation Status"
+    if [[ "$cluster_accessible" == "true" ]]; then
+        if kubectl get namespace "$namespace" >/dev/null 2>&1; then
+            echo -e "  ${COLOR_GREEN}✓ Namespace: $namespace exists${COLOR_RESET}"
+            local helm_status=$(helm list -n "$namespace" --output json 2>/dev/null | jq -r '.[] | select(.name=="cert-manager") | .status' 2>/dev/null || echo "not-found")
+            if [[ "$helm_status" == "deployed" ]]; then
+                local chart_version=$(helm list -n "$namespace" --output json 2>/dev/null | jq -r '.[] | select(.name=="cert-manager") | .chart' 2>/dev/null || echo "unknown")
+                echo -e "  ${COLOR_GREEN}✓ Helm Chart: $chart_version (deployed)${COLOR_RESET}"
+            else
+                echo -e "  ${COLOR_RED}✗ Helm Chart: not deployed${COLOR_RESET}"
+            fi
+        else
+            echo -e "  ${COLOR_RED}✗ Namespace: $namespace not found${COLOR_RESET}"
+        fi
+    else
+        echo -e "  ${COLOR_RED}✗ Installation status: cluster not accessible${COLOR_RESET}"
+    fi
     echo ""
-    
-    # Key Resources
-    log_info "📋 Key Resources"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} ClusterIssuers: ${COLOR_DIM}kubectl get clusterissuers${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Certificates: ${COLOR_DIM}kubectl get certificates --all-namespaces${COLOR_RESET}"
-    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} CertificateRequests: ${COLOR_DIM}kubectl get certificaterequests --all-namespaces${COLOR_RESET}"
+
+    # 2. Pods Status
+    if [[ "$cluster_accessible" == "true" ]]; then
+        log_step "2" "cert-manager Pods"
+        local pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null)
+        if [[ -n "$pods" ]]; then
+            echo "$pods" | while read -r line; do
+                local pod_name=$(echo "$line" | awk '{print $1}')
+                local pod_status=$(echo "$line" | awk '{print $3}')
+                local ready_status=$(echo "$line" | awk '{print $2}')
+                if [[ "$pod_status" == "Running" ]]; then
+                    echo -e "    ${COLOR_GREEN}✓ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+                else
+                    echo -e "    ${COLOR_RED}✗ ${pod_name}: ${pod_status} (${ready_status})${COLOR_RESET}"
+                fi
+            done
+        else
+            echo -e "    ${COLOR_RED}✗ No cert-manager pods found${COLOR_RESET}"
+        fi
+        echo ""
+    fi
+
+    # 3. Issuers and Certificates
+    if [[ "$cluster_accessible" == "true" ]]; then
+        log_step "3" "Certificate Issuers"
+        local issuers=$(kubectl get clusterissuers --no-headers 2>/dev/null)
+        if [[ -n "$issuers" ]]; then
+            echo "$issuers" | while read -r line; do
+                local issuer_name=$(echo "$line" | awk '{print $1}')
+                local ready=$(echo "$line" | awk '{print $2}')
+                if [[ "$ready" == "True" ]]; then
+                    echo -e "    ${COLOR_GREEN}✓ ClusterIssuer: ${issuer_name} (Ready)${COLOR_RESET}"
+                else
+                    echo -e "    ${COLOR_YELLOW}⚠ ClusterIssuer: ${issuer_name} (Not Ready)${COLOR_RESET}"
+                fi
+            done
+        else
+            echo -e "    ${COLOR_CYAN}• No ClusterIssuers configured${COLOR_RESET}"
+        fi
+
+        local certificates=$(kubectl get certificates --all-namespaces --no-headers 2>/dev/null)
+        if [[ -n "$certificates" ]]; then
+            echo -e "  ${COLOR_CYAN}Active Certificates:${COLOR_RESET}"
+            echo "$certificates" | head -5 | while read -r line; do
+                local namespace_cert=$(echo "$line" | awk '{print $1}')
+                local cert_name=$(echo "$line" | awk '{print $2}')
+                local ready=$(echo "$line" | awk '{print $3}')
+                if [[ "$ready" == "True" ]]; then
+                    echo -e "    ${COLOR_GREEN}✓ ${namespace_cert}/${cert_name}${COLOR_RESET}"
+                else
+                    echo -e "    ${COLOR_YELLOW}⚠ ${namespace_cert}/${cert_name}${COLOR_RESET}"
+                fi
+            done
+        fi
+        echo ""
+    fi
+
+    # 4. Available Commands
+    log_step "4" "Available Commands"
+    echo -e "  ${COLOR_CYAN}cert-manager Management:${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok install cert-manager        # Install cert-manager${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok show cert-manager           # Show this summary${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok reset cert-manager          # Reset cert-manager${COLOR_RESET}"
     echo ""
-    
-    # Next Steps
-    log_info "🎯 Next Steps"
-    echo -e "  ${COLOR_YELLOW}1.${COLOR_RESET} Create ClusterIssuer for Let's Encrypt"
-    echo -e "  ${COLOR_YELLOW}2.${COLOR_RESET} Configure ingress with TLS annotations"
-    echo -e "  ${COLOR_YELLOW}3.${COLOR_RESET} Monitor certificate renewal"
+    echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
+    echo ""
 }
 
 show_keycloak_summary() {
