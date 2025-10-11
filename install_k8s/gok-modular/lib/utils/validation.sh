@@ -84,13 +84,10 @@ check_deployment_readiness() {
     log_info "🚀 Analyzing deployment readiness: $deployment"
     
     # Get deployment status
-    if is_verbose; then
-        log_debug "Getting deployment status for $deployment in namespace $namespace"
-    fi
     local deployment_info=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.status.readyReplicas}/{.status.replicas} {.status.conditions[?(@.type=="Available")].status} {.status.conditions[?(@.type=="Progressing")].status}' 2>/dev/null)
     
     if [[ -z "$deployment_info" ]]; then
-        log_error "Deployment '$deployment' not found in namespace '$namespace'"
+        log_error "Deployment $deployment not found in namespace $namespace"
         return 1
     fi
     
@@ -99,11 +96,21 @@ check_deployment_readiness() {
     local available_status=$(echo "$deployment_info" | cut -d' ' -f2)
     local progressing_status=$(echo "$deployment_info" | cut -d' ' -f3)
     
-    if [[ "$available_status" == "True" && "$ready_replicas" == "$total_replicas" ]]; then
-        log_success "Deployment '$deployment' is ready ($ready_replicas/$total_replicas replicas)"
+    echo -e "${COLOR_CYAN}  📊 Ready: ${COLOR_BOLD}${ready_replicas:-0}/${total_replicas:-0}${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  📈 Available: ${COLOR_BOLD}$available_status${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}  🔄 Progressing: ${COLOR_BOLD}$progressing_status${COLOR_RESET}"
+    
+    # Check if deployment is healthy
+    if [[ "$ready_replicas" == "$total_replicas" ]] && [[ "$available_status" == "True" ]]; then
+        log_success "Deployment $deployment is ready and healthy"
         return 0
     else
-        log_warning "Deployment '$deployment' not fully ready ($ready_replicas/$total_replicas replicas)"
+        log_warning "Deployment $deployment is not fully ready"
+        
+        # Get replica set issues
+        echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}🔍 REPLICA SET ANALYSIS:${COLOR_RESET}"
+        kubectl describe deployment "$deployment" -n "$namespace" 2>/dev/null | grep -A 10 "Conditions:\|Events:" | tail -20
+        
         return 1
     fi
 }
