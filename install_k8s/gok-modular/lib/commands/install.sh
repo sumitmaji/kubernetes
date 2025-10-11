@@ -301,9 +301,10 @@ installCmd() {
                 log_warning "Some system services may not be ready yet"
             fi
 
-            # Step 7: Install additional utilities (simplified)
+            # Step 7: Install additional utilities (comprehensive)
             log_info "Installing cluster utilities..."
-            # Create basic utility pods for DNS testing
+            
+            # DNS testing utilities
             if kubectl run dnsutils --image=jessie-dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
                 log_success "DNS utilities installed"
                 echo -e "    ${COLOR_DIM}• Pod: dnsutils (jessie-dnsutils:1.3) in default namespace${COLOR_RESET}"
@@ -312,13 +313,29 @@ installCmd() {
                 log_warning "DNS utilities installation failed"
             fi
 
-            # Create curl utility pod
+            # Curl testing utility
             if kubectl run curl --image=curlimages/curl --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
-                log_success "kubectl curl utility installed"
+                log_success "Curl utility installed"
                 echo -e "    ${COLOR_DIM}• Pod: curl (curlimages/curl) in default namespace${COLOR_RESET}"
                 echo -e "    ${COLOR_DIM}• Usage: kubectl exec curl -- curl <url>${COLOR_RESET}"
             else
-                log_warning "kubectl curl utility failed"
+                log_warning "Curl utility installation failed"
+            fi
+
+            # Configure custom DNS zones if needed
+            log_info "Configuring custom DNS zones..."
+            if customDns; then
+                log_success "Custom DNS zones configured"
+            else
+                log_info "Custom DNS configuration skipped (no custom zones defined)"
+            fi
+
+            # Setup OAuth admin access if OIDC is configured
+            log_info "Setting up OAuth admin access..."
+            if oauthAdmin; then
+                log_success "OAuth admin access configured"
+            else
+                log_info "OAuth admin setup skipped (OIDC not configured or already set up)"
             fi
 
             # Step 8: Setup system integration (simplified)

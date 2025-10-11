@@ -1482,3 +1482,212 @@ startHa() {
 
 # Export the startHa function for use by other modules
 export -f startHa
+
+# Custom DNS configuration for Kubernetes cluster
+customDns() {
+    log_info "Configuring custom DNS zones for Kubernetes cluster..."
+
+    # Check if cluster is accessible
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+        log_warning "Kubernetes cluster not accessible - skipping custom DNS configuration"
+        return 1
+    fi
+
+    # Check if CoreDNS configmap exists
+    if ! kubectl get configmap coredns -n kube-system >/dev/null 2>&1; then
+        log_info "CoreDNS configmap not found - custom DNS configuration will be applied when CoreDNS is available"
+        return 0
+    fi
+
+    # Get current CoreDNS configuration
+    local current_config
+    current_config=$(kubectl get configmap coredns -n kube-system -o jsonpath='{.data.Corefile}' 2>/dev/null)
+
+    # Check if custom DNS is already configured
+    if echo "$current_config" | grep -q "cloud.com\|gokcloud.com"; then
+        log_info "Custom DNS zones already configured"
+        return 0
+    fi
+
+    # Create custom DNS configuration
+    local custom_config=""
+    custom_config=$(cat << 'EOF'
+        # Custom DNS zones for GOK
+        cloud.com {
+            forward . 11.0.0.1
+            reload 30s
+        }
+        gokcloud.com {
+            forward . 11.0.0.1
+            reload 30s
+        }
+        cloud.uat {
+            forward . 11.0.0.1
+            reload 30s
+        }
+EOF
+)
+
+    # Update CoreDNS configuration
+    if [[ -n "$current_config" ]]; then
+        # Append custom configuration to existing Corefile
+        local new_config="$current_config\n\n$custom_config"
+
+        # Update the configmap
+        kubectl patch configmap coredns -n kube-system --type merge -p "{\"data\":{\"Corefile\":\"$(echo "$new_config" | sed 's/"/\\"/g' | sed 's/$/\\n/g' | tr -d '\n')\"}}" >/dev/null 2>&1
+
+        if [[ $? -eq 0 ]]; then
+            log_success "Custom DNS zones configured in CoreDNS"
+            log_info "Configured zones: cloud.com, gokcloud.com, cloud.uat → 11.0.0.1"
+
+            # Restart CoreDNS pods to apply changes
+            kubectl rollout restart deployment coredns -n kube-system >/dev/null 2>&1
+            log_info "CoreDNS pods restarted to apply DNS configuration"
+        else
+            log_warning "Failed to update CoreDNS configuration"
+            return 1
+        fi
+    else
+        log_warning "Could not retrieve current CoreDNS configuration"
+        return 1
+    fi
+
+    return 0
+}
+
+# OAuth admin access configuration
+oauthAdmin() {
+    log_info "Configuring OAuth admin access for Kubernetes cluster..."
+
+    # Check if cluster is accessible
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+        log_warning "Kubernetes cluster not accessible - skipping OAuth admin configuration"
+        return 1
+    fi
+
+    # Check if OIDC is configured by checking API server
+    local apiserver_pod
+    apiserver_pod=$(kubectl get pods -n kube-system --no-headers -l component=kube-apiserver 2>/dev/null | head -1 | awk '{print $1}')
+
+    if [[ -z "$apiserver_pod" ]]; then
+        log_info "API server pod not found - skipping OAuth admin configuration"
+        return 0
+    fi
+
+    # Check if OIDC is configured in the API server
+    local oidc_config
+    oidc_config=$(kubectl describe pod "$apiserver_pod" -n kube-system 2>/dev/null | grep "oidc" | head -1)
+
+    if [[ -z "$oidc_config" ]]; then
+        log_info "OIDC not configured in API server - skipping OAuth admin setup"
+        return 0
+    fi
+
+    # Check if oauth-cluster-admin ClusterRoleBinding already exists
+    if kubectl get clusterrolebinding oauth-cluster-admin >/dev/null 2>&1; then
+        log_info "OAuth admin ClusterRoleBinding already exists"
+        return 0
+    fi
+
+    # Create ClusterRoleBinding for OAuth admin access
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oauth-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: administrators
+EOF
+
+    if [[ $? -eq 0 ]]; then
+        log_success "OAuth admin access configured"
+        log_info "ClusterRoleBinding 'oauth-cluster-admin' created for 'administrators' group"
+        log_info "Users in the 'administrators' OAuth group now have cluster-admin access"
+    else
+        log_warning "Failed to create OAuth admin ClusterRoleBinding"
+        return 1
+    fi
+
+    return 0
+}
+
+# DNS utilities installation function
+dnsUtils() {
+    log_info "Installing DNS testing utilities..."
+
+    # Check if cluster is accessible
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+        log_error "Kubernetes cluster not accessible"
+        return 1
+    fi
+
+    # Check if dnsutils pod already exists
+    if kubectl get pod dnsutils -n default >/dev/null 2>&1; then
+        local status
+        status=$(kubectl get pod dnsutils -n default --no-headers 2>/dev/null | awk '{print $3}')
+        if [[ "$status" == "Running" ]]; then
+            log_info "DNS utilities already installed and running"
+            return 0
+        fi
+    fi
+
+    # Install DNS utilities pod
+    if kubectl run dnsutils --image=jessie-dnsutils:1.3 --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
+        log_success "DNS utilities installed"
+        log_info "Pod: dnsutils (jessie-dnsutils:1.3) in default namespace"
+        log_info "Usage: kubectl exec dnsutils -- nslookup <domain>"
+        log_info "Usage: gok checkDns <domain> for DNS resolution testing"
+    else
+        log_error "Failed to install DNS utilities"
+        return 1
+    fi
+
+    return 0
+}
+
+# Curl utilities installation function
+kcurl() {
+    log_info "Installing curl testing utilities..."
+
+    # Check if cluster is accessible
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+        log_error "Kubernetes cluster not accessible"
+        return 1
+    fi
+
+    # Check if curl pod already exists
+    if kubectl get pod curl -n default >/dev/null 2>&1; then
+        local status
+        status=$(kubectl get pod curl -n default --no-headers 2>/dev/null | awk '{print $3}')
+        if [[ "$status" == "Running" ]]; then
+            log_info "Curl utilities already installed and running"
+            return 0
+        fi
+    fi
+
+    # Install curl utilities pod
+    if kubectl run curl --image=curlimages/curl --restart=Never --command -- sleep 3600 >/dev/null 2>&1; then
+        log_success "Curl utilities installed"
+        log_info "Pod: curl (curlimages/curl) in default namespace"
+        log_info "Usage: kubectl exec curl -- curl <url>"
+        log_info "Usage: gok checkCurl <url> for HTTP testing within cluster"
+    else
+        log_error "Failed to install curl utilities"
+        return 1
+    fi
+
+    return 0
+}
+
+# Export functions for use by other modules
+export -f startHa
+export -f customDns
+export -f oauthAdmin
+export -f dnsUtils
+export -f kcurl
