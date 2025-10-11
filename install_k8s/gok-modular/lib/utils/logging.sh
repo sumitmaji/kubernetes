@@ -195,11 +195,32 @@ log_critical() {
 
 # Log step (major operation)
 log_step() {
-    local message="$1"
-    if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
-        echo -e "\n${COLOR_STEP}${COLOR_BOLD}🚀 ${message}${COLOR_RESET}"
+    # Check number of arguments
+    if [[ $# -eq 1 ]]; then
+        # Single argument: treat as message only
+        local message="$1"
+        if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+            echo -e "\n${COLOR_STEP}${COLOR_BOLD}🚀 ${message}${COLOR_RESET}"
+        else
+            echo -e "\n[STEP] 🚀 ${message}"
+        fi
+    elif [[ $# -eq 2 ]]; then
+        # Two arguments: step number + message
+        local step="$1"
+        local message="$2"
+        if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+            echo -e "\n${COLOR_STEP}${COLOR_BOLD}Step $step: 🚀 ${message}${COLOR_RESET}"
+        else
+            echo -e "\n[STEP $step] 🚀 ${message}"
+        fi
     else
-        echo -e "\n[STEP] 🚀 ${message}"
+        # Invalid number of arguments
+        if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+            echo -e "${COLOR_ERROR}${EMOJI_ERROR} log_step: Invalid number of arguments. Use: log_step <message> or log_step <step> <message>${COLOR_RESET}" >&2
+        else
+            echo -e "[ERROR] log_step: Invalid number of arguments. Use: log_step <message> or log_step <step> <message>" >&2
+        fi
+        return 1
     fi
 }
 

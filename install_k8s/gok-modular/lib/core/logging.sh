@@ -119,10 +119,23 @@ log_info() {
 }
 
 log_step() {
-    local step="$1"
-    local message="$2"
     local timestamp=$(get_timestamp)
-    echo -e "${COLOR_BLUE}[$timestamp] ${COLOR_BOLD}Step $step:${COLOR_RESET} ${COLOR_CYAN}$message${COLOR_RESET}"
+
+    # Check number of arguments
+    if [[ $# -eq 1 ]]; then
+        # Single argument: treat as message only (no step number)
+        local message="$1"
+        echo -e "${COLOR_BLUE}[$timestamp] ${COLOR_CYAN}$message${COLOR_RESET}"
+    elif [[ $# -eq 2 ]]; then
+        # Two arguments: step number + message (original behavior)
+        local step="$1"
+        local message="$2"
+        echo -e "${COLOR_BLUE}[$timestamp] ${COLOR_BOLD}Step $step:${COLOR_RESET} ${COLOR_CYAN}$message${COLOR_RESET}"
+    else
+        # Invalid number of arguments
+        echo -e "${COLOR_RED}[$timestamp] ${EMOJI_ERROR} log_step: Invalid number of arguments. Use: log_step <message> or log_step <step> <message>${COLOR_RESET}" >&2
+        return 1
+    fi
 }
 
 log_substep() {
