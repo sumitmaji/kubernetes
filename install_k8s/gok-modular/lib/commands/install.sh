@@ -513,6 +513,7 @@ installCmd() {
             local ns="${component_namespace_map[$component]:-default}"
             show_component_summary "$component" "$ns"
             show_component_next_steps "$component"
+            suggest_and_install_next_module "$component"
         fi
     else
         fail_component "$component" "Installation failed with exit code $install_result"

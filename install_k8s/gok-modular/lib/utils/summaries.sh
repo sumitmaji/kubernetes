@@ -165,10 +165,6 @@ show_ingress_summary() {
     echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Default Backend:${COLOR_RESET} Enabled"
     echo ""
     
-    # Extract useful information from helm output
-    if grep -q "STATUS: deployed" "$temp_log"; then
-      echo -e "${COLOR_GREEN}📦 Deployment Status:${COLOR_RESET} Successfully deployed"
-    fi
     
     # Show next steps
     echo -e "${COLOR_CYAN}🚀 Next Steps:${COLOR_RESET}"
