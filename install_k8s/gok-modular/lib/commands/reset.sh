@@ -980,7 +980,7 @@ helm_component_reset() {
             if [[ "$GOK_VERBOSE" == "true" ]]; then
                 execute_controlled "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
             else
-                execute_with_spinner "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
+                execute_with_spinner "Deleting namespace $namespace" kubectl delete namespace "$namespace" --ignore-not-found=true --timeout=60s
             fi
         else
             log_warning "kubectl not found - skipping namespace cleanup for $namespace"
