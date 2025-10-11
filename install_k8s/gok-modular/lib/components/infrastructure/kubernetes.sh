@@ -1150,7 +1150,6 @@ ingressInst() {
     # Wait for deployment to be ready
     check_deployment_readiness "ingress-nginx-controller" "ingress-nginx" 300
     
-    log_component_success "ingress" "NGINX Ingress Controller installation completed"
     return 0
 }
 
