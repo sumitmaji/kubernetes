@@ -975,11 +975,16 @@ helm_component_reset() {
     
     # Clean up namespace if it's component-specific
     if [[ "$namespace" != "default" && "$namespace" != "kube-system" ]]; then
-        log_substep "Removing namespace: $namespace"
-        if [[ "$GOK_VERBOSE" == "true" ]]; then
-            execute_controlled "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
+        if command -v kubectl >/dev/null 2>&1; then
+            log_substep "Removing namespace: $namespace"
+            if [[ "$GOK_VERBOSE" == "true" ]]; then
+                execute_controlled "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
+            else
+                execute_with_spinner "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
+            fi
         else
-            execute_with_spinner "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
+            log_warning "kubectl not found - skipping namespace cleanup for $namespace"
+            log_info "You can manually delete the namespace later with: kubectl delete namespace $namespace"
         fi
     fi
     
@@ -990,6 +995,12 @@ helm_component_reset() {
 # Clean up persistent volumes for a component
 cleanup_component_pvs() {
     local component="$1"
+    
+    # Check if kubectl is available
+    if ! command -v kubectl >/dev/null 2>&1; then
+        log_warning "kubectl not found - skipping persistent volume cleanup for $component"
+        return 0
+    fi
     
     log_substep "Cleaning up persistent volumes for $component"
     
@@ -1131,5 +1142,9 @@ kyvernoReset() { helm_component_reset "kyverno" "kyverno"; }
 istioReset() { 
     log_info "Resetting Istio..."
     istioctl uninstall --purge -y 2>/dev/null || true
-    kubectl delete namespace istio-system --ignore-not-found=true --timeout=60s 2>/dev/null || true
+    if command -v kubectl >/dev/null 2>&1; then
+        kubectl delete namespace istio-system --ignore-not-found=true --timeout=60s 2>/dev/null || true
+    else
+        log_warning "kubectl not found - skipping Istio namespace cleanup"
+    fi
 }

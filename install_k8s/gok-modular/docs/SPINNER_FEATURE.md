@@ -17,8 +17,10 @@ execute_with_spinner "Installing package" apt-get install -y nginx
 - `$2+`: Command and arguments to execute
 
 **Behavior:**
+- **Command Validation**: Checks if the command exists before execution
 - Shows animated spinner while command runs
 - Displays success/error message based on exit code
+- Shows clear error if command is not found
 - Respects verbosity settings (no spinner in quiet mode)
 
 ### `execute_with_spinner_custom`
@@ -46,6 +48,15 @@ The spinner uses Unicode characters that animate in sequence:
 - **Verbose mode**: Shows detailed command output instead of spinner
 - **Quiet mode**: No spinner, minimal output
 - **Debug mode**: Shows spinner with debug information
+
+## Error Handling
+
+The spinner functions now include robust error handling:
+
+- **Command Not Found**: Clear error message when executable is missing
+- **Permission Issues**: Proper error reporting for access problems
+- **Network Issues**: Timeout and connection error handling
+- **Exit Code Handling**: Proper success/failure detection
 
 ## Examples
 

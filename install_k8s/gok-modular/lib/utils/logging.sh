@@ -349,6 +349,12 @@ execute_with_spinner() {
     shift
     local command=("$@")
     
+    # Check if the command exists
+    if ! command -v "${command[0]}" >/dev/null 2>&1; then
+        log_error "$message - ${command[0]} command not found"
+        return 127
+    fi
+    
     # Skip spinner in quiet mode or if not in normal verbosity
     if [[ "$GOK_LOG_QUIET" == "true" ]] || ! is_normal; then
         log_substep "$message"
@@ -364,6 +370,19 @@ execute_with_spinner() {
     # Start the command in background
     "${command[@]}" &
     pid=$!
+    
+    # Show spinner while command is running
+    while kill -0 $pid 2>/dev/null; do
+        local spinner_char="${spinner_chars[$spinner_index]}"
+        if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+            echo -ne "\r${COLOR_PROGRESS}${spinner_char}${COLOR_RESET} ${message}..."
+        else
+            echo -ne "\r${spinner_char} ${message}..."
+        fi
+        
+        spinner_index=$(( (spinner_index + 1) % ${#spinner_chars[@]} ))
+        sleep 0.1
+    done
     
     # Show spinner while command is running
     while kill -0 $pid 2>/dev/null; do
@@ -404,6 +423,16 @@ execute_with_spinner_custom() {
     local failure_msg="$3"
     shift 3
     local command=("$@")
+    
+    # Check if the command exists
+    if ! command -v "${command[0]}" >/dev/null 2>&1; then
+        if [[ -n "$failure_msg" ]]; then
+            log_error "$failure_msg - ${command[0]} command not found"
+        else
+            log_error "$message - ${command[0]} command not found"
+        fi
+        return 127
+    fi
     
     # Skip spinner in quiet mode or if not in normal verbosity
     if [[ "$GOK_LOG_QUIET" == "true" ]] || ! is_normal; then
