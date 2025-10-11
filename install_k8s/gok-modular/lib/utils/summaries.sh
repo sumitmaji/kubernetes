@@ -491,13 +491,6 @@ show_cert_manager_summary() {
     local namespace="${1:-cert-manager}"
     local verbose_mode="${2:-false}"
 
-    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}"
-    echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-    echo "║                      CERT-MANAGER SUMMARY                                   ║"
-    echo "╚══════════════════════════════════════════════════════════════════════════════╝"
-    echo -e "${COLOR_RESET}"
-    echo ""
-
     local cluster_accessible=false
     if kubectl cluster-info >/dev/null 2>&1; then
         cluster_accessible=true
