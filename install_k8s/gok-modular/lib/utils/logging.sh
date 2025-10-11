@@ -343,6 +343,129 @@ timed_operation() {
     fi
 }
 
+# Execute command with spinner
+execute_with_spinner() {
+    local message="$1"
+    shift
+    local command=("$@")
+    
+    # Skip spinner in quiet mode or if not in normal verbosity
+    if [[ "$GOK_LOG_QUIET" == "true" ]] || ! is_normal; then
+        log_substep "$message"
+        "${command[@]}"
+        return $?
+    fi
+    
+    # Spinner characters
+    local spinner_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local spinner_index=0
+    local pid=""
+    
+    # Start the command in background
+    "${command[@]}" &
+    pid=$!
+    
+    # Show spinner while command is running
+    while kill -0 $pid 2>/dev/null; do
+        local spinner_char="${spinner_chars[$spinner_index]}"
+        if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+            echo -ne "\r${COLOR_PROGRESS}${spinner_char}${COLOR_RESET} ${message}..."
+        else
+            echo -ne "\r${spinner_char} ${message}..."
+        fi
+        
+        spinner_index=$(( (spinner_index + 1) % ${#spinner_chars[@]} ))
+        sleep 0.1
+    done
+    
+    # Clear the spinner line
+    echo -ne "\r"
+    printf "%-${#message}s\n" ""
+    echo -ne "\r"
+    
+    # Wait for the command and get exit code
+    wait $pid
+    local exit_code=$?
+    
+    # Show result
+    if [[ $exit_code -eq 0 ]]; then
+        log_success "$message"
+    else
+        log_error "$message"
+    fi
+    
+    return $exit_code
+}
+
+# Execute command with spinner and custom success/failure messages
+execute_with_spinner_custom() {
+    local message="$1"
+    local success_msg="$2"
+    local failure_msg="$3"
+    shift 3
+    local command=("$@")
+    
+    # Skip spinner in quiet mode or if not in normal verbosity
+    if [[ "$GOK_LOG_QUIET" == "true" ]] || ! is_normal; then
+        log_substep "$message"
+        if "${command[@]}"; then
+            [[ -n "$success_msg" ]] && log_success "$success_msg"
+            return 0
+        else
+            [[ -n "$failure_msg" ]] && log_error "$failure_msg"
+            return 1
+        fi
+    fi
+    
+    # Spinner characters
+    local spinner_chars=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local spinner_index=0
+    local pid=""
+    
+    # Start the command in background
+    "${command[@]}" &
+    pid=$!
+    
+    # Show spinner while command is running
+    while kill -0 $pid 2>/dev/null; do
+        local spinner_char="${spinner_chars[$spinner_index]}"
+        if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+            echo -ne "\r${COLOR_PROGRESS}${spinner_char}${COLOR_RESET} ${message}..."
+        else
+            echo -ne "\r${spinner_char} ${message}..."
+        fi
+        
+        spinner_index=$(( (spinner_index + 1) % ${#spinner_chars[@]} ))
+        sleep 0.1
+    done
+    
+    # Clear the spinner line
+    echo -ne "\r"
+    printf "%-${#message}s\n" ""
+    echo -ne "\r"
+    
+    # Wait for the command and get exit code
+    wait $pid
+    local exit_code=$?
+    
+    # Show result
+    if [[ $exit_code -eq 0 ]]; then
+        if [[ -n "$success_msg" ]]; then
+            log_success "$success_msg"
+        else
+            log_success "$message"
+        fi
+    else
+        if [[ -n "$failure_msg" ]]; then
+            log_error "$failure_msg"
+        else
+            log_error "$message"
+        fi
+    fi
+    
+    return $exit_code
+}
+
 # =============================================================================
 # LOG FILE MANAGEMENT
 # =============================================================================
@@ -458,8 +581,9 @@ show_log_config() {
 # Export logging functions
 export -f log_debug log_info log_success log_warning log_error log_critical
 export -f log_step log_substep log_progress log_command log_file
-export -f log_separator log_header log_custom log_list
+export -f log_separator log_custom log_list
 export -f track_operation timed_operation
+export -f execute_with_spinner execute_with_spinner_custom
 export -f set_log_level set_log_file rotate_log_file clear_log_file
 export -f enable_quiet_mode disable_quiet_mode
 export -f enable_timestamps disable_timestamps

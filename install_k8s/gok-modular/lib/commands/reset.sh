@@ -977,14 +977,9 @@ helm_component_reset() {
     if [[ "$namespace" != "default" && "$namespace" != "kube-system" ]]; then
         log_substep "Removing namespace: $namespace"
         if [[ "$GOK_VERBOSE" == "true" ]]; then
-            kubectl delete namespace "$namespace" --ignore-not-found=true --timeout=60s
+            execute_controlled "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
         else
-            output=$(kubectl delete namespace "$namespace" --ignore-not-found=true --timeout=60s 2>&1)
-            status=$?
-            if [[ $status -ne 0 ]]; then
-                log_warning "Failed to delete namespace $namespace:"
-                echo "$output"
-            fi
+            execute_with_spinner "Deleting namespace $namespace" "kubectl delete namespace \"$namespace\" --ignore-not-found=true --timeout=60s"
         fi
     fi
     

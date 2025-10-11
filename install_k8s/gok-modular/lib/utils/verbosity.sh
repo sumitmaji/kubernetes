@@ -533,7 +533,7 @@ export -f execute_silent execute_controlled execute_verbose_only execute_debug_o
 export -f execute_with_progress apt_update_controlled apt_install_controlled apt_remove_controlled apt_autoremove_controlled
 export -f docker_pull_controlled docker_run_controlled kubectl_apply_controlled
 export -f systemctl_controlled log_verbose log_debug_verbose log_progress_controlled
-export -f show_spinner_background set_verbosity_level is_verbose is_debug
+export -f show_spinner_background set_verbosity_level is_verbose is_debug is_normal
 export -f handle_command_error show_verbosity_config
 
 # Mark module as loaded
