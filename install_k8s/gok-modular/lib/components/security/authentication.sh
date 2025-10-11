@@ -59,7 +59,7 @@ certManagerInst() {
     #--set startupapicheck.timeout=10m
     # --debug
     if helm_install_with_summary "cert-manager" "cert-manager" \
-        jetstack/cert-manager \
+        cert-manager jetstack/cert-manager \
         --namespace cert-manager \
         --create-namespace \
         --set installCRDs=true \
