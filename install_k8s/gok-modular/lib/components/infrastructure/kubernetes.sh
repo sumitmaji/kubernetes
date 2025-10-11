@@ -1137,7 +1137,6 @@ ingressInst() {
     execute_with_suppression helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
     execute_with_suppression helm repo update
 
-    log_info "Installing NGINX Ingress Controller"
     helm_install_with_summary "ingress-nginx" "ingress-nginx" \
         ingress-nginx ingress-nginx/ingress-nginx \
         --namespace ingress-nginx \

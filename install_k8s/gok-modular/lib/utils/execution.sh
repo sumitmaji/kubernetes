@@ -120,14 +120,15 @@ helm_install_with_summary() {
     local error_file="$GOK_TEMP_DIR/helm_stderr_$(date +%s%N)"
     local start_time=$(date +%s)
     
-    if helm install "$@" >"$temp_file" 2>"$error_file"; then
+    # Use spinner for helm install command
+    if execute_with_spinner "Installing $component via Helm" helm install "$@" >"$temp_file" 2>"$error_file"; then
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         
         # Extract useful information from output
         local release_info=$(grep -E "NAME:|NAMESPACE:|STATUS:|REVISION:" "$temp_file" 2>/dev/null || echo "")
         
-        log_success "Helm installation completed for $component"
+        # Success message already shown by spinner, just show summary
         show_helm_summary "$component" "$namespace" "$duration" "$release_info"
         
         rm -f "$temp_file" "$error_file" 2>/dev/null
