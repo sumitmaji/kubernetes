@@ -332,9 +332,6 @@ installCmd() {
             } >/dev/null 2>&1
 
             log_success "System integration configured"
-
-            # Show comprehensive installation summary
-            show_component_summary "kubernetes"
             ;;
         "kubernetes-worker")
             k8sInst "kubernetes-worker"
