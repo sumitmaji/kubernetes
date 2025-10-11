@@ -139,6 +139,51 @@ dockrInst() {
     return 0
 }
 
+# Validate OIDC configuration required for cluster config generation
+validate_oidc_config() {
+    local required_vars=(
+        "OIDC_ISSUE_URL"
+        "OIDC_CLIENT_ID"
+        "OIDC_USERNAME_CLAIM"
+        "OIDC_GROUPS_CLAIM"
+    )
+    
+    local missing_vars=()
+    local validation_passed=true
+    
+    log_debug "Validating OIDC configuration variables..."
+    
+    for var in "${required_vars[@]}"; do
+        if [[ -z "${!var:-}" ]]; then
+            missing_vars+=("$var")
+            validation_passed=false
+            log_error "Missing required OIDC variable: $var"
+        else
+            log_debug "✓ $var is set: ${!var}"
+        fi
+    done
+    
+    if [[ "$validation_passed" == "false" ]]; then
+        log_error "OIDC Configuration Validation Failed"
+        log_error "Missing variables: ${missing_vars[*]}"
+        log_error ""
+        log_error "Please configure the missing variables:"
+        log_error "  • Set IDENTITY_PROVIDER=keycloak (or auth0)"
+        log_error "  • Ensure keycloak/config file exists with OIDC settings"
+        log_error "  • Or set the variables manually in your environment"
+        log_error ""
+        log_error "Example configuration:"
+        log_error "  export OIDC_ISSUE_URL=https://keycloak.example.com/realms/myrealm"
+        log_error "  export OIDC_CLIENT_ID=my-client-id"
+        log_error "  export OIDC_USERNAME_CLAIM=sub"
+        log_error "  export OIDC_GROUPS_CLAIM=groups"
+        return 1
+    fi
+    
+    log_success "OIDC configuration validation passed"
+    return 0
+}
+
 # Kubernetes installation with comprehensive system configuration
 k8sInst() {
     local k8s_type="${1:-kubernetes}"
@@ -584,6 +629,14 @@ EOF
     # Generate cluster configuration
     log_info "Generating cluster configuration..."
     if [ -f "$WORKING_DIR/cluster-config-master.yaml" ]; then
+        # Validate required OIDC configuration before generating config.yaml
+        log_debug "Validating OIDC configuration..."
+        validate_oidc_config || {
+            log_error "OIDC configuration validation failed. Cannot generate cluster config."
+            log_error "Please ensure OIDC_ISSUE_URL, OIDC_CLIENT_ID, OIDC_USERNAME_CLAIM, and OIDC_GROUPS_CLAIM are configured."
+            return 1
+        }
+        
         envsubst <"$WORKING_DIR/cluster-config-master.yaml" >"$WORKING_DIR/config.yaml"
         log_success "Cluster configuration generated"
     else
