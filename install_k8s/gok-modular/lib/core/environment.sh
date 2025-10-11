@@ -65,7 +65,7 @@ rootDomain() {
 }
 
 sedRootDomain() {
-    echo "${ROOT_DOMAIN//\./\\.}"
+    rootDomain | sed 's/\./-/g'
 }
 
 registrySubdomain() {
