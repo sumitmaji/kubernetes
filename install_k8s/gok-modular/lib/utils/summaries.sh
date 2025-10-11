@@ -364,6 +364,120 @@ show_kubernetes_summary() {
         else
             echo -e "  ${COLOR_RED}✗ OAuth admin: not configured${COLOR_RESET}"
         fi
+        
+        # Check OAuth configuration
+        echo ""
+        log_substep "OAuth Integration:"
+        
+        # Check if oauth2-proxy is deployed
+        if kubectl get deployment oauth2-proxy -n kube-system >/dev/null 2>&1; then
+            local oauth_pods=$(kubectl get pods -n kube-system -l app=oauth2-proxy --no-headers 2>/dev/null | wc -l)
+            local oauth_running=$(kubectl get pods -n kube-system -l app=oauth2-proxy --no-headers 2>/dev/null | grep "Running" | wc -l)
+            echo -e "  ${COLOR_GREEN}✓ OAuth2-Proxy: deployed (${oauth_running}/${oauth_pods} pods running)${COLOR_RESET}"
+            
+            # Get OAuth service details
+            local oauth_svc=$(kubectl get svc oauth2-proxy -n kube-system --no-headers 2>/dev/null)
+            if [[ -n "$oauth_svc" ]]; then
+                local oauth_ip=$(echo "$oauth_svc" | awk '{print $3}')
+                local oauth_port=$(echo "$oauth_svc" | awk '{print $5}' | cut -d: -f1)
+                echo -e "    ${COLOR_DIM}• Service: oauth2-proxy (ClusterIP: ${oauth_ip}:${oauth_port})${COLOR_RESET}"
+            fi
+            
+            # Check OAuth configuration
+            local oauth_config=$(kubectl get configmap oauth2-proxy -n kube-system -o jsonpath='{.data.OAUTH2_PROXY_CFG}' 2>/dev/null)
+            if [[ -n "$oauth_config" ]]; then
+                local client_id=$(echo "$oauth_config" | grep -oP 'client-id=\K[^ ]*' || echo "<configured>")
+                local provider=$(echo "$oauth_config" | grep -oP 'provider=\K[^ ]*' || echo "<configured>")
+                echo -e "    ${COLOR_DIM}• Provider: ${provider}${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Client ID: ${client_id}${COLOR_RESET}"
+            fi
+        else
+            echo -e "  ${COLOR_RED}✗ OAuth2-Proxy: not deployed${COLOR_RESET}"
+        fi
+        
+        # Check Keycloak integration
+        if kubectl get deployment keycloak -n keycloak >/dev/null 2>&1; then
+            local keycloak_pods=$(kubectl get pods -n keycloak -l app=keycloak --no-headers 2>/dev/null | wc -l)
+            local keycloak_running=$(kubectl get pods -n keycloak -l app=keycloak --no-headers 2>/dev/null | grep "Running" | wc -l)
+            echo -e "  ${COLOR_GREEN}✓ Keycloak: deployed (${keycloak_running}/${keycloak_pods} pods running)${COLOR_RESET}"
+            
+            # Get Keycloak service details
+            local keycloak_svc=$(kubectl get svc keycloak -n keycloak --no-headers 2>/dev/null)
+            if [[ -n "$keycloak_svc" ]]; then
+                local keycloak_ip=$(echo "$keycloak_svc" | awk '{print $3}')
+                local keycloak_port=$(echo "$keycloak_svc" | awk '{print $5}' | cut -d: -f1)
+                echo -e "    ${COLOR_DIM}• Service: keycloak (ClusterIP: ${keycloak_ip}:${keycloak_port})${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Admin Console: https://${keycloak_ip}:${keycloak_port}/auth/admin${COLOR_RESET}"
+            fi
+            
+            # Check Keycloak ingress
+            local keycloak_ing=$(kubectl get ingress keycloak -n keycloak --no-headers 2>/dev/null)
+            if [[ -n "$keycloak_ing" ]]; then
+                local keycloak_host=$(echo "$keycloak_ing" | awk '{print $3}')
+                echo -e "    ${COLOR_DIM}• Ingress: https://${keycloak_host}${COLOR_RESET}"
+            fi
+        else
+            echo -e "  ${COLOR_YELLOW}⚠ Keycloak: not deployed${COLOR_RESET}"
+        fi
+        
+        # Check OAuth certificates
+        if kubectl get secret oauth2-proxy-tls -n kube-system >/dev/null 2>&1; then
+            echo -e "  ${COLOR_GREEN}✓ OAuth TLS: configured${COLOR_RESET}"
+            echo -e "    ${COLOR_DIM}• Certificate: oauth2-proxy-tls${COLOR_RESET}"
+        else
+            echo -e "  ${COLOR_YELLOW}⚠ OAuth TLS: not configured${COLOR_RESET}"
+        fi
+        
+        # Check OIDC configuration in kube-apiserver
+        echo ""
+        log_substep "OIDC Integration:"
+        
+        # Check if OIDC is configured in API server
+        local oidc_issuer=$(kubectl get --raw /api/v1/nodes | jq -r '.items[0].status.nodeInfo.kubeletVersion' 2>/dev/null || echo "")
+        if [[ -n "$oidc_issuer" ]]; then
+            # Try to get OIDC configuration from cluster info
+            local api_server_pods=$(kubectl get pods -n kube-system -l component=kube-apiserver --no-headers 2>/dev/null)
+            if [[ -n "$api_server_pods" ]]; then
+                local api_server_pod=$(echo "$api_server_pods" | head -1 | awk '{print $1}')
+                local oidc_config=$(kubectl exec -n kube-system "$api_server_pod" -- ps aux | grep -oP 'oidc-issuer-url=\K[^ ]*' || echo "")
+                if [[ -n "$oidc_config" ]]; then
+                    echo -e "  ${COLOR_GREEN}✓ OIDC: configured in API server${COLOR_RESET}"
+                    echo -e "    ${COLOR_DIM}• Issuer URL: ${oidc_config}${COLOR_RESET}"
+                    
+                    # Check JWKS URL if available
+                    local jwks_url=$(kubectl exec -n kube-system "$api_server_pod" -- ps aux | grep -oP 'oidc-jwks-uri=\K[^ ]*' || echo "")
+                    if [[ -n "$jwks_url" ]]; then
+                        echo -e "    ${COLOR_DIM}• JWKS URI: ${jwks_url}${COLOR_RESET}"
+                    fi
+                    
+                    # Check client ID
+                    local client_id=$(kubectl exec -n kube-system "$api_server_pod" -- ps aux | grep -oP 'oidc-client-id=\K[^ ]*' || echo "")
+                    if [[ -n "$client_id" ]]; then
+                        echo -e "    ${COLOR_DIM}• Client ID: ${client_id}${COLOR_RESET}"
+                    fi
+                else
+                    echo -e "  ${COLOR_YELLOW}⚠ OIDC: not configured in API server${COLOR_RESET}"
+                fi
+            fi
+        fi
+        
+        # Check kube-login configuration
+        if kubectl get deployment kube-login -n kube-system >/dev/null 2>&1; then
+            local login_pods=$(kubectl get pods -n kube-system -l app=kube-login --no-headers 2>/dev/null | wc -l)
+            local login_running=$(kubectl get pods -n kube-system -l app=kube-login --no-headers 2>/dev/null | grep "Running" | wc -l)
+            echo -e "  ${COLOR_GREEN}✓ Kube-login: deployed (${login_running}/${login_pods} pods running)${COLOR_RESET}"
+            
+            # Get kube-login service details
+            local login_svc=$(kubectl get svc kube-login -n kube-system --no-headers 2>/dev/null)
+            if [[ -n "$login_svc" ]]; then
+                local login_ip=$(echo "$login_svc" | awk '{print $3}')
+                local login_port=$(echo "$login_svc" | awk '{print $5}' | cut -d: -f1)
+                echo -e "    ${COLOR_DIM}• Service: kube-login (ClusterIP: ${login_ip}:${login_port})${COLOR_RESET}"
+            fi
+        else
+            echo -e "  ${COLOR_YELLOW}⚠ Kube-login: not deployed${COLOR_RESET}"
+        fi
+        
     else
         echo -e "  ${COLOR_RED}✗ RBAC status: cluster not accessible${COLOR_RESET}"
     fi
