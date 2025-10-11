@@ -15,26 +15,36 @@ mkdir -p "$GOK_TEMP_DIR"
 execute_with_suppression() {
     local temp_file="$GOK_TEMP_DIR/stdout_$(date +%s%N)"
     local error_file="$GOK_TEMP_DIR/stderr_$(date +%s%N)"
+    local stdin_file=""
     local command_display="$*"
-    
+
     # Show command being executed if verbose mode
     if [[ "$GOK_SHOW_COMMANDS" == "true" ]]; then
         log_debug "Executing: $command_display"
     fi
-    
+
+    # Check if stdin has content (not connected to terminal)
+    local has_stdin=false
+    if [[ ! -t 0 ]]; then
+        has_stdin=true
+        stdin_file="$GOK_TEMP_DIR/stdin_$(date +%s%N)"
+        # Capture stdin to a temporary file
+        cat > "$stdin_file"
+    fi
+
     # Execute command with both stdout and stderr captured
     if "$@" >"$temp_file" 2>"$error_file"; then
         # Success - clean up and return
-        rm -f "$temp_file" "$error_file" 2>/dev/null
+        rm -f "$temp_file" "$error_file" "$stdin_file" 2>/dev/null
         return 0
     else
         local exit_code=$?
-        
+
         # Show formatted error information
-        show_execution_error "$command_display" "$exit_code" "$temp_file" "$error_file"
-        
+        show_execution_error "$command_display" "$exit_code" "$temp_file" "$error_file" "$stdin_file"
+
         # Clean up temp files
-        rm -f "$temp_file" "$error_file" 2>/dev/null
+        rm -f "$temp_file" "$error_file" "$stdin_file" 2>/dev/null
         return $exit_code
     fi
 }
@@ -45,17 +55,29 @@ show_execution_error() {
     local exit_code="$2"
     local stdout_file="$3"
     local stderr_file="$4"
-    
+    local stdin_file="$5"
+
     echo >&2
     log_error "Command execution failed"
     echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}" >&2
     echo -e "${COLOR_RED}${COLOR_BOLD}│ 🚨 COMMAND EXECUTION FAILED - DEBUGGING INFORMATION            │${COLOR_RESET}" >&2
     echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}" >&2
-    
+
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}⚙️  Failed Command:${COLOR_RESET}" >&2
     echo -e "${COLOR_WHITE}  $command${COLOR_RESET}" >&2
     echo -e "${COLOR_YELLOW}${COLOR_BOLD}❌ Exit Code: ${COLOR_RED}$exit_code${COLOR_RESET}" >&2
-    
+
+    # Show input content if available and looks like YAML/JSON
+    if [[ -n "$stdin_file" && -s "$stdin_file" ]]; then
+        local content_type=$(detect_content_type "$stdin_file")
+        if [[ "$content_type" == "yaml" || "$content_type" == "json" ]]; then
+            echo -e "${COLOR_CYAN}${COLOR_BOLD}📄 Input ${content_type^^} Content:${COLOR_RESET}" >&2
+            echo -e "${COLOR_CYAN}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+            cat "$stdin_file" >&2
+            echo -e "${COLOR_CYAN}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+        fi
+    fi
+
     # Show error output if available
     if [[ -s "$stderr_file" ]]; then
         echo -e "${COLOR_RED}${COLOR_BOLD}🚨 Error Output:${COLOR_RESET}" >&2
@@ -63,7 +85,7 @@ show_execution_error() {
         cat "$stderr_file" >&2
         echo -e "${COLOR_RED}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
     fi
-    
+
     # Show standard output if available (may contain useful debugging info)
     if [[ -s "$stdout_file" ]]; then
         echo -e "${COLOR_YELLOW}${COLOR_BOLD}ℹ️  Standard Output:${COLOR_RESET}" >&2
@@ -71,7 +93,7 @@ show_execution_error() {
         cat "$stdout_file" >&2
         echo -e "${COLOR_YELLOW}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
     fi
-    
+
     # Show debugging tips
     show_debugging_tips "$command"
     echo >&2
@@ -107,6 +129,39 @@ show_debugging_tips() {
     esac
     
     echo -e "  ${COLOR_CYAN}• Run with debug: GOK_DEBUG=true gok-new <command>${COLOR_RESET}" >&2
+}
+
+# Detect if content is YAML or JSON
+detect_content_type() {
+    local file="$1"
+
+    if [[ ! -f "$file" ]]; then
+        echo "unknown"
+        return
+    fi
+
+    # Read first few lines to detect format
+    local first_lines=$(head -10 "$file" 2>/dev/null)
+
+    # Check for YAML indicators
+    if echo "$first_lines" | grep -qE "^apiVersion:\|^kind:\|^metadata:\|^spec:\|^status:"; then
+        echo "yaml"
+        return
+    fi
+
+    # Check for JSON indicators
+    if echo "$first_lines" | grep -qE '^\s*{\s*"|^}\s*$|^\s*\[\s*|^]\s*$'; then
+        echo "json"
+        return
+    fi
+
+    # Check for YAML list items or mappings
+    if echo "$first_lines" | grep -qE "^\s*-\s|^[a-zA-Z_][a-zA-Z0-9_]*:\s"; then
+        echo "yaml"
+        return
+    fi
+
+    echo "unknown"
 }
 
 # Execute helm install with log suppression and summary
