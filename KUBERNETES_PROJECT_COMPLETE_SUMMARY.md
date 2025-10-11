@@ -468,7 +468,7 @@ registryReset() {
     log_info "Registry namespace found - proceeding with removal"
     
     log_step "2" "Removing registry Helm release"
-    if helm_uninstall_with_summary "registry" "registry" --namespace registry; then
+    if helm_uninstall_with_summary "registry" "registry" --namespace registry registry; then
       log_success "Registry Helm release removed"
     fi
     

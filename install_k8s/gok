@@ -6369,7 +6369,7 @@ resetChart(){
   log_component_start "chartmuseum-reset" "Removing ChartMuseum installation"
   
   log_step "1" "Uninstalling ChartMuseum Helm release"
-  if helm_uninstall_with_summary "chartmuseum" "chartmuseum" chartmuseum --namespace chartmuseum; then
+  if helm_uninstall_with_summary "chartmuseum" "chartmuseum" --namespace chartmuseum chartmuseum; then
     log_success "ChartMuseum Helm release removed"
   fi
   
@@ -17412,7 +17412,7 @@ kyvernoReset(){
   fi
   
   log_step "2" "Uninstalling Kyverno Helm release"
-  if helm_uninstall_with_summary "kyverno" "kyverno" kyverno -n kyverno; then
+  if helm_uninstall_with_summary "kyverno" "kyverno" -n kyverno kyverno; then
     log_success "Kyverno Helm release removed"
   fi
   

@@ -968,7 +968,7 @@ helm_component_reset() {
     # Check if release exists
     if helm list -n "$namespace" -q | grep -q "^${release_name}$"; then
         log_substep "Uninstalling Helm release: $release_name"
-        helm_uninstall_with_summary "$release_name" "$namespace" -n "$namespace"
+        helm_uninstall_with_summary "$release_name" "$namespace" -n "$namespace" "$release_name"
     else
         log_info "Helm release $release_name not found in namespace $namespace"
     fi
