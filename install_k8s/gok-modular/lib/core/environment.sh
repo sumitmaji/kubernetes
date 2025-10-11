@@ -18,13 +18,21 @@ EOF
 
 getKeycloakConfig() {
     # Source the centralized OAuth/OIDC configuration from keycloak/config (if exists)
-    local keycloak_config="${MOUNT_PATH}/kubernetes/install_k8s/keycloak/config"
+    # Use a more robust path that doesn't depend on MOUNT_PATH being set
+    local keycloak_config="${MOUNT_PATH:-/home/sumit/Documents/repository}/kubernetes/install_k8s/keycloak/config"
     if [[ -f "$keycloak_config" ]]; then
         source "$keycloak_config"
+    else
+        # Fallback: try to find the config relative to the script location
+        local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        local relative_config="${script_dir}/../../../keycloak/config"
+        if [[ -f "$relative_config" ]]; then
+            source "$relative_config"
+        fi
     fi
 
     # Export the OAuth/OIDC configuration values
-    IFS='' read -r -d '' OAUTH <<"EOF"
+    IFS='' read -r -d '' OAUTH <<EOF
 export OIDC_ISSUE_URL=$OIDC_ISSUE_URL
 export OIDC_CLIENT_ID=$OIDC_CLIENT_ID
 export OIDC_USERNAME_CLAIM=$OIDC_USERNAME_CLAIM
@@ -49,9 +57,10 @@ generate_root_config() {
             ;;
     esac
     
-    # Create root_config if MOUNT_PATH is writable
-    if [ -w "${MOUNT_PATH}" ]; then
-        cat <<EOF > ${MOUNT_PATH}/root_config
+    # Create root_config if MOUNT_PATH is writable (default to /home/sumit/Documents/repository)
+    local mount_path="${MOUNT_PATH:-/home/sumit/Documents/repository}"
+    if [ -w "$mount_path" ]; then
+        cat <<EOF > ${mount_path}/root_config
 ${config_output}
 EOF
     fi
