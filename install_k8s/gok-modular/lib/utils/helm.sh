@@ -13,14 +13,15 @@ helm_install_with_summary() {
     local error_file=$(mktemp)
     local start_time=$(date +%s)
     
-    if helm install "$@" >"$temp_file" 2>"$error_file"; then
+    # Use spinner for helm install command
+    if execute_with_spinner "Installing $component via Helm" helm install "$@" >"$temp_file" 2>"$error_file"; then
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         
         # Extract useful information from output
         local release_info=$(grep -E "NAME:|NAMESPACE:|STATUS:|REVISION:" "$temp_file" 2>/dev/null || echo "")
         
-        log_success "Helm installation completed for $component"
+        # Success message already shown by spinner, just show summary
         echo -e "${COLOR_CYAN}${COLOR_BOLD}📋 Installation Summary:${COLOR_RESET}"
         echo -e "  ${COLOR_GREEN}• Component: ${COLOR_BOLD}$component${COLOR_RESET}"
         echo -e "  ${COLOR_GREEN}• Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
