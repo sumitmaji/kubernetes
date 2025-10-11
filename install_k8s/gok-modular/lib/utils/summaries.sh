@@ -432,33 +432,45 @@ show_kubernetes_summary() {
         echo ""
         log_substep "OIDC Integration:"
         
-        # Check if OIDC is configured in API server
-        local oidc_issuer=$(kubectl get --raw /api/v1/nodes | jq -r '.items[0].status.nodeInfo.kubeletVersion' 2>/dev/null || echo "")
-        if [[ -n "$oidc_issuer" ]]; then
-            # Try to get OIDC configuration from cluster info
-            local api_server_pods=$(kubectl get pods -n kube-system -l component=kube-apiserver --no-headers 2>/dev/null)
-            if [[ -n "$api_server_pods" ]]; then
-                local api_server_pod=$(echo "$api_server_pods" | head -1 | awk '{print $1}')
-                local oidc_config=$(kubectl exec -n kube-system "$api_server_pod" -- ps aux | grep -oP 'oidc-issuer-url=\K[^ ]*' || echo "")
-                if [[ -n "$oidc_config" ]]; then
+        # Check if OIDC is configured by looking for related resources
+        local oidc_configured=false
+        
+        # Check for OIDC-related secrets or configmaps
+        if kubectl get configmap kube-apiserver -n kube-system >/dev/null 2>&1; then
+            local api_config=$(kubectl get configmap kube-apiserver -n kube-system -o jsonpath='{.data.kube-apiserver}' 2>/dev/null || echo "")
+            if [[ -n "$api_config" ]] && echo "$api_config" | grep -q "oidc-issuer-url"; then
+                oidc_configured=true
+                local oidc_issuer_url=$(echo "$api_config" | grep -oP 'oidc-issuer-url=\K[^\s]*' || echo "")
+                if [[ -n "$oidc_issuer_url" ]]; then
                     echo -e "  ${COLOR_GREEN}✓ OIDC: configured in API server${COLOR_RESET}"
-                    echo -e "    ${COLOR_DIM}• Issuer URL: ${oidc_config}${COLOR_RESET}"
+                    echo -e "    ${COLOR_DIM}• Issuer URL: ${oidc_issuer_url}${COLOR_RESET}"
                     
-                    # Check JWKS URL if available
-                    local jwks_url=$(kubectl exec -n kube-system "$api_server_pod" -- ps aux | grep -oP 'oidc-jwks-uri=\K[^ ]*' || echo "")
-                    if [[ -n "$jwks_url" ]]; then
-                        echo -e "    ${COLOR_DIM}• JWKS URI: ${jwks_url}${COLOR_RESET}"
+                    # Check for other OIDC settings
+                    local oidc_client_id=$(echo "$api_config" | grep -oP 'oidc-client-id=\K[^\s]*' || echo "")
+                    if [[ -n "$oidc_client_id" ]]; then
+                        echo -e "    ${COLOR_DIM}• Client ID: ${oidc_client_id}${COLOR_RESET}"
                     fi
                     
-                    # Check client ID
-                    local client_id=$(kubectl exec -n kube-system "$api_server_pod" -- ps aux | grep -oP 'oidc-client-id=\K[^ ]*' || echo "")
-                    if [[ -n "$client_id" ]]; then
-                        echo -e "    ${COLOR_DIM}• Client ID: ${client_id}${COLOR_RESET}"
+                    local oidc_jwks_uri=$(echo "$api_config" | grep -oP 'oidc-jwks-uri=\K[^\s]*' || echo "")
+                    if [[ -n "$oidc_jwks_uri" ]]; then
+                        echo -e "    ${COLOR_DIM}• JWKS URI: ${oidc_jwks_uri}${COLOR_RESET}"
                     fi
-                else
-                    echo -e "  ${COLOR_YELLOW}⚠ OIDC: not configured in API server${COLOR_RESET}"
                 fi
             fi
+        fi
+        
+        # Alternative: Check for OIDC-related environment variables or secrets
+        if [[ "$oidc_configured" == "false" ]]; then
+            # Check if there are any OIDC-related secrets
+            local oidc_secrets=$(kubectl get secrets --all-namespaces --no-headers 2>/dev/null | grep -i oidc | wc -l || echo "0")
+            if [[ "$oidc_secrets" -gt 0 ]]; then
+                echo -e "  ${COLOR_YELLOW}⚠ OIDC: potentially configured (found ${oidc_secrets} OIDC-related secrets)${COLOR_RESET}"
+                oidc_configured=true
+            fi
+        fi
+        
+        if [[ "$oidc_configured" == "false" ]]; then
+            echo -e "  ${COLOR_YELLOW}⚠ OIDC: not configured in API server${COLOR_RESET}"
         fi
         
         # Check kube-login configuration
