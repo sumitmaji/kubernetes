@@ -121,6 +121,7 @@ load_command_modules() {
         "exec"
         "completion"
         "show"
+        "summary"
         "debug"
     )
     

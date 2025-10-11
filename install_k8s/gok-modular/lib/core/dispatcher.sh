@@ -86,6 +86,9 @@ dispatch_command() {
         "show")
             showCmd "$@"
             ;;
+        "summary")
+            summaryCmd "$@"
+            ;;
         "taint-node")
             taintNodeCmd "$@"
             ;;
