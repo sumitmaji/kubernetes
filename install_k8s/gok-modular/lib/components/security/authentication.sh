@@ -45,7 +45,6 @@ godaddyWebhookReset() {
 
 # Install Cert-Manager for certificate management
 certManagerInst() {
-    log_component_start "cert-manager" "Installing certificate management system"
     
     log_step "1" "Adding Jetstack Helm repository"
     execute_with_suppression helm repo add jetstack https://charts.jetstack.io
