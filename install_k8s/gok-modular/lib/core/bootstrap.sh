@@ -203,6 +203,12 @@ bootstrap_gok() {
     mkdir -p "${GOK_CACHE_DIR}"
     [[ ! -f "${GOK_CACHE_DIR}/component_status" ]] && touch "${GOK_CACHE_DIR}/component_status"
     
+    # Initialize verbosity system
+    init_verbosity || {
+        echo "ERROR: Failed to initialize verbosity system" >&2
+        return 1
+    }
+    
     # Use simple debug output to avoid logging conflicts
     if [[ "${GOK_DEBUG:-}" == "true" ]]; then
         echo "[DEBUG] GOK system initialized successfully" >&2

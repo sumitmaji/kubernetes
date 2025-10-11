@@ -53,10 +53,20 @@ init_verbosity() {
     # Check environment variables
     if [[ "${GOK_VERBOSE:-}" == "true" ]]; then
         GOK_VERBOSITY_LEVEL=$VERBOSITY_VERBOSE
+        set_log_level "INFO"
+        export GOK_LOG_QUIET=false
     elif [[ "${GOK_DEBUG:-}" == "true" ]]; then
         GOK_VERBOSITY_LEVEL=$VERBOSITY_DEBUG
+        set_log_level "DEBUG"
+        export GOK_LOG_QUIET=false
     elif [[ "${GOK_QUIET:-}" == "true" ]]; then
         GOK_VERBOSITY_LEVEL=$VERBOSITY_SILENT
+        export GOK_LOG_QUIET=true
+    else
+        # Default to normal verbosity
+        GOK_VERBOSITY_LEVEL=$VERBOSITY_NORMAL
+        set_log_level "INFO"
+        export GOK_LOG_QUIET=false
     fi
     
     export GOK_VERBOSITY_LEVEL
@@ -68,17 +78,24 @@ set_verbosity_level() {
     case "$level" in
         "silent"|"quiet"|0)
             GOK_VERBOSITY_LEVEL=$VERBOSITY_SILENT
+            export GOK_LOG_QUIET=true
             ;;
         "normal"|"standard"|1)
             GOK_VERBOSITY_LEVEL=$VERBOSITY_NORMAL
+            export GOK_LOG_QUIET=false
+            set_log_level "INFO"
             ;;
         "verbose"|"detailed"|2)
             GOK_VERBOSITY_LEVEL=$VERBOSITY_VERBOSE
             export GOK_VERBOSE=true
+            export GOK_LOG_QUIET=false
+            set_log_level "INFO"
             ;;
         "debug"|3)
             GOK_VERBOSITY_LEVEL=$VERBOSITY_DEBUG
             export GOK_DEBUG=true
+            export GOK_LOG_QUIET=false
+            set_log_level "DEBUG"
             ;;
         *)
             log_error "Invalid verbosity level: $level"
