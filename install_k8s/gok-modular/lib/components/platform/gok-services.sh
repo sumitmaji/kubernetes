@@ -8,7 +8,7 @@ gokCloudInst() {
     start_component "gok-cloud"
     
     local namespace="gok-platform"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local gok_cloud_yaml="${GOK_CONFIG_DIR}/gok-cloud.yaml"
     if [[ ! -f "$gok_cloud_yaml" ]]; then
@@ -126,7 +126,7 @@ gokDebugInst() {
     start_component "gok-debug"
     
     local namespace="gok-debug"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local debug_yaml="${GOK_CONFIG_DIR}/gok-debug.yaml"
     if [[ ! -f "$debug_yaml" ]]; then
@@ -315,7 +315,7 @@ gokLoginInst() {
     start_component "gok-login"
     
     local namespace="gok-login"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local login_yaml="${GOK_CONFIG_DIR}/gok-login.yaml"
     if [[ ! -f "$login_yaml" ]]; then

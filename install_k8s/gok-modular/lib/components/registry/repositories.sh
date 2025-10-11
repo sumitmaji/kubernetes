@@ -8,7 +8,7 @@ registryInst() {
     start_component "registry"
     
     local namespace="registry"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Twuni Helm repository for Docker Registry
     helm repo add twuni https://helm.twun.io
@@ -169,7 +169,7 @@ chartRegistryInst() {
     start_component "chart-registry"
     
     local namespace="chart-registry"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add ChartMuseum Helm repository
     helm repo add chartmuseum https://chartmuseum.github.io/charts
@@ -263,7 +263,7 @@ harborInst() {
     start_component "harbor"
     
     local namespace="harbor"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Harbor Helm repository
     helm repo add harbor https://helm.goharbor.io
@@ -426,7 +426,7 @@ nexusInst() {
     start_component "nexus"
     
     local namespace="nexus"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Sonatype Helm repository
     helm repo add sonatype https://sonatype.github.io/helm3-charts/

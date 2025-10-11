@@ -10,7 +10,7 @@ prometheusInst() {
     local namespace="monitoring"
     
     # Create namespace
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Prometheus Helm repository
     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -148,7 +148,7 @@ cadvisorInst() {
     start_component "cadvisor"
     
     local namespace="monitoring"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Create cAdvisor DaemonSet
     local cadvisor_yaml="${GOK_CONFIG_DIR}/cadvisor.yaml"

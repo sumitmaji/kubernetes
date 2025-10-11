@@ -8,7 +8,7 @@ istioInst() {
     start_component "istio"
     
     local namespace="istio-system"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Istio Helm repository
     helm repo add istio https://istio-release.storage.googleapis.com/charts
@@ -79,7 +79,7 @@ EOF
     
     # Install Istio Gateway
     local gateway_namespace="istio-ingress"
-    kubectl create namespace "$gateway_namespace" 2>/dev/null || true
+    ensure_namespace "$gateway_namespace"
     kubectl label namespace "$gateway_namespace" istio-injection=enabled --overwrite
     
     local gateway_values="${GOK_CONFIG_DIR}/istio-gateway-values.yaml"
@@ -271,7 +271,7 @@ fluentdInst() {
     start_component "fluentd"
     
     local namespace="logging"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Fluent Helm repository
     helm repo add fluent https://fluent.github.io/helm-charts
@@ -506,7 +506,7 @@ metallbInst() {
     start_component "metallb"
     
     local namespace="metallb-system"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add MetalLB Helm repository
     helm repo add metallb https://metallb.github.io/metallb

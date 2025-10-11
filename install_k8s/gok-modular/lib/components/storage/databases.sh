@@ -8,7 +8,7 @@ opensearchInst() {
     start_component "opensearch"
     
     local namespace="opensearch"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add OpenSearch Helm repository
     helm repo add opensearch https://opensearch-project.github.io/helm-charts/
@@ -132,7 +132,7 @@ rabbitmqInst() {
     start_component "rabbitmq"
     
     local namespace="rabbitmq"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository
     helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -236,7 +236,7 @@ kafkaInst() {
     start_component "kafka"
     
     local namespace="kafka"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
     helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -318,7 +318,7 @@ postgresqlInst() {
     start_component "postgresql"
     
     local namespace="postgresql"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
     helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -400,7 +400,7 @@ mysqlInst() {
     start_component "mysql"
     
     local namespace="mysql"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
     helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -477,7 +477,7 @@ redisInst() {
     start_component "redis"
     
     local namespace="redis"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository (if not already added)
     helm repo add bitnami https://charts.bitnami.com/bitnami

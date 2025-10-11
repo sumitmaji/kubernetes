@@ -8,7 +8,7 @@ argocdInst() {
     start_component "argocd"
     
     local namespace="argocd"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add ArgoCD Helm repository
     helm repo add argo https://argoproj.github.io/argo-helm
@@ -95,7 +95,7 @@ jenkinsInst() {
     start_component "jenkins"
     
     local namespace="jenkins"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Jenkins Helm repository
     helm repo add jenkinsci https://charts.jenkins.io
@@ -216,7 +216,7 @@ spinnakerInst() {
     start_component "spinnaker"
     
     local namespace="spinnaker"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Spinnaker Helm repository
     helm repo add spinnaker https://opsmx.github.io/spinnaker-helm/
@@ -386,7 +386,7 @@ gitlabInst() {
     start_component "gitlab"
     
     local namespace="gitlab"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add GitLab Helm repository
     helm repo add gitlab https://charts.gitlab.io/

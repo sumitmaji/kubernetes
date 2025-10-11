@@ -10,7 +10,7 @@ certManagerInst() {
     local namespace="cert-manager"
     
     # Create namespace
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Jetstack Helm repository
     helm repo add jetstack https://charts.jetstack.io
@@ -85,7 +85,7 @@ keycloakInst() {
     start_component "keycloak"
     
     local namespace="keycloak"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Bitnami Helm repository
     helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -155,7 +155,7 @@ oauth2ProxyInst() {
     start_component "oauth2-proxy"
     
     local namespace="oauth2-proxy"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add OAuth2 Proxy Helm repository
     helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests
@@ -219,7 +219,7 @@ vaultInst() {
     start_component "vault"
     
     local namespace="vault"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add HashiCorp Helm repository
     helm repo add hashicorp https://helm.releases.hashicorp.com
@@ -285,7 +285,7 @@ ldapInst() {
     start_component "ldap"
     
     local namespace="ldap"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local ldap_yaml="${GOK_CONFIG_DIR}/ldap.yaml"
     if [[ ! -f "$ldap_yaml" ]]; then
@@ -455,7 +455,7 @@ kerberosInst() {
     start_component "kerberos"
     
     local namespace="kerberos"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local kerberos_yaml="${GOK_CONFIG_DIR}/kerberos.yaml"
     if [[ ! -f "$kerberos_yaml" ]]; then

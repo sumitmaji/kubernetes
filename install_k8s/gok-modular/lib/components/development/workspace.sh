@@ -8,7 +8,7 @@ jupyterInst() {
     start_component "jupyter"
     
     local namespace="jupyter"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add JupyterHub Helm repository
     helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
@@ -92,7 +92,7 @@ dashboardInst() {
     start_component "dashboard"
     
     local namespace="kubernetes-dashboard"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Kubernetes Dashboard Helm repository
     helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
@@ -176,7 +176,7 @@ ttydInst() {
     start_component "ttyd"
     
     local namespace="ttyd"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local ttyd_yaml="${GOK_CONFIG_DIR}/ttyd.yaml"
     if [[ ! -f "$ttyd_yaml" ]]; then
@@ -264,7 +264,7 @@ eclipsecheInst() {
     start_component "eclipseche"
     
     local namespace="eclipse-che"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     # Add Eclipse Che Helm repository
     helm repo add eclipse-che https://eclipse.github.io/che-operator/
@@ -334,7 +334,7 @@ cloudshellInst() {
     start_component "cloud-shell"
     
     local namespace="cloud-shell"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local cloudshell_yaml="${GOK_CONFIG_DIR}/cloud-shell.yaml"
     if [[ ! -f "$cloudshell_yaml" ]]; then
@@ -433,7 +433,7 @@ consoleInst() {
     start_component "console"
     
     local namespace="console"
-    kubectl create namespace "$namespace" 2>/dev/null || true
+    ensure_namespace "$namespace"
     
     local console_yaml="${GOK_CONFIG_DIR}/console.yaml"
     if [[ ! -f "$console_yaml" ]]; then
