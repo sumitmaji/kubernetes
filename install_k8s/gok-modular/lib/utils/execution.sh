@@ -28,18 +28,31 @@ execute_with_suppression() {
     if [[ ! -t 0 ]]; then
         has_stdin=true
         stdin_file="$GOK_TEMP_DIR/stdin_$(date +%s%N)"
-        # Capture stdin to a temporary file
-        cat > "$stdin_file"
     fi
 
     # Execute command with both stdout and stderr captured
-    if "$@" >"$temp_file" 2>"$error_file"; then
+    local exit_code=0
+    if [[ "$has_stdin" == "true" ]]; then
+        # Capture stdin while also passing it to the command
+        if tee "$stdin_file" | "$@" >"$temp_file" 2>"$error_file"; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+    else
+        # No stdin, execute normally
+        if "$@" >"$temp_file" 2>"$error_file"; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+    fi
+
+    if [[ $exit_code -eq 0 ]]; then
         # Success - clean up and return
         rm -f "$temp_file" "$error_file" "$stdin_file" 2>/dev/null
         return 0
     else
-        local exit_code=$?
-
         # Show formatted error information
         show_execution_error "$command_display" "$exit_code" "$temp_file" "$error_file" "$stdin_file"
 
