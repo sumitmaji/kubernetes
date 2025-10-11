@@ -2,82 +2,470 @@
 
 # GOK Security Components Module - Cert-Manager, Keycloak, OAuth2, Vault, LDAP, Kerberos
 
+# Helper functions for certificate management
+getLetsEncEnv(){
+  echo "${LETS_ENCRYPT_ENV}"
+}
+
+getLetsEncryptUrl(){
+  [[ $(getLetsEncEnv) == 'prod' ]] && echo "https://acme-v02.api.letsencrypt.org/directory " || echo "https://acme-staging-v02.api.letsencrypt.org/directory"
+}
+
+isProd(){
+  [[ $(getLetsEncEnv) == 'prod' ]] && echo "true" || echo "false"
+}
+
+getClusterIssuerName(){
+  case "$CERTMANAGER_CHALANGE_TYPE" in
+   'dns') echo "letsencrypt-$(getLetsEncEnv)" ;;
+   'http') echo "letsencrypt-$(getLetsEncEnv)" ;;
+   'selfsigned') echo "gokselfsign-ca-cluster-issuer" ;;
+  esac
+}
+
+#Godday api calls are disabled, hence going to remove this call.
+godaddyWebhook() {
+  replaceEnvVariable  https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml | kubectl create -f - --validate=false
+  echo "Provide godaddy apikey and secret <API_KEY:SECRET>"
+  API_KEY=$(promptSecret "Provide godaddy apikey and secret <API_KEY:SECRET>")
+  kubectl create secret generic godaddy-api-key-secret --from-literal=api-key=$API_KEY -n cert-manager
+}
+
+addLetsEncryptStagingCertificates(){
+  wget https://letsencrypt.org/certs/staging/letsencrypt-stg-root-x1.pem
+  sudo cp letsencrypt-stg-root-x1.pem /usr/local/share/ca-certificates/
+  sudo update-ca-certificates
+  echo "Added letsencrypt staging certificates, please reboot the system for it to effect"
+}
+
+godaddyWebhookReset() {
+  kubectl delete -f https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/godaddy-cert-webhook/webhook-all.yml
+  kubectl delete secret godaddy-api-key-secret -n cert-manager
+}
+
 # Install Cert-Manager for certificate management
 certManagerInst() {
-    log_component_start "Cert-Manager" "Installing certificate management system"
-    start_component "cert-manager"
+    log_component_start "cert-manager" "Installing certificate management system"
     
-    local namespace="cert-manager"
-    
-    # Create namespace
-    ensure_namespace "$namespace"
-    
-    # Add Jetstack Helm repository
-    log_info "Adding Jetstack Helm repository"
+    log_step "1" "Adding Jetstack Helm repository"
     execute_with_suppression helm repo add jetstack https://charts.jetstack.io
     execute_with_suppression helm repo update
     
-    # Install cert-manager CRDs
-    execute_with_suppression \
-        "kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.crds.yaml" \
-        "Installing cert-manager CRDs"
-    
-    # Install cert-manager
-    helm_install_with_summary "cert-manager" "jetstack/cert-manager" \
-        "--namespace $namespace" \
-        "--version v1.13.0" \
-        "--set installCRDs=false" \
-        "--wait --timeout=5m"
-    
-    if [[ $? -eq 0 ]]; then
-        # Create ClusterIssuer for Let's Encrypt
-        local issuer_yaml="${GOK_CONFIG_DIR}/cluster-issuer.yaml"
-        if [[ ! -f "$issuer_yaml" ]]; then
-            cat > "$issuer_yaml" << 'EOF'
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@example.com  # Change this to your email
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-    - http01:
-        ingress:
-          class: nginx
----
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-staging
-spec:
-  acme:
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: admin@example.com  # Change this to your email
-    privateKeySecretRef:
-      name: letsencrypt-staging
-    solvers:
-    - http01:
-        ingress:
-          class: nginx
-EOF
-        fi
+    log_step "2" "Installing cert-manager via Helm"
+    #kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
+
+    #--set serviceAccount.automountServiceAccountToken=false \
+    #--set webhook.timeoutSeconds=30
+    #--set startupapicheck.timeout=10m
+    # --debug
+    if helm_install_with_summary "cert-manager" "cert-manager" \
+        jetstack/cert-manager \
+        --namespace cert-manager \
+        --create-namespace \
+        --set installCRDs=true \
+        --set global.leaderElection.namespace=cert-manager \
+        --version v1.14.5 \
+        --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/cert-manager/values.yaml \
+        --wait; then
         
-        execute_with_suppression "kubectl apply -f $issuer_yaml" "Creating ClusterIssuers"
-        
-        log_success "Cert-Manager installed successfully"
-        complete_component "cert-manager"
-        
-        # Show comprehensive installation summary
-        show_component_summary "cert-manager" "$namespace"
+        show_installation_summary "cert-manager" "cert-manager" "TLS certificate management system"
+        log_component_success "cert-manager" "Certificate management system installed successfully"
     else
-        log_error "Cert-Manager installation failed"
-        fail_component "cert-manager" "Helm installation failed"
+        log_error "cert-manager installation failed"
         return 1
     fi
+}
+
+setupCertiIssuers() {
+  log_component_start "cert-issuers" "Configuring certificate issuers and CA infrastructure"
+
+if [ $CERTMANAGER_CHALANGE_TYPE == 'dns' ]; then
+  log_step "1" "Creating Let's Encrypt DNS challenge cluster issuer"
+  if execute_with_suppression kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: $(getClusterIssuerName)
+spec:
+  acme:
+    email: majisumitkumar@gmail.com
+    server: $(getLetsEncryptUrl)
+    privateKeySecretRef:
+      name: letsencrypt-$(getLetsEncEnv)
+    solvers:
+    - dns01:
+        webhook:
+          config:
+            apiKeySecretRef:
+              name: godaddy-api-key-secret
+              key: api-key
+            production: $(isProd)
+            ttl: 600
+          groupName: $(rootDomain)
+          solverName: godaddy
+      selector:
+       dnsNames:
+       - '$(defaultSubdomain).$(rootDomain)'
+       - '*.$(rootDomain)'
+EOF
+  then
+    log_success "Let's Encrypt DNS challenge issuer created ($(getClusterIssuerName))"
+  else
+    log_error "Failed to create Let's Encrypt DNS challenge issuer"
+    return 1
+  fi
+  
+  log_step "2" "Installing GoDaddy DNS webhook"
+  if godaddyWebhook; then
+    log_success "GoDaddy DNS webhook installed"
+  else
+    log_error "Failed to install GoDaddy DNS webhook"
+    return 1
+  fi
+  
+  log_step "3" "Adding Let's Encrypt staging certificates"
+  if addLetsEncryptStagingCertificates; then
+    log_success "Let's Encrypt staging certificates configured"
+  else
+    log_error "Failed to configure Let's Encrypt staging certificates"
+    return 1
+  fi
+elif [ $CERTMANAGER_CHALANGE_TYPE == 'http' ]; then
+  log_step "1" "Creating Let's Encrypt HTTP challenge cluster issuer"
+  if execute_with_suppression kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: $(getClusterIssuerName)
+spec:
+  acme:
+    email: majisumitkumar@gmail.com
+    server: $(getLetsEncryptUrl)
+    #preferredChain: "(STAGING) Pretend Pear X1"
+    privateKeySecretRef:
+      name: letsencrypt-$(getLetsEncEnv)
+    solvers:
+    - http01:
+        ingress:
+          ingressClassName: nginx
+EOF
+  then
+    log_success "Let's Encrypt HTTP challenge issuer created ($(getClusterIssuerName))"
+  else
+    log_error "Failed to create Let's Encrypt HTTP challenge issuer"
+    return 1
+  fi
+  
+  log_step "2" "Adding Let's Encrypt staging certificates"
+  if addLetsEncryptStagingCertificates; then
+    log_success "Let's Encrypt staging certificates configured"
+  else
+    log_error "Failed to configure Let's Encrypt staging certificates"
+    return 1
+  fi
+elif [ $CERTMANAGER_CHALANGE_TYPE == 'selfsigned' ]; then
+  # https://medium.com/geekculture/a-simple-ca-setup-with-kubernetes-cert-manager-bc8ccbd9c2
+  # https://gist.github.com/jakexks/c1de8238cbee247333f8c274dc0d6f0f
+  
+  log_step "1" "Creating self-signed cluster issuer"
+  local retry_count=0
+  local max_retries=5
+  while [ $retry_count -lt $max_retries ]; do
+    if execute_with_suppression kubectl apply -f - <<EOYAML
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-cluster-issuer
+spec:
+  selfSigned: {}
+EOYAML
+    then
+      log_success "Self-signed cluster issuer created"
+      break
+    else
+      retry_count=$((retry_count + 1))
+      if [ $retry_count -eq $max_retries ]; then
+        log_error "Failed to create self-signed cluster issuer after $max_retries attempts"
+        return 1
+      fi
+      sleep 1
+    fi
+  done
+
+  if execute_with_suppression kubectl wait --timeout=10s --for=condition=Ready clusterissuers.cert-manager.io selfsigned-cluster-issuer; then
+    log_success "Self-signed cluster issuer is ready"
+  else
+    log_error "Self-signed cluster issuer failed to become ready"
+    return 1
+  fi
+
+  log_step "2" "Creating CA certificate authority"
+  if execute_with_suppression kubectl apply -f - <<EOYAML
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gokselfsign-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: gokselfsign-ca
+  secretName: gokselfsign-ca
+  subject:
+    organizations:
+      - GOK Inc.
+    organizationalUnits:
+      - Widgets
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-cluster-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+EOYAML
+  then
+    log_success "CA certificate created (GOK Inc. authority)"
+  else
+    log_error "Failed to create CA certificate"
+    return 1
+  fi
+
+  if execute_with_suppression kubectl wait --timeout=10s -n cert-manager --for=condition=Ready certificates.cert-manager.io gokselfsign-ca; then
+    log_success "CA certificate is ready and issued"
+  else
+    log_error "CA certificate failed to become ready"
+    return 1
+  fi
+
+  log_step "3" "Creating production CA cluster issuer"
+  if execute_with_suppression kubectl apply -f - <<EOYAML
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: $(getClusterIssuerName)
+spec:
+  ca:
+    secretName: gokselfsign-ca
+EOYAML
+  then
+    log_success "Production CA cluster issuer created ($(getClusterIssuerName))"
+  else
+    log_error "Failed to create production CA cluster issuer"
+    return 1
+  fi
+
+  if execute_with_suppression kubectl wait --timeout=10s --for=condition=Ready clusterissuers.cert-manager.io "$(getClusterIssuerName)"; then
+    log_success "Production CA cluster issuer is ready"
+  else
+    log_error "Production CA cluster issuer failed to become ready"
+    return 1
+  fi
+
+  log_step "4" "Installing CA certificate to system trust store"
+  # Extract CA certificate using proper shell command with redirection handling
+  # Fixed: Wrap in 'bash -c' to ensure redirection works with execute_with_suppression 
+  if execute_with_suppression bash -c 'kubectl get secrets -n cert-manager gokselfsign-ca -o json | jq -r ".data[\"tls.crt\"]" | base64 -d > /usr/local/share/ca-certificates/issuer.crt'; then
+    log_success "CA certificate extracted from Kubernetes secret"
+  else
+    log_error "Failed to extract CA certificate"
+    return 1
+  fi
+
+  # Add the issuer.crt to export directory so that the worker nodes can add the same to their trusted certificates.
+  if execute_with_suppression mkdir -p /export/certs && execute_with_suppression cp /usr/local/share/ca-certificates/issuer.crt /export/certs/issuer.crt; then
+    log_success "CA certificate copied to shared storage for worker nodes"
+  else
+    log_error "Failed to copy CA certificate to shared storage"
+    return 1
+  fi
+
+  if execute_with_suppression update-ca-certificates; then
+    log_success "System certificate store updated with GOK CA"
+  else
+    log_error "Failed to update system certificate store"
+    return 1
+  fi
+
+  log_step "4b" "Refreshing certificates in Kubernetes cluster (avoiding system reboot)"
+  log_info "⚠️ Self-signed certificate added to system CA store - applying cluster-wide refresh instead of system reboot"
+  
+  # Restart containerd/docker to pick up new CA certificates
+  if systemctl is-active --quiet containerd; then
+    log_info "🔄 Restarting containerd to refresh CA certificates"
+    if execute_with_suppression systemctl restart containerd; then
+      log_success "Containerd restarted successfully"
+    else
+      log_warning "Failed to restart containerd - certificates may not be fully effective"
+    fi
+  elif systemctl is-active --quiet docker; then
+    log_info "🔄 Restarting Docker to refresh CA certificates"
+    if execute_with_suppression systemctl restart docker; then
+      log_success "Docker restarted successfully"
+    else
+      log_warning "Failed to restart Docker - certificates may not be fully effective"
+    fi
+  fi
+  
+  # Restart kubelet to refresh certificates
+  log_info "🔄 Restarting kubelet to refresh CA certificates"
+  if execute_with_suppression systemctl restart kubelet; then
+    log_success "Kubelet restarted successfully"
+  else
+    log_warning "Failed to restart kubelet - certificates may not be fully effective"
+  fi
+  
+  # Wait for kubelet to be ready
+  log_info "⏳ Waiting for kubelet to become ready..."
+  sleep 10
+  
+  # Restart cert-manager pods to pick up new CA certificates
+  log_info "🔄 Restarting cert-manager pods to refresh CA certificates"
+  if execute_with_suppression kubectl rollout restart deployment cert-manager -n cert-manager; then
+    log_success "Cert-manager deployment restarted"
+  else
+    log_warning "Failed to restart cert-manager deployment"
+  fi
+  
+  if execute_with_suppression kubectl rollout restart deployment cert-manager-webhook -n cert-manager; then
+    log_success "Cert-manager webhook restarted"
+  else
+    log_warning "Failed to restart cert-manager webhook"
+  fi
+  
+  if execute_with_suppression kubectl rollout restart deployment cert-manager-cainjector -n cert-manager; then
+    log_success "Cert-manager CA injector restarted"
+  else
+    log_warning "Failed to restart cert-manager CA injector"
+  fi
+  
+  # Wait for cert-manager components to be ready
+  log_info "⏳ Waiting for cert-manager components to become ready..."
+  if execute_with_suppression kubectl wait --for=condition=available --timeout=120s deployment/cert-manager -n cert-manager; then
+    log_success "Cert-manager deployment is ready"
+  else
+    log_warning "Cert-manager deployment may not be fully ready"
+  fi
+  
+  if execute_with_suppression kubectl wait --for=condition=available --timeout=120s deployment/cert-manager-webhook -n cert-manager; then
+    log_success "Cert-manager webhook is ready"
+  else
+    log_warning "Cert-manager webhook may not be fully ready"
+  fi
+  
+  # Restart kube-system components that use certificates
+  log_info "🔄 Restarting core Kubernetes components to refresh certificates"
+  
+  # Restart kube-proxy daemonset
+  if execute_with_suppression kubectl rollout restart daemonset kube-proxy -n kube-system; then
+    log_success "Kube-proxy daemonset restarted"
+  else
+    log_warning "Failed to restart kube-proxy daemonset"
+  fi
+  
+  # Restart CoreDNS
+  if execute_with_suppression kubectl rollout restart deployment coredns -n kube-system; then
+    log_success "CoreDNS deployment restarted"
+  else
+    log_warning "Failed to restart CoreDNS deployment"
+  fi
+  
+  # If there's an ingress controller, restart it
+  if kubectl get deployment -n ingress-nginx nginx-ingress-controller >/dev/null 2>&1; then
+    log_info "🔄 Restarting NGINX ingress controller"
+    if execute_with_suppression kubectl rollout restart deployment nginx-ingress-controller -n ingress-nginx; then
+      log_success "NGINX ingress controller restarted"
+    else
+      log_warning "Failed to restart NGINX ingress controller"
+    fi
+  fi
+  
+  # Restart any other critical components that might use certificates
+  if kubectl get deployment -n vault vault >/dev/null 2>&1; then
+    log_info "🔄 Restarting Vault deployment"
+    if execute_with_suppression kubectl rollout restart deployment vault -n vault; then
+      log_success "Vault deployment restarted"
+    else
+      log_warning "Failed to restart Vault deployment"
+    fi
+  fi
+  
+  if kubectl get deployment -n rabbitmq rabbitmq >/dev/null 2>&1; then
+    log_info "🔄 Restarting RabbitMQ deployment"
+    if execute_with_suppression kubectl rollout restart deployment rabbitmq -n rabbitmq; then
+      log_success "RabbitMQ deployment restarted"
+    else
+      log_warning "Failed to restart RabbitMQ deployment"
+    fi
+  fi
+  
+  # Restart HAProxy if it's running
+  if docker ps --filter "name=master-proxy" --filter "status=running" -q | grep -q .; then
+    log_info "🔄 Restarting HAProxy to refresh CA certificates"
+    if startHa; then
+      log_success "HAProxy restarted successfully"
+    else
+      log_warning "Failed to restart HAProxy - certificates may not be fully effective"
+    fi
+  elif [ -f /opt/haproxy.cfg ]; then
+    log_info "🔄 HAProxy configuration found - starting HAProxy with new certificates"
+    if startHa; then
+      log_success "HAProxy started successfully with updated certificates"
+    else
+      log_warning "Failed to start HAProxy"
+    fi
+  fi
+  
+  # Final verification
+  log_info "🔍 Verifying certificate refresh completion"
+  
+  # Test certificate validation
+  if openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt /usr/local/share/ca-certificates/issuer.crt >/dev/null 2>&1; then
+    log_success "✅ Self-signed CA certificate is properly trusted by the system"
+  else
+    log_warning "⚠️ Certificate validation test failed - some components may not recognize the new CA"
+  fi
+  
+  # Check cluster health
+  log_info "🏥 Checking cluster health status"
+  if kubectl get nodes >/dev/null 2>&1; then
+    log_success "✅ Kubernetes cluster is responsive"
+  else
+    log_warning "⚠️ Kubernetes cluster may not be fully responsive"
+  fi
+  
+  log_success "🎉 Certificate refresh completed - cluster-wide certificate update applied without system reboot"
+  log_info "📋 Next steps: Verify your applications can validate certificates issued by the new CA"
+  log_info "💡 Tip: If you encounter certificate validation issues, run 'kubectl rollout restart deployment <deployment-name>' for specific applications"
+fi
+
+  log_step "5" "Creating default domain certificate"
+  if execute_with_suppression kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: $(sedRootDomain)-tls
+  namespace: default
+spec:
+  secretName: $(sedRootDomain)
+  issuerRef:
+    name: $(getClusterIssuerName)
+    kind: ClusterIssuer
+  commonName: $(defaultSubdomain).$(rootDomain)
+  dnsNames:
+    - $(defaultSubdomain).$(rootDomain)
+  issuerRef:
+    name: $(getClusterIssuerName)
+    kind: ClusterIssuer
+EOF
+  then
+    log_success "Default domain certificate created ($(defaultSubdomain).$(rootDomain))"
+  else
+    log_error "Failed to create default domain certificate"
+    return 1
+  fi
+
+  log_warning "Self-signed certificate added to system CA store - system reboot recommended for full effect"
+  log_component_success "cert-issuers" "Certificate issuers and CA infrastructure configured successfully"
 }
 
 # Install Keycloak identity and access management
