@@ -1132,7 +1132,63 @@ consoleReset() { helm_component_reset "console" "console"; }
 argocdReset() { helm_component_reset "argocd" "argocd"; }
 jenkinsReset() { helm_component_reset "jenkins" "jenkins"; }
 spinnakerReset() { helm_component_reset "spinnaker" "spinnaker"; }
-registryReset() { helm_component_reset "docker-registry" "registry"; }
+registryReset() {
+  log_component_start "registry-reset" "Removing container registry and related resources"
+
+  log_step "1" "Checking registry installation status"
+  local registry_installed=false
+  if kubectl get namespace registry >/dev/null 2>&1; then
+    registry_installed=true
+    log_info "Registry namespace found - proceeding with removal"
+  else
+    log_warning "Registry namespace not found - may already be removed"
+  fi
+
+  if [[ "$registry_installed" == "true" ]]; then
+    log_step "2" "Removing registry Helm release"
+    if helm list -n registry 2>/dev/null | grep -q registry; then
+      if helm_uninstall_with_summary "registry" "registry" --namespace registry registry; then
+        log_success "Registry Helm release removed"
+      else
+        log_warning "Registry Helm release removal had issues, continuing..."
+      fi
+    else
+      log_info "No registry Helm release found to remove"
+    fi
+
+    log_step "3" "Cleaning up registry persistent storage"
+    emptyLocalFsStorage "Registry" "registry-pv" "registry-storage" "/data/volumes/pv4" "registry"
+    log_success "Registry storage cleaned up"
+
+    log_step "4" "Removing registry namespace and resources"
+    if kubectl_with_summary delete "namespace" registry; then
+      log_success "Registry namespace and all resources removed"
+    else
+      log_warning "Registry namespace removal had issues"
+    fi
+
+    log_step "5" "Cleaning up Docker trust store certificates"
+    local cert_dir="/etc/docker/certs.d/$(registrySubdomain).$(sedRootDomain)"
+    if [[ -d "$cert_dir" ]]; then
+      if execute_with_suppression rm -rf "$cert_dir"; then
+        log_success "Docker trust store certificates removed from $cert_dir"
+      else
+        log_warning "Could not remove Docker trust store certificates"
+      fi
+    else
+      log_info "No Docker trust store certificates found to remove"
+    fi
+
+    show_installation_summary "registry" "registry" "Container registry system removed"
+    log_component_success "registry-reset" "Container registry successfully removed from cluster"
+
+    echo
+    log_info "Registry reset completed. You can reinstall with: gok install registry"
+  else
+    log_info "Registry was not installed - nothing to reset"
+    log_component_success "registry-reset" "Registry reset completed (nothing to remove)"
+  fi
+}
 gokAgentReset() { helm_component_reset "gok-agent" "gok-system"; }
 gokControllerReset() { helm_component_reset "gok-controller" "gok-system"; }
 gokLoginReset() { helm_component_reset "gok-login" "gok-login"; }

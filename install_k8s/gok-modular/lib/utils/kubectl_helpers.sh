@@ -611,6 +611,70 @@ gutils() {
 # Auto-export utility overview function
 export -f gutils
 
+# Clean up local filesystem storage for a service
+emptyLocalFsStorage() {
+  local service=$1
+  local pvName=$2
+  local scName=$3
+  local volumePath=$4
+  local namespace=$5
+
+  log_info "Cleaning up persistent storage for $service"
+
+  # Clean up PVCs in namespace if specified
+  if [[ -n $namespace ]]; then
+    log_info "Removing persistent volume claims in namespace: $namespace"
+    local pvc_count=$(kubectl get pvc -n $namespace --no-headers 2>/dev/null | wc -l)
+    if [[ $pvc_count -gt 0 ]]; then
+      if kubectl_with_summary delete "pvc" --all -n $namespace; then
+        log_success "Persistent volume claims removed from $namespace namespace"
+      else
+        log_warning "Some PVCs may not have been removed from $namespace namespace"
+      fi
+    else
+      log_info "No persistent volume claims found in $namespace namespace"
+    fi
+  fi
+
+  # Clean up persistent volume
+  log_info "Removing persistent volume: $pvName"
+  if kubectl get pv $pvName >/dev/null 2>&1; then
+    if kubectl_with_summary delete "pv" $pvName; then
+      log_success "Persistent volume '$pvName' removed"
+    else
+      log_warning "Persistent volume '$pvName' removal had issues"
+    fi
+  else
+    log_info "Persistent volume '$pvName' not found (may already be removed)"
+  fi
+
+  # Clean up storage class
+  log_info "Removing storage class: $scName"
+  if kubectl get sc $scName >/dev/null 2>&1; then
+    if kubectl_with_summary delete "sc" $scName; then
+      log_success "Storage class '$scName' removed"
+    else
+      log_warning "Storage class '$scName' removal had issues"
+    fi
+  else
+    log_info "Storage class '$scName' not found (may already be removed)"
+  fi
+
+  # Clean up local filesystem path
+  if [[ -n "$volumePath" && -d "$volumePath" ]]; then
+    log_info "Cleaning up local storage path: $volumePath"
+    if execute_with_suppression rm -rf "$volumePath"; then
+      log_success "Local storage path '$volumePath' cleaned up"
+    else
+      log_warning "Could not fully clean up local storage path '$volumePath'"
+    fi
+  else
+    log_info "Local storage path '$volumePath' not found or already cleaned"
+  fi
+
+  log_success "$service persistent storage cleanup completed"
+}
+
 # Show utilities on load if interactive
 if [[ $- == *i* ]] && [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     gutils
