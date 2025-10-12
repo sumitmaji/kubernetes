@@ -1685,6 +1685,7 @@ kcurl() {
     return 0
 }
 
+# Create local storage class and persistent volume
 # Generate registry authentication credentials
 genRegistryPassword(){
   export REGISTRY_USER="$1"
@@ -1911,7 +1912,17 @@ installRegistryWithCertMgr(){
   log_step "3" "Configuring TLS certificate and ingress"
   # No need to generate the certificate manually.
   # The certificate and secret will be directly issued via the ingress annotation cert-manager.io/cluster-issuer
-  if execute_with_suppression gok patch ingress registry-docker-registry registry letsencrypt $(registrySubdomain); then
+  if execute_with_suppression kubectl patch ingress registry-docker-registry -n registry --patch "
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: $(getClusterIssuerName)
+    nginx.ingress.kubernetes.io/ssl-redirect: \"true\"
+spec:
+  tls:
+    - hosts:
+        - $(registrySubdomain).$(rootDomain)
+      secretName: $(registrySubdomain)-$(sedRootDomain)
+" && execute_with_suppression kubectl patch ingress registry-docker-registry -n registry --type=json -p='[{"op": "replace", "path": "/spec/rules/0/host", "value":"'$(registrySubdomain).$(rootDomain)'"}]' && execute_with_suppression kubectl --timeout=120s -n registry wait --for=condition=Ready certificates.cert-manager.io $(registrySubdomain)-$(sedRootDomain); then
     log_success "TLS certificate and ingress configured ($(registrySubdomain).$(rootDomain))"
   else
     log_error "Failed to configure TLS certificate and ingress"

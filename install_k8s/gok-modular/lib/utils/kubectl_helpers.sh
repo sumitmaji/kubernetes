@@ -410,6 +410,66 @@ gingress() {
     esac
 }
 
+# Storage management utilities
+# Create local storage class and persistent volume
+createLocalStorageClassAndPV() {
+  local storageClassName=$1
+  local pvName=$2
+  local volumePath=$3
+
+  if execute_with_suppression kubectl apply -f - << EOF
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: ${storageClassName}
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF
+  then
+    log_success "Storage class created (${storageClassName})"
+  else
+    log_error "Failed to create storage class"
+    return 1
+  fi
+
+  if execute_with_suppression mkdir -p "${volumePath}" && execute_with_suppression chmod 777 "${volumePath}"; then
+    log_success "Local storage directory prepared (${volumePath})"
+  else
+    log_error "Failed to prepare local storage directory"
+    return 1
+  fi
+
+  if execute_with_suppression kubectl apply -f - << EOF
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ${pvName}
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ${storageClassName}
+  local:
+    path: ${volumePath}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master.cloud.com
+EOF
+  then
+    log_success "Persistent volume created (${pvName}, 10Gi)"
+  else
+    log_error "Failed to create persistent volume"
+    return 1
+  fi
+}
+
 # Performance monitoring and analysis
 gperf() {
     local component="${1:-summary}"
@@ -503,7 +563,7 @@ alias kdf='kubectl delete -f'
 
 # Export utility functions
 export -f gkctl gcurrent gns gget gpods gcert gconfig
-export -f gservice gingress gperf gstatus
+export -f gservice gingress gperf gstatus createLocalStorageClassAndPV
 
 # Helper function to show all available utilities
 gutils() {
