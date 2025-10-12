@@ -1685,9 +1685,373 @@ kcurl() {
     return 0
 }
 
+# Generate registry authentication credentials
+genRegistryPassword(){
+  export REGISTRY_USER="$1"
+  export REGISTRY_PASS="$2"
+  export DESTINATION_FOLDER=./registry-creds
+
+  # Backup credentials to local files (in case you'll forget them later on)
+  if execute_with_suppression mkdir -p ${DESTINATION_FOLDER} && \
+     execute_with_suppression bash -c "echo '${REGISTRY_USER}' > ${DESTINATION_FOLDER}/registry-user.txt" && \
+     execute_with_suppression bash -c "echo '${REGISTRY_PASS}' > ${DESTINATION_FOLDER}/registry-pass.txt"; then
+    log_success "Registry credentials backed up to local files"
+  else
+    log_error "Failed to backup registry credentials"
+    return 1
+  fi
+
+  if execute_with_suppression docker run --entrypoint htpasswd registry:2.7.0 \
+      -Bbn ${REGISTRY_USER} ${REGISTRY_PASS} > ${DESTINATION_FOLDER}/htpasswd; then
+    log_success "Registry htpasswd authentication file generated"
+  else
+    log_error "Failed to generate registry htpasswd file"
+    return 1
+  fi
+
+  unset REGISTRY_USER REGISTRY_PASS DESTINATION_FOLDER
+}
+
+# Configure Docker registry authentication secrets
+imagePullSecrets(){
+  # Create a secret for the registry
+  : "${DOCKER_USERNAME:=$(promptUserInput "Please enter docker user id: ")}"
+  : "${DOCKER_PASSWORD:=$(promptSecret "Please enter your docker password: ")}"
+  DOCKER_EMAIL="skmaji@outlook.com"
+
+  # Delete the secret if it already exists
+  if kubectl get secret regcred -n kube-system >/dev/null 2>&1; then
+    if execute_with_suppression kubectl delete secret regcred -n kube-system; then
+      log_success "Existing Docker registry secret removed"
+    fi
+  fi
+
+  if execute_with_suppression kubectl create secret docker-registry regcred \
+    --docker-server=$(fullRegistryUrl) \
+    --docker-username=$DOCKER_USERNAME \
+    --docker-password=$DOCKER_PASSWORD \
+    --docker-email=$DOCKER_EMAIL -n kube-system; then
+    log_success "Docker registry secret created (user: $DOCKER_USERNAME)"
+  else
+    log_error "Failed to create Docker registry secret"
+    return 1
+  fi
+
+  if genRegistryPassword $DOCKER_USERNAME $DOCKER_PASSWORD; then
+    log_success "Registry authentication credentials generated"
+  else
+    log_error "Failed to generate registry authentication credentials"
+    return 1
+  fi
+}
+
+# Install Docker registry with authentication
+dockerRegistryInst(){
+  log_component_start "docker-registry" "Setting up container registry with authentication"
+
+  log_step "1" "Configuring Docker registry authentication secrets"
+  if imagePullSecrets; then
+    log_success "Docker registry authentication configured"
+  else
+    log_error "Failed to configure Docker registry authentication"
+    return 1
+  fi
+
+  log_step "2" "Adding Twuni Helm repository"
+  if execute_with_suppression helm repo add twuni https://helm.twun.io; then
+    log_success "Twuni Helm repository added"
+  else
+    log_error "Failed to add Twuni Helm repository"
+    return 1
+  fi
+
+  log_step "3" "Installing Docker registry via Helm"
+  export DESTINATION_FOLDER=./registry-creds
+  if helm_install_with_summary "registry" "registry" \
+      registry twuni/docker-registry \
+      --namespace registry \
+      --create-namespace \
+      --set replicaCount=1 \
+      --set persistence.enabled=true \
+      --set persistence.size=10Gi \
+      --set persistence.deleteEnabled=true \
+      --set persistence.storageClass=registry-storage \
+      --set secrets.htpasswd="$(cat ${DESTINATION_FOLDER}/htpasswd)" \
+      --values https://github.com/sumitmaji/kubernetes/raw/master/install_k8s/registry/values.yaml; then
+    log_success "Docker registry deployed successfully"
+  else
+    log_error "Failed to deploy Docker registry"
+    return 1
+  fi
+}
+
+# Create Kyverno policy for registry credential synchronization
+addPolicyToSyncSecrets(){
+  log_step "9" "Creating Kyverno policy for registry credential synchronization"
+  log_info "Installing cluster-wide policy to automatically sync registry credentials"
+
+  local apply_result=""
+  local exit_code=0
+
+  if [ "$GOK_VERBOSE" = "1" ]; then
+    # In verbose mode, show kubectl output
+    apply_result=$(cat <<EOF | kubectl apply -f - 2>&1
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: sync-regcred
+spec:
+  rules:
+    - name: sync-regcred-secret
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      generate:
+        apiVersion: v1
+        kind: Secret
+        name: regcred
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        clone:
+          namespace: kube-system
+          name: regcred
+    - name: patch-serviceaccount
+      match:
+        any:
+          - resources:
+              kinds:
+                - ServiceAccount
+              namespaces:
+                - "*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            imagePullSecrets:
+              - name: regcred
+EOF
+)
+    exit_code=$?
+    log_debug "Kubectl apply result: $apply_result"
+  else
+    # In normal mode, suppress kubectl output
+    apply_result=$(cat <<EOF | kubectl apply -f - 2>/dev/null
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: sync-regcred
+spec:
+  rules:
+    - name: sync-regcred-secret
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      generate:
+        apiVersion: v1
+        kind: Secret
+        name: regcred
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        clone:
+          namespace: kube-system
+          name: regcred
+    - name: patch-serviceaccount
+      match:
+        any:
+          - resources:
+              kinds:
+                - ServiceAccount
+              namespaces:
+                - "*"
+      mutate:
+        patchStrategicMerge:
+          spec:
+            imagePullSecrets:
+              - name: regcred
+EOF
+)
+    exit_code=$?
+  fi
+
+  if [ $exit_code -eq 0 ]
+  then
+    log_success "Kyverno cluster policy 'sync-regcred' created successfully"
+    log_info "✓ Registry credentials will auto-sync to all new namespaces"
+    log_info "✓ Service accounts will automatically get imagePullSecrets configured"
+    log_info "✓ Seamless container image pulling from private registry enabled"
+  else
+    log_warning "Kyverno policy creation had issues"
+    log_info "Manual registry credential configuration may be needed for some namespaces"
+  fi
+}
+
+# Install registry with certificate management
+installRegistryWithCertMgr(){
+  log_component_start "registry-install" "Installing container registry with certificate management"
+
+  log_step "1" "Creating storage infrastructure"
+  if createLocalStorageClassAndPV "registry-storage" "registry-pv" "/data/volumes/pv4"; then
+    log_success "Storage class and persistent volume created (10Gi)"
+  else
+    log_error "Failed to create storage infrastructure"
+    return 1
+  fi
+
+  log_step "2" "Deploying Docker registry"
+  if dockerRegistryInst; then
+    log_success "Docker registry deployment completed"
+  else
+    log_error "Failed to deploy Docker registry"
+    return 1
+  fi
+
+  log_step "3" "Configuring TLS certificate and ingress"
+  # No need to generate the certificate manually.
+  # The certificate and secret will be directly issued via the ingress annotation cert-manager.io/cluster-issuer
+  if execute_with_suppression gok patch ingress registry-docker-registry registry letsencrypt $(registrySubdomain); then
+    log_success "TLS certificate and ingress configured ($(registrySubdomain).$(rootDomain))"
+  else
+    log_error "Failed to configure TLS certificate and ingress"
+    return 1
+  fi
+
+  log_step "4" "Installing registry certificates for Docker trust"
+  # Let docker trust the self-signed certificates
+  # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
+  local cert_dir="/etc/docker/certs.d/$(registrySubdomain).$(rootDomain)"
+
+  if execute_with_suppression rm -f "$cert_dir/ca.crt" && execute_with_suppression mkdir -p "$cert_dir"; then
+    log_success "Docker certificate directory prepared"
+  else
+    log_error "Failed to prepare Docker certificate directory"
+    return 1
+  fi
+
+  # Extract CA certificate from cert-manager secret
+  # Use mktemp for proper temporary file handling with permissions
+  local secret_name="$(registrySubdomain)-$(sedRootDomain)"
+  local temp_cert=$(mktemp)
+  if kubectl get secret "$secret_name" -n registry -o jsonpath='{.data.ca\.crt}' 2>/dev/null | base64 --decode > "$temp_cert" && \
+     [[ -s "$temp_cert" ]] && \
+     execute_with_suppression cp "$temp_cert" "$cert_dir/ca.crt"; then
+    log_success "Registry CA certificate installed to Docker trust store ($(stat -c%s "$cert_dir/ca.crt") bytes)"
+    rm -f "$temp_cert"
+  else
+    rm -f "$temp_cert"
+    log_warning "Failed to extract CA certificate from secret, trying alternative approach..."
+    # Fallback: look for certificate in ingress controller or containerd
+    local alt_cert_path=""
+    for path in /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/*/fs/etc/ingress-controller/ssl/*registry*gokcloud*.pem; do
+      if [[ -f "$path" ]]; then
+        alt_cert_path="$path"
+        break
+      fi
+    done
+
+    if [[ -n "$alt_cert_path" ]] && [[ -f "$alt_cert_path" ]]; then
+      log_info "Found alternative certificate path: $alt_cert_path"
+      # Extract CA from certificate chain (usually the second certificate)
+      local temp_alt_cert=$(mktemp)
+      if tail -n +$(($(grep -n 'END CERTIFICATE' "$alt_cert_path" | head -1 | cut -d: -f1) + 1)) "$alt_cert_path" > "$temp_alt_cert" 2>/dev/null && \
+         [[ -s "$temp_alt_cert" ]] && \
+         execute_with_suppression cp "$temp_alt_cert" "$cert_dir/ca.crt"; then
+        log_success "Registry CA certificate extracted from alternative source ($(stat -c%s "$cert_dir/ca.crt") bytes)"
+        rm -f "$temp_alt_cert"
+      else
+        rm -f "$temp_alt_cert"
+        log_error "Failed to extract CA certificate from alternative source"
+        return 1
+      fi
+    else
+      log_error "No alternative certificate source found"
+      return 1
+    fi
+  fi
+
+  log_step "5" "Restarting Docker service with new certificates"
+  if execute_with_suppression systemctl restart docker; then
+    log_success "Docker service restarted with registry trust"
+  else
+    log_error "Failed to restart Docker service"
+    return 1
+  fi
+
+  log_step "6" "Restarting load balancer proxy"
+  # Restarting docker stops the haproxy, need to start it again
+  if execute_with_suppression gok start proxy; then
+    log_success "Load balancer proxy restarted"
+  else
+    log_warning "Load balancer proxy restart may have failed"
+  fi
+
+  log_step "7" "Verifying registry authentication"
+
+  # Use stored credentials for non-interactive login
+  local DESTINATION_FOLDER=./registry-creds
+  if [[ -f "${DESTINATION_FOLDER}/registry-user.txt" && -f "${DESTINATION_FOLDER}/registry-pass.txt" ]]; then
+    local registry_user=$(cat "${DESTINATION_FOLDER}/registry-user.txt")
+    local registry_pass=$(cat "${DESTINATION_FOLDER}/registry-pass.txt")
+
+    log_info "Authenticating with registry using stored credentials (user: $registry_user)"
+    if echo "$registry_pass" | execute_with_suppression docker login $(registrySubdomain).$(rootDomain) --username "$registry_user" --password-stdin; then
+      log_success "Registry authentication verified - ready for use"
+      log_component_success "registry-install" "Container registry installation completed successfully"
+    else
+      log_error "Registry authentication failed with stored credentials"
+      return 1
+    fi
+  else
+    log_warning "Registry credentials not found, attempting interactive login"
+    log_info "Please enter your registry credentials when prompted"
+    # Allow interactive login without suppression
+    if docker login $(registrySubdomain).$(rootDomain); then
+      log_success "Registry authentication verified - ready for use"
+      log_component_success "registry-install" "Container registry installation completed successfully"
+    else
+      log_error "Registry authentication failed"
+      return 1
+    fi
+  fi
+  log_step "8" "Verifying TLS certificate chain and trust"
+  log_info "Testing SSL/TLS connection to $(registrySubdomain).$(rootDomain):443"
+
+  # Test SSL/TLS connection with suppressed output
+  local ssl_result=""
+  if [ "$GOK_VERBOSE" = "1" ]; then
+    # In verbose mode, show the openssl output
+    ssl_result=$(openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null 2>&1)
+    log_debug "OpenSSL connection test output:"
+    log_debug "$ssl_result"
+  else
+    # In normal mode, suppress openssl output
+    ssl_result=$(openssl s_client -connect $(registrySubdomain).$(rootDomain):443 -showcerts </dev/null 2>/dev/null)
+  fi
+
+  if echo "$ssl_result" | grep 'Verify return code: 0 (ok)' >/dev/null; then
+    log_success "TLS certificate verification successful"
+    log_info "✓ Certificate chain is valid and trusted"
+    log_info "✓ Registry is accessible via secure HTTPS connection"
+  else
+    log_warning "TLS certificate verification had issues"
+    log_info "Registry may still be functional but certificate trust needs attention"
+    if [ "$GOK_VERBOSE" = "1" ]; then
+      log_debug "SSL verification details available in verbose output above"
+    fi
+  fi
+  addPolicyToSyncSecrets
+}
+
 # Export functions for use by other modules
 export -f startHa
 export -f customDns
 export -f oauthAdmin
 export -f dnsUtils
 export -f kcurl
+export -f genRegistryPassword
+export -f imagePullSecrets
+export -f dockerRegistryInst
+export -f addPolicyToSyncSecrets
+export -f installRegistryWithCertMgr

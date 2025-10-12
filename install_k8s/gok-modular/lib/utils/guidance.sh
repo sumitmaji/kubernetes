@@ -412,6 +412,20 @@ show_component_guidance() {
             echo -e "${COLOR_CYAN}   • Check ArgoCD pods: ${COLOR_BOLD}kubectl get pods -n argocd${COLOR_RESET}"
             echo -e "${COLOR_CYAN}   • Connect Git repository for automated deployments${COLOR_RESET}"
             ;;
+        "registry")
+            echo -e "${COLOR_GREEN}✓ Container Registry is ready${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}🌐 Registry Access:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Registry URL: ${COLOR_BOLD}https://$(registrySubdomain).$(rootDomain)${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Registry API: ${COLOR_BOLD}https://$(registrySubdomain).$(rootDomain)/v2/${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}📝 Usage instructions:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Login: ${COLOR_BOLD}docker login $(registrySubdomain).$(rootDomain)${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Push image: ${COLOR_BOLD}docker push $(registrySubdomain).$(rootDomain)/my-app:latest${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Pull image: ${COLOR_BOLD}docker pull $(registrySubdomain).$(rootDomain)/my-app:latest${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}🔧 Configuration:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Check status: ${COLOR_BOLD}kubectl get pods -n registry${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • View logs: ${COLOR_BOLD}kubectl logs -n registry deployment/registry${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Test access: ${COLOR_BOLD}curl -k https://$(registrySubdomain).$(rootDomain)/v2/${COLOR_RESET}"
+            ;;
         *)
             echo -e "${COLOR_GREEN}✓ $component installation completed${COLOR_RESET}"
             echo -e "${COLOR_CYAN}📝 General verification:${COLOR_RESET}"

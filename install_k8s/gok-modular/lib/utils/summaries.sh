@@ -174,6 +174,55 @@ show_ingress_summary() {
     echo ""
 }
 
+show_registry_summary() {
+    local namespace="${1:-registry}"
+
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Component:${COLOR_RESET} Container Registry"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Namespace:${COLOR_RESET} $namespace"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Storage:${COLOR_RESET} 10Gi Persistent Volume"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}Authentication:${COLOR_RESET} HTTP Basic Auth"
+    echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} ${COLOR_BOLD}TLS:${COLOR_RESET} Let's Encrypt Certificate"
+    echo ""
+
+    # Access Information
+    echo -e "${COLOR_CYAN}🔗 Access Information:${COLOR_RESET}"
+    echo -e "  ${COLOR_BOLD}Registry URL:${COLOR_RESET} https://$(registrySubdomain).$(rootDomain)"
+    echo -e "  ${COLOR_BOLD}Registry API:${COLOR_RESET} https://$(registrySubdomain).$(rootDomain)/v2/"
+    echo ""
+
+    # Credentials
+    local creds_dir="./registry-creds"
+    if [[ -f "${creds_dir}/registry-user.txt" && -f "${creds_dir}/registry-pass.txt" ]]; then
+        local registry_user=$(cat "${creds_dir}/registry-user.txt")
+        echo -e "${COLOR_YELLOW}🔐 Credentials:${COLOR_RESET}"
+        echo -e "  ${COLOR_BOLD}Username:${COLOR_RESET} $registry_user"
+        echo -e "  ${COLOR_BOLD}Password:${COLOR_RESET} [stored in ${creds_dir}/registry-pass.txt]"
+        echo ""
+    fi
+
+    # Usage Instructions
+    echo -e "${COLOR_CYAN}🚀 Usage Instructions:${COLOR_RESET}"
+    echo -e "  ${COLOR_BOLD}Login:${COLOR_RESET} docker login $(registrySubdomain).$(rootDomain)"
+    echo -e "  ${COLOR_BOLD}Push Image:${COLOR_RESET} docker push $(registrySubdomain).$(rootDomain)/my-app:latest"
+    echo -e "  ${COLOR_BOLD}Pull Image:${COLOR_RESET} docker pull $(registrySubdomain).$(rootDomain)/my-app:latest"
+    echo ""
+
+    # Next Steps
+    echo -e "${COLOR_CYAN}📋 Next Steps:${COLOR_RESET}"
+    echo -e "  ${COLOR_YELLOW}•${COLOR_RESET} Configure Docker daemon to trust registry certificates"
+    echo -e "  ${COLOR_YELLOW}•${COLOR_RESET} Push your first image to the registry"
+    echo -e "  ${COLOR_YELLOW}•${COLOR_RESET} Set up image scanning and policies"
+    echo -e "  ${COLOR_YELLOW}•${COLOR_RESET} Configure registry webhooks for CI/CD"
+    echo ""
+
+    # Troubleshooting
+    echo -e "${COLOR_RED}🔧 Troubleshooting:${COLOR_RESET}"
+    echo -e "  ${COLOR_RED}•${COLOR_RESET} Check status: ${COLOR_DIM}kubectl get pods -n $namespace${COLOR_RESET}"
+    echo -e "  ${COLOR_RED}•${COLOR_RESET} View logs: ${COLOR_DIM}kubectl logs -n $namespace deployment/registry${COLOR_RESET}"
+    echo -e "  ${COLOR_RED}•${COLOR_RESET} Test access: ${COLOR_DIM}curl -k https://$(registrySubdomain).$(rootDomain)/v2/${COLOR_RESET}"
+    echo ""
+}
+
 show_kubernetes_summary() {
     
     # Check if we can connect to cluster
