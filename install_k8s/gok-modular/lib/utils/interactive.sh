@@ -976,6 +976,30 @@ show_component_help() {
     echo -e "${COLOR_CYAN}• Production: kubernetes cert-manager ingress vault keycloak monitoring${COLOR_RESET}"
 }
 
+# User input prompting utilities
+promptUserInput(){
+ MSG=$1
+ DEFAULT=$2
+id=$(python3 -c "
+import sys
+sys.stderr.write('${MSG}')
+id=input()
+print(id)
+")
+output=${id:-$DEFAULT}
+echo $output
+}
+
+promptSecret(){
+  MSG=$1
+  secret=$(python3 -c "
+import getpass
+secret = getpass.getpass('${MSG}')
+print(secret)
+")
+  echo $secret
+}
+
 # Export functions for use by other modules
 export -f interactive_installation
 export -f show_welcome_message
@@ -998,3 +1022,5 @@ export -f execute_component_installation
 export -f install_single_component
 export -f calculate_installation_time
 export -f resolve_dependencies
+export -f promptUserInput
+export -f promptSecret

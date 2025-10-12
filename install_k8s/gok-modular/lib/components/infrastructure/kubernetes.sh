@@ -2,6 +2,9 @@
 
 # GOK Infrastructure Components - Core infrastructure installation functions
 
+# Source required utilities
+source "${GOK_ROOT}/lib/utils/interactive.sh" 2>/dev/null || true
+
 # Docker installation with comprehensive validation and configuration
 dockrInst() {
     log_component_start "docker" "Installing Docker container runtime"
