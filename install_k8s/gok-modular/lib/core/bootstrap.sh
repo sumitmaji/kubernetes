@@ -147,6 +147,7 @@ load_component_modules() {
         "networking" 
         "storage"
         "ci-cd"
+        "policy"
     )
     
     for dir in "${component_dirs[@]}"; do

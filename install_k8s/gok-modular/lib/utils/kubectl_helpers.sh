@@ -561,9 +561,25 @@ alias kx='kubectl exec -it'
 alias kaf='kubectl apply -f'
 alias kdf='kubectl delete -f'
 
+# Wait for all pods in a namespace to be ready (simple version)
+waitForServiceAvailable() {
+    local namespace="${1:-default}"
+    
+    log_info "Waiting for all pods to be ready in namespace '$namespace'..."
+    
+    if kubectl --timeout=120s wait --for=condition=Ready pods --all --namespace "$namespace" >/dev/null 2>&1; then
+        log_success "All pods in namespace '$namespace' are ready"
+        return 0
+    else
+        log_error "Service timed out waiting for pods to be ready in namespace '$namespace'"
+        return 1
+    fi
+}
+
 # Export utility functions
 export -f gkctl gcurrent gns gget gpods gcert gconfig
 export -f gservice gingress gperf gstatus createLocalStorageClassAndPV
+export -f waitForServiceAvailable
 
 # Helper function to show all available utilities
 gutils() {
