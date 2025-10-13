@@ -463,7 +463,7 @@ installCmd() {
         
         # Solution bundles
         "base")
-            install_base_infrastructure
+            baseInst
             ;;
         "base-services")
             installBaseServices
@@ -623,7 +623,7 @@ show_install_help() {
     echo "  chart             Helm chart repository"
     echo ""
     echo "Complete Solutions:"
-    echo "  base              Base system components"
+    echo "  base              Base platform with Docker images and caching"
     echo "  base-services     Complete base services stack"
     echo ""
     echo "Examples:"
