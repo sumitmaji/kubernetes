@@ -417,7 +417,7 @@ createLocalStorageClassAndPV() {
   local pvName=$2
   local volumePath=$3
 
-  if execute_with_suppression cat << EOF | kubectl apply -f -
+  if execute_with_suppression kubectl apply -f - << EOF
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
@@ -439,7 +439,7 @@ EOF
     return 1
   fi
 
-  if execute_with_suppression cat << EOF | kubectl apply -f -
+  if execute_with_suppression kubectl apply -f - << EOF
 apiVersion: v1
 kind: PersistentVolume
 metadata:
