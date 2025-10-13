@@ -1930,8 +1930,15 @@ spec:
   fi
 
   log_step "4" "Creating registry URL configmap"
-  local registry_url="https://$(registrySubdomain).$(rootDomain)"
-  if execute_with_suppression kubectl create configmap registry-config --from-literal=url="$registry_url" -n kube-system --dry-run=client -o yaml | kubectl apply -f -; then
+  # Use environment variables with defaults
+  local registry_subdomain="${REGISTRY_SUBDOMAIN:-registry}"
+  local root_domain="${ROOT_DOMAIN:-gokcloud.com}"
+  local registry_url="https://${registry_subdomain}.${root_domain}"
+
+  log_info "Creating configmap with URL: $registry_url"
+
+  # Use dry-run create and apply to work with RBAC restrictions
+  if execute_with_suppression kubectl create configmap registry-config --from-literal=url="$registry_url" -n kube-system --dry-run=client -o yaml | kubectl apply --validate=false -f -; then
     log_success "Registry URL configmap created (URL: $registry_url)"
   else
     log_error "Failed to create registry URL configmap"
