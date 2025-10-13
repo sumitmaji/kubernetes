@@ -1054,6 +1054,96 @@ validate_base_installation() {
 }
 
 # =============================================================================
+# KYVERNO POLICY ENGINE VALIDATION
+# =============================================================================
+
+validate_kyverno_installation() {
+    local timeout="${1:-300}"
+    local validation_passed=true
+
+    log_info "Validating Kyverno policy engine installation..."
+
+    log_step "1. Checking Kyverno deployment"
+    if check_deployment_readiness "kyverno" "kyverno"; then
+        log_success "Kyverno deployment is ready"
+    else
+        log_error "Kyverno deployment has issues"
+        validation_passed=false
+    fi
+
+    log_step "2. Checking Kyverno pods"
+    if ! wait_for_pods_ready "kyverno" "$timeout" "Kyverno"; then
+        log_error "Kyverno pods not ready"
+        validation_passed=false
+    else
+        log_success "Kyverno pods are ready"
+    fi
+
+    log_step "3. Checking Kyverno admission controller"
+    if kubectl get validatingwebhookconfiguration kyverno-policy-validating-webhook-cfg >/dev/null 2>&1; then
+        log_success "Kyverno admission controller webhook is configured"
+    else
+        log_error "Kyverno admission controller webhook not found"
+        validation_passed=false
+    fi
+
+    log_step "4. Checking Kyverno background controller"
+    if kubectl get clusterrolebinding kyverno:background-controller >/dev/null 2>&1; then
+        log_success "Kyverno background controller is configured"
+    else
+        log_error "Kyverno background controller not found"
+        validation_passed=false
+    fi
+
+    log_step "5. Checking cluster policies"
+    local policy_count=$(kubectl get clusterpolicy --no-headers 2>/dev/null | wc -l)
+    if [[ $policy_count -gt 0 ]]; then
+        log_success "Found $policy_count cluster policies configured"
+    else
+        log_warning "No cluster policies found - Kyverno may not be enforcing policies"
+    fi
+
+    log_step "6. Testing policy functionality"
+    # Create a test policy to verify Kyverno is working
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: test-policy-validation
+spec:
+  validationFailureAction: audit
+  rules:
+  - name: validate-test
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    validate:
+      message: "Test policy validation"
+      pattern:
+        spec:
+          containers:
+          - name: "*"
+            image: "nginx:*"
+EOF
+
+    sleep 5
+
+    # Check if test policy was created
+    if kubectl get clusterpolicy test-policy-validation >/dev/null 2>&1; then
+        log_success "Kyverno policy creation and validation working"
+        # Clean up test policy
+        kubectl delete clusterpolicy test-policy-validation >/dev/null 2>&1
+    else
+        log_error "Kyverno policy creation failed"
+        validation_passed=false
+    fi
+
+    return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}
+
+# =============================================================================
 # HA PROXY VALIDATION
 # =============================================================================
 
@@ -1191,5 +1281,6 @@ export -f validate_argocd_installation
 export -f validate_jupyter_installation
 export -f validate_registry_installation
 export -f validate_base_installation
+export -f validate_kyverno_installation
 export -f validate_ha_proxy_installation
 export -f validate_system_requirements

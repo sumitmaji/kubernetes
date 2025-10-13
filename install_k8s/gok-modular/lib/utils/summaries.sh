@@ -104,6 +104,9 @@ show_component_summary() {
         "gok-login")
             show_gok_login_summary "$namespace"
             ;;
+        "kyverno")
+            show_kyverno_summary "$namespace"
+            ;;
         *)
             show_generic_summary "$component" "$namespace"
             ;;
@@ -803,6 +806,53 @@ show_keycloak_summary() {
     echo -e "  ${COLOR_CYAN}Check logs:${COLOR_RESET}       ${COLOR_BOLD}kubectl logs -n $namespace -l app=keycloak${COLOR_RESET}"
 }
 
+show_kyverno_summary() {
+    local namespace="${1:-kyverno}"
+
+    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🛡️ Kyverno Policy Engine${COLOR_RESET}"
+    echo -e "${COLOR_DIM}Kubernetes policy management and governance${COLOR_RESET}"
+    echo ""
+
+    # Service Status
+    log_info "📋 Service Status"
+    local webhook_count=$(kubectl get validatingwebhookconfiguration -o name 2>/dev/null | grep kyverno | wc -l)
+    local policy_count=$(kubectl get clusterpolicy --no-headers 2>/dev/null | wc -l)
+
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Namespace: ${COLOR_BOLD}$namespace${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Webhooks: ${COLOR_BOLD}$webhook_count configured${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Policies: ${COLOR_BOLD}$policy_count active${COLOR_RESET}"
+    echo ""
+
+    # Components
+    log_info "🔧 Kyverno Components"
+    local components=("kyverno-admission-controller" "kyverno-background-controller" "kyverno-cleanup-controller" "kyverno-reports-controller")
+    for component in "${components[@]}"; do
+        local status=$(kubectl get deployment "$component" -n "$namespace" -o jsonpath='{.status.readyReplicas}/{.status.replicas}' 2>/dev/null || echo "Not found")
+        if [[ "$status" != "Not found" ]]; then
+            echo -e "  ${COLOR_GREEN}✓${COLOR_RESET} $component: ${COLOR_BOLD}$status${COLOR_RESET}"
+        else
+            echo -e "  ${COLOR_RED}✗${COLOR_RESET} $component: ${COLOR_BOLD}Not deployed${COLOR_RESET}"
+        fi
+    done
+    echo ""
+
+    # Policy Types
+    log_info "📋 Policy Types"
+    local cluster_policies=$(kubectl get clusterpolicy --no-headers 2>/dev/null | wc -l)
+    local namespaced_policies=$(kubectl get policy --all-namespaces --no-headers 2>/dev/null | wc -l)
+
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Cluster Policies: ${COLOR_BOLD}$cluster_policies${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Namespaced Policies: ${COLOR_BOLD}$namespaced_policies${COLOR_RESET}"
+    echo ""
+
+    # Quick Commands
+    log_info "⚡ Quick Commands"
+    echo -e "  ${COLOR_CYAN}List policies:${COLOR_RESET}     ${COLOR_BOLD}kubectl get clusterpolicy${COLOR_RESET}"
+    echo -e "  ${COLOR_CYAN}Check violations:${COLOR_RESET}  ${COLOR_BOLD}kubectl get policyreport -A${COLOR_RESET}"
+    echo -e "  ${COLOR_CYAN}View policy logs:${COLOR_RESET}  ${COLOR_BOLD}kubectl logs -n $namespace -l app.kubernetes.io/name=kyverno${COLOR_RESET}"
+    echo -e "  ${COLOR_CYAN}Test policy:${COLOR_RESET}       ${COLOR_BOLD}kubectl run test-pod --image=nginx --dry-run=client -o yaml | kubectl apply -f -${COLOR_RESET}"
+}
+
 # =============================================================================
 # DEVELOPMENT COMPONENTS SUMMARIES
 # =============================================================================
@@ -949,6 +999,7 @@ export -f show_haproxy_summary
 export -f show_helm_summary
 export -f show_cert_manager_summary
 export -f show_keycloak_summary
+export -f show_kyverno_summary
 export -f show_jupyter_summary
 export -f show_argocd_summary
 export -f show_generic_summary

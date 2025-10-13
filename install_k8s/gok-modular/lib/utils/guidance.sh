@@ -437,6 +437,19 @@ show_component_guidance() {
             echo -e "${COLOR_CYAN}   • View logs: ${COLOR_BOLD}kubectl logs -n registry deployment/registry${COLOR_RESET}"
             echo -e "${COLOR_CYAN}   • Test access: ${COLOR_BOLD}curl -k https://$(registrySubdomain).$(rootDomain)/v2/${COLOR_RESET}"
             ;;
+        "kyverno")
+            echo -e "${COLOR_GREEN}✓ Kyverno Policy Engine is ready${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}📝 Policy management:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Check policies: ${COLOR_BOLD}kubectl get clusterpolicy${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • View policy reports: ${COLOR_BOLD}kubectl get policyreport -A${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Check Kyverno logs: ${COLOR_BOLD}kubectl logs -n kyverno -l app.kubernetes.io/name=kyverno${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}📋 Kyverno provides:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Kubernetes policy as code enforcement${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Admission control and validation${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Automatic secret synchronization${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Compliance monitoring and reporting${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}🔧 Next recommended: ${COLOR_BOLD}gok-new install registry${COLOR_RESET}"
+            ;;
         *)
             echo -e "${COLOR_GREEN}✓ $component installation completed${COLOR_RESET}"
             echo -e "${COLOR_CYAN}📝 General verification:${COLOR_RESET}"
