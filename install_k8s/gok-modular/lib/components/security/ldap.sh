@@ -72,6 +72,38 @@ ldapInst(){
   show_ldap_next_steps
 }
 
+# Deploy LDAP using Helm with correct registry URL
+deploy_ldap_with_correct_registry() {
+  local ldap_password="$1"
+  local kerberos_password="$2"
+  local kerberos_kdc_password="$3"
+  local kerberos_adm_password="$4"
+  local registry_url="$5"
+
+  # Set HELM_NAME based on existing LDAP_APPLICATION_SLOT
+  local HELM_NAME
+  if [[ -n "$LDAP_APPLICATION_SLOT" && "$LDAP_APPLICATION_SLOT" != "default" ]]; then
+    HELM_NAME="ldap-$LDAP_APPLICATION_SLOT"
+  else
+    HELM_NAME="ldap"
+  fi
+
+  local REPO_NAME="ldap"
+  
+  echo "Deploying LDAP with registry URL: $registry_url"
+  
+  # Deploy using Helm with correct registry URL
+  helm upgrade --install "$HELM_NAME" ./charts/ldap \
+    --namespace ldap \
+    --create-namespace \
+    --set image.repository="$registry_url/$REPO_NAME" \
+    --set image.tag="latest" \
+    --set ldap.adminPassword="$ldap_password" \
+    --set kerberos.kerberosPassword="$kerberos_password" \
+    --set kerberos.kdcPassword="$kerberos_kdc_password" \
+    --set kerberos.adminPassword="$kerberos_adm_password"
+}
+
 # Enhanced LDAP build with detailed progress tracking
 build_ldap_with_progress() {
   local ldap_password="$1"
@@ -256,11 +288,12 @@ build_ldap_with_progress() {
   # Step 4: Deploy to Kubernetes
   log_info "☸️  Deploying LDAP to Kubernetes cluster"
 
-  # Execute the deployment script with suppressed output unless verbose
+  # Execute the deployment with correct registry URL
   local temp_deploy_log=$(mktemp)
   local temp_deploy_error=$(mktemp)
 
-  ./run_ldap.sh "$ldap_password" "$kerberos_password" "$kerberos_kdc_password" "$kerberos_adm_password" >"$temp_deploy_log" 2>"$temp_deploy_error" &
+  # Deploy LDAP using Helm with correct registry URL
+  deploy_ldap_with_correct_registry "$ldap_password" "$kerberos_password" "$kerberos_kdc_password" "$kerberos_adm_password" "$gok_registry_url" >"$temp_deploy_log" 2>"$temp_deploy_error" &
   local deploy_pid=$!
 
   # Show deployment progress
@@ -360,4 +393,5 @@ build_ldap_with_progress() {
 
 # Export functions for use by other modules
 export -f ldapInst
+export -f deploy_ldap_with_correct_registry
 export -f build_ldap_with_progress
