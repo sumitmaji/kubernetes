@@ -873,3 +873,36 @@ export -f suggest_and_install_next_module
 export -f show_component_guidance
 export -f recommend_installation_path
 export -f show_component_next_steps
+
+# Show LDAP next steps and recommend Keycloak
+show_ldap_next_steps() {
+  echo
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 LDAP Post-Installation Steps${COLOR_RESET}"
+  echo
+
+  echo -e "${COLOR_MAGENTA}${COLOR_BOLD}Immediate Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  1. Access phpLDAPadmin web interface to configure users and groups${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  2. Create organizational units (OUs) for your directory structure${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  3. Add initial users and groups to the directory${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  4. Test LDAP authentication and directory queries${COLOR_RESET}"
+  echo
+
+  echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}🎯 Recommended Next Installation: Keycloak${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}LDAP provides the directory foundation - now add modern identity management with Keycloak!${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Why install Keycloak next?${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔐 Modern OAuth2/OIDC identity provider${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔗 Seamless LDAP integration for user authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🌐 Single sign-on (SSO) across all GOK platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 👥 Advanced user federation and social login support${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🛡️  Enterprise-grade security and compliance features${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Install Keycloak now?${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  Command: ${COLOR_BOLD}gok install keycloak${COLOR_RESET}"
+  echo
+
+  # Suggest and install Keycloak as the next step
+  suggest_and_install_next_module "ldap"
+}
+
+export -f show_ldap_next_steps

@@ -1003,3 +1003,51 @@ export -f show_kyverno_summary
 export -f show_jupyter_summary
 export -f show_argocd_summary
 export -f show_generic_summary
+
+# Show LDAP-specific summary and next steps
+show_ldap_summary() {
+  log_info "📋 LDAP Directory Service Summary"
+  echo
+
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🗂️  LDAP Directory Service Details${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Service Information:${COLOR_RESET}"
+  echo -e "  🌐 ${COLOR_GREEN}LDAP Server${COLOR_RESET} - OpenLDAP directory service"
+  echo -e "  🖥️  ${COLOR_GREEN}phpLDAPadmin${COLOR_RESET} - Web-based LDAP administration interface"
+  echo -e "  🔐 ${COLOR_GREEN}Kerberos Integration${COLOR_RESET} - Single sign-on authentication"
+  echo -e "  🗂️  ${COLOR_GREEN}Directory Structure${COLOR_RESET} - Hierarchical user and group management"
+  echo
+
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Access Information:${COLOR_RESET}"
+  local subdomain=$(defaultSubdomain 2>/dev/null || echo "kube")
+  local domain=$(rootDomain 2>/dev/null || echo "gokcloud.com")
+  echo -e "  🌍 ${COLOR_CYAN}Web Interface${COLOR_RESET}: https://${subdomain}.${domain}/phpldapadmin/"
+  echo -e "  🔌 ${COLOR_CYAN}LDAP Protocol${COLOR_RESET}: ldap://ldap.default.svc.cloud.uat:389"
+  echo -e "  🔒 ${COLOR_CYAN}LDAPS (SSL)${COLOR_RESET}: ldaps://ldap.default.svc.cloud.uat:636"
+  echo
+
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Authentication Features:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}User Management${COLOR_RESET} - Create, modify, and delete users"
+  echo -e "  ✅ ${COLOR_GREEN}Group Management${COLOR_RESET} - Organize users into groups"
+  echo -e "  ✅ ${COLOR_GREEN}Password Policies${COLOR_RESET} - Enforce security requirements"
+  echo -e "  ✅ ${COLOR_GREEN}SSL/TLS Support${COLOR_RESET} - Encrypted connections"
+  echo -e "  ✅ ${COLOR_GREEN}Kerberos SSO${COLOR_RESET} - Single sign-on integration"
+  echo
+
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}💡 LDAP Benefits:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Centralized user and group management across all services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Foundation for enterprise identity and access management${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Integration with Keycloak, OAuth2, and other auth services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Support for complex organizational hierarchies${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• High availability and scalability for enterprise environments${COLOR_RESET}"
+  echo
+}
+
+# Show LDAP installation summary (called after successful installation)
+show_ldap_installation_summary() {
+  show_installation_summary "ldap" "ldap" "LDAP directory service and authentication"
+}
+
+export -f show_ldap_summary
+export -f show_ldap_installation_summary

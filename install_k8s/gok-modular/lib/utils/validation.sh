@@ -1284,3 +1284,68 @@ export -f validate_base_installation
 export -f validate_kyverno_installation
 export -f validate_ha_proxy_installation
 export -f validate_system_requirements
+
+# Validate LDAP installation with comprehensive checks
+validate_ldap_installation() {
+  log_info "Validating LDAP installation with enhanced diagnostics..."
+  local validation_passed=true
+
+  log_step "1" "Checking LDAP namespace"
+  if kubectl get namespace ldap >/dev/null 2>&1; then
+    log_success "LDAP namespace found"
+  else
+    log_error "LDAP namespace not found"
+    return 1
+  fi
+
+  log_step "2" "Checking LDAP deployment status"
+  if check_deployment_readiness "ldap" "ldap"; then
+    log_success "LDAP deployment is ready"
+  else
+    log_error "LDAP deployment has issues"
+    validation_passed=false
+  fi
+
+  log_step "3" "Checking LDAP pods with detailed diagnostics"
+  if ! wait_for_pods_ready "ldap" "300" "ldap"; then
+    log_error "LDAP pods not ready"
+    validation_passed=false
+  else
+    log_success "LDAP pods are ready"
+  fi
+
+  log_step "4" "Checking LDAP service connectivity"
+  if check_service_connectivity "ldap" "ldap"; then
+    log_success "LDAP service is accessible"
+  else
+    log_warning "LDAP service connectivity issues detected"
+  fi
+
+  log_step "5" "Checking LDAP persistent volumes"
+  local ldap_pvcs=$(kubectl get pvc -n ldap --no-headers 2>/dev/null | wc -l)
+  if [[ $ldap_pvcs -gt 0 ]]; then
+    log_success "LDAP persistent volume claims found ($ldap_pvcs PVCs)"
+
+    # Check for pending PVCs
+    local pending_pvcs=$(kubectl get pvc -n ldap --no-headers 2>/dev/null | grep "Pending" | wc -l)
+    if [[ $pending_pvcs -gt 0 ]]; then
+      log_warning "$pending_pvcs LDAP PVC(s) are in Pending state"
+    fi
+  else
+    log_info "No persistent volume claims found for LDAP (may be using ephemeral storage)"
+  fi
+
+  log_step "6" "Testing LDAP connectivity (if accessible)"
+  local ldap_pod=$(kubectl get pods -n ldap --no-headers 2>/dev/null | grep "Running" | head -1 | awk '{print $1}')
+  if [[ -n "$ldap_pod" ]]; then
+    if kubectl exec -n ldap "$ldap_pod" -- ldapsearch -x -b "" -s base "(objectclass=*)" >/dev/null 2>&1; then
+      log_success "LDAP server is responding to queries"
+    else
+      log_warning "LDAP server may not be fully initialized yet"
+    fi
+  fi
+
+  return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}
+
+export -f validate_ldap_installation
