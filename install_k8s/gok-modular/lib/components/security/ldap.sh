@@ -80,17 +80,23 @@ build_ldap_with_progress() {
   local kerberos_adm_password="$4"
   local start_time=$(date +%s)
 
-  # Source configuration to get image details
-  if [[ ! -f "configuration" ]]; then
-    log_error "Configuration file not found in LDAP directory"
-    return 1
+  # Store GOK modular registry URL before sourcing old config  
+  local gok_registry_url
+  if [[ -n "$REGISTRY" && -n "$GOK_ROOT_DOMAIN" ]]; then
+    gok_registry_url="${REGISTRY}.${GOK_ROOT_DOMAIN}"
+  else
+    gok_registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
   fi
+  
+  # Source configuration to get image details but preserve registry URL
+  if [[ -f "configuration" ]]; then
+    source configuration
+  fi
+  
+  source "$WORKING_DIR/util" 2>/dev/null || true
 
-  source configuration
-  source "$GOK_ROOT/install_k8s/util" 2>/dev/null || true
-
-  # Get registry and image information
-  local registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
+  # Get registry and image information (use GOK modular registry)
+  local registry_url="$gok_registry_url"
   local image_name="${IMAGE_NAME:-sumit/ldap}"
   local repo_name="${REPO_NAME:-ldap}"
   local full_image_url="${registry_url}/${repo_name}"
@@ -115,10 +121,10 @@ build_ldap_with_progress() {
   local temp_build_log=$(mktemp)
   local temp_build_error=$(mktemp)
 
-  # Start Docker build in background with enhanced arguments
+  # Start Docker build in background with enhanced arguments (use GOK registry)
   docker build \
     --build-arg LDAP_DOMAIN="$domain_name" \
-    --build-arg REGISTRY="$registry_url" \
+    --build-arg REGISTRY="$gok_registry_url" \
     --build-arg LDAP_HOSTNAME="$ldap_hostname" \
     --build-arg BASE_DN="$base_dn" \
     --build-arg LDAP_PASSWORD="$ldap_password" \
