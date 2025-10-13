@@ -106,14 +106,16 @@ build_base_platform_with_progress() {
     source "${GOK_ROOT}/../util" 2>/dev/null || true
 
     # Get registry information
-    local registry_url=$(kubectl get configmap registry-config -n kube-system -o jsonpath='{.data.url}' 2>/dev/null || echo "localhost:5000")
+    local registry_host=$(kubectl get configmap registry-config -n kube-system -o jsonpath='{.data.url}' 2>/dev/null || echo "localhost:5000")
+    local registry_protocol=$(kubectl get configmap registry-config -n kube-system -o jsonpath='{.data.protocol}' 2>/dev/null || echo "http")
+    local registry_url="${registry_host}"
     local image_name="${IMAGE_NAME:-gok-base}"
     local repo_name="${REPO_NAME:-gok-base}"
     local full_image_url="${registry_url}/${repo_name}"
 
-    log_substep "Registry: ${registry_url}"
+    log_substep "Registry: ${registry_protocol}://${registry_url}"
     log_substep "Image: ${image_name}"
-    log_substep "Target: ${full_image_url}"
+    log_substep "Target: ${registry_protocol}://${full_image_url}"
 
     # Step 1: Docker Build with Enhanced Progress
     log_info "Building base platform Docker image: ${image_name}"
@@ -198,7 +200,7 @@ build_base_platform_with_progress() {
     fi
 
     # Step 3: Docker Push with Enhanced Progress
-    log_info "Pushing base platform image to registry: ${registry_url}"
+    log_info "Pushing base platform image to registry: ${registry_protocol}://${registry_url}"
     log_substep "Target repository: ${repo_name}"
 
     # Start Docker push in background

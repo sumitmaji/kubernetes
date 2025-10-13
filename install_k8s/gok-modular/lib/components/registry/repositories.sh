@@ -28,9 +28,15 @@ service:
   port: 5000
 
 ingress:
-  enabled: false
+  enabled: true
+  className: ""
   hosts:
     - registry.local
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 
 persistence:
   enabled: true
@@ -150,12 +156,59 @@ EOF
         
         execute_with_suppression "kubectl apply -f $auth_yaml" "Installing registry UI and authentication"
         
+        # Wait for ingress to be ready and capture registry URL
+        log_info "Waiting for registry ingress to be ready..."
+        local ingress_ready=false
+        local attempts=0
+        local max_attempts=30
+        
+        while [[ $attempts -lt $max_attempts && $ingress_ready == false ]]; do
+            if kubectl get ingress registry -n registry >/dev/null 2>&1; then
+                local registry_host=$(kubectl get ingress registry -n registry -o jsonpath='{.spec.rules[0].host}' 2>/dev/null)
+                if [[ -n "$registry_host" ]]; then
+                    ingress_ready=true
+                    log_success "Registry ingress ready at: https://$registry_host"
+                    
+                    # Create registry-config configmap with the URL
+                    if execute_with_suppression kubectl create configmap registry-config \
+                        --from-literal=url="$registry_host" \
+                        --from-literal=protocol="https" \
+                        --from-literal=port="443" \
+                        --from-literal=installed="$(date)" \
+                        -n kube-system --dry-run=client -o yaml | kubectl apply -f -; then
+                        log_success "Registry configuration stored in configmap"
+                    else
+                        log_warning "Failed to create registry configmap"
+                    fi
+                fi
+            fi
+            
+            if [[ $ingress_ready == false ]]; then
+                attempts=$((attempts + 1))
+                sleep 2
+            fi
+        done
+        
+        if [[ $ingress_ready == false ]]; then
+            log_warning "Registry ingress not ready, using NodePort fallback"
+            # Fallback to NodePort URL
+            local node_ip=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || echo "localhost")
+            local registry_url="${node_ip}:30120"
+            
+            if execute_with_suppression kubectl create configmap registry-config \
+                --from-literal=url="$registry_url" \
+                --from-literal=protocol="http" \
+                --from-literal=port="30120" \
+                --from-literal=installed="$(date)" \
+                -n kube-system --dry-run=client -o yaml | kubectl apply -f -; then
+                log_success "Registry configuration stored in configmap (NodePort fallback)"
+            fi
+        fi
+        
         log_success "Container registry installed successfully"
-        log_info "Registry API: http://<node-ip>:30120"
+        log_info "Registry API: https://$registry_host (or http://<node-ip>:30120)"
         log_info "Registry UI: http://<node-ip>:30121"
-        log_info "Push images with: docker tag <image> <node-ip>:30120/<image>"
-        log_info "Configure Docker daemon with insecure registry:"
-        log_info '  Add "insecure-registries": ["<node-ip>:30120"] to /etc/docker/daemon.json'
+        log_info "Push images with: docker tag <image> $registry_host/<image>"
         complete_component "registry"
     else
         log_error "Container registry installation failed"
