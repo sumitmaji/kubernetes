@@ -138,6 +138,8 @@ load_command_modules() {
 # Load component modules
 load_component_modules() {
     local component_dirs=(
+        "base"
+        "platform"
         "infrastructure"
         "monitoring"
         "security"
@@ -152,7 +154,9 @@ load_component_modules() {
         if [[ -d "$dir_path" ]]; then
             for component_file in "$dir_path"/*.sh; do
                 if [[ -f "$component_file" ]]; then
-                    source "$component_file"
+                    if ! source "$component_file"; then
+                        echo "Warning: Failed to source $component_file" >&2
+                    fi
                 fi
             done
         fi

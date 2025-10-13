@@ -463,7 +463,12 @@ installCmd() {
         
         # Solution bundles
         "base")
-            baseInst
+            if declare -f basePlatformInst >/dev/null; then
+                basePlatformInst
+            else
+                log_error "basePlatformInst function not found"
+                return 1
+            fi
             ;;
         "base-services")
             installBaseServices
