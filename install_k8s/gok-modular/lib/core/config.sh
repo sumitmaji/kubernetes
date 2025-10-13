@@ -119,6 +119,9 @@ load_gok_configuration() {
     # 6. Validate configuration
     validate_loaded_configuration
     
+    # 7. Set derived environment variables for compatibility
+    set_derived_environment_variables
+    
     log_success "GOK configuration loaded successfully"
 }
 
@@ -155,10 +158,21 @@ load_system_configuration() {
     log_debug "No system configuration found (this is optional)"
 }
 
-# Load project configuration
+# Load project configuration  
 load_project_configuration() {
     local project_config="$GOK_PROJECT_CONFIG"
+    local default_config="${GOK_ROOT_DIR}/config/default.conf"
     
+    # Load default configuration first
+    if [[ -f "$default_config" ]]; then
+        log_debug "Loading default configuration from: $default_config"
+        source "$default_config"
+        log_debug "Default configuration loaded"
+    else
+        log_warning "Default configuration not found: $default_config"
+    fi
+    
+    # Load project-specific configuration (may override defaults)
     if [[ -f "$project_config" ]]; then
         log_debug "Loading project configuration from: $project_config"
         source "$project_config"
@@ -599,6 +613,22 @@ init_config_module() {
     setup_configuration_paths
     
     log_debug "Configuration module initialized"
+}
+
+# Set derived environment variables for backward compatibility
+set_derived_environment_variables() {
+    # Set domain variables from GOK configuration
+    export ROOT_DOMAIN="${ROOT_DOMAIN:-${GOK_ROOT_DOMAIN:-gokcloud.com}}"
+    export REGISTRY_SUBDOMAIN="${REGISTRY_SUBDOMAIN:-${REGISTRY_SUBDOMAIN:-registry}}"
+    export DEFAULT_SUBDOMAIN="${DEFAULT_SUBDOMAIN:-${DEFAULT_SUBDOMAIN:-kube}}"
+    export KEYCLOAK_SUBDOMAIN="${KEYCLOAK_SUBDOMAIN:-${KEYCLOAK_SUBDOMAIN:-keycloak}}"
+    export ARGOCD_SUBDOMAIN="${ARGOCD_SUBDOMAIN:-${ARGOCD_SUBDOMAIN:-argocd}}"
+    export JUPYTERHUB_SUBDOMAIN="${JUPYTERHUB_SUBDOMAIN:-${JUPYTERHUB_SUBDOMAIN:-jupyter}}"
+    
+    log_debug "Derived environment variables set:"
+    log_debug "  ROOT_DOMAIN: $ROOT_DOMAIN"
+    log_debug "  REGISTRY_SUBDOMAIN: $REGISTRY_SUBDOMAIN"
+    log_debug "  DEFAULT_SUBDOMAIN: $DEFAULT_SUBDOMAIN"
 }
 
 # Initialize the module when sourced
