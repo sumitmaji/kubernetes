@@ -10,7 +10,7 @@ ldapInst(){
   log_component_start "ldap" "Installing LDAP directory service and authentication"
 
   log_step "1" "Preparing LDAP installation directory"
-  local ldap_dir="$GOK_ROOT/install_k8s/ldap"
+  local ldap_dir="$GOK_ROOT/../install_k8s/ldap"
   if [[ ! -d "$ldap_dir" ]]; then
     log_error "LDAP installation directory not found: $ldap_dir"
     return 1
