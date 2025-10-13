@@ -44,6 +44,9 @@ show_component_summary() {
         "helm")
             show_helm_summary
             ;;
+        "base")
+            show_base_summary "$namespace"
+            ;;
         "calico")
             show_calico_summary "$namespace"
             ;;
@@ -856,6 +859,55 @@ show_argocd_summary() {
     echo -e "  ${COLOR_CYAN}Access UI:${COLOR_RESET}        ${COLOR_BOLD}kubectl port-forward -n $namespace svc/argocd-server 8080:443${COLOR_RESET}"
     echo -e "  ${COLOR_CYAN}CLI login:${COLOR_RESET}        ${COLOR_BOLD}argocd login <server> --username admin${COLOR_RESET}"
     echo -e "  ${COLOR_CYAN}List apps:${COLOR_RESET}        ${COLOR_BOLD}argocd app list${COLOR_RESET}"
+}
+
+# =============================================================================
+# BASE PLATFORM SUMMARY
+# =============================================================================
+
+show_base_summary() {
+    local namespace="${1:-kube-system}"
+
+    echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🏗️ Base Platform${COLOR_RESET}"
+    echo -e "${COLOR_DIM}Core platform services and base infrastructure${COLOR_RESET}"
+    echo ""
+
+    # Service Status
+    log_info "📋 Service Status"
+    if kubectl get configmap base-config -n "$namespace" >/dev/null 2>&1; then
+        local version=$(kubectl get configmap base-config -n "$namespace" -o jsonpath='{.data.version}' 2>/dev/null || echo "modular")
+        local installed=$(kubectl get configmap base-config -n "$namespace" -o jsonpath='{.data.installed}' 2>/dev/null || echo "unknown")
+        echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Status: ${COLOR_BOLD}Installed${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Version: ${COLOR_BOLD}$version${COLOR_RESET}"
+        echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Installed: ${COLOR_BOLD}$installed${COLOR_RESET}"
+    else
+        echo -e "  ${COLOR_RED}•${COLOR_RESET} Status: ${COLOR_BOLD}Not Found${COLOR_RESET}"
+    fi
+    echo ""
+
+    # Docker Images
+    log_info "🐳 Docker Images"
+    if docker images | grep -q "gok-base"; then
+        local image_count=$(docker images | grep -c "gok-base" || echo "0")
+        echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Base images: ${COLOR_BOLD}$image_count${COLOR_RESET} found"
+    else
+        echo -e "  ${COLOR_YELLOW}•${COLOR_RESET} Base images: ${COLOR_BOLD}None found${COLOR_RESET}"
+    fi
+    echo ""
+
+    # Platform Features
+    log_info "⚙️ Platform Features"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Smart caching system"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Docker image management"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Base container utilities"
+    echo -e "  ${COLOR_GREEN}•${COLOR_RESET} Platform initialization scripts"
+    echo ""
+
+    # Quick Commands
+    log_info "⚡ Quick Commands"
+    echo -e "  ${COLOR_CYAN}Check status:${COLOR_RESET}      ${COLOR_BOLD}kubectl get configmap base-config -n $namespace${COLOR_RESET}"
+    echo -e "  ${COLOR_CYAN}List images:${COLOR_RESET}      ${COLOR_BOLD}docker images | grep gok-base${COLOR_RESET}"
+    echo -e "  ${COLOR_CYAN}View cache:${COLOR_RESET}       ${COLOR_BOLD}ls -la ${GOK_ROOT}/.cache/${COLOR_RESET}"
 }
 
 # =============================================================================

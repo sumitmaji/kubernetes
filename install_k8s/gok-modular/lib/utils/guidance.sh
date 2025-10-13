@@ -350,6 +350,17 @@ show_component_guidance() {
             echo -e "${COLOR_CYAN}   • Install ingress: ${COLOR_BOLD}gok-new install ingress${COLOR_RESET}"
             echo -e "${COLOR_CYAN}   • Set up certificates: ${COLOR_BOLD}gok-new install cert-manager${COLOR_RESET}"
             ;;
+        "base")
+            echo -e "${COLOR_GREEN}✓ Base Platform is ready${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}📝 Platform foundation:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Check status: ${COLOR_BOLD}kubectl get configmap base-config -n kube-system${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • View images: ${COLOR_BOLD}docker images | grep gok-base${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Next recommended: ${COLOR_BOLD}gok-new install registry${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}📋 Base platform provides:${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Smart caching system for package management${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Docker image building and registry integration${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}   • Core utilities and platform initialization${COLOR_RESET}"
+            ;;
         "ingress")
             echo -e "${COLOR_GREEN}✓ NGINX Ingress Controller is ready${COLOR_RESET}"
             echo -e "${COLOR_CYAN}📝 Configuration:${COLOR_RESET}"
@@ -521,6 +532,16 @@ show_component_next_steps() {
                 "Next: Install Kubernetes: gok install kubernetes"
             
             log_info "Docker is ready for container operations"
+            ;;
+            
+        "base")
+            log_next_steps "Base Platform" \
+                "Check status: kubectl get configmap base-config -n kube-system" \
+                "Verify images: docker images | grep gok-base" \
+                "Test caching: ls -la ${GOK_ROOT}/.cache/" \
+                "Next: Install registry: gok install registry"
+            
+            log_info "Base platform provides core infrastructure and caching system"
             ;;
             
         "kubernetes"|"k8s")

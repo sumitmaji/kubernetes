@@ -984,26 +984,72 @@ validate_registry_installation() {
 
 # Base platform services validation
 validate_base_installation() {
-    local timeout="$1"
+    local timeout="${1:-300}"
     local validation_passed=true
-    
-    log_step "1. Checking base installation marker"
+
+    log_info "Validating base platform installation..."
+
+    # Check if base installation marker exists
     if kubectl get configmap base-config -n kube-system >/dev/null 2>&1; then
-        log_success "Base installation marker found"
+        log_success "Base platform installation marker found"
+
+        # Check marker metadata
+        local version=$(kubectl get configmap base-config -n kube-system -o jsonpath='{.data.version}' 2>/dev/null || echo "unknown")
+        local caching=$(kubectl get configmap base-config -n kube-system -o jsonpath='{.data.caching-enabled}' 2>/dev/null || echo "false")
+
+        if [[ "$version" == "modular" ]]; then
+            log_success "Base platform modular version confirmed"
+        else
+            log_info "Base platform version: ${version}"
+        fi
+
+        if [[ "$caching" == "true" ]]; then
+            log_success "Smart caching enabled and operational"
+        else
+            log_info "Smart caching status: ${caching}"
+        fi
     else
-        log_warning "Base installation marker not found (but installation may have succeeded)"
-        # Don't fail validation for missing marker as it's not critical
+        log_warning "Base platform installation marker not found"
+        validation_passed=false
     fi
-    
-    log_step "2. Checking base platform components"
-    local base_dir="${MOUNT_PATH:-/home/sumit/Documents/repository}/kubernetes/install_k8s/base"
+
+    # Check if Docker registry is accessible
+    local registry_url=$(kubectl get configmap registry-config -n kube-system -o jsonpath='{.data.url}' 2>/dev/null || echo "localhost:5000")
+    if docker images | grep -q "gok-base"; then
+        log_success "Base platform Docker image found locally"
+    else
+        log_warning "Base platform Docker image not found locally"
+    fi
+
+    # Check if caching directory exists and is working
+    if [[ -d "${GOK_CACHE_DIR:-${GOK_ROOT}/.cache}" ]]; then
+        log_success "GOK cache directory operational"
+
+        # Check cache effectiveness
+        if [[ -f "${GOK_CACHE_DIR:-${GOK_ROOT}/.cache}/update_cache" ]]; then
+            local cache_age=$(stat -c %Y "${GOK_CACHE_DIR:-${GOK_ROOT}/.cache}/update_cache" 2>/dev/null || echo 0)
+            local current_time=$(date +%s)
+            local hours_old=$(( (current_time - cache_age) / 3600 ))
+
+            if [[ $hours_old -lt ${GOK_UPDATE_CACHE_HOURS:-6} ]]; then
+                log_success "System update cache is fresh (${hours_old}h old)"
+            else
+                log_info "System update cache is aging (${hours_old}h old)"
+            fi
+        fi
+    else
+        log_warning "GOK cache directory not found"
+    fi
+
+    # Check base platform directory
+    local base_dir="${GOK_ROOT}/../base"
     if [[ -d "$base_dir" ]]; then
         log_success "Base platform directory exists"
     else
         log_error "Base platform directory not found"
         validation_passed=false
     fi
-    
+
     return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
