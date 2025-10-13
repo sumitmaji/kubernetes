@@ -18,22 +18,6 @@ basePlatformInst() {
     log_component_start "base" "Installing base platform services and infrastructure"
     start_component "base"
 
-    # Step 1: Update system packages with smart caching
-    log_step "1" "Updating system packages with smart caching"
-    if ! updateSys; then
-        log_error "Failed to update system packages"
-        fail_component "base" "System update failed"
-        return 1
-    fi
-
-    # Step 2: Install dependencies with smart caching
-    log_step "2" "Installing dependencies with smart caching"
-    if ! installDeps; then
-        log_error "Failed to install base dependencies"
-        fail_component "base" "Dependency installation failed"
-        return 1
-    fi
-
     # Step 3: Prepare base installation directory
     local base_dir="${GOK_ROOT}/../base"
     if [[ ! -d "$base_dir" ]]; then
