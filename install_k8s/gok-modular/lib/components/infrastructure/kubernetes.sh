@@ -1929,7 +1929,16 @@ spec:
     return 1
   fi
 
-  log_step "4" "Installing registry certificates for Docker trust"
+  log_step "4" "Creating registry URL configmap"
+  local registry_url="https://$(registrySubdomain).$(rootDomain)"
+  if execute_with_suppression kubectl create configmap registry-config --from-literal=url="$registry_url" -n kube-system --dry-run=client -o yaml | kubectl apply -f -; then
+    log_success "Registry URL configmap created (URL: $registry_url)"
+  else
+    log_error "Failed to create registry URL configmap"
+    return 1
+  fi
+
+  log_step "5" "Installing registry certificates for Docker trust"
   # Let docker trust the self-signed certificates
   # https://itnext.io/error-x509-certificate-signed-by-unknown-authority-error-is-returned-f0e5d436f467
   local cert_dir="/etc/docker/certs.d/$(registrySubdomain).$(rootDomain)"
