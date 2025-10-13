@@ -91,14 +91,11 @@ build_ldap_with_progress() {
 
   # Get registry and image information
   local registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
-  # Extract hostname from full URL (remove https:// prefix)
-  local registry_hostname="${registry_url#https://}"
   local image_name="${IMAGE_NAME:-sumit/ldap}"
   local repo_name="${REPO_NAME:-ldap}"
-  local full_image_url="${registry_hostname}/${repo_name}"
+  local full_image_url="${registry_url}/${repo_name}"
 
   log_substep "Registry: ${COLOR_CYAN}${registry_url}${COLOR_RESET}"
-  log_substep "Registry Hostname: ${COLOR_CYAN}${registry_hostname}${COLOR_RESET}"
   log_substep "Image: ${COLOR_CYAN}${image_name}${COLOR_RESET}"
   log_substep "Target: ${COLOR_CYAN}${full_image_url}${COLOR_RESET}"
 
@@ -121,7 +118,7 @@ build_ldap_with_progress() {
   # Start Docker build in background with enhanced arguments
   docker build \
     --build-arg LDAP_DOMAIN="$domain_name" \
-    --build-arg REGISTRY="$registry_hostname" \
+    --build-arg REGISTRY="$registry_url" \
     --build-arg LDAP_HOSTNAME="$ldap_hostname" \
     --build-arg BASE_DN="$base_dn" \
     --build-arg LDAP_PASSWORD="$ldap_password" \

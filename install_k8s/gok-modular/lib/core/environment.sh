@@ -97,25 +97,53 @@ jupyterHubSubdomain() {
     echo "$JUPYTERHUB_SUBDOMAIN"
 }
 
-# Full URL generators
-fullDefaultUrl() {
-    echo "https://$(defaultSubdomain).$(rootDomain)"
+# Helper methods used by GOK to get URLs (matches original GOK)
+rootDomain(){
+  echo "$GOK_ROOT_DOMAIN"
 }
 
-fullRegistryUrl() {
-    echo "https://$(registrySubdomain).$(rootDomain)"
+sedRootDomain(){
+  rootDomain | sed 's/\./-/g'
 }
 
-fullKeycloakUrl() {
-    echo "https://$(keycloakSubdomain).$(rootDomain)"
+registrySubdomain(){
+  echo "$REGISTRY"
 }
 
-fullVaultUrl() {
-    echo "https://vault.$(rootDomain)"
+defaultSubdomain(){
+  echo "$DEFAULT_SUBDOMAIN"
 }
 
-fullSpinnakerUrl() {
-    echo "https://spinnaker.$(rootDomain)"
+keycloakSubdomain(){
+  echo "$KEYCLOAK"
+}
+
+argocdSubdomain(){
+  echo "$ARGOCD"
+}
+
+jupyterHubSubdomain(){
+  echo "$JUPYTERHUB"
+}
+
+fullDefaultUrl(){
+  echo "${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}"
+}
+
+fullRegistryUrl(){
+  echo "${REGISTRY}.${GOK_ROOT_DOMAIN}"
+}
+
+fullKeycloakUrl(){
+  echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+fullVaultUrl(){
+  echo "${VAULT}.${GOK_ROOT_DOMAIN}"
+}
+
+fullSpinnakerUrl(){
+  echo "${SPINNAKER}.${GOK_ROOT_DOMAIN}"
 }
 
 fullArgocdUrl() {
