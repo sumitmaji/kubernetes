@@ -1179,6 +1179,17 @@ registryReset() {
       log_info "No Docker trust store certificates found to remove"
     fi
 
+    log_step "6" "Removing registry URL configmap"
+    if kubectl get configmap registry-config -n kube-system >/dev/null 2>&1; then
+      if execute_with_suppression kubectl delete configmap registry-config -n kube-system; then
+        log_success "Registry URL configmap removed"
+      else
+        log_warning "Could not remove registry URL configmap"
+      fi
+    else
+      log_info "No registry URL configmap found to remove"
+    fi
+
     show_installation_summary "registry" "registry" "Container registry system removed"
     log_component_success "registry-reset" "Container registry successfully removed from cluster"
 
