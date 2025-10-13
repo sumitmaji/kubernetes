@@ -32,7 +32,7 @@ _gok_new_completion() {
     local monitoring_components="prometheus grafana cadvisor metric-server monitoring heapster"
     
     # Security components
-    local security_components="cert-manager keycloak oauth2-proxy vault ldap ldapclient kerberos kerberizedservices"
+    local security_components="cert-manager keycloak oauth2-proxy vault ldap ldapclient kerberos kerberizedservices kyverno"
     
     # Development components
     local development_components="jupyter jupyterhub dashboard ttyd eclipseche cloud-shell console devworkspace workspace che"
