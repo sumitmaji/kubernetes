@@ -362,16 +362,87 @@ systemctl_controlled() {
     local action="$1"
     local service="$2"
     local description="$3"
-    
+
     local systemctl_cmd="systemctl $action $service"
-    
+
     if is_verbose; then
         log_info "$description"
         log_debug "Executing: $systemctl_cmd"
-        eval "$systemctl_cmd"
+        if eval "$systemctl_cmd"; then
+            log_success "$description completed successfully"
+        else
+            local exit_code=$?
+            log_error "$description failed (exit code: $exit_code)"
+            analyze_service_failure "$service"
+            return $exit_code
+        fi
     else
-        execute_silent "$description" "$systemctl_cmd"
+        if execute_silent "$description" "$systemctl_cmd"; then
+            return 0
+        else
+            local exit_code=$?
+            # On failure, show detailed analysis even in non-verbose mode
+            log_error "$description failed (exit code: $exit_code)"
+            analyze_service_failure "$service"
+            return $exit_code
+        fi
     fi
+}
+
+# Analyze service failure and display relevant logs
+analyze_service_failure() {
+    local service="$1"
+
+    echo
+    log_header "🔍 Service Failure Analysis" "Analyzing $service failure"
+
+    # Get systemctl status
+    echo "📋 Service Status:"
+    echo "─────────────────"
+    if systemctl status "$service" --no-pager -l 2>/dev/null; then
+        echo
+    else
+        echo "❌ Unable to get service status"
+        echo
+    fi
+
+    # Get recent journalctl logs
+    echo "📜 Recent Service Logs:"
+    echo "──────────────────────"
+    if journalctl -u "$service" --no-pager -n 20 --since "5 minutes ago" 2>/dev/null; then
+        echo
+    else
+        echo "❌ Unable to retrieve service logs"
+        echo
+    fi
+
+    # Check for common issues
+    echo "🔍 Common Issues Check:"
+    echo "──────────────────────"
+
+    # Check if service file exists
+    if [[ ! -f "/etc/systemd/system/${service}.service" ]] && [[ ! -f "/lib/systemd/system/${service}.service" ]]; then
+        echo "❌ Service file not found for $service"
+    else
+        echo "✅ Service file exists"
+    fi
+
+    # Check if service is masked
+    if systemctl is-enabled "$service" 2>/dev/null | grep -q "masked"; then
+        echo "❌ Service is masked (disabled)"
+    fi
+
+    # Check for dependency issues
+    if systemctl status "$service" 2>/dev/null | grep -q "dependency"; then
+        echo "⚠️  Possible dependency issues detected"
+    fi
+
+    echo
+    log_info "💡 Troubleshooting Tips:"
+    echo "  • Check service configuration: systemctl cat $service"
+    echo "  • View full logs: journalctl -u $service"
+    echo "  • Reload systemd: systemctl daemon-reload"
+    echo "  • Check dependencies: systemctl list-dependencies $service"
 }
 
 # =============================================================================
@@ -534,7 +605,7 @@ export -f execute_with_progress apt_update_controlled apt_install_controlled apt
 export -f docker_pull_controlled docker_run_controlled kubectl_apply_controlled
 export -f systemctl_controlled log_verbose log_debug_verbose log_progress_controlled
 export -f show_spinner_background set_verbosity_level is_verbose is_debug is_normal
-export -f handle_command_error show_verbosity_config
+export -f handle_command_error show_verbosity_config analyze_service_failure
 
 # Mark module as loaded
 export GOK_VERBOSITY_LOADED="true"
