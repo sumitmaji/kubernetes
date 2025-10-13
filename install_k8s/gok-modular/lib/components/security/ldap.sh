@@ -93,7 +93,7 @@ deploy_ldap_with_correct_registry() {
   echo "Deploying LDAP with registry URL: $registry_url"
   
   # Deploy using Helm with correct registry URL
-  helm upgrade --install "$HELM_NAME" ./charts \
+  helm upgrade --install "$HELM_NAME" ./chart \
     --namespace ldap \
     --create-namespace \
     --set image.repository="$registry_url/$REPO_NAME" \
