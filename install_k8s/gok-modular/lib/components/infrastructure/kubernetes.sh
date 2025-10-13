@@ -940,9 +940,6 @@ configure_docker_daemon() {
     "max-file": "3"
   },
   "storage-driver": "overlay2",
-  "storage-opts": [
-    "overlay2.override_kernel_check=true"
-  ],
   "live-restore": true,
   "default-address-pools": [
     {
