@@ -1049,5 +1049,54 @@ show_ldap_installation_summary() {
   show_installation_summary "ldap" "ldap" "LDAP directory service and authentication"
 }
 
+# Show Keycloak-specific summary
+show_keycloak_summary() {
+  local hostname="$(subDomain 'keycloak').$(rootDomain)"
+
+  log_info "📋 Keycloak Identity Management Summary"
+  echo
+
+  echo -e "${COLOR_BRIGHT_BLUE}${COLOR_BOLD}🔐 Keycloak Identity & Access Management Details${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${COLOR_RESET}"
+
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Identity Provider Information:${COLOR_RESET}"
+  echo -e "  🏢 ${COLOR_GREEN}Keycloak Server${COLOR_RESET} - Enterprise identity and access management"
+  echo -e "  🗄️  ${COLOR_GREEN}PostgreSQL Database${COLOR_RESET} - Reliable data persistence and sessions"
+  echo -e "  🌐 ${COLOR_GREEN}Admin Console${COLOR_RESET} - Web-based identity management interface"
+  echo -e "  🔗 ${COLOR_GREEN}OAuth2/OIDC Provider${COLOR_RESET} - Modern authentication protocols"
+  echo
+
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Access Information:${COLOR_RESET}"
+  echo -e "  🌍 ${COLOR_CYAN}Admin Console${COLOR_RESET}: https://${hostname}/admin/"
+  echo -e "  🔐 ${COLOR_CYAN}OIDC Endpoint${COLOR_RESET}: https://${hostname}/realms/{realm}/.well-known/openid_configuration"
+  echo -e "  🔑 ${COLOR_CYAN}Token Endpoint${COLOR_RESET}: https://${hostname}/realms/{realm}/protocol/openid-connect/token"
+  echo -e "  👤 ${COLOR_CYAN}User Account${COLOR_RESET}: https://${hostname}/realms/{realm}/account/"
+  echo
+
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Authentication Features:${COLOR_RESET}"
+  echo -e "  ✅ ${COLOR_GREEN}Single Sign-On (SSO)${COLOR_RESET} - Unified authentication across applications"
+  echo -e "  ✅ ${COLOR_GREEN}Multi-Factor Authentication${COLOR_RESET} - Enhanced security with 2FA/MFA"
+  echo -e "  ✅ ${COLOR_GREEN}Social Login Integration${COLOR_RESET} - Google, GitHub, Facebook, etc."
+  echo -e "  ✅ ${COLOR_GREEN}LDAP/Active Directory${COLOR_RESET} - Enterprise directory integration"
+  echo -e "  ✅ ${COLOR_GREEN}Role-Based Access Control${COLOR_RESET} - Fine-grained permissions"
+  echo -e "  ✅ ${COLOR_GREEN}OAuth2 & OIDC Support${COLOR_RESET} - Modern authentication standards"
+  echo
+
+  echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}💡 Keycloak Benefits:${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Centralized identity and access management for all platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Seamless integration with existing LDAP directory services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Modern OAuth2/OIDC protocols for secure API authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• Comprehensive admin console for user and role management${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• High availability and scalability for enterprise environments${COLOR_RESET}"
+  echo
+}
+
+# Show Keycloak installation summary (called after successful installation)
+show_keycloak_installation_summary() {
+  show_installation_summary "keycloak" "keycloak" "Keycloak identity management service"
+}
+
 export -f show_ldap_summary
 export -f show_ldap_installation_summary
+export -f show_keycloak_summary
+export -f show_keycloak_installation_summary

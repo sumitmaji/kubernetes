@@ -905,4 +905,32 @@ show_ldap_next_steps() {
   suggest_and_install_next_module "ldap"
 }
 
+# Show Keycloak next steps and recommend OAuth2
+show_keycloak_next_steps() {
+  echo
+  echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🚀 Keycloak Post-Installation Steps${COLOR_RESET}"
+  echo
+
+  echo -e "${COLOR_MAGENTA}${COLOR_BOLD}Immediate Next Steps:${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  1. Access Keycloak admin console to configure realms and clients${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  2. Set up LDAP integration for user federation${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  3. Create OAuth2/OIDC clients for your applications${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}  4. Configure authentication flows and security policies${COLOR_RESET}"
+  echo
+
+  echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}🎯 Recommended Next Installation: OAuth2 Proxy${COLOR_RESET}"
+  echo -e "${COLOR_CYAN}Keycloak provides identity management - OAuth2 proxy adds application protection!${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_YELLOW}${COLOR_BOLD}Why install OAuth2 proxy next?${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🛡️  Protects applications with Keycloak authentication${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🔐 Seamless integration with Keycloak OIDC provider${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🌐 Single sign-on experience across all platform services${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 📊 Protects dashboards and admin interfaces${COLOR_RESET}"
+  echo -e "${COLOR_GREEN}• 🚀 Ready-to-use authentication proxy for any HTTP service${COLOR_RESET}"
+  echo
+  echo -e "${COLOR_CYAN}You will be prompted to install OAuth2 proxy after Keycloak setup completes.${COLOR_RESET}"
+  echo
+}
+
 export -f show_ldap_next_steps
+export -f show_keycloak_next_steps

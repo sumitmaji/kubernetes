@@ -1349,4 +1349,67 @@ validate_ldap_installation() {
   return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
 
+# Enhanced validation for Keycloak installation
+validate_keycloak_installation() {
+  log_info "Validating Keycloak installation..."
+
+  # Check if Keycloak namespace exists
+  if kubectl get namespace keycloak >/dev/null 2>&1; then
+    log_success "Keycloak namespace found"
+  else
+    log_error "Keycloak namespace not found"
+    return 1
+  fi
+
+  # Check if Keycloak StatefulSet is ready
+  if kubectl get statefulset keycloak -n keycloak >/dev/null 2>&1; then
+    log_success "Keycloak StatefulSet found"
+
+    # Check StatefulSet status
+    local ready_replicas=$(kubectl get statefulset keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    local desired_replicas=$(kubectl get statefulset keycloak -n keycloak -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+
+    if [[ "$ready_replicas" == "$desired_replicas" ]]; then
+      log_success "Keycloak StatefulSet is ready (${ready_replicas}/${desired_replicas} replicas)"
+    else
+      log_warning "Keycloak StatefulSet is scaling (${ready_replicas}/${desired_replicas} replicas ready)"
+    fi
+  else
+    log_error "Keycloak StatefulSet not found"
+    return 1
+  fi
+
+  # Check if PostgreSQL is ready
+  if kubectl get statefulset keycloak-postgresql -n keycloak >/dev/null 2>&1; then
+    log_success "PostgreSQL database found"
+
+    local pg_ready=$(kubectl get statefulset keycloak-postgresql -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    if [[ "$pg_ready" == "1" ]]; then
+      log_success "PostgreSQL database is ready"
+    else
+      log_warning "PostgreSQL database is starting"
+    fi
+  else
+    log_warning "PostgreSQL statefulset not found (may use external database)"
+  fi
+
+  # Check if Keycloak service exists
+  if kubectl get service keycloak-http -n keycloak >/dev/null 2>&1; then
+    log_success "Keycloak service found"
+  else
+    log_warning "Keycloak service not found"
+  fi
+
+  # Check if ingress exists
+  if kubectl get ingress keycloak -n keycloak >/dev/null 2>&1; then
+    local hostname=$(kubectl get ingress keycloak -n keycloak -o jsonpath='{.spec.rules[0].host}' 2>/dev/null || echo "unknown")
+    log_success "Keycloak ingress found (${hostname})"
+  else
+    log_info "Keycloak ingress not found (may be configured separately)"
+  fi
+
+  return 0
+}
+
+export -f validate_keycloak_installation
 export -f validate_ldap_installation
