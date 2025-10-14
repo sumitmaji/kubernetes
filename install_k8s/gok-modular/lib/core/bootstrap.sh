@@ -94,7 +94,6 @@ load_utility_modules() {
         local module_path="${GOK_LIB_DIR}/utils/${module}.sh"
         if [[ -f "$module_path" ]]; then
             source "$module_path"
-            log_debug "Loaded utility module: $module"
         else
             echo "Warning: Utility module $module not found at $module_path" >&2
         fi

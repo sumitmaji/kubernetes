@@ -3,9 +3,10 @@
 # Simplified Configuration Loading for GOK Modular System
 
 # Ensure this module is loaded only once
-if [[ "${GOK_CONFIG_LOADED:-}" == "true" ]]; then
-    return 0
-fi
+# Temporarily disabled guard to fix bootstrap issues
+# if [[ "${GOK_CONFIG_LOADED:-}" == "true" ]]; then
+#     return 0
+# fi
 
 # Set default paths if not provided
 : ${MOUNT_PATH:=/home/sumit/Documents/repository}

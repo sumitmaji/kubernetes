@@ -383,7 +383,16 @@ installCmd() {
             vaultInstall
             ;;
         "ldap")
-            ldapInst
+            if ldapInst; then
+                if validate_component_installation "ldap" 120; then
+                    complete_component "ldap" "LDAP installation completed and validated"
+                else
+                    complete_component "ldap" "LDAP installed but validation had warnings"
+                fi
+            else
+                fail_component "ldap" "LDAP installation failed"
+                return 1
+            fi
             ;;
         
         # Monitoring components

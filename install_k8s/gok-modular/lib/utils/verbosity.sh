@@ -14,9 +14,11 @@
 # =============================================================================
 
 # Ensure this module is loaded only once
-if [[ "${GOK_VERBOSITY_LOADED:-}" == "true" ]]; then
-    return 0
-fi
+# Temporarily disabled guard to fix bootstrap issues
+# if [[ "${GOK_VERBOSITY_LOADED:-}" == "true" ]]; then
+#     # If already loaded, just return without redefining functions
+#     return 0
+# fi
 
 # Load required dependencies
 if [[ "${GOK_LOGGING_LOADED:-}" != "true" ]]; then

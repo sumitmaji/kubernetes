@@ -10,9 +10,10 @@ fi
 if [[ -f "${BASH_SOURCE[0]%/*}/colors.sh" ]]; then
     source "${BASH_SOURCE[0]%/*}/colors.sh"
 fi
-if [[ -f "${BASH_SOURCE[0]%/*}/verbosity.sh" ]]; then
-    source "${BASH_SOURCE[0]%/*}/verbosity.sh"
-fi
+# verbosity.sh is loaded by bootstrap before validation.sh
+# if [[ -f "${BASH_SOURCE[0]%/*}/verbosity.sh" ]]; then
+#     source "${BASH_SOURCE[0]%/*}/verbosity.sh"
+# fi
 
 # =============================================================================
 # HELPER FUNCTIONS FOR VALIDATION
