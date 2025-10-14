@@ -358,12 +358,25 @@ build_ldap_with_progress() {
     if wait_for_pods_ready "ldap" "" "300"; then
       log_success "✅ LDAP pods are ready and healthy"
       
-      # Additional check: Wait for deployment to be fully ready
-      log_substep "Verifying LDAP deployment readiness..."
-      if check_deployment_readiness "ldap" "ldap"; then
+      # Additional check: Wait for deployment to be fully ready with timeout
+      log_substep "Waiting for LDAP deployment to be fully ready (timeout: 30s)..."
+      local deploy_timeout=30
+      local deploy_start_time=$(date +%s)
+      local deploy_ready=false
+      
+      while [[ $(($(date +%s) - deploy_start_time)) -lt $deploy_timeout ]]; do
+        if check_deployment_readiness "ldap" "ldap" >/dev/null 2>&1; then
+          deploy_ready=true
+          break
+        fi
+        log_substep "Deployment not ready yet, waiting... ($(($(date +%s) - deploy_start_time))/${deploy_timeout}s)"
+        sleep 5
+      done
+      
+      if [[ "$deploy_ready" == "true" ]]; then
         log_success "✅ LDAP deployment is fully ready and available"
       else
-        log_warning "⚠️ LDAP deployment readiness check failed, but pods are running"
+        log_warning "⚠️ LDAP deployment readiness check timed out after ${deploy_timeout}s, but pods are running"
       fi
     else
       log_error "❌ LDAP pods failed to become ready within 300 seconds"
