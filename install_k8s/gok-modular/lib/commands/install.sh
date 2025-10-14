@@ -382,12 +382,8 @@ installCmd() {
         
         # Security components
         "keycloak")
-            if keycloakInst; then
-                if validate_component_installation "keycloak" 120; then
-                    complete_component "keycloak" "Keycloak installation completed and validated"
-                else
-                    complete_component "keycloak" "Keycloak installed but validation had warnings"
-                fi
+            if installKeycloakWithCertMgr; then
+                complete_component "keycloak" "Keycloak installation completed with certificate management and OAuth2 integration"
             else
                 fail_component "keycloak" "Keycloak installation failed"
                 return 1

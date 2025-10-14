@@ -35,6 +35,16 @@ keycloakInst(){
 
   log_step "3" "Building and deploying Keycloak identity management"
 
+  # Create Keycloak namespace first
+  log_substep "Creating Keycloak namespace"
+  if kubectl create namespace keycloak --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1; then
+    log_success "Keycloak namespace created or already exists"
+  else
+    log_error "Failed to create Keycloak namespace"
+    popd || true
+    return 1
+  fi
+
   # Enhanced Keycloak build with progress tracking
   build_keycloak_with_progress "$KEYCLOAK_ADMIN_USERNAME" "$KEYCLOAK_ADMIN_PASSWORD" "$POSTGRESQL_USERNAME" "$POSTGRESQL_PASSWORD" "$OIDC_CLIENT_ID" "$REALM"
   if [[ $? -ne 0 ]]; then
@@ -585,3 +595,352 @@ export -f keycloakInst
 export -f build_keycloak_with_progress
 export -f deploy_keycloak_postgresql
 export -f create_permanent_keycloak_admin
+
+# Comprehensive Keycloak installation with certificate manager integration
+installKeycloakWithCertMgr(){
+  local start_time=$(date +%s)
+
+  log_component_start "keycloak-install" "Installing Keycloak identity and access management with certificate management"
+
+  log_step "1" "Updating system packages with smart caching"
+  if ! safe_update_system_with_cache; then
+    log_error "Failed to update system packages"
+    return 1
+  fi
+
+  log_step "2" "Installing dependencies with smart caching"
+  if ! safe_install_system_dependencies; then
+    log_error "Failed to install Keycloak dependencies"
+    return 1
+  fi
+
+  log_step "3" "Installing core Keycloak services"
+  if ! keycloakInst; then
+    log_error "Keycloak core installation failed"
+    return 1
+  fi
+  log_success "Keycloak core services installed"
+
+  log_step "4" "Setting up persistent storage and certificates"
+  log_substep "Creating storage class and persistent volume..."
+  if createLocalStorageClassAndPV "keycloak-storage" "keycloak-pv" "/data/volumes/pv3"; then
+    log_success "Keycloak storage configured"
+  else
+    log_warning "Storage configuration had issues but continuing"
+  fi
+
+  log_substep "Configuring ingress and SSL certificates..."
+  if execute_with_suppression gok-new patch ingress keycloak keycloak letsencrypt $(defaultSubdomain); then
+    log_success "Keycloak ingress and certificates configured"
+  else
+    log_warning "Ingress configuration had issues but continuing"
+  fi
+
+  log_step "5" "Waiting for Keycloak services to be ready"
+  if wait_for_keycloak_services; then
+    log_success "Keycloak services are ready and accepting connections"
+
+    # Create permanent admin account
+    log_step "6" "Creating permanent admin account"
+    if create_permanent_keycloak_admin; then
+      log_success "Permanent admin account created successfully"
+    else
+      log_warning "Could not create permanent admin account automatically (may need manual setup)"
+    fi
+  else
+    log_error "Keycloak services failed to start properly"
+    return 1
+  fi
+
+  log_step "7" "Installing Python dependencies for configuration"
+  log_substep "Installing Python packages for Keycloak client management..."
+  if execute_with_suppression apt install python3-dotenv python3-requests python3-jose -y; then
+    log_success "Python dependencies installed"
+  else
+    log_warning "Python dependency installation had issues but continuing"
+  fi
+
+  log_step "8" "Configuring Keycloak clients and realms"
+  if setup_keycloak_clients; then
+    log_success "Keycloak clients and realms configured"
+
+    log_step "9" "Setting up OAuth2 integration"
+    if oauth2Secret; then
+      log_success "OAuth2 integration configured"
+    else
+      log_warning "OAuth2 integration had issues but continuing"
+    fi
+  else
+    log_error "Keycloak client configuration failed"
+    return 1
+  fi
+
+  log_step "10" "Configuring LDAP user federation"
+  if setup_ldap_federation; then
+    log_success "LDAP user federation configured"
+  else
+    log_warning "LDAP federation configuration had issues but core Keycloak is working"
+  fi
+
+  log_step "11" "Validating complete Keycloak installation"
+  if validate_keycloak_installation; then
+    log_success "Keycloak installation validation completed"
+  else
+    log_warning "Keycloak validation had issues but installation may still work"
+  fi
+
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+
+  show_keycloak_installation_summary
+  log_component_success "keycloak-install" "Keycloak identity management system installed successfully"
+  log_success "Complete Keycloak installation completed in ${duration}s"
+
+  # Show Keycloak-specific next steps and recommend OAuth2
+  show_keycloak_next_steps
+
+  # Suggest and install OAuth2 as the next step (only after complete installation)
+  suggest_and_install_next_module "keycloak"
+
+  return 0
+}
+
+# Enhanced waiting for Keycloak services with immediate issue detection
+wait_for_keycloak_services() {
+  log_info "⏳ Waiting for Keycloak services to be ready with enhanced diagnostics (timeout: 4 minutes)"
+
+  # First, check for immediate deployment issues
+  log_substep "Performing initial deployment health check..."
+  sleep 10  # Give pods time to start creating
+
+  # Check for immediate image pull issues
+  if ! check_image_pull_issues "keycloak" "keycloak"; then
+    log_error "❌ Keycloak has Docker image pull issues - aborting wait"
+    return 1
+  fi
+
+  # Check for resource constraint issues
+  if ! check_resource_constraints "keycloak" "keycloak"; then
+    log_error "❌ Keycloak has resource constraint issues - aborting wait"
+    return 1
+  fi
+
+  # Use enhanced pod waiting with detailed diagnostics
+  log_substep "Waiting for Keycloak pods with detailed monitoring..."
+  if wait_for_pods_ready "keycloak" "" "240"; then
+    log_success "✅ Keycloak pods are ready"
+  else
+    log_error "❌ Keycloak pods failed to become ready"
+    return 1
+  fi
+
+  # Verify StatefulSet is actually ready (Keycloak uses StatefulSet, not Deployment)
+  log_substep "Verifying Keycloak StatefulSet status..."
+  if check_statefulset_readiness "keycloak" "keycloak"; then
+    log_success "✅ Keycloak StatefulSet is healthy"
+  else
+    log_error "❌ Keycloak StatefulSet has issues"
+    return 1
+  fi
+
+  # Check service connectivity
+  log_substep "Verifying Keycloak service connectivity..."
+  if check_service_connectivity "keycloak-http" "keycloak"; then
+    log_success "✅ Keycloak service is accessible"
+  else
+    log_warning "⚠️  Keycloak service connectivity issues detected"
+  fi
+
+  # Final verification
+  local keycloak_url="https://$(defaultSubdomain).$(rootDomain)/"
+  log_success "✅ Keycloak is ready and accessible at: ${COLOR_CYAN}${keycloak_url}${COLOR_RESET}"
+
+  # Brief pause for services to fully initialize
+  log_substep "Allowing services to fully initialize..."
+  sleep 10
+  return 0
+}
+
+# Setup Keycloak clients and realms
+setup_keycloak_clients() {
+  log_info "🔧 Configuring Keycloak clients and realms"
+
+  # Retrieve credentials from secrets
+  local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN}" 2>/dev/null | base64 --decode || echo "")
+  local admin_pwd=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null | base64 --decode || echo "")
+  local client_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.CLIENT_ID}" 2>/dev/null | base64 --decode || echo "")
+  local realm=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.OAUTH_REALM}" 2>/dev/null | base64 --decode || echo "")
+
+  if [[ -z "$admin_id" || -z "$admin_pwd" || -z "$client_id" || -z "$realm" ]]; then
+    log_error "Failed to retrieve Keycloak credentials from secrets"
+    return 1
+  fi
+
+  log_substep "Admin User: ${COLOR_CYAN}${admin_id}${COLOR_RESET}"
+  log_substep "Client ID: ${COLOR_CYAN}${client_id}${COLOR_RESET}"
+  log_substep "Realm: ${COLOR_CYAN}${realm}${COLOR_RESET}"
+
+  # Show what will be created
+  log_substep "📋 Configuration Details:"
+  log_substep "  • Realm: ${COLOR_CYAN}${realm}${COLOR_RESET} (will be created)"
+  log_substep "  • Client: ${COLOR_CYAN}${client_id}${COLOR_RESET} (OIDC client for automation)"
+  log_substep "  • Groups: ${COLOR_CYAN}administrators, developers${COLOR_RESET} (user groups)"
+  log_substep "  • Sample User: ${COLOR_CYAN}skmaji1${COLOR_RESET} (with admin/developer roles)"
+  log_substep "  • Scopes: ${COLOR_CYAN}groups${COLOR_RESET} (OIDC group membership claims)"
+  log_substep "  • Token Lifespan: ${COLOR_CYAN}24 hours${COLOR_RESET} (access token validity)"
+
+  # Run Keycloak client configuration
+  log_substep "🚀 Running Keycloak client configuration script..."
+  local keycloak_dir="$GOK_ROOT/../../install_k8s/keycloak"
+  if execute_with_suppression pushd "$keycloak_dir" && execute_with_suppression python3 keycloak-client.py all "$admin_id" "$admin_pwd" "$client_id" "$realm" && execute_with_suppression popd; then
+    log_success "Keycloak client configuration completed"
+    return 0
+  else
+    log_error "Keycloak client configuration failed"
+    popd || true
+    return 1
+  fi
+}
+
+# Setup OAuth2 secrets for integration
+oauth2Secret(){
+  CLIENT_ID=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['CLIENT_ID']}" | base64 --decode)
+  REALM=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['OAUTH_REALM']}" | base64 --decode)
+  KEYCLOAK_URL=$(fullKeycloakUrl)
+  ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
+
+  client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
+
+  # Use environment variables with fallbacks to predefined Keycloak configuration
+  ACTIVE_PROFILE="${ACTIVE_PROFILE:-keycloak}"
+  OIDC_ISSUE_URL="${OIDC_ISSUE_URL:-https://keycloak.$(rootDomain)/realms/${REALM}}"
+  OIDC_USERNAME_CLAIM="${OIDC_USERNAME_CLAIM:-sub}"
+  OIDC_GROUPS_CLAIM="${OIDC_GROUPS_CLAIM:-groups}"
+  AUTH0_DOMAIN="${AUTH0_DOMAIN:-keycloak.$(rootDomain)}"
+  APP_HOST="${APP_HOST:-$(defaultSubdomain).$(rootDomain)}"
+  JWKS_URL="${JWKS_URL:-${OIDC_ISSUE_URL}/protocol/openid-connect/certs}"
+  OAUTH_SERVER_URI="${OAUTH_SERVER_URI:-https://$(fullKeycloakUrl)}"
+
+  # If secret already exists then delete it
+  kubectl get secret oauth-secrets -n kube-system 2>/dev/null && kubectl delete secret oauth-secrets -n kube-system
+  kubectl create secret generic oauth-secrets \
+    --from-literal=OAUTH_REALM="${REALM}" \
+    --from-literal=ACTIVE_PROFILE="${ACTIVE_PROFILE}" \
+    --from-literal=OIDC_CLIENT_ID="${CLIENT_ID}" \
+    --from-literal=OIDC_ISSUE_URL="${OIDC_ISSUE_URL}" \
+    --from-literal=OIDC_USERNAME_CLAIM="${OIDC_USERNAME_CLAIM}" \
+    --from-literal=OIDC_GROUPS_CLAIM="${OIDC_GROUPS_CLAIM}" \
+    --from-literal=AUTH0_DOMAIN="${AUTH0_DOMAIN}" \
+    --from-literal=APP_HOST="${APP_HOST}" \
+    --from-literal=JWKS_URL="${JWKS_URL}" \
+    --from-literal=OAUTH_SERVER_URI="${OAUTH_SERVER_URI}" \
+    --from-literal=OIDC_CLIENT_SECRET="${client_secret}" -n kube-system
+}
+
+# Setup LDAP user federation
+setup_ldap_federation() {
+  log_info "🔗 Setting up LDAP user federation"
+
+  # Check if LDAP service is running
+  log_substep "Checking LDAP service availability..."
+  local ldap_status=$(kubectl get svc ldap -n ldap 2>/dev/null | grep ldap | wc -l)
+
+  if [[ "$ldap_status" -eq 0 ]]; then
+    log_warning "LDAP service is not running - skipping user federation setup"
+    log_info "To set up LDAP federation later, ensure LDAP is installed and run the federation scripts manually"
+    return 0
+  else
+    log_success "LDAP service is running - proceeding with user federation"
+  fi
+
+  # Get credentials
+  local admin_id=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN}" 2>/dev/null | base64 --decode || echo "")
+  local admin_pwd=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null | base64 --decode || echo "")
+
+  : "${LDAP_PASSWORD:=$(promptSecret "Please enter LDAP password for admin: ")}"
+
+  # Create audience scope
+  log_substep "Setting up Kubernetes audience scope..."
+  local keycloak_dir="$GOK_ROOT/../../install_k8s/keycloak"
+  if execute_with_suppression pushd "$keycloak_dir" && execute_with_suppression chmod +x setup_kubernetes_audience.sh && execute_with_suppression ./setup_kubernetes_audience.sh "$admin_id" "$admin_pwd" && execute_with_suppression popd; then
+    log_success "Kubernetes audience scope created"
+  else
+    log_error "Audience scope creation failed"
+    popd || true
+    return 1
+  fi
+
+  # Create user federation
+  log_substep "Setting up LDAP user federation..."
+  if execute_with_suppression chmod +x setup_user_federation.sh && execute_with_suppression ./setup_user_federation.sh "$admin_id" "$admin_pwd" "$LDAP_PASSWORD"; then
+    log_success "LDAP user federation created"
+  else
+    log_error "User federation creation failed"
+    return 1
+  fi
+
+  # Create group mappers
+  log_substep "Setting up Keycloak group mappers..."
+  if execute_with_suppression chmod +x setup_group_mappers.sh && execute_with_suppression ./setup_group_mappers.sh "$admin_id" "$admin_pwd"; then
+    log_success "Keycloak group mappers created"
+  else
+    log_error "Group mapper creation failed"
+    return 1
+  fi
+
+  return 0
+}
+
+# Fetch client secret from Keycloak
+fetch_client_secret() {
+  local keycloak_url="$1"
+  local realm="$2"
+  local client_id="$3"
+  local admin_username="$4"
+  local admin_password="$5"
+
+  # Get admin token
+  local token_response=$(curl -s -k -X POST "${keycloak_url}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=password&client_id=admin-cli&username=${admin_username}&password=${admin_password}")
+
+  local access_token=$(echo "$token_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+
+  if [[ -z "$access_token" ]]; then
+    log_error "Failed to get admin token for client secret retrieval"
+    return 1
+  fi
+
+  # Get client secret
+  local client_response=$(curl -s -k -X GET "${keycloak_url}/admin/realms/${realm}/clients" \
+    -H "Authorization: Bearer ${access_token}" \
+    -H "Content-Type: application/json")
+
+  local client_uuid=$(echo "$client_response" | grep -o '"id":"[^"]*","clientId":"'"${client_id}"'"' | cut -d'"' -f4)
+
+  if [[ -z "$client_uuid" ]]; then
+    log_error "Failed to find client UUID for ${client_id}"
+    return 1
+  fi
+
+  local secret_response=$(curl -s -k -X GET "${keycloak_url}/admin/realms/${realm}/clients/${client_uuid}/client-secret" \
+    -H "Authorization: Bearer ${access_token}" \
+    -H "Content-Type: application/json")
+
+  local client_secret=$(echo "$secret_response" | grep -o '"value":"[^"]*"' | cut -d'"' -f4)
+
+  if [[ -z "$client_secret" ]]; then
+    log_error "Failed to retrieve client secret"
+    return 1
+  fi
+
+  echo "$client_secret"
+}
+
+export -f installKeycloakWithCertMgr
+export -f wait_for_keycloak_services
+export -f setup_keycloak_clients
+export -f oauth2Secret
+export -f setup_ldap_federation
+export -f fetch_client_secret
