@@ -99,10 +99,10 @@ deploy_ldap_with_correct_registry() {
     --create-namespace \
     --set image.repository="$registry_url/$REPO_NAME" \
     --set image.tag="latest" \
-    --set ldap.adminPassword="$ldap_password" \
-    --set kerberos.kerberosPassword="$kerberos_password" \
+    --set ldap.password="$ldap_password" \
+    --set kerberos.password="$kerberos_password" \
     --set kerberos.kdcPassword="$kerberos_kdc_password" \
-    --set kerberos.adminPassword="$kerberos_adm_password"
+    --set kerberos.admpassword="$kerberos_adm_password"
 }
 
 # Enhanced LDAP build with detailed progress tracking
