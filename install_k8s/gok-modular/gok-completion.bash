@@ -58,6 +58,9 @@ _gok_new_completion() {
     # Reset components (includes 'all')
     local reset_components="$install_components all"
 
+    # Start command components
+    local start_components="kubernetes kubelet proxy ha docker containerd"
+
     # Remote command subcommands
     local remote_subcommands="
         setup add list show exec copy status install-gok
@@ -102,6 +105,9 @@ _gok_new_completion() {
                     ;;
                 "reset"|"uninstall")
                     COMPREPLY=($(compgen -W "$reset_components" -- "$cur"))
+                    ;;
+                "start")
+                    COMPREPLY=($(compgen -W "$start_components" -- "$cur"))
                     ;;
                 "remote")
                     COMPREPLY=($(compgen -W "$remote_subcommands" -- "$cur"))

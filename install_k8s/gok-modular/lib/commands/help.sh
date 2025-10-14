@@ -126,6 +126,12 @@ RESET COMMANDS:
                          Examples: gok-new reset keycloak
                                   gok-new reset monitoring
 
+START COMMANDS:
+  start <component>       Start system services and components
+                         Examples: gok-new start kubernetes
+                                  gok-new start docker
+                                  gok-new start kubelet
+
 RESOURCE COMMANDS:
   create <type> <name>    Create Kubernetes resources
                          Examples: gok-new create secret app-secret

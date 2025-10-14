@@ -15,7 +15,7 @@ export GOK_INSTALL_COMPONENTS="docker kubernetes kubernetes-worker helm calico i
 
 export GOK_RESET_COMPONENTS="docker kubernetes helm calico ingress cert-manager dashboard monitoring prometheus grafana fluentd opensearch keycloak oauth2 vault ldap jupyter devworkspace workspace che ttyd cloudshell console argocd jenkins spinnaker registry istio rabbitmq kyverno gok-agent gok-controller gok-login chart base-services"
 
-export GOK_START_COMPONENTS="kubernetes docker helm"
+export GOK_START_COMPONENTS="kubernetes kubelet proxy ha docker containerd"
 
 export GOK_DEPLOY_COMPONENTS="app1"
 

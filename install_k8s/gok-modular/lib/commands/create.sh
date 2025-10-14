@@ -44,7 +44,6 @@ patchCmd() {
     fi
 }
 deployCmd() { echo "Deploy command - functionality will be implemented"; }
-startCmd() { echo "Start command - functionality will be implemented"; }
 remoteCmd() { echo "Remote command - functionality will be implemented"; }
 # Completion command is now implemented in utils.sh
 # Cache command is now implemented in utils.sh

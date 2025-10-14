@@ -114,6 +114,7 @@ load_command_modules() {
     local command_modules=(
         "install"
         "reset" 
+        "start"
         "status"
         "utils"
         "create"
