@@ -11,6 +11,28 @@ export GOK_TEMP_DIR="${GOK_TEMP_DIR:-/tmp/gok}"
 # Ensure temp directory exists
 mkdir -p "$GOK_TEMP_DIR"
 
+# Update command display based on verbosity level
+update_command_display_setting() {
+    # Import verbosity level if available
+    if declare -f is_verbose >/dev/null 2>&1 && declare -f is_debug >/dev/null 2>&1; then
+        if is_verbose || is_debug || [[ "${GOK_VERBOSE:-false}" == "true" ]] || [[ "${GOK_DEBUG:-false}" == "true" ]]; then
+            export GOK_SHOW_COMMANDS="true"
+        else
+            export GOK_SHOW_COMMANDS="false"
+        fi
+    else
+        # Fallback: check environment variables directly
+        if [[ "${GOK_VERBOSE:-false}" == "true" ]] || [[ "${GOK_DEBUG:-false}" == "true" ]]; then
+            export GOK_SHOW_COMMANDS="true"
+        else
+            export GOK_SHOW_COMMANDS="false"
+        fi
+    fi
+}
+
+# Call this to ensure settings are up to date
+update_command_display_setting
+
 # Execute a command with suppressed output and return status
 execute_with_suppression() {
     local temp_file="$GOK_TEMP_DIR/stdout_$(date +%s%N)"
@@ -18,6 +40,9 @@ execute_with_suppression() {
     local stdin_file=""
     local command_display="$*"
 
+    # Update command display setting based on current verbosity
+    update_command_display_setting
+    
     # Show command being executed if verbose mode
     if [[ "$GOK_SHOW_COMMANDS" == "true" ]]; then
         log_debug "Executing: $command_display"
@@ -107,9 +132,74 @@ show_execution_error() {
         echo -e "${COLOR_YELLOW}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
     fi
 
+    # Show recent system logs for additional context
+    show_recent_system_logs "$command"
+
     # Show debugging tips
     show_debugging_tips "$command"
     echo >&2
+}
+
+# Show recent system logs for debugging failed commands
+show_recent_system_logs() {
+    local command="$1"
+    
+    # Show different amounts of logs based on verbosity
+    local log_limit=10
+    if [[ "${GOK_VERBOSE:-false}" != "true" && "${GOK_DEBUG:-false}" != "true" ]]; then
+        log_limit=3  # Show fewer logs in non-verbose mode
+    fi
+    
+    local header_text="📋 Recent System Logs (last ${log_limit} entries):"
+    echo -e "${COLOR_MAGENTA}${COLOR_BOLD}${header_text}${COLOR_RESET}" >&2
+    echo -e "${COLOR_MAGENTA}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
+    
+    # Try to show relevant system logs based on command type
+    case "$command" in
+        *kubectl*|*kubelet*)
+            # Show kubelet logs
+            if command -v journalctl >/dev/null 2>&1; then
+                journalctl -u kubelet --no-pager -n $log_limit --since "5 minutes ago" 2>/dev/null | head -$log_limit >&2 || echo "No kubelet logs available" >&2
+            else
+                echo "journalctl not available for system logs" >&2
+            fi
+            ;;
+        *docker*|*containerd*)
+            # Show docker/containerd logs
+            if command -v journalctl >/dev/null 2>&1; then
+                (journalctl -u docker --no-pager -n $log_limit --since "5 minutes ago" 2>/dev/null || journalctl -u containerd --no-pager -n $log_limit --since "5 minutes ago" 2>/dev/null) | head -$log_limit >&2 || echo "No container runtime logs available" >&2
+            else
+                echo "journalctl not available for system logs" >&2
+            fi
+            ;;
+        *systemctl*|*service*)
+            # Show systemd logs
+            if command -v journalctl >/dev/null 2>&1; then
+                journalctl --no-pager -n $log_limit --since "5 minutes ago" 2>/dev/null | head -$log_limit >&2 || echo "No systemd logs available" >&2
+            else
+                echo "journalctl not available for system logs" >&2
+            fi
+            ;;
+        *apt*|*dpkg*)
+            # Show apt/dpkg logs
+            if [[ -f "/var/log/apt/history.log" ]]; then
+                echo "Recent apt operations:" >&2
+                tail -5 /var/log/apt/history.log 2>/dev/null | grep -E "(Start-Date|Commandline|End-Date)" | head -$log_limit >&2 || echo "No apt logs available" >&2
+            else
+                echo "Apt logs not available at /var/log/apt/history.log" >&2
+            fi
+            ;;
+        *)
+            # Show general system logs
+            if command -v journalctl >/dev/null 2>&1; then
+                journalctl --no-pager -n $log_limit --since "2 minutes ago" --priority=err 2>/dev/null | head -$log_limit >&2 || echo "No recent error logs available" >&2
+            else
+                echo "System logs not available (journalctl not found)" >&2
+            fi
+            ;;
+    esac
+    
+    echo -e "${COLOR_MAGENTA}─────────────────────────────────────────────────────────${COLOR_RESET}" >&2
 }
 
 # Show debugging tips based on command type
