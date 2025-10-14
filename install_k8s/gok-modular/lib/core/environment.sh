@@ -2,6 +2,17 @@
 
 # GOK Environment Module - Domain and URL configuration functions
 
+# Stub for get_log_level_num to prevent bootstrap errors
+get_log_level_num() {
+    case "$1" in
+        "DEBUG") echo 1 ;;
+        "INFO") echo 2 ;;
+        "WARN") echo 3 ;;
+        "ERROR") echo 4 ;;
+        *) echo 2 ;;
+    esac
+}
+
 # OAuth and OIDC configurations
 getOAuth0Config() {
     IFS='' read -r -d '' OAUTH <<"EOF"
@@ -179,7 +190,11 @@ validate_environment() {
     done
     
     if [[ ${#missing_vars[@]} -gt 0 ]]; then
-        log_error "Missing required environment variables: ${missing_vars[*]}"
+        if declare -f log_error >/dev/null 2>&1; then
+            log_error "Missing required environment variables: ${missing_vars[*]}"
+        else
+            echo "ERROR: Missing required environment variables: ${missing_vars[*]}" >&2
+        fi
         return 1
     fi
     

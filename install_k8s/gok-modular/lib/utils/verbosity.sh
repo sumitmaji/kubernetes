@@ -612,7 +612,7 @@ export -f handle_command_error show_verbosity_config analyze_service_failure
 # Mark module as loaded
 export GOK_VERBOSITY_LOADED="true"
 
-# Debug initialization
-if is_debug; then
-    log_debug "Verbosity module loaded - level: $GOK_VERBOSITY_LEVEL"
-fi
+# Debug initialization (commented out to prevent bootstrap issues)
+# if is_debug; then
+#     log_debug "Verbosity module loaded - level: $GOK_VERBOSITY_LEVEL"
+# fi

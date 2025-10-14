@@ -72,12 +72,22 @@ get_log_level_num() {
 set_log_level() {
     local level="$1"
     export GOK_LOG_LEVEL="$level"
-    export GOK_LOG_LEVEL_NUM=$(get_log_level_num "$level")
+    if declare -f get_log_level_num >/dev/null 2>&1; then
+        export GOK_LOG_LEVEL_NUM=$(get_log_level_num "$level")
+    else
+        # Fallback to default if function not available yet
+        export GOK_LOG_LEVEL_NUM=2
+    fi
 }
 
 # Initialize log level
 init_log_level() {
-    export GOK_LOG_LEVEL_NUM=$(get_log_level_num "${GOK_LOG_LEVEL}")
+    if declare -f get_log_level_num >/dev/null 2>&1; then
+        export GOK_LOG_LEVEL_NUM=$(get_log_level_num "${GOK_LOG_LEVEL}")
+    else
+        # Fallback to default if function not available yet
+        export GOK_LOG_LEVEL_NUM=2
+    fi
 }
 
 # =============================================================================
@@ -634,7 +644,7 @@ export -f log_step log_substep log_progress log_command log_file
 export -f log_separator log_custom log_list
 export -f track_operation timed_operation
 export -f execute_with_spinner execute_with_spinner_custom
-export -f set_log_level set_log_file rotate_log_file clear_log_file
+export -f get_log_level_num set_log_level set_log_file rotate_log_file clear_log_file
 export -f enable_quiet_mode disable_quiet_mode
 export -f enable_timestamps disable_timestamps
 export -f enable_caller_info disable_caller_info
@@ -644,8 +654,8 @@ export -f show_log_config
 # MODULE INITIALIZATION
 # =============================================================================
 
-# Initialize logging
-init_log_level
-
 # Mark module as loaded
 export GOK_LOGGING_LOADED="true"
+
+# Initialize logging after functions are exported (commented out to prevent bootstrap issues)
+# init_log_level
