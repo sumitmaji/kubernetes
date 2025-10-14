@@ -9,7 +9,12 @@ if [[ "$1" == "--help" || "$1" == "-h" || "$1" == "help" ]]; then
 fi
 
 # Set paths and initialize environment
-export GOK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symbolic links to get the actual script location
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [[ -L "$SCRIPT_PATH" ]]; then
+    SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH")"
+fi
+export GOK_ROOT="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 export GOK_LIB_DIR="${GOK_ROOT}/lib"
 
 # Check if the required directories exist
