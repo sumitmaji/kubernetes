@@ -1124,7 +1124,7 @@ certManagerReset() { helm_component_reset "cert-manager" "cert-manager"; }
 keycloakReset() { helm_component_reset "keycloak" "keycloak"; }
 oauth2Reset() { helm_component_reset "oauth2-proxy" "oauth2-proxy"; }
 vaultReset() { helm_component_reset "vault" "vault"; }
-ldapReset() { helm_component_reset "openldap" "ldap"; }
+ldapReset() { helm_component_reset "ldap" "ldap"; }
 monitoringReset() { prometheusReset; grafanaReset; }
 prometheusReset() { helm_component_reset "prometheus" "monitoring"; }
 grafanaReset() { helm_component_reset "grafana" "monitoring"; }
