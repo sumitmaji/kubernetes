@@ -22,8 +22,13 @@ installCmd() {
     # Initialize component tracking
     init_component_tracking "$component" "Installing $component component"
     
+    # Enable verbose logging by default for component installations
+    export GOK_VERBOSE="true"
+    set_verbosity_level "verbose" 2>/dev/null || true
+    log_info "Verbose logging enabled for detailed command execution"
+    
     # Parse all flags
-    local verbose_flag=""
+    local verbose_flag="--verbose"
     local update_flags=""
     local deps_flags=""
     shift  # Remove component name from arguments
@@ -33,7 +38,14 @@ installCmd() {
             --verbose|-v)
                 verbose_flag="--verbose"
                 export GOK_VERBOSE="true"
+                set_verbosity_level "verbose" 2>/dev/null || true
                 log_info "Verbose logging enabled"
+                ;;
+            --quiet|-q)
+                verbose_flag=""
+                export GOK_VERBOSE="false"
+                set_verbosity_level "normal" 2>/dev/null || true
+                log_info "Quiet mode enabled"
                 ;;
             --force-update)
                 update_flags="$update_flags --force-update"
@@ -571,23 +583,25 @@ installCmd() {
 show_install_help() {
     echo "gok-new install - Install and configure Kubernetes components and services"
     echo ""
-    echo "Usage: gok-new install <component> [--verbose|-v] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
+    echo "Usage: gok-new install <component> [--verbose|-v] [--quiet|-q] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
     echo ""
     echo "Options:"
-    echo "  --verbose, -v      Show detailed installation output (default: progress bars)"
+    echo "  --verbose, -v      Show detailed installation output (default: enabled)"
+    echo "  --quiet, -q        Disable verbose output, show only essential messages"
     echo "  --force-update     Force system update regardless of cache"
     echo "  --skip-update      Skip system update completely"
     echo "  --force-deps       Force dependency installation regardless of cache"
     echo "  --skip-deps        Skip dependency installation completely"
     echo ""
     echo "Environment Variables:"
-    echo "  GOK_VERBOSE=true         Enable verbose mode globally"
+    echo "  GOK_VERBOSE=true         Enable verbose mode globally (default: true for install)"
     echo "  GOK_UPDATE_CACHE_HOURS=6 Hours to cache system updates (default: 6)"
     echo "  GOK_DEPS_CACHE_HOURS=6   Hours to cache dependency installations (default: same as updates)"
     echo "  GOK_CACHE_DIR=/tmp/gok-cache  Custom cache directory location"
     echo ""
     echo "Smart Caching Examples:"
-    echo "  gok-new install docker                     # Uses smart cache (default)"
+    echo "  gok-new install docker                     # Uses smart cache with verbose output (default)"
+    echo "  gok-new install base --quiet               # Install quietly with minimal output"
     echo "  gok-new install base --skip-update         # Skip system update completely"
     echo "  gok-new install base --skip-deps           # Skip dependency installation"
     echo "  gok-new install kubernetes --force-update  # Force fresh system update"

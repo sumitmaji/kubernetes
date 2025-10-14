@@ -13,21 +13,29 @@ resetCmd() {
     
     # Parse verbose flags
     shift  # Remove component name
-    local verbose_flag=""
+    local verbose_flag="--verbose"
+    
+    # Enable verbose logging by default for component reset operations
+    export GOK_VERBOSE="true"
+    set_verbosity_level "verbose" 2>/dev/null || true
+    log_info "Verbose logging enabled for detailed command execution in reset operation"
+    
     for arg in "$@"; do
         case "$arg" in
             --verbose|-v)
                 verbose_flag="--verbose"
                 export GOK_VERBOSE="true"
+                set_verbosity_level "verbose" 2>/dev/null || true
                 log_info "Verbose logging enabled for reset operation"
+                ;;
+            --quiet|-q)
+                verbose_flag=""
+                export GOK_VERBOSE="false"
+                set_verbosity_level "normal" 2>/dev/null || true
+                log_info "Quiet mode enabled for reset operation"
                 ;;
         esac
     done
-    
-    # Initialize verbosity for this reset operation
-    if [[ -n "$verbose_flag" ]]; then
-        set_verbosity_level "verbose"
-    fi
     
     log_header "Component Reset" "Uninstalling: $component"
     
@@ -193,10 +201,11 @@ resetCmd() {
 show_reset_help() {
     echo "gok-new reset - Reset and uninstall Kubernetes components"
     echo ""
-    echo "Usage: gok-new reset <component> [--verbose|-v]"
+    echo "Usage: gok-new reset <component> [--verbose|-v] [--quiet|-q]"
     echo ""
     echo "Options:"
-    echo "  --verbose, -v      Show detailed cleanup output and system logs"
+    echo "  --verbose, -v      Show detailed cleanup output and system logs (default: enabled)"
+    echo "  --quiet, -q        Disable verbose output, show only essential messages"
     echo ""
     echo "WARNING: This operation will permanently remove the component and its data!"
     echo ""
