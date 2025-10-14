@@ -80,43 +80,77 @@ wait_for_pods_ready() {
     local namespace="${1:-default}"
     local selector="${2:-}"
     local timeout="${3:-300}"
-    
+
+    # Validate timeout parameter
+    if ! [[ "$timeout" =~ ^[0-9]+$ ]]; then
+        log_warning "Invalid timeout '$timeout', using default 300 seconds"
+        timeout=300
+    fi
+
     local selector_args=""
     if [[ -n "$selector" ]]; then
         selector_args="-l $selector"
+        log_info "Waiting for pods to be ready in namespace '$namespace' with selector '$selector' (timeout: ${timeout}s)..."
+    else
+        log_info "Waiting for all pods to be ready in namespace '$namespace' (timeout: ${timeout}s)..."
     fi
-    
-    log_info "Waiting for pods to be ready in namespace '$namespace'..."
-    
+
     local end_time=$(($(date +%s) + timeout))
-    
+    local start_time=$(date +%s)
+    local elapsed=0
+
     while [[ $(date +%s) -lt $end_time ]]; do
+        elapsed=$(($(date +%s) - start_time))
+
+        # Get pod status
         local pods_status=$(kubectl get pods -n "$namespace" $selector_args -o jsonpath='{.items[*].status.phase}' 2>/dev/null || echo "")
-        
+
         if [[ -z "$pods_status" ]]; then
-            log_substep "No pods found, waiting..."
+            log_substep "No pods found in namespace '$namespace', waiting... (${elapsed}s/${timeout}s)"
             sleep 10
             continue
         fi
-        
-        local all_ready=true
-        for status in $pods_status; do
-            if [[ "$status" != "Running" && "$status" != "Succeeded" ]]; then
-                all_ready=false
-                break
-            fi
-        done
-        
-        if [[ "$all_ready" == "true" ]]; then
-            log_success "All pods are ready in namespace '$namespace'"
+
+        # Count pods by status
+        local total_pods=$(echo "$pods_status" | wc -w)
+        local running_pods=$(echo "$pods_status" | grep -c "Running\|Succeeded" || echo "0")
+        local pending_pods=$(echo "$pods_status" | grep -c "Pending\|ContainerCreating\|Init:\|PodInitializing" || echo "0")
+        local failed_pods=$(echo "$pods_status" | grep -c "Failed\|Error\|CrashLoopBackOff\|ImagePullBackOff\|ErrImagePull\|CreateContainerConfigError" || echo "0")
+
+        # Check if all pods are ready
+        if [[ $running_pods -eq $total_pods && $failed_pods -eq 0 ]]; then
+            log_success "✅ All $total_pods pods are ready in namespace '$namespace' (took ${elapsed}s)"
             return 0
-        else
-            log_substep "Some pods are not ready yet, waiting..."
-            sleep 10
         fi
+
+        # Show progress
+        if [[ $((elapsed % 30)) -eq 0 || $elapsed -lt 30 ]]; then
+            log_substep "Pods status: $running_pods/$total_pods ready, $pending_pods pending, $failed_pods failed (elapsed: ${elapsed}s/${timeout}s)"
+        fi
+
+        # Check for failed pods
+        if [[ $failed_pods -gt 0 ]]; then
+            log_warning "Found $failed_pods failed pods, checking details..."
+            local failed_pod_details=$(kubectl get pods -n "$namespace" $selector_args --no-headers 2>/dev/null | grep -E "(Error|CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError)" | head -3)
+            if [[ -n "$failed_pod_details" ]]; then
+                log_warning "Failed pods detected:"
+                echo "$failed_pod_details" | while read -r line; do
+                    log_warning "  $line"
+                done
+            fi
+        fi
+
+        sleep 10
     done
-    
-    log_error "Timeout waiting for pods to be ready"
+
+    # Timeout reached
+    elapsed=$(($(date +%s) - start_time))
+    log_error "❌ Timeout waiting for pods to be ready in namespace '$namespace' (waited ${elapsed}s)"
+
+    # Show final pod status
+    log_info "Final pod status:"
+    kubectl get pods -n "$namespace" $selector_args 2>/dev/null || log_warning "Could not get pod status"
+
     return 1
 }
 

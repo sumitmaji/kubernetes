@@ -79,6 +79,9 @@ deploy_ldap_with_correct_registry() {
   local kerberos_kdc_password="$3"
   local kerberos_adm_password="$4"
   local registry_url="$5"
+  if [[ -z "$registry_url" ]]; then
+    registry_url="registry.gokcloud.com"
+  fi
 
   # Set HELM_NAME based on existing LDAP_APPLICATION_SLOT
   local HELM_NAME
@@ -89,10 +92,8 @@ deploy_ldap_with_correct_registry() {
   fi
 
   local REPO_NAME="ldap"
-  
-  echo "Deploying LDAP with registry URL: $registry_url"
-  
-  # Deploy using Helm with correct registry URL
+
+  echo "Deploying LDAP with registry URL: $registry_url"  # Deploy using Helm with correct registry URL
   helm upgrade --install "$HELM_NAME" ./chart \
     --namespace ldap \
     --create-namespace \
@@ -352,12 +353,20 @@ build_ldap_with_progress() {
       return 1
     fi
 
-    # Use enhanced pod waiting with detailed diagnostics
+    # Use enhanced pod waiting with detailed diagnostics and proper timeout
     log_substep "Waiting for LDAP pods with enhanced monitoring..."
-    if wait_for_pods_ready "ldap" "300" "ldap"; then
+    if wait_for_pods_ready "ldap" "" "300"; then
       log_success "✅ LDAP pods are ready and healthy"
+      
+      # Additional check: Wait for deployment to be fully ready
+      log_substep "Verifying LDAP deployment readiness..."
+      if check_deployment_readiness "ldap" "ldap"; then
+        log_success "✅ LDAP deployment is fully ready and available"
+      else
+        log_warning "⚠️ LDAP deployment readiness check failed, but pods are running"
+      fi
     else
-      log_error "❌ LDAP pods failed to become ready"
+      log_error "❌ LDAP pods failed to become ready within 300 seconds"
       rm -f "$temp_build_log" "$temp_build_error" "$temp_deploy_log" "$temp_deploy_error"
       return 1
     fi
