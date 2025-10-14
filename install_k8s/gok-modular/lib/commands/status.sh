@@ -24,13 +24,13 @@ statusCmd() {
 
 # Show status command help
 show_status_help() {
-    echo "gok status - Check GOK platform and component status"
+    echo "gok-new status - Check GOK platform and component status"
     echo ""
-    echo "Usage: gok status [component]"
+    echo "Usage: gok-new status [component]"
     echo ""
     echo "Examples:"
-    echo "  gok status                    # Show comprehensive GOK platform status"
-    echo "  gok status <helm-release>     # Show specific Helm release status"
+    echo "  gok-new status                    # Show comprehensive GOK platform status"
+    echo "  gok-new status <helm-release>     # Show specific Helm release status"
     echo ""
     echo "The comprehensive status shows all GOK platform services including:"
     echo "  • Core Infrastructure: ingress, cert-manager, registry, base services"
@@ -247,8 +247,8 @@ show_comprehensive_status() {
     echo "   ❌ Not Installed"
     echo ""
     echo "💡 Usage:"
-    echo "   gok status                    # Show all services status"
-    echo "   gok status <helm-release>     # Show specific Helm release status"
+    echo "   gok-new status                    # Show all services status"
+    echo "   gok-new status <helm-release>     # Show specific Helm release status"
     echo ""
 }
 

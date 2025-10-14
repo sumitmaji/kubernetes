@@ -169,7 +169,7 @@ resetCmd() {
         
         *)
             log_error "Unknown component: $component"
-            echo "Run 'gok reset help' to see available components"
+            echo "Run 'gok-new reset help' to see available components"
             fail_component "$component" "Unknown component"
             return 1
             ;;
@@ -191,9 +191,9 @@ resetCmd() {
 
 # Show reset command help
 show_reset_help() {
-    echo "gok reset - Reset and uninstall Kubernetes components"
+    echo "gok-new reset - Reset and uninstall Kubernetes components"
     echo ""
-    echo "Usage: gok reset <component> [--verbose|-v]"
+    echo "Usage: gok-new reset <component> [--verbose|-v]"
     echo ""
     echo "Options:"
     echo "  --verbose, -v      Show detailed cleanup output and system logs"
@@ -225,8 +225,8 @@ show_reset_help() {
     echo "  base-services"
     echo ""
     echo "Examples:"
-    echo "  gok reset monitoring"
-    echo "  gok reset keycloak"
+    echo "  gok-new reset monitoring"
+    echo "  gok-new reset keycloak"
 }
 
 # Confirm reset operation
@@ -1194,7 +1194,7 @@ registryReset() {
     log_component_success "registry-reset" "Container registry successfully removed from cluster"
 
     echo
-    log_info "Registry reset completed. You can reinstall with: gok install registry"
+    log_info "Registry reset completed. You can reinstall with: gok-new install registry"
   else
     log_info "Registry was not installed - nothing to reset"
     log_component_success "registry-reset" "Registry reset completed (nothing to remove)"

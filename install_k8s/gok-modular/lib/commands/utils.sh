@@ -159,7 +159,7 @@ installCmd($COMPONENT)
 │  ├─ Policy: kyverno
 │  ├─ GOK Platform: gok-agent, gok-controller, controller, gok-login, chart
 │  └─ Solutions: base, base-services
-├─ Usage: gok install <component>
+├─ Usage: gok-new install <component>
 └─ Returns: Installation status and configuration
 
 resetCmd($COMPONENT)
@@ -176,7 +176,7 @@ resetCmd($COMPONENT)
 │  ├─ Policy: kyverno
 │  ├─ GOK Platform: gok-agent, gok-controller, gok-login, chart
 │  └─ Solutions: base-services
-├─ Usage: gok reset <component>
+├─ Usage: gok-new reset <component>
 └─ Returns: Reset status and cleanup confirmation
 
 startCmd($COMPONENT)
@@ -201,7 +201,7 @@ patchCmd($RESOURCE, $NAME, $NAMESPACE, $OPTIONS, $SUBDOMAIN)
 │  ├─ $NAMESPACE: Kubernetes namespace
 │  ├─ $OPTIONS: Patch options (letsencrypt, ldap, localtls)
 │  └─ $SUBDOMAIN: Optional subdomain configuration
-├─ Usage: gok patch <resource> <name> <namespace> <options> [subdomain]
+├─ Usage: gok-new patch <resource> <name> <namespace> <options> [subdomain]
 └─ Returns: Patch operation status
 
 createCmd($RESOURCE, $NAME, $ADDITIONAL)

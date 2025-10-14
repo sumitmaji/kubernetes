@@ -150,7 +150,7 @@ show_docker_summary() {
     
     # Next Steps
     log_info "🎯 Next Steps"
-    echo -e "  ${COLOR_YELLOW}1.${COLOR_RESET} Install Kubernetes: ${COLOR_BOLD}gok install kubernetes${COLOR_RESET}"
+    echo -e "  ${COLOR_YELLOW}1.${COLOR_RESET} Install Kubernetes: ${COLOR_BOLD}gok-new install kubernetes${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}2.${COLOR_RESET} Pull base images: ${COLOR_BOLD}docker pull ubuntu:latest${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}3.${COLOR_RESET} Configure registry: Set up private Docker registry"
     echo ""
@@ -307,7 +307,7 @@ show_kubernetes_summary() {
         
     else
         echo -e "  ${COLOR_RED}✗ Cluster: not accessible${COLOR_RESET}"
-        echo -e "    ${COLOR_DIM}Run: gok k8sInst to install Kubernetes${COLOR_RESET}"
+        echo -e "    ${COLOR_DIM}Run: gok-new k8sInst to install Kubernetes${COLOR_RESET}"
     fi
     
     echo ""
@@ -379,7 +379,7 @@ show_kubernetes_summary() {
             if [[ "$dns_status" == "Running" ]]; then
                 echo -e "  ${COLOR_GREEN}✓ DNS utilities: available${COLOR_RESET}"
                 echo -e "    ${COLOR_DIM}• Pod: dnsutils (jessie-dnsutils:1.3) in default namespace${COLOR_RESET}"
-                echo -e "    ${COLOR_DIM}• Usage: gok checkDns <domain> for DNS resolution testing${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Usage: gok-new checkDns <domain> for DNS resolution testing${COLOR_RESET}"
             else
                 echo -e "  ${COLOR_YELLOW}⚠ DNS utilities: ${dns_status}${COLOR_RESET}"
             fi
@@ -393,7 +393,7 @@ show_kubernetes_summary() {
             if [[ "$curl_status" == "Running" ]]; then
                 echo -e "  ${COLOR_GREEN}✓ Curl utility: available${COLOR_RESET}"
                 echo -e "    ${COLOR_DIM}• Pod: curl (curlimages/curl) in default namespace${COLOR_RESET}"
-                echo -e "    ${COLOR_DIM}• Usage: gok checkCurl <url> for HTTP testing within cluster${COLOR_RESET}"
+                echo -e "    ${COLOR_DIM}• Usage: gok-new checkCurl <url> for HTTP testing within cluster${COLOR_RESET}"
             else
                 echo -e "  ${COLOR_YELLOW}⚠ Curl utility: ${curl_status}${COLOR_RESET}"
             fi
@@ -565,20 +565,20 @@ show_kubernetes_summary() {
     log_step "7 Available Commands"
     
     echo -e "  ${COLOR_CYAN}Cluster Management:${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok k8sInst                     # Install/reinstall Kubernetes${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok k8sSummary                  # Show installation summary (this command)${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok calicoInst                  # Install Calico network plugin${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok k8sReset                    # Reset cluster${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new k8sInst                     # Install/reinstall Kubernetes${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new k8sSummary                  # Show installation summary (this command)${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new calicoInst                  # Install Calico network plugin${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new k8sReset                    # Reset cluster${COLOR_RESET}"
     
     echo -e "  ${COLOR_CYAN}Utilities:${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok dnsUtils                    # Install DNS testing utilities${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok kcurl                       # Install curl testing utilities${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok checkDns <domain>           # Test DNS resolution${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok checkCurl <url>             # Test HTTP connectivity${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new dnsUtils                    # Install DNS testing utilities${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new kcurl                       # Install curl testing utilities${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new checkDns <domain>           # Test DNS resolution${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new checkCurl <url>             # Test HTTP connectivity${COLOR_RESET}"
     
     echo -e "  ${COLOR_CYAN}Configuration:${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok customDns                   # Configure custom DNS zones${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok oauthAdmin                  # Configure OAuth admin access${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new customDns                   # Configure custom DNS zones${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new oauthAdmin                  # Configure OAuth admin access${COLOR_RESET}"
     
     echo ""
     echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}Summary complete! Use the commands above to manage your cluster.${COLOR_RESET}"
@@ -670,7 +670,7 @@ show_helm_summary() {
     # Next Steps
     log_info "🎯 Next Steps"
     echo -e "  ${COLOR_YELLOW}1.${COLOR_RESET} Add repositories: ${COLOR_BOLD}helm repo add bitnami https://charts.bitnami.com/bitnami${COLOR_RESET}"
-    echo -e "  ${COLOR_YELLOW}2.${COLOR_RESET} Install applications: ${COLOR_BOLD}gok install <component>${COLOR_RESET}"
+    echo -e "  ${COLOR_YELLOW}2.${COLOR_RESET} Install applications: ${COLOR_BOLD}gok-new install <component>${COLOR_RESET}"
     echo -e "  ${COLOR_YELLOW}3.${COLOR_RESET} Update repositories: ${COLOR_BOLD}helm repo update${COLOR_RESET}"
 }
 
@@ -766,9 +766,9 @@ show_cert_manager_summary() {
     # 4. Available Commands
     log_step "4" "Available Commands"
     echo -e "  ${COLOR_CYAN}cert-manager Management:${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok install cert-manager        # Install cert-manager${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok show cert-manager           # Show this summary${COLOR_RESET}"
-    echo -e "    ${COLOR_DIM}gok reset cert-manager          # Reset cert-manager${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new install cert-manager        # Install cert-manager${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new show cert-manager           # Show this summary${COLOR_RESET}"
+    echo -e "    ${COLOR_DIM}gok-new reset cert-manager          # Reset cert-manager${COLOR_RESET}"
     echo ""
     echo -e "${COLOR_BRIGHT_GREEN}📋 Summary Complete${COLOR_RESET}"
     echo ""

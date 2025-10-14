@@ -1642,7 +1642,7 @@ dnsUtils() {
         log_success "DNS utilities installed"
         log_info "Pod: dnsutils (gcr.io/kubernetes-e2e-test-images/dnsutils:1.3) in default namespace"
         log_info "Usage: kubectl exec dnsutils -- nslookup <domain>"
-        log_info "Usage: gok checkDns <domain> for DNS resolution testing"
+        log_info "Usage: gok-new checkDns <domain> for DNS resolution testing"
     else
         log_error "Failed to install DNS utilities"
         return 1
@@ -1676,7 +1676,7 @@ kcurl() {
         log_success "Curl utilities installed"
         log_info "Pod: curl (curlimages/curl) in default namespace"
         log_info "Usage: kubectl exec curl -- curl <url>"
-        log_info "Usage: gok checkCurl <url> for HTTP testing within cluster"
+        log_info "Usage: gok-new checkCurl <url> for HTTP testing within cluster"
     else
         log_error "Failed to install curl utilities"
         return 1
@@ -2008,7 +2008,7 @@ spec:
 
   log_step "6" "Restarting load balancer proxy"
   # Restarting docker stops the haproxy, need to start it again
-  if execute_with_suppression gok start proxy; then
+  if execute_with_suppression gok-new start proxy; then
     log_success "Load balancer proxy restarted"
   else
     log_warning "Load balancer proxy restart may have failed"

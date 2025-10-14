@@ -42,7 +42,7 @@ ldapInst(){
   fi
 
   log_step "4" "Configuring LDAP ingress and networking"
-  if execute_with_suppression gok patch ingress ldap ldap letsencrypt $(defaultSubdomain); then
+  if execute_with_suppression gok-new patch ingress ldap ldap letsencrypt $(defaultSubdomain); then
     log_success "LDAP ingress configured successfully"
   else
     log_warning "LDAP ingress configuration had issues but installation may still work"

@@ -65,14 +65,22 @@ installCmd() {
     fi
     
     # Run smart system updates with caching (with automatic fallback)
-    if ! safe_update_system_with_cache $verbose_flag $update_flags; then
-        fail_component "$component" "System update failed"
-        return 1
+    if declare -f safe_update_system_with_cache >/dev/null 2>&1; then
+        if ! safe_update_system_with_cache $verbose_flag $update_flags; then
+            fail_component "$component" "System update failed"
+            return 1
+        fi
+    else
+        log_warning "safe_update_system_with_cache not available, skipping system update"
     fi
     
-    if ! safe_install_system_dependencies $verbose_flag $deps_flags; then
-        fail_component "$component" "Dependency installation failed"
-        return 1
+    if declare -f safe_install_system_dependencies >/dev/null 2>&1; then
+        if ! safe_install_system_dependencies $verbose_flag $deps_flags; then
+            fail_component "$component" "Dependency installation failed"
+            return 1
+        fi
+    else
+        log_warning "safe_install_system_dependencies not available, skipping dependency installation"
     fi
     
     # Pre-installation checks
@@ -245,8 +253,8 @@ installCmd() {
                         echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}🔧 RESOLUTION STEPS:${COLOR_RESET}"
                         echo -e "${COLOR_YELLOW}1. Check Docker status: ${COLOR_BOLD}systemctl status docker${COLOR_RESET}"
                         echo -e "${COLOR_YELLOW}2. Verify configuration: ${COLOR_BOLD}echo \$API_SERVERS${COLOR_RESET}"
-                        echo -e "${COLOR_YELLOW}3. Manual HA install: ${COLOR_BOLD}gok install haproxy${COLOR_RESET}"
-                        echo -e "${COLOR_YELLOW}4. Set up remote host: ${COLOR_BOLD}gok remote setup <host> <user>${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}3. Manual HA install: ${COLOR_BOLD}gok-new install haproxy${COLOR_RESET}"
+                        echo -e "${COLOR_YELLOW}4. Set up remote host: ${COLOR_BOLD}gok-new remote setup <host> <user>${COLOR_RESET}"
                         echo -e "${COLOR_YELLOW}5. Retry Kubernetes installation${COLOR_RESET}"
                         echo -e ""
                         fail_component "kubernetes" "HA proxy installation required but local installation failed"
@@ -449,8 +457,8 @@ installCmd() {
         
         # GOK Platform components
         "controller")
-            gok install gok-agent
-            gok install gok-controller
+            gok-new install gok-agent
+            gok-new install gok-controller
             ;;
         "gok-login")
             gokLoginInst
@@ -485,7 +493,7 @@ installCmd() {
         
         *)
             log_error "Unknown component: $component"
-            echo "Run 'gok install help' to see available components"
+            echo "Run 'gok-new install help' to see available components"
             fail_component "$component" "Unknown component"
             return 1
             ;;
@@ -556,9 +564,9 @@ installCmd() {
 
 # Show install command help
 show_install_help() {
-    echo "gok install - Install and configure Kubernetes components and services"
+    echo "gok-new install - Install and configure Kubernetes components and services"
     echo ""
-    echo "Usage: gok install <component> [--verbose|-v] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
+    echo "Usage: gok-new install <component> [--verbose|-v] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
     echo ""
     echo "Options:"
     echo "  --verbose, -v      Show detailed installation output (default: progress bars)"
@@ -574,17 +582,17 @@ show_install_help() {
     echo "  GOK_CACHE_DIR=/tmp/gok-cache  Custom cache directory location"
     echo ""
     echo "Smart Caching Examples:"
-    echo "  gok install docker                     # Uses smart cache (default)"
-    echo "  gok install base --skip-update         # Skip system update completely"
-    echo "  gok install base --skip-deps           # Skip dependency installation"
-    echo "  gok install kubernetes --force-update  # Force fresh system update"
-    echo "  gok install kubernetes --force-deps    # Force fresh dependency installation"
-    echo "  GOK_UPDATE_CACHE_HOURS=12 gok install helm  # Cache updates for 12 hours"
-    echo "  GOK_DEPS_CACHE_HOURS=24 gok install vault   # Cache dependencies for 24 hours"
+    echo "  gok-new install docker                     # Uses smart cache (default)"
+    echo "  gok-new install base --skip-update         # Skip system update completely"
+    echo "  gok-new install base --skip-deps           # Skip dependency installation"
+    echo "  gok-new install kubernetes --force-update  # Force fresh system update"
+    echo "  gok-new install kubernetes --force-deps    # Force fresh dependency installation"
+    echo "  GOK_UPDATE_CACHE_HOURS=12 gok-new install helm  # Cache updates for 12 hours"
+    echo "  GOK_DEPS_CACHE_HOURS=24 gok-new install vault   # Cache dependencies for 24 hours"
     echo ""
     echo "Cache Management:"
-    echo "  gok cache status        # Check cache age and validity"
-    echo "  gok cache clear         # Clear cache, force next update"
+    echo "  gok-new cache status        # Check cache age and validity"
+    echo "  gok-new cache clear         # Clear cache, force next update"
     echo ""
     echo "Core Infrastructure:"
     echo "  docker            Docker container runtime"
@@ -641,10 +649,10 @@ show_install_help() {
     echo "  base-services     Complete base services stack"
     echo ""
     echo "Examples:"
-    echo "  gok install kubernetes        # Install complete K8s cluster"
-    echo "  gok install cert-manager      # Install certificate management"
-    echo "  gok install monitoring        # Install Prometheus & Grafana"
-    echo "  gok install base-services     # Install complete base stack"
+    echo "  gok-new install kubernetes        # Install complete K8s cluster"
+    echo "  gok-new install cert-manager      # Install certificate management"
+    echo "  gok-new install monitoring        # Install Prometheus & Grafana"
+    echo "  gok-new install base-services     # Install complete base stack"
     echo ""
     echo "Installation Features:"
     echo "  ✅ Automated dependency resolution"
@@ -716,7 +724,7 @@ install_base_infrastructure() {
     local components=("docker" "kubernetes" "helm" "ingress")
     
     for component in "${components[@]}"; do
-        if ! gok install "$component"; then
+        if ! gok-new install "$component"; then
             log_error "Failed to install $component"
             return 1
         fi
@@ -812,19 +820,19 @@ suggest_next_installations() {
     case "$component" in
         "docker")
             log_info "💡 Next recommended installations:"
-            echo "  - gok install kubernetes (to set up Kubernetes cluster)"
-            echo "  - gok install helm (to install package manager)"
+            echo "  - gok-new install kubernetes (to set up Kubernetes cluster)"
+            echo "  - gok-new install helm (to install package manager)"
             ;;
         "kubernetes")
             log_info "💡 Next recommended installations:"
-            echo "  - gok install helm (package manager)"
-            echo "  - gok install cert-manager (certificate management)"
-            echo "  - gok install ingress (ingress controller)"
+            echo "  - gok-new install helm (package manager)"
+            echo "  - gok-new install cert-manager (certificate management)"
+            echo "  - gok-new install ingress (ingress controller)"
             ;;
         "cert-manager")
             log_info "💡 Next recommended installations:"
-            echo "  - gok install ingress (ingress controller with TLS)"
-            echo "  - gok install monitoring (monitoring stack)"
+            echo "  - gok-new install ingress (ingress controller with TLS)"
+            echo "  - gok-new install monitoring (monitoring stack)"
             ;;
     esac
 }
@@ -836,14 +844,14 @@ provide_component_troubleshooting() {
     log_error "Installation troubleshooting for $component:"
     echo ""
     echo "Common issues:"
-    echo "  1. Check system requirements: gok validate system"
-    echo "  2. Verify dependencies: gok status"
+    echo "  1. Check system requirements: gok-new validate system"
+    echo "  2. Verify dependencies: gok-new status"
     echo "  3. Check logs: journalctl -xe"
     echo "  4. Review installation logs in ${GOK_CACHE_DIR}/logs/"
     echo ""
     echo "For detailed help:"
-    echo "  - gok troubleshoot $component"
-    echo "  - gok logs $component"
+    echo "  - gok-new troubleshoot $component"
+    echo "  - gok-new logs $component"
 }
 
 # Log component success

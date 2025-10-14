@@ -17,9 +17,9 @@ createCmd() {
 }
 
 show_create_help() {
-    echo "gok create - Create Kubernetes resources"
+    echo "gok-new create - Create Kubernetes resources"
     echo ""
-    echo "Usage: gok create <resource> <name> [options]"
+    echo "Usage: gok-new create <resource> <name> [options]"
     echo ""
     echo "Resources: secret, certificate, kubeconfig"
 }

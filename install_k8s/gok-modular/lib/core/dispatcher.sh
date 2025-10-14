@@ -109,7 +109,7 @@ dispatch_command() {
         # Legacy commands for backward compatibility
         "fix")
             log_info "The 'fix' command has been integrated into component-specific operations"
-            log_info "Try: gok install <component> or gok reset <component>"
+            log_info "Try: gok-new install <component> or gok-new reset <component>"
             ;;
         
         # Help and documentation
@@ -129,7 +129,7 @@ dispatch_command() {
                 echo "  install, reset, start, deploy, patch, create, generate, status"
                 echo "  desc, logs, bash, remote, completion, cache"
                 echo ""
-                echo "Run 'gok help' for detailed information"
+                echo "Run 'gok-new help' for detailed information"
                 return 1
             fi
             ;;
@@ -156,33 +156,33 @@ show_command_usage() {
     
     case "$command" in
         "install")
-            echo "Usage: gok install <component> [options]"
+            echo "Usage: gok-new install <component> [options]"
             echo "Install and configure Kubernetes components"
             echo ""
             echo "Examples:"
-            echo "  gok install kubernetes"
-            echo "  gok install monitoring"
-            echo "  gok install keycloak --verbose"
+            echo "  gok-new install kubernetes"
+            echo "  gok-new install monitoring"
+            echo "  gok-new install keycloak --verbose"
             ;;
         "reset")
-            echo "Usage: gok reset <component>"
+            echo "Usage: gok-new reset <component>"
             echo "Reset and uninstall components"
             echo ""
             echo "Examples:"
-            echo "  gok reset kubernetes"
-            echo "  gok reset monitoring"
+            echo "  gok-new reset kubernetes"
+            echo "  gok-new reset monitoring"
             ;;
         "create")
-            echo "Usage: gok create <resource> <name> [options]"
+            echo "Usage: gok-new create <resource> <name> [options]"
             echo "Create Kubernetes resources"
             echo ""
             echo "Examples:"
-            echo "  gok create secret myapp-secret"
-            echo "  gok create certificate mydomain-cert"
+            echo "  gok-new create secret myapp-secret"
+            echo "  gok-new create certificate mydomain-cert"
             ;;
         *)
             echo "Usage: gok $command [options]"
-            echo "Run 'gok help' for more information"
+            echo "Run 'gok-new help' for more information"
             ;;
     esac
 }

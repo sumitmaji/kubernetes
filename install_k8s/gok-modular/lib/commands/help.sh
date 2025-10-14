@@ -90,19 +90,19 @@ GLOBAL OPTIONS:
   --help, -h              Show help information
 
 EXAMPLES:
-  gok install kubernetes                    # Install Kubernetes master
-  gok install base-services --verbose       # Install essential services
-  gok reset monitoring                      # Uninstall monitoring stack
-  gok create secret myapp-secret           # Create a Kubernetes secret
-  gok exec "kubectl get pods"              # Execute command on remote VM
-  gok desc methods                         # Show all available methods
-  gok remote setup                         # Configure remote hosts
+  gok-new install kubernetes                    # Install Kubernetes master
+  gok-new install base-services --verbose       # Install essential services
+  gok-new reset monitoring                      # Uninstall monitoring stack
+  gok-new create secret myapp-secret           # Create a Kubernetes secret
+  gok-new exec "kubectl get pods"              # Execute command on remote VM
+  gok-new desc methods                         # Show all available methods
+  gok-new remote setup                         # Configure remote hosts
 
 GETTING HELP:
-  gok help install        # Help for install command
-  gok help reset          # Help for reset command
-  gok help components     # List all available components
-  gok help commands       # List all available commands
+  gok-new help install        # Help for install command
+  gok-new help reset          # Help for reset command
+  gok-new help components     # List all available components
+  gok-new help commands       # List all available commands
 
 For more detailed information about specific commands or components,
 use 'gok <command> --help' or visit: https://github.com/sumitmaji/kubernetes
@@ -118,64 +118,64 @@ GOK Commands Reference
 
 INSTALLATION COMMANDS:
   install <component>     Install Kubernetes components
-                         Examples: gok install kubernetes
-                                  gok install monitoring
+                         Examples: gok-new install kubernetes
+                                  gok-new install monitoring
 
 RESET COMMANDS:
   reset <component>       Uninstall and cleanup components
-                         Examples: gok reset keycloak
-                                  gok reset monitoring
+                         Examples: gok-new reset keycloak
+                                  gok-new reset monitoring
 
 RESOURCE COMMANDS:
   create <type> <name>    Create Kubernetes resources
-                         Examples: gok create secret app-secret
-                                  gok create certificate domain-cert
+                         Examples: gok-new create secret app-secret
+                                  gok-new create certificate domain-cert
 
   patch <resource> <name> Modify existing resources
-                         Examples: gok patch ingress app-ingress letsencrypt
+                         Examples: gok-new patch ingress app-ingress letsencrypt
 
   generate <type>         Generate templates and configurations
-                         Examples: gok generate microservice
-                                  gok generate service
+                         Examples: gok-new generate microservice
+                                  gok-new generate service
 
 DIAGNOSTIC COMMANDS:
   desc [target]          Describe pods or show method documentation
-                         Examples: gok desc
-                                  gok desc methods
+                         Examples: gok-new desc
+                                  gok-new desc methods
 
   logs                   View and follow pod logs
-                         Examples: gok logs
+                         Examples: gok-new logs
 
   bash                   Open shell in selected pod
-                         Examples: gok bash
+                         Examples: gok-new bash
 
   show <info>            Display system information
-                         Examples: gok show configuration
+                         Examples: gok-new show configuration
 
   status                 Check system and component status
-                         Examples: gok status
+                         Examples: gok-new status
 
   show <info>            Display system information
-                         Examples: gok show configuration
+                         Examples: gok-new show configuration
 
 SYSTEM COMMANDS:
   remote <action>        Manage remote host operations
-                         Examples: gok remote setup
-                                  gok remote exec "command"
+                         Examples: gok-new remote setup
+                                  gok-new remote exec "command"
 
   cache <action>         Manage system caches
-                         Examples: gok cache status
-                                  gok cache clear
+                         Examples: gok-new cache status
+                                  gok-new cache clear
 
   completion <action>    Manage bash completion
-                         Examples: gok completion enable
+                         Examples: gok-new completion enable
 
 DEPLOYMENT COMMANDS:
   start <service>        Start system services
-                         Examples: gok start kubernetes
+                         Examples: gok-new start kubernetes
 
   deploy <app>           Deploy applications
-                         Examples: gok deploy app1
+                         Examples: gok-new deploy app1
 
 Each command supports --help for detailed usage information.
 EOF
@@ -247,7 +247,7 @@ COMPONENT DEPENDENCIES:
   • Security components often depend on 'cert-manager'
   • Monitoring components work best with 'ingress' for access
 
-Use 'gok install <component> --help' for component-specific information.
+Use 'gok-new install <component> --help' for component-specific information.
 EOF
 }
 
@@ -274,7 +274,7 @@ Most Common Commands:
   gok install kubernetes                # Install Kubernetes
   gok install base-services            # Install essential services  
   gok install monitoring               # Install Prometheus + Grafana
-  gok reset <component>                # Uninstall component
+  gok-new reset <component>                # Uninstall component
   gok status                           # Check system status
   gok desc                             # Describe selected pod
   gok logs                             # View pod logs
@@ -316,7 +316,7 @@ Manual setup:
 Usage:
   gok <TAB>                          # Show available commands
   gok install <TAB>                  # Show available components
-  gok reset <TAB>                    # Show installed components
+  gok-new reset <TAB>                    # Show installed components
 
 EOF
 }

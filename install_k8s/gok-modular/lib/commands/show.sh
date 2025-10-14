@@ -39,7 +39,7 @@ show_configuration() {
 
 # Show help for show command
 show_show_help() {
-    echo "Usage: gok show <subcommand> [options]"
+    echo "Usage: gok-new show <subcommand> [options]"
     echo
     echo "Display system information and configuration"
     echo
@@ -47,8 +47,8 @@ show_show_help() {
     echo "  configuration, config    Display all environment variables"
     echo
     echo "Examples:"
-    echo "  gok show configuration    Show all environment variables"
-    echo "  gok show config           Same as above"
+    echo "  gok-new show configuration    Show all environment variables"
+    echo "  gok-new show config           Same as above"
     echo
-    echo "Run 'gok help' for more information about other commands"
+    echo "Run 'gok-new help' for more information about other commands"
 }
