@@ -603,15 +603,23 @@ installKeycloakWithCertMgr(){
   log_component_start "keycloak-install" "Installing Keycloak identity and access management with certificate management"
 
   log_step "1" "Updating system packages with smart caching"
-  if ! safe_update_system_with_cache; then
-    log_error "Failed to update system packages"
-    return 1
+  if declare -f safe_update_system_with_cache >/dev/null 2>&1; then
+    if ! safe_update_system_with_cache; then
+      log_error "Failed to update system packages"
+      return 1
+    fi
+  else
+    log_warning "safe_update_system_with_cache not available, skipping system update"
   fi
 
   log_step "2" "Installing dependencies with smart caching"
-  if ! safe_install_system_dependencies; then
-    log_error "Failed to install Keycloak dependencies"
-    return 1
+  if declare -f safe_install_system_dependencies >/dev/null 2>&1; then
+    if ! safe_install_system_dependencies; then
+      log_error "Failed to install Keycloak dependencies"
+      return 1
+    fi
+  else
+    log_warning "safe_install_system_dependencies not available, skipping dependency installation"
   fi
 
   log_step "3" "Installing core Keycloak services"

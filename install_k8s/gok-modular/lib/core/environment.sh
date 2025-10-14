@@ -137,6 +137,14 @@ jupyterHubSubdomain(){
   echo "$JUPYTERHUB"
 }
 
+subDomain(){
+  if [ -z "$1" ]; then
+    echo "$(defaultSubdomain)"
+  else
+    echo "$1"
+  fi
+}
+
 fullDefaultUrl(){
   echo "${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}"
 }
