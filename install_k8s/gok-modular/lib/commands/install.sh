@@ -68,7 +68,7 @@ installCmd() {
     fi
     
     # Start component installation with enhanced logging
-    start_component "$component" "Installing $component component"
+    start_component "$component"
     
     # Initialize verbosity for this installation
     if [[ -n "$verbose_flag" ]]; then

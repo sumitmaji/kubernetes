@@ -5,9 +5,6 @@
 
 # Keycloak identity management installation
 keycloakInst(){
-  local start_time=$(date +%s)
-
-  log_component_start "keycloak" "Installing Keycloak identity management service"
 
   log_step "1" "Preparing Keycloak installation directory"
   local keycloak_dir="$GOK_ROOT/../../install_k8s/keycloak"
@@ -68,29 +65,11 @@ keycloakInst(){
     log_warning "Keycloak ingress configuration had issues but installation may still work"
   fi
 
-  log_step "5" "Validating Keycloak installation"
-  if validate_keycloak_installation; then
-    log_success "Keycloak installation validation completed"
-  else
-    log_warning "Keycloak validation had issues but installation may still work"
-  fi
-
   if execute_with_suppression popd; then
     log_success "Keycloak installation directory cleanup completed"
   else
     log_warning "Keycloak installation directory cleanup had issues"
   fi
-
-  # Installation completion summary
-  local end_time=$(date +%s)
-  local duration=$((end_time - start_time))
-  log_success "Keycloak identity management installation completed in ${duration}s"
-
-  # Show Keycloak summary
-  # show_keycloak_summary
-
-  # Show next steps
-  show_keycloak_next_steps
 
   return 0
 }
@@ -698,25 +677,25 @@ installKeycloakWithCertMgr(){
     log_warning "LDAP federation configuration had issues but core Keycloak is working"
   fi
 
-  log_step "11" "Validating complete Keycloak installation"
-  if validate_keycloak_installation; then
-    log_success "Keycloak installation validation completed"
-  else
-    log_warning "Keycloak validation had issues but installation may still work"
-  fi
+  # log_step "11" "Validating complete Keycloak installation"
+  # if validate_keycloak_installation; then
+  #   log_success "Keycloak installation validation completed"
+  # else
+  #   log_warning "Keycloak validation had issues but installation may still work"
+  # fi
 
   local end_time=$(date +%s)
   local duration=$((end_time - start_time))
 
-  show_keycloak_installation_summary
-  log_component_success "keycloak-install" "Keycloak identity management system installed successfully"
+  # show_keycloak_installation_summary
+  # log_component_success "keycloak-install" "Keycloak identity management system installed successfully"
   log_success "Complete Keycloak installation completed in ${duration}s"
 
   # Show Keycloak-specific next steps and recommend OAuth2
-  show_keycloak_next_steps
+  # show_keycloak_next_steps
 
   # Suggest and install OAuth2 as the next step (only after complete installation)
-  suggest_and_install_next_module "keycloak"
+  # suggest_and_install_next_module "keycloak"
 
   return 0
 }
