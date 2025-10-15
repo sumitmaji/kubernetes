@@ -997,7 +997,7 @@ import getpass
 secret = getpass.getpass('${MSG}')
 print(secret)
 ")
-  echo $secret
+  printf '%s' "$secret"
 }
 
 # Export functions for use by other modules
