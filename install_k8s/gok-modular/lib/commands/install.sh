@@ -412,7 +412,9 @@ installCmd() {
             log_info "Note: LDAP installation may take several minutes depending on system performance... $component"
             if ldapInst; then
                 if validate_component_installation "ldap" 120; then
+                    log_info "LDAP installation validated successfully $component"
                     complete_component "ldap" "LDAP installation completed and validated"
+                    log_info "LDAP installation completed successfully $component"
                 else
                     complete_component "ldap" "LDAP installed but validation had warnings"
                 fi
