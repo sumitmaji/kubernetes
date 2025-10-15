@@ -408,7 +408,7 @@ build_ldap_with_progress() {
   log_success "LDAP build and deployment completed in ${duration}s"
 
   # Show LDAP image and deployment summary
-  show_ldap_summary
+  # show_ldap_summary
 
   return 0
 }

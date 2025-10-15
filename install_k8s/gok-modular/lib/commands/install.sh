@@ -519,19 +519,9 @@ installCmd() {
     
     local install_result=$?
     
-    # Post-installation handling for non-validated components
+    # Post-installation handling for all components
     if [[ $install_result -eq 0 ]]; then
-        # Skip post-installation for validated components that are handled in case statement
-        local validated_components=("docker" "kubernetes" "kubernetes-worker" "helm" "cert-manager" "monitoring" "prometheus" "grafana" "fluentd" "opensearch" "argocd" "gok-agent" "gok-controller" "haproxy" "ingress" "keycloak" "oauth2" "vault" "ldap" "dashboard" "jupyter" "devworkspace" "workspace" "che" "ttyd" "cloudshell" "console" "jenkins" "spinnaker" "registry" "gok-login" "chart" "rabbitmq" "kyverno" "istio" "base" "base-services")
-        local is_validated=false
-        for vc in "${validated_components[@]}"; do
-            if [[ "$component" == "$vc" ]]; then
-                is_validated=true
-                break
-            fi
-        done
-        
-        if [[ "$is_validated" == "false" ]] && ! is_component_completed "$component"; then
+        if is_component_completed "$component"; then
             # complete_component is present after sucessful installation
             # complete_component "$component"
             post_install_actions "$component"
