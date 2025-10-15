@@ -562,6 +562,7 @@ installCmd() {
                 "base"|"base-services") ns="default" ;;
                 *) ns="default" ;;
             esac
+            log_info "Component '$component' installed successfully in namespace '$ns'"
             show_component_summary "$component" "$ns"
             show_component_next_steps "$component"
             suggest_and_install_next_module "$component"
