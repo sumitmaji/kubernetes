@@ -87,7 +87,7 @@ keycloakInst(){
   log_success "Keycloak identity management installation completed in ${duration}s"
 
   # Show Keycloak summary
-  show_keycloak_summary
+  # show_keycloak_summary
 
   # Show next steps
   show_keycloak_next_steps

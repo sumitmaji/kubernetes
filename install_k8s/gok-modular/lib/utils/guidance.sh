@@ -725,20 +725,7 @@ show_component_next_steps() {
             ;;
             
         "keycloak")
-            log_next_steps "Keycloak Identity Management" \
-                "Access Keycloak admin console" \
-                "Create realms and clients" \
-                "Configure user federation (LDAP if needed)" \
-                "Set up OAuth2 integration: gok install oauth2"
-            
-            log_urls "Keycloak Access" \
-                "Admin Console: https://$(fullKeycloakUrl)/admin" \
-                "Account Console: https://$(fullKeycloakUrl)/realms/master/account"
-            
-            log_credentials "Keycloak Admin" "admin" \
-                "Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d"
-            
-            log_info "Default realm 'master' created. Create application-specific realms as needed."
+            show_keycloak_next_steps
             ;;
             
         "argocd")
@@ -930,6 +917,21 @@ show_keycloak_next_steps() {
   echo
   echo -e "${COLOR_CYAN}You will be prompted to install OAuth2 proxy after Keycloak setup completes.${COLOR_RESET}"
   echo
+
+  log_next_steps "Keycloak Identity Management" \
+                "Access Keycloak admin console" \
+                "Create realms and clients" \
+                "Configure user federation (LDAP if needed)" \
+                "Set up OAuth2 integration: gok install oauth2"
+            
+    log_urls "Keycloak Access" \
+        "Admin Console: https://$(fullKeycloakUrl)/admin" \
+        "Account Console: https://$(fullKeycloakUrl)/realms/master/account"
+
+    log_credentials "Keycloak Admin" "admin" \
+        "Run: kubectl get secret -n keycloak keycloak-admin-password -o jsonpath='{.data.password}' | base64 -d"
+
+    log_info "Default realm 'master' created. Create application-specific realms as needed."
 }
 
 export -f show_ldap_next_steps
