@@ -345,6 +345,13 @@ installCmd() {
             log_info "Configuring custom DNS zones..."
             if customDns; then
                 log_success "Custom DNS zones configured"
+                
+                # Verify DNS configuration
+                if verify_dns_configuration; then
+                    log_success "DNS configuration verification completed"
+                else
+                    log_warning "DNS configuration verification failed"
+                fi
             else
                 log_info "Custom DNS configuration skipped (no custom zones defined)"
             fi

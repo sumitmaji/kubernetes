@@ -1548,7 +1548,50 @@ EOF
         return 1
     fi
 
+
+
     return 0
+}
+
+# Verify DNS configuration after custom DNS setup
+verify_dns_configuration() {
+    log_info "Verifying DNS configuration with DNS utility..."
+    
+    # Use DNS utility pod to query kubernetes service FQDN
+    if kubectl run dns-verify --image=gcr.io/kubernetes-e2e-test-images/dnsutils:1.3 --restart=Never --command -- sleep 10 >/dev/null 2>&1; then
+        # Wait for pod to be ready
+        if kubectl wait --for=condition=ready pod dns-verify --timeout=30s >/dev/null 2>&1; then
+            # Query kubernetes service FQDN
+            local kubernetes_fqdn
+            kubernetes_fqdn=$(kubectl exec dns-verify -- nslookup kubernetes.default.svc.cloud.uat 2>/dev/null | grep "Name:" | head -1 | awk '{print $2}' 2>/dev/null || echo "")
+            
+            if [[ -n "$kubernetes_fqdn" && "$kubernetes_fqdn" == *"cloud.uat"* ]]; then
+                log_success "DNS configuration verified: Kubernetes FQDN resolves to $kubernetes_fqdn (using cloud.uat domain)"
+                return 0
+            else
+                log_warning "DNS verification: FQDN does not contain cloud.uat (got: $kubernetes_fqdn)"
+                
+                # Try alternative query for default service
+                kubernetes_fqdn=$(kubectl exec dns-verify -- nslookup kubernetes.default 2>/dev/null | grep "Name:" | head -1 | awk '{print $2}' 2>/dev/null || echo "")
+                if [[ -n "$kubernetes_fqdn" && "$kubernetes_fqdn" == *"cloud.uat"* ]]; then
+                    log_success "DNS configuration verified via alternative query: $kubernetes_fqdn"
+                    return 0
+                else
+                    log_error "DNS verification failed: Expected cloud.uat domain, got: $kubernetes_fqdn"
+                    return 1
+                fi
+            fi
+        else
+            log_warning "DNS verification pod failed to become ready"
+            return 1
+        fi
+        
+        # Clean up test pod
+        kubectl delete pod dns-verify --ignore-not-found=true >/dev/null 2>&1
+    else
+        log_warning "Could not create DNS verification pod"
+        return 1
+    fi
 }
 
 # OAuth admin access configuration
@@ -2070,6 +2113,7 @@ spec:
 # Export functions for use by other modules
 export -f startHa
 export -f customDns
+export -f verify_dns_configuration
 export -f oauthAdmin
 export -f dnsUtils
 export -f kcurl
