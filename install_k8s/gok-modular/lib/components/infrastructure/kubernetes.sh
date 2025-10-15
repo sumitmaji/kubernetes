@@ -1521,10 +1521,6 @@ customDns() {
             forward . 11.0.0.1
             reload 30s
         }
-        cloud.uat {
-            forward . 11.0.0.1
-            reload 30s
-        }
 EOF
 )
 
