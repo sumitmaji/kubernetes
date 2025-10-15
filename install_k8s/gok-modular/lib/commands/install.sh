@@ -407,6 +407,8 @@ installCmd() {
             vaultInstall
             ;;
         "ldap")
+            # LDAP installation with validation
+            log_info "Starting LDAP installation..."
             if ldapInst; then
                 if validate_component_installation "ldap" 120; then
                     complete_component "ldap" "LDAP installation completed and validated"
@@ -519,8 +521,17 @@ installCmd() {
     
     # Post-installation handling for non-validated components
     if [[ $install_result -eq 0 ]]; then
-        # Only complete if not already completed in the case statement
-        if ! is_component_completed "$component"; then
+        # Skip post-installation for validated components that are handled in case statement
+        local validated_components=("docker" "kubernetes" "kubernetes-worker" "helm" "cert-manager" "monitoring" "prometheus" "grafana" "fluentd" "opensearch" "argocd" "gok-agent" "gok-controller" "haproxy" "ingress" "keycloak" "oauth2" "vault" "ldap" "dashboard" "jupyter" "devworkspace" "workspace" "che" "ttyd" "cloudshell" "console" "jenkins" "spinnaker" "registry" "gok-login" "chart" "rabbitmq" "kyverno" "istio" "base" "base-services")
+        local is_validated=false
+        for vc in "${validated_components[@]}"; do
+            if [[ "$component" == "$vc" ]]; then
+                is_validated=true
+                break
+            fi
+        done
+        
+        if [[ "$is_validated" == "false" ]] && ! is_component_completed "$component"; then
             # complete_component is present after sucessful installation
             # complete_component "$component"
             post_install_actions "$component"
@@ -826,9 +837,9 @@ check_component_dependencies() {
 # Check if component installation is completed
 is_component_completed() {
     local component="$1"
-    local completed_file="${GOK_CACHE_DIR}/completed_components"
+    local status_file="${GOK_CACHE_DIR}/component_status"
     
-    [[ -f "$completed_file" ]] && grep -q "^${component}:" "$completed_file"
+    [[ -f "$status_file" ]] && grep -q "^${component}:completed:" "$status_file"
 }
 
 # Suggest next installations after component is installed
