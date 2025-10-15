@@ -33,6 +33,7 @@ ldapInst(){
 
   log_step "3" "Building and deploying LDAP directory service"
 
+  echo "Using LDAP password: ${LDAP_PASSWORD}****"
   # Enhanced LDAP build with progress tracking
   build_ldap_with_progress "$LDAP_PASSWORD" "$KERBEROS_PASSWORD" "$KERBEROS_KDC_PASSWORD" "$KERBEROS_ADM_PASSWORD"
   if [[ $? -ne 0 ]]; then
