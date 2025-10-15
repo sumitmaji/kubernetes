@@ -171,6 +171,8 @@ build_ldap_with_progress() {
     "docker build --build-arg LDAP_DOMAIN=\"$domain_name\" --build-arg REGISTRY=\"$gok_registry_url\" --build-arg LDAP_HOSTNAME=\"$ldap_hostname\" --build-arg BASE_DN=\"$base_dn\" --build-arg LDAP_PASSWORD=\"$ldap_password\" -t \"$image_name\" ." \
     "$ldap_password" "***"
 
+  log_info "LDAP password is: ${ldap_password}****"
+
   # Start Docker build in background with enhanced arguments (use GOK registry)
   docker build \
     --build-arg LDAP_DOMAIN="$domain_name" \
