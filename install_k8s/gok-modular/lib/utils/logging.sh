@@ -742,7 +742,7 @@ show_log_config() {
 # Export logging functions
 export -f log_debug log_info log_success log_warning log_error log_critical
 export -f log_step log_substep log_progress log_command log_file
-export -f log_separator log_custom log_list log_header
+export -f log_separator log_list log_header
 export -f get_elapsed_time log_component_start log_component_success log_component_error
 export -f log_next_steps log_urls log_credentials is_verbose_mode
 export -f track_operation timed_operation
