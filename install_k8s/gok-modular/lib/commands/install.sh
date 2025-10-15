@@ -22,13 +22,8 @@ installCmd() {
     # Initialize component tracking
     init_component_tracking "$component" "Installing $component component"
     
-    # Enable verbose logging by default for component installations
-    export GOK_VERBOSE="true"
-    set_verbosity_level "verbose" 2>/dev/null || true
-    log_info "Verbose logging enabled for detailed command execution"
-    
     # Parse all flags
-    local verbose_flag="--verbose"
+    local verbose_flag=""
     local update_flags=""
     local deps_flags=""
     shift  # Remove component name from arguments
@@ -586,7 +581,7 @@ show_install_help() {
     echo "Usage: gok-new install <component> [--verbose|-v] [--quiet|-q] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
     echo ""
     echo "Options:"
-    echo "  --verbose, -v      Show detailed installation output (default: enabled)"
+    echo "  --verbose, -v      Show detailed installation output and system logs"
     echo "  --quiet, -q        Disable verbose output, show only essential messages"
     echo "  --force-update     Force system update regardless of cache"
     echo "  --skip-update      Skip system update completely"
@@ -594,7 +589,7 @@ show_install_help() {
     echo "  --skip-deps        Skip dependency installation completely"
     echo ""
     echo "Environment Variables:"
-    echo "  GOK_VERBOSE=true         Enable verbose mode globally (default: true for install)"
+    echo "  GOK_VERBOSE=true         Enable verbose mode globally (default: false)"
     echo "  GOK_UPDATE_CACHE_HOURS=6 Hours to cache system updates (default: 6)"
     echo "  GOK_DEPS_CACHE_HOURS=6   Hours to cache dependency installations (default: same as updates)"
     echo "  GOK_CACHE_DIR=/tmp/gok-cache  Custom cache directory location"

@@ -14,11 +14,11 @@
 # =============================================================================
 
 # Ensure this module is loaded only once
-# Temporarily disabled guard to fix bootstrap issues
-# if [[ "${GOK_VERBOSITY_LOADED:-}" == "true" ]]; then
-#     # If already loaded, just return without redefining functions
-#     return 0
-# fi
+if [[ "${GOK_VERBOSITY_LOADED:-}" == "true" ]]; then
+    # If already loaded, just return without redefining functions
+    return 0
+fi
+export GOK_VERBOSITY_LOADED=true
 
 # Load required dependencies
 if [[ "${GOK_LOGGING_LOADED:-}" != "true" ]]; then
@@ -55,7 +55,7 @@ init_verbosity() {
     # Check environment variables
     if [[ "${GOK_VERBOSE:-}" == "true" ]]; then
         GOK_VERBOSITY_LEVEL=$VERBOSITY_VERBOSE
-        set_log_level "INFO"
+        set_log_level "DEBUG"
         export GOK_LOG_QUIET=false
     elif [[ "${GOK_DEBUG:-}" == "true" ]]; then
         GOK_VERBOSITY_LEVEL=$VERBOSITY_DEBUG

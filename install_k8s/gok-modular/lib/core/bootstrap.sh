@@ -53,7 +53,6 @@ load_core_modules() {
     
     local core_modules=(
         "constants"
-        "logging"
         "config"
         "environment"
     )

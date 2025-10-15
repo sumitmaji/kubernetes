@@ -70,13 +70,6 @@ export GOK_SHORT_TIMEOUT="30"
 export GOK_DEFAULT_RETRIES="3"
 export GOK_RETRY_DELAY="5"
 
-# Log levels
-export LOG_LEVEL_ERROR="ERROR"
-export LOG_LEVEL_WARN="WARN"  
-export LOG_LEVEL_INFO="INFO"
-export LOG_LEVEL_DEBUG="DEBUG"
-export LOG_LEVEL_TRACE="TRACE"
-
 # Default log level
 export GOK_LOG_LEVEL="${GOK_LOG_LEVEL:-INFO}"
 

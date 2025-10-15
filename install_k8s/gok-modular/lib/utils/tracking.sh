@@ -3,6 +3,12 @@
 # GOK Component Tracking Module - Enhanced installation status and progress tracking
 # This module provides comprehensive component lifecycle tracking
 
+# Ensure this module is loaded only once
+if [[ "${GOK_TRACKING_LOADED:-}" == "true" ]]; then
+    return 0
+fi
+export GOK_TRACKING_LOADED=true
+
 # Component status tracking
 declare -A GOK_COMPONENT_STATUS
 declare -A GOK_COMPONENT_START_TIME
