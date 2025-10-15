@@ -520,6 +520,7 @@ installCmd() {
     local install_result=$?
     
     # Post-installation handling for all components
+    log_info "Post-installation handling for $component"
     if [[ $install_result -eq 0 ]]; then
         if is_component_completed "$component"; then
             # complete_component is present after sucessful installation
