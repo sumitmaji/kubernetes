@@ -4,10 +4,11 @@
 # This module provides comprehensive component lifecycle tracking
 
 # Ensure this module is loaded only once
-if [[ "${GOK_TRACKING_LOADED:-}" == "true" ]]; then
-    return 0
-fi
-export GOK_TRACKING_LOADED=true
+# Temporarily disabled guard to fix bootstrap issues
+# if [[ "${GOK_TRACKING_LOADED:-}" == "true" ]]; then
+#     return 0
+# fi
+# export GOK_TRACKING_LOADED=true
 
 # Component status tracking
 declare -A GOK_COMPONENT_STATUS

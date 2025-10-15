@@ -858,8 +858,8 @@ export -f glogs gtail gwatch gbash gdesc gdecode
 export -f gforward gcluster gresources gnetwork gtroubleshoot
 export -f gdebug_help
 
-# Auto-initialize if not already done
-if [[ -z "$DEBUG_NAMESPACE" ]]; then
+# Auto-initialize if debug mode is enabled
+if [[ "${GOK_DEBUG:-false}" == "true" ]] && [[ -z "$DEBUG_NAMESPACE" ]]; then
     debug_init 2>/dev/null || true
 fi
 

@@ -40,12 +40,12 @@ fi
 : ${GOK_LOG_QUIET:=false}
 
 # Log level constants
-readonly LOG_LEVEL_DEBUG=0
-readonly LOG_LEVEL_INFO=1
-readonly LOG_LEVEL_SUCCESS=2
-readonly LOG_LEVEL_WARNING=3
-readonly LOG_LEVEL_ERROR=4
-readonly LOG_LEVEL_CRITICAL=5
+if [[ -z "${LOG_LEVEL_DEBUG:-}" ]]; then readonly LOG_LEVEL_DEBUG=0; fi
+if [[ -z "${LOG_LEVEL_INFO:-}" ]]; then readonly LOG_LEVEL_INFO=1; fi
+if [[ -z "${LOG_LEVEL_SUCCESS:-}" ]]; then readonly LOG_LEVEL_SUCCESS=2; fi
+if [[ -z "${LOG_LEVEL_WARNING:-}" ]]; then readonly LOG_LEVEL_WARNING=3; fi
+if [[ -z "${LOG_LEVEL_ERROR:-}" ]]; then readonly LOG_LEVEL_ERROR=4; fi
+if [[ -z "${LOG_LEVEL_CRITICAL:-}" ]]; then readonly LOG_LEVEL_CRITICAL=5; fi
 
 # Current log level (converted from string)
 GOK_LOG_LEVEL_NUM=1
@@ -415,15 +415,9 @@ log_credentials() {
     echo
 }
 
-# Log with custom format
-log_custom() {
-    local level="$1"
-    local symbol="$2"
-    local color="$3"
-    local message="$4"
-    
-    local level_num=$(get_log_level_num "$level")
-    _log "$level" "$level_num" "$color" "$symbol" "$message"
+# Check if verbose mode is enabled
+is_verbose_mode() {
+    [[ "${GOK_VERBOSE:-false}" == "true" ]]
 }
 
 # Log array of items
@@ -750,7 +744,7 @@ export -f log_debug log_info log_success log_warning log_error log_critical
 export -f log_step log_substep log_progress log_command log_file
 export -f log_separator log_custom log_list log_header
 export -f get_elapsed_time log_component_start log_component_success log_component_error
-export -f log_next_steps log_urls log_credentials
+export -f log_next_steps log_urls log_credentials is_verbose_mode
 export -f track_operation timed_operation
 export -f execute_with_spinner execute_with_spinner_custom
 export -f get_log_level_num set_log_level set_log_file rotate_log_file clear_log_file
