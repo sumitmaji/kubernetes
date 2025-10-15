@@ -13,9 +13,10 @@
 # =============================================================================
 
 # Ensure this module is loaded only once
-if [[ "${GOK_LOGGING_LOADED:-}" == "true" ]]; then
-    return 0
-fi
+# Temporarily disabled guard to fix bootstrap issues in gok-new script
+# if [[ "${GOK_LOGGING_LOADED:-}" == "true" ]]; then
+#     return 0
+# fi
 
 # Load colors module if not already loaded
 if [[ "${GOK_COLORS_LOADED:-}" != "true" ]]; then
@@ -293,20 +294,126 @@ log_separator() {
 }
 
 # Log header with separator
-# log_header() {
-#     local title="$1"
-#     local char="${2:-=}"
+log_header() {
+    local title="$1"
+    local char="${2:-=}"
     
-#     echo
-#     log_separator "$char"
-#     if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
-#         echo -e "${COLOR_HEADER}${COLOR_BOLD}${title}${COLOR_RESET}"
-#     else
-#         echo "$title"
-#     fi
-#     log_separator "$char"
-#     echo
-# }
+    echo
+    log_separator "$char"
+    if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
+        echo -e "${COLOR_HEADER}${COLOR_BOLD}${title}${COLOR_RESET}"
+    else
+        echo "$title"
+    fi
+    log_separator "$char"
+    echo
+}
+
+# Get elapsed time since start
+get_elapsed_time() {
+    local start_time=${1:-$GOK_START_TIME}
+    if [[ -n "$start_time" ]]; then
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - start_time))
+        local minutes=$((elapsed / 60))
+        local seconds=$((elapsed % 60))
+        if [[ $minutes -gt 0 ]]; then
+            echo "${minutes}m ${seconds}s"
+        else
+            echo "${seconds}s"
+        fi
+    else
+        echo "0s"
+    fi
+}
+
+# Initialize timing
+GOK_START_TIME=${GOK_START_TIME:-$(date +%s)}
+
+# Component logging functions
+log_component_start() {
+    local component="$1"
+    local description="${2:-Installing component}"
+    # Sanitize component name for variable names (replace hyphens with underscores)
+    local var_name=$(echo "${component^^}" | tr '-' '_')
+    echo
+    echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}│ ${EMOJI_PACKAGE} Starting: $component${COLOR_RESET}"
+    echo -e "${COLOR_MAGENTA}│ $description${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_MAGENTA}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
+    export "GOK_${var_name}_START_TIME=$(date +%s)"
+}
+
+log_component_success() {
+    local component="$1"
+    local message="${2:-Installation completed successfully}"
+    # Sanitize component name for variable names (replace hyphens with underscores)
+    local var_name=$(echo "${component^^}" | tr '-' '_')
+    local start_var="GOK_${var_name}_START_TIME"
+    local elapsed=$(get_elapsed_time "${!start_var}")
+    echo
+    echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}│ ${EMOJI_SUCCESS} Success: $component${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}│ $message${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}│ ${EMOJI_CLOCK} Installation time: $elapsed${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
+}
+
+log_component_error() {
+    local component="$1"
+    local message="${2:-Installation failed}"
+    # Sanitize component name for variable names (replace hyphens with underscores)
+    local var_name=$(echo "${component^^}" | tr '-' '_')
+    local start_var="GOK_${var_name}_START_TIME"
+    local elapsed=$(get_elapsed_time "${!start_var}")
+    echo
+    echo -e "${COLOR_RED}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
+    echo -e "${COLOR_RED}${COLOR_BOLD}│ ${EMOJI_ERROR} Failed: $component${COLOR_RESET}"
+    echo -e "${COLOR_RED}│ $message${COLOR_RESET}"
+    echo -e "${COLOR_RED}│ ${EMOJI_CLOCK} Time elapsed: $elapsed${COLOR_RESET}"
+    echo -e "${COLOR_RED}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
+}
+
+log_next_steps() {
+    local title="$1"
+    shift
+    local steps=("$@")
+    
+    echo
+    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}┌─────────────────────────────────────────────────────────────────┐${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}│ ${EMOJI_LIGHTBULB} Next Steps: $title${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_YELLOW}${COLOR_BOLD}└─────────────────────────────────────────────────────────────────┘${COLOR_RESET}"
+    
+    local step_num=1
+    for step in "${steps[@]}"; do
+        echo -e "${COLOR_YELLOW}${step_num}. $step${COLOR_RESET}"
+        ((step_num++))
+    done
+    echo
+}
+
+log_urls() {
+    local title="$1"
+    shift
+    local urls=("$@")
+    
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}${EMOJI_LINK} $title:${COLOR_RESET}"
+    for url in "${urls[@]}"; do
+        echo -e "  ${COLOR_CYAN}• $url${COLOR_RESET}"
+    done
+    echo
+}
+
+log_credentials() {
+    local service="$1"
+    local username="$2"
+    local password_info="$3"
+    
+    echo -e "${COLOR_BRIGHT_GREEN}${COLOR_BOLD}${EMOJI_KEY} $service Credentials:${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}Username: ${COLOR_BOLD}$username${COLOR_RESET}"
+    echo -e "  ${COLOR_GREEN}Password: $password_info${COLOR_RESET}"
+    echo
+}
 
 # Log with custom format
 log_custom() {
@@ -641,7 +748,9 @@ show_log_config() {
 # Export logging functions
 export -f log_debug log_info log_success log_warning log_error log_critical
 export -f log_step log_substep log_progress log_command log_file
-export -f log_separator log_custom log_list
+export -f log_separator log_custom log_list log_header
+export -f get_elapsed_time log_component_start log_component_success log_component_error
+export -f log_next_steps log_urls log_credentials
 export -f track_operation timed_operation
 export -f execute_with_spinner execute_with_spinner_custom
 export -f get_log_level_num set_log_level set_log_file rotate_log_file clear_log_file

@@ -216,3 +216,8 @@ show_installation_summary() {
         log_info "No component installations found"
     fi
 }
+
+# Export tracking functions
+export -f init_component_tracking start_component complete_component
+export -f fail_component skip_component get_component_status
+export -f is_component_successful get_component_time show_installation_summary

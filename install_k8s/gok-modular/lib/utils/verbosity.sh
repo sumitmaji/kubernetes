@@ -14,11 +14,12 @@
 # =============================================================================
 
 # Ensure this module is loaded only once
-if [[ "${GOK_VERBOSITY_LOADED:-}" == "true" ]]; then
-    # If already loaded, just return without redefining functions
-    return 0
-fi
-export GOK_VERBOSITY_LOADED=true
+# Temporarily disabled guard to fix bootstrap issues in gok-new script
+# if [[ "${GOK_VERBOSITY_LOADED:-}" == "true" ]]; then
+#     # If already loaded, just return without redefining functions
+#     return 0
+# fi
+# export GOK_VERBOSITY_LOADED=true
 
 # Load required dependencies
 if [[ "${GOK_LOGGING_LOADED:-}" != "true" ]]; then
@@ -602,7 +603,7 @@ init_verbosity
 trap cleanup_verbosity_temp EXIT
 
 # Export key functions
-export -f execute_silent execute_controlled execute_verbose_only execute_debug_only
+export -f init_verbosity execute_silent execute_controlled execute_verbose_only execute_debug_only
 export -f execute_with_progress apt_update_controlled apt_install_controlled apt_remove_controlled apt_autoremove_controlled
 export -f docker_pull_controlled docker_run_controlled kubectl_apply_controlled
 export -f systemctl_controlled log_verbose log_debug_verbose log_progress_controlled
