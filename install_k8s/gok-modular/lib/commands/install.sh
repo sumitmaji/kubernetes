@@ -42,6 +42,10 @@ installCmd() {
                 set_verbosity_level "normal" 2>/dev/null || true
                 log_info "Quiet mode enabled"
                 ;;
+            --show-commands)
+                export GOK_SHOW_COMMANDS="true"
+                log_info "Command execution display enabled"
+                ;;
             --force-update)
                 update_flags="$update_flags --force-update"
                 ;;
@@ -578,11 +582,12 @@ installCmd() {
 show_install_help() {
     echo "gok-new install - Install and configure Kubernetes components and services"
     echo ""
-    echo "Usage: gok-new install <component> [--verbose|-v] [--quiet|-q] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
+    echo "Usage: gok-new install <component> [--verbose|-v] [--quiet|-q] [--show-commands] [--force-update] [--skip-update] [--force-deps] [--skip-deps]"
     echo ""
     echo "Options:"
     echo "  --verbose, -v      Show detailed installation output and system logs"
     echo "  --quiet, -q        Disable verbose output, show only essential messages"
+    echo "  --show-commands    Show commands being executed during installation"
     echo "  --force-update     Force system update regardless of cache"
     echo "  --skip-update      Skip system update completely"
     echo "  --force-deps       Force dependency installation regardless of cache"
@@ -590,6 +595,7 @@ show_install_help() {
     echo ""
     echo "Environment Variables:"
     echo "  GOK_VERBOSE=true         Enable verbose mode globally (default: false)"
+    echo "  GOK_SHOW_COMMANDS=true   Show commands being executed (default: false)"
     echo "  GOK_UPDATE_CACHE_HOURS=6 Hours to cache system updates (default: 6)"
     echo "  GOK_DEPS_CACHE_HOURS=6   Hours to cache dependency installations (default: same as updates)"
     echo "  GOK_CACHE_DIR=/tmp/gok-cache  Custom cache directory location"
@@ -597,6 +603,7 @@ show_install_help() {
     echo "Smart Caching Examples:"
     echo "  gok-new install docker                     # Uses smart cache with verbose output (default)"
     echo "  gok-new install base --quiet               # Install quietly with minimal output"
+    echo "  gok-new install base --show-commands       # Show commands being executed"
     echo "  gok-new install base --skip-update         # Skip system update completely"
     echo "  gok-new install base --skip-deps           # Skip dependency installation"
     echo "  gok-new install kubernetes --force-update  # Force fresh system update"

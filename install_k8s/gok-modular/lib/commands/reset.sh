@@ -28,6 +28,10 @@ resetCmd() {
                 set_verbosity_level "normal" 2>/dev/null || true
                 log_info "Quiet mode enabled for reset operation"
                 ;;
+            --show-commands)
+                export GOK_SHOW_COMMANDS="true"
+                log_info "Command execution display enabled for reset operation"
+                ;;
         esac
     done
     
@@ -195,11 +199,12 @@ resetCmd() {
 show_reset_help() {
     echo "gok-new reset - Reset and uninstall Kubernetes components"
     echo ""
-    echo "Usage: gok-new reset <component> [--verbose|-v] [--quiet|-q]"
+    echo "Usage: gok-new reset <component> [--verbose|-v] [--quiet|-q] [--show-commands]"
     echo ""
     echo "Options:"
     echo "  --verbose, -v      Show detailed cleanup output and system logs"
     echo "  --quiet, -q        Disable verbose output, show only essential messages"
+    echo "  --show-commands    Show commands being executed during reset"
     echo ""
     echo "WARNING: This operation will permanently remove the component and its data!"
     echo ""

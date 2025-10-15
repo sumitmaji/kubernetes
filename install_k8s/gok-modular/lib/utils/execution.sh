@@ -5,7 +5,7 @@
 
 # Global variables for execution control
 export GOK_SUPPRESS_OUTPUT="${GOK_SUPPRESS_OUTPUT:-false}"
-export GOK_SHOW_COMMANDS="${GOK_SHOW_COMMANDS:-true}"
+export GOK_SHOW_COMMANDS="${GOK_SHOW_COMMANDS:-false}"
 export GOK_TEMP_DIR="${GOK_TEMP_DIR:-/tmp/gok}"
 
 # Ensure temp directory exists
@@ -13,6 +13,11 @@ mkdir -p "$GOK_TEMP_DIR"
 
 # Update command display based on verbosity level
 update_command_display_setting() {
+    # If explicitly set, respect the user's choice
+    if [[ -n "${GOK_SHOW_COMMANDS:-}" ]]; then
+        return 0
+    fi
+    
     # Import verbosity level if available
     if declare -f is_verbose >/dev/null 2>&1 && declare -f is_debug >/dev/null 2>&1; then
         if is_verbose || is_debug || [[ "${GOK_VERBOSE:-false}" == "true" ]] || [[ "${GOK_DEBUG:-false}" == "true" ]]; then
@@ -45,7 +50,7 @@ execute_with_suppression() {
     
     # Show command being executed if verbose mode
     if [[ "$GOK_SHOW_COMMANDS" == "true" ]]; then
-        log_debug "Executing: $command_display"
+        log_info "Executing: $command_display"
     fi
 
     # Check if stdin has content (not connected to terminal)
