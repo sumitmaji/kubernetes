@@ -526,46 +526,42 @@ installCmd() {
             post_install_actions "$component"
             log_component_success "$component"
             # Map component to namespace
-            declare -A component_namespace_map=(
-                ["docker"]="default"
-                ["kubernetes"]="kube-system"
-                ["kubernetes-worker"]="kube-system"
-                ["helm"]="kube-system"
-                ["cert-manager"]="cert-manager"
-                ["monitoring"]="monitoring"
-                ["prometheus"]="monitoring"
-                ["grafana"]="monitoring"
-                ["fluentd"]="logging"
-                ["opensearch"]="opensearch"
-                ["argocd"]="argocd"
-                ["gok-agent"]="gok-system"
-                ["gok-controller"]="gok-system"
-                ["haproxy"]="default"
-                ["ingress"]="ingress-nginx"
-                ["keycloak"]="keycloak"
-                ["oauth2"]="oauth2"
-                ["vault"]="vault"
-                ["ldap"]="ldap"
-                ["dashboard"]="kubernetes-dashboard"
-                ["jupyter"]="jupyter"
-                ["devworkspace"]="devworkspace"
-                ["workspace"]="workspace"
-                ["che"]="che"
-                ["ttyd"]="ttyd"
-                ["cloudshell"]="cloudshell"
-                ["console"]="console"
-                ["jenkins"]="jenkins"
-                ["spinnaker"]="spinnaker"
-                ["registry"]="registry"
-                ["gok-login"]="gok-login"
-                ["chart"]="chart"
-                ["rabbitmq"]="rabbitmq"
-                ["kyverno"]="kyverno"
-                ["istio"]="istio-system"
-                ["base"]="default"
-                ["base-services"]="default"
-            )
-            local ns="${component_namespace_map[$component]:-default}"
+            local ns="default"
+            case "$component" in
+                "docker") ns="default" ;;
+                "kubernetes"|"kubernetes-worker") ns="kube-system" ;;
+                "helm") ns="kube-system" ;;
+                "cert-manager") ns="cert-manager" ;;
+                "monitoring"|"prometheus"|"grafana") ns="monitoring" ;;
+                "fluentd") ns="logging" ;;
+                "opensearch") ns="opensearch" ;;
+                "argocd") ns="argocd" ;;
+                "gok-agent"|"gok-controller") ns="gok-system" ;;
+                "haproxy") ns="default" ;;
+                "ingress") ns="ingress-nginx" ;;
+                "keycloak") ns="keycloak" ;;
+                "oauth2") ns="oauth2" ;;
+                "vault") ns="vault" ;;
+                "ldap") ns="ldap" ;;
+                "dashboard") ns="kubernetes-dashboard" ;;
+                "jupyter") ns="jupyter" ;;
+                "devworkspace") ns="devworkspace" ;;
+                "workspace") ns="workspace" ;;
+                "che") ns="che" ;;
+                "ttyd") ns="ttyd" ;;
+                "cloudshell") ns="cloudshell" ;;
+                "console") ns="console" ;;
+                "jenkins") ns="jenkins" ;;
+                "spinnaker") ns="spinnaker" ;;
+                "registry") ns="registry" ;;
+                "gok-login") ns="gok-login" ;;
+                "chart") ns="chart" ;;
+                "rabbitmq") ns="rabbitmq" ;;
+                "kyverno") ns="kyverno" ;;
+                "istio") ns="istio-system" ;;
+                "base"|"base-services") ns="default" ;;
+                *) ns="default" ;;
+            esac
             show_component_summary "$component" "$ns"
             show_component_next_steps "$component"
             suggest_and_install_next_module "$component"
