@@ -31,6 +31,14 @@ keycloakInst(){
   : "${OIDC_CLIENT_ID:=${5:-$(promptUserInput "Please enter OIDC client id (${OIDC_CLIENT_ID:-gok-developers-client}): " "${OIDC_CLIENT_ID:-gok-developers-client}")}}"
   : "${REALM:=${6:-$(promptUserInput "Please enter realm name (${REALM:-GokDevelopers}): " "${REALM:-GokDevelopers}")}}"
 
+  # Trim whitespace from inputs
+  KEYCLOAK_ADMIN_USERNAME=$(echo "$KEYCLOAK_ADMIN_USERNAME" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  KEYCLOAK_ADMIN_PASSWORD=$(echo "$KEYCLOAK_ADMIN_PASSWORD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  POSTGRESQL_USERNAME=$(echo "$POSTGRESQL_USERNAME" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  POSTGRESQL_PASSWORD=$(echo "$POSTGRESQL_PASSWORD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  OIDC_CLIENT_ID=$(echo "$OIDC_CLIENT_ID" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  REALM=$(echo "$REALM" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
   log_success "Keycloak configuration parameters collected"
 
   log_step "3" "Building and deploying Keycloak identity management"
