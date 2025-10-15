@@ -997,6 +997,8 @@ import getpass
 secret = getpass.getpass('${MSG}')
 print(secret)
 ")
+  # Trim leading and trailing whitespace
+  secret=$(echo "$secret" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   printf '%s' "$secret"
 }
 

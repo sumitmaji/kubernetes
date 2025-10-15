@@ -29,11 +29,16 @@ ldapInst(){
   : "${KERBEROS_KDC_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos kdc password: ")} }"
   : "${KERBEROS_ADM_PASSWORD:=${1:-$(promptSecret "Please enter Kerberos adm password: ")} }"
 
+  # Trim whitespace from passwords
+  LDAP_PASSWORD=$(echo "$LDAP_PASSWORD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  KERBEROS_PASSWORD=$(echo "$KERBEROS_PASSWORD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  KERBEROS_KDC_PASSWORD=$(echo "$KERBEROS_KDC_PASSWORD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  KERBEROS_ADM_PASSWORD=$(echo "$KERBEROS_ADM_PASSWORD" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
   log_success "LDAP configuration parameters collected"
 
   log_step "3" "Building and deploying LDAP directory service"
 
-  echo "Using LDAP password: ${LDAP_PASSWORD}****"
   # Enhanced LDAP build with progress tracking
   build_ldap_with_progress "$LDAP_PASSWORD" "$KERBEROS_PASSWORD" "$KERBEROS_KDC_PASSWORD" "$KERBEROS_ADM_PASSWORD"
   if [[ $? -ne 0 ]]; then
