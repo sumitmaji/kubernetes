@@ -390,8 +390,39 @@ cleanup_execution_temp_files() {
 # Register cleanup trap
 trap cleanup_execution_temp_files EXIT
 
+# Helper function to show commands if --show-commands is enabled
+# Usage: show_command "docker build -t myimage ."
+show_command() {
+    if [[ "${GOK_SHOW_COMMANDS:-false}" == "true" ]]; then
+        log_info "Executing: $*"
+    fi
+}
+
+# Helper function to mask sensitive data in commands
+# Usage: show_command_with_secrets "helm install --set password=secret123" "password=secret123" "password=***"
+show_command_with_secrets() {
+    local command="$1"
+    shift
+    
+    if [[ "${GOK_SHOW_COMMANDS:-false}" == "true" ]]; then
+        local masked_command="$command"
+        
+        # Replace sensitive values with masked versions
+        while [[ $# -gt 0 ]]; do
+            local secret_value="$1"
+            local masked_value="${2:-***}"
+            masked_command="${masked_command//$secret_value/$masked_value}"
+            shift 2
+        done
+        
+        log_info "Executing: $masked_command"
+    fi
+}
+
 # Export functions for use by other modules
 export -f execute_with_suppression
 export -f helm_install_with_summary
 export -f kubectl_apply_with_summary
 export -f execute_with_retry
+export -f show_command
+export -f show_command_with_secrets

@@ -95,7 +95,17 @@ deploy_ldap_with_correct_registry() {
 
   local REPO_NAME="ldap"
 
-  echo "Deploying LDAP with registry URL: $registry_url"  # Deploy using Helm with correct registry URL
+  echo "Deploying LDAP with registry URL: $registry_url"
+  
+  # Show command if --show-commands is enabled (mask all passwords)
+  show_command_with_secrets \
+    "helm upgrade --install \"$HELM_NAME\" ./chart --namespace ldap --create-namespace --set image.repository=\"$registry_url/$REPO_NAME\" --set image.tag=\"latest\" --set ldap.password=\"$ldap_password\" --set kerberos.password=\"$kerberos_password\" --set kerberos.kdcPassword=\"$kerberos_kdc_password\" --set kerberos.admpassword=\"$kerberos_adm_password\"" \
+    "$ldap_password" "***" \
+    "$kerberos_password" "***" \
+    "$kerberos_kdc_password" "***" \
+    "$kerberos_adm_password" "***"
+  
+  # Deploy using Helm with correct registry URL
   helm upgrade --install "$HELM_NAME" ./chart \
     --namespace ldap \
     --create-namespace \
@@ -155,6 +165,11 @@ build_ldap_with_progress() {
 
   local temp_build_log=$(mktemp)
   local temp_build_error=$(mktemp)
+
+  # Show command if --show-commands is enabled (mask password)
+  show_command_with_secrets \
+    "docker build --build-arg LDAP_DOMAIN=\"$domain_name\" --build-arg REGISTRY=\"$gok_registry_url\" --build-arg LDAP_HOSTNAME=\"$ldap_hostname\" --build-arg BASE_DN=\"$base_dn\" --build-arg LDAP_PASSWORD=\"$ldap_password\" -t \"$image_name\" ." \
+    "$ldap_password" "***"
 
   # Start Docker build in background with enhanced arguments (use GOK registry)
   docker build \
@@ -228,6 +243,10 @@ build_ldap_with_progress() {
 
   # Step 2: Docker Tag
   log_info "🏷️  Tagging LDAP image for registry: ${COLOR_BOLD}${full_image_url}${COLOR_RESET}"
+  
+  # Show command if --show-commands is enabled
+  show_command "docker tag \"$image_name\" \"$full_image_url\""
+  
   if docker tag "$image_name" "$full_image_url" >/dev/null 2>&1; then
     log_success "LDAP image tagged successfully"
   else
@@ -239,6 +258,9 @@ build_ldap_with_progress() {
   # Step 3: Docker Push with Progress
   log_info "📤 Pushing LDAP image to registry: ${COLOR_BOLD}${registry_url}${COLOR_RESET}"
   log_substep "Target repository: ${COLOR_CYAN}${repo_name}${COLOR_RESET}"
+
+  # Show command if --show-commands is enabled
+  show_command "docker push \"$full_image_url\""
 
   # Start Docker push in background
   docker push "$full_image_url" >"$temp_build_log" 2>"$temp_build_error" &
