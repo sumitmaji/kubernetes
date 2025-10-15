@@ -48,12 +48,14 @@ ldapInst(){
     log_warning "LDAP ingress configuration had issues but installation may still work"
   fi
 
-  log_step "5" "Validating LDAP installation"
-  if validate_ldap_installation; then
-    log_success "LDAP installation validation completed"
-  else
-    log_warning "LDAP validation had issues but installation may still work"
-  fi
+
+  # Validation step is in install.sh
+  # log_step "5" "Validating LDAP installation"
+  # if validate_ldap_installation; then
+  #   log_success "LDAP installation validation completed"
+  # else
+  #   log_warning "LDAP validation had issues but installation may still work"
+  # fi
 
   if execute_with_suppression popd; then
     log_success "LDAP installation directory cleanup completed"
@@ -64,12 +66,12 @@ ldapInst(){
   local end_time=$(date +%s)
   local duration=$((end_time - start_time))
 
-  show_ldap_installation_summary
-  log_component_success "ldap" "LDAP directory service installed successfully"
+  # show_ldap_installation_summary
+  # log_component_success "ldap" "LDAP directory service installed successfully"
   log_success "LDAP installation completed in ${duration}s"
 
   # Show LDAP-specific next steps and recommend Keycloak
-  show_ldap_next_steps
+  # show_ldap_next_steps
 }
 
 # Deploy LDAP using Helm with correct registry URL
