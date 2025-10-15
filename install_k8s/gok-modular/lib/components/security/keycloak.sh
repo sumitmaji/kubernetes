@@ -174,6 +174,15 @@ build_keycloak_with_progress() {
     return 1
   fi
 
+  # Step 2.5: Wait for PostgreSQL database connectivity
+  log_info "🔍 Testing PostgreSQL database connectivity..."
+  if wait_for_postgresql_connectivity; then
+    log_success "PostgreSQL database is accessible"
+  else
+    log_warning "PostgreSQL database connectivity test failed, but continuing with installation"
+    # Don't fail here, let Keycloak try to connect and see what happens
+  fi
+
   # Step 3: Add codecentric helm repository and install Keycloak
   log_info "📦 Adding codecentric helm repository"
   log_substep "Repository: ${COLOR_CYAN}https://codecentric.github.io/helm-charts${COLOR_RESET}"
@@ -460,6 +469,36 @@ EOF
     log_error "PostgreSQL failed to become ready"
     return 1
   fi
+}
+
+# Wait for PostgreSQL database connectivity
+wait_for_postgresql_connectivity() {
+  local max_attempts=10
+  local attempt=1
+
+  log_substep "Testing database connectivity to keycloak-postgresql:5432..."
+
+  while [[ $attempt -le $max_attempts ]]; do
+    # Test basic connectivity using nc (netcat) from the postgres pod itself
+    # find a pod whose name starts with "postgre" in the keycloak namespace and test connectivity from it
+    postgres_pod=$(kubectl get pods -n keycloak -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep -E '^postgre' | head -n1 || true)
+    if [[ -z "$postgres_pod" ]]; then
+      log_substep "No pod starting with 'postgre' found in namespace keycloak"
+    else
+      kubectl exec "$postgres_pod" -n keycloak -- nc -z keycloak-postgresql 5432 >/dev/null 2>&1
+      if [[ $? -eq 0 ]]; then
+        log_substep "Database connectivity to keycloak-postgresql:5432 verified"
+        return 0
+      fi
+    fi
+
+    log_substep "Database connectivity check attempt $attempt/$max_attempts failed, retrying..."
+    attempt=$((attempt + 1))
+    sleep 3
+  done
+
+  log_error "PostgreSQL database connectivity check failed after $max_attempts attempts"
+  return 1
 }
 
 # Create permanent Keycloak admin account
