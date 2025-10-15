@@ -293,21 +293,20 @@ log_separator() {
     fi
 }
 
-# Log header with separator
+# Enhanced logging functions
 log_header() {
     local title="$1"
-    local char="${2:-=}"
-    
+    local subtitle="${2:-}"
     echo
-    log_separator "$char"
-    if [[ "$GOK_LOG_NO_COLORS" != "true" ]] && [[ "${GOK_COLORS_ENABLED:-}" == "true" ]]; then
-        echo -e "${COLOR_HEADER}${COLOR_BOLD}${title}${COLOR_RESET}"
-    else
-        echo "$title"
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}=================================================================${COLOR_RESET}"
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}  ${EMOJI_ROCKET} GOK Platform - $title${COLOR_RESET}"
+    if [[ -n "$subtitle" ]]; then
+        echo -e "${COLOR_CYAN}  $subtitle${COLOR_RESET}"
     fi
-    log_separator "$char"
+    echo -e "${COLOR_BRIGHT_CYAN}${COLOR_BOLD}=================================================================${COLOR_RESET}"
     echo
 }
+
 
 # Get elapsed time since start
 get_elapsed_time() {
