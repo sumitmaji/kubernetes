@@ -59,7 +59,7 @@ keycloakInst(){
   fi
 
   log_step "4" "Configuring Keycloak ingress and networking"
-  if execute_with_suppression gok-new patch ingress keycloak keycloak letsencrypt $(defaultSubdomain); then
+  if execute_with_suppression gok-new patch ingress keycloak keycloak letsencrypt keycloak; then
     log_success "Keycloak ingress configured successfully"
   else
     log_warning "Keycloak ingress configuration had issues but installation may still work"
@@ -829,6 +829,7 @@ setup_keycloak_clients() {
   local max_attempts=30
   local attempt=1
 
+  log_substep "Testing Keycloak URL: ${keycloak_url}"
   while [[ $attempt -le $max_attempts ]]; do
     if curl -s -k "${keycloak_url}/realms/master/.well-known/openid-connect-configuration" >/dev/null 2>&1; then
       log_substep "✅ Keycloak admin API is ready for configuration"
@@ -837,6 +838,11 @@ setup_keycloak_clients() {
 
     if [[ $attempt -eq $max_attempts ]]; then
       log_error "❌ Keycloak admin API not ready after ${max_attempts} attempts - cannot configure clients"
+      log_info "🔍 Debugging information:"
+      log_info "  Keycloak URL: ${keycloak_url}"
+      log_info "  Check if Keycloak pods are running: kubectl get pods -n keycloak"
+      log_info "  Check Keycloak service: kubectl get svc -n keycloak"
+      log_info "  Check ingress: kubectl get ingress -n keycloak"
       return 1
     fi
 
@@ -844,6 +850,32 @@ setup_keycloak_clients() {
     sleep 10
     attempt=$((attempt + 1))
   done
+
+  # Debug: Show credentials being used
+  log_substep "🔐 Using credentials for client configuration:"
+  log_substep "  Admin User: ${admin_id}"
+  log_substep "  Admin Password: [HIDDEN]"
+  log_substep "  Client ID: ${client_id}"
+  log_substep "  Realm: ${realm}"
+  log_substep "  Keycloak URL: ${keycloak_url}"
+
+  # Test authentication endpoint before running python script
+  log_substep "🔍 Testing Keycloak authentication endpoint..."
+  local test_auth=$(curl -s -k -X POST "${keycloak_url}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=password&client_id=admin-cli&username=${admin_id}&password=${admin_pwd}" 2>/dev/null)
+
+  if [[ -z "$test_auth" || "$test_auth" == *"error"* ]]; then
+    log_error "❌ Keycloak authentication test failed"
+    log_info "🔍 Authentication test response: ${test_auth:-'(empty response)'}"
+    log_info "🔍 Check Keycloak admin credentials and service availability"
+    return 1
+  else
+    log_substep "✅ Keycloak authentication test passed"
+  fi
+
+  # Run Keycloak client configuration
+  log_substep "🚀 Running Keycloak client configuration script..."
 
   # Run Keycloak client configuration
   log_substep "🚀 Running Keycloak client configuration script..."
