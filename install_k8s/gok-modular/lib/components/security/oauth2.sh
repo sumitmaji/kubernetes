@@ -3,7 +3,7 @@
 # OAuth2 Proxy Installation Module
 # Provides authentication proxy with Keycloak OIDC integration
 
-oauth2_install() {
+oauth2Inst() {
   local start_time=$(date +%s)
 
   log_component_start "oauth2-proxy-install" "Installing OAuth2 Proxy authentication system"
