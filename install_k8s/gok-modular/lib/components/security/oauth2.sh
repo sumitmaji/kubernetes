@@ -8,18 +8,6 @@ oauth2Inst() {
 
   log_component_start "oauth2-proxy-install" "Installing OAuth2 Proxy authentication system"
 
-  log_step "1" "Updating system packages with smart caching"
-  if ! updateSys; then
-    log_error "Failed to update system packages"
-    return 1
-  fi
-
-  log_step "2" "Installing dependencies with smart caching"
-  if ! installDeps; then
-    log_error "Failed to install OAuth2 Proxy dependencies"
-    return 1
-  fi
-
   log_step "3" "Preparing OAuth2 Proxy installation directory"
   local oauth2_dir="$MOUNT_PATH/kubernetes/install_k8s/oauth2-proxy"
   if [[ ! -d "$oauth2_dir" ]]; then
