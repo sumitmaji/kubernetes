@@ -898,10 +898,6 @@ oauth2Secret(){
   ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
   ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
 
-  show_command_with_secrets \
-    "curl -s -k -X POST \"${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token\" \
-    -H \"Content-Type: application/x-www-form-urlencoded\" \
-    -d \"grant_type=password&client_id=admin-cli&username=${ADMIN_USERNAME}&password=${ADMIN_PASSWORD}\""
   # Fetch client secret from Keycloak
   client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
 
@@ -1000,7 +996,7 @@ fetch_client_secret() {
     -d \"grant_type=password&client_id=admin-cli&username=${admin_username}&password=${admin_password}\""
 
   # Get admin token
-  local token_response=$(curl -s -k -X POST "${keycloak_url}/realms/master/protocol/openid-connect/token" \
+  local token_response=$(curl -s -k -X POST "https://${keycloak_url}/realms/master/protocol/openid-connect/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "grant_type=password&client_id=admin-cli&username=${admin_username}&password=${admin_password}")
 
