@@ -962,19 +962,27 @@ setup_ldap_federation() {
 
   # Create user federation
   log_substep "Setting up LDAP user federation..."
-  if execute_with_suppression chmod +x setup_user_federation.sh && execute_with_suppression ./setup_user_federation.sh "$admin_id" "$admin_pwd" "$LDAP_PASSWORD"; then
+  if execute_with_suppression pushd "$keycloak_dir" && \
+     execute_with_suppression chmod +x setup_user_federation.sh && \
+     execute_with_suppression ./setup_user_federation.sh "$admin_id" "$admin_pwd" "$LDAP_PASSWORD" && \
+     execute_with_suppression popd; then
     log_success "LDAP user federation created"
   else
     log_error "User federation creation failed"
+    popd || true
     return 1
   fi
 
   # Create group mappers
   log_substep "Setting up Keycloak group mappers..."
-  if execute_with_suppression chmod +x setup_group_mappers.sh && execute_with_suppression ./setup_group_mappers.sh "$admin_id" "$admin_pwd"; then
+  if execute_with_suppression pushd "$keycloak_dir" && \
+     execute_with_suppression chmod +x setup_group_mappers.sh && \
+     execute_with_suppression ./setup_group_mappers.sh "$admin_id" "$admin_pwd" && \
+     execute_with_suppression popd; then
     log_success "Keycloak group mappers created"
   else
     log_error "Group mapper creation failed"
+    popd || true
     return 1
   fi
 
