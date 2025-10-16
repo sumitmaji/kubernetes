@@ -664,7 +664,7 @@ installKeycloakWithCertMgr(){
   fi
 
   log_substep "Configuring ingress and SSL certificates..."
-  if execute_with_suppression gok-new patch ingress keycloak keycloak letsencrypt $(defaultSubdomain); then
+  if execute_with_suppression gok-new patch ingress keycloak keycloak letsencrypt $(keycloakSubdomain); then
     log_success "Keycloak ingress and certificates configured"
   else
     log_warning "Ingress configuration had issues but continuing"
@@ -786,7 +786,7 @@ wait_for_keycloak_services() {
   fi
 
   # Final verification
-  local keycloak_url="https://$(defaultSubdomain).$(rootDomain)/"
+  local keycloak_url="https://$(keycloakSubdomain).$(rootDomain)/"
   log_success "✅ Keycloak is ready and accessible at: ${COLOR_CYAN}${keycloak_url}${COLOR_RESET}"
 
   # Brief pause for services to fully initialize
@@ -825,7 +825,7 @@ setup_keycloak_clients() {
 
   # Wait for Keycloak admin API to be ready before configuration
   log_substep "⏳ Waiting for Keycloak admin API to be ready for client configuration..."
-  local keycloak_url="https://$(defaultSubdomain).$(rootDomain)"
+  local keycloak_url="https://$(keycloakSubdomain).$(rootDomain)"
   local max_attempts=30
   local attempt=1
 
@@ -906,7 +906,7 @@ oauth2Secret(){
   OIDC_USERNAME_CLAIM="${OIDC_USERNAME_CLAIM:-sub}"
   OIDC_GROUPS_CLAIM="${OIDC_GROUPS_CLAIM:-groups}"
   AUTH0_DOMAIN="${AUTH0_DOMAIN:-keycloak.$(rootDomain)}"
-  APP_HOST="${APP_HOST:-$(defaultSubdomain).$(rootDomain)}"
+  APP_HOST="${APP_HOST:-$(keycloakSubdomain).$(rootDomain)}"
   JWKS_URL="${JWKS_URL:-${OIDC_ISSUE_URL}/protocol/openid-connect/certs}"
   OAUTH_SERVER_URI="${OAUTH_SERVER_URI:-https://$(fullKeycloakUrl)}"
 
