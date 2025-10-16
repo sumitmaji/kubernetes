@@ -823,6 +823,28 @@ setup_keycloak_clients() {
   log_substep "  • Scopes: ${COLOR_CYAN}groups${COLOR_RESET} (OIDC group membership claims)"
   log_substep "  • Token Lifespan: ${COLOR_CYAN}24 hours${COLOR_RESET} (access token validity)"
 
+  # Wait for Keycloak admin API to be ready before configuration
+  log_substep "⏳ Waiting for Keycloak admin API to be ready for client configuration..."
+  local keycloak_url="https://$(defaultSubdomain).$(rootDomain)"
+  local max_attempts=30
+  local attempt=1
+
+  while [[ $attempt -le $max_attempts ]]; do
+    if curl -s -k "${keycloak_url}/realms/master/.well-known/openid-connect-configuration" >/dev/null 2>&1; then
+      log_substep "✅ Keycloak admin API is ready for configuration"
+      break
+    fi
+
+    if [[ $attempt -eq $max_attempts ]]; then
+      log_error "❌ Keycloak admin API not ready after ${max_attempts} attempts - cannot configure clients"
+      return 1
+    fi
+
+    log_substep "Waiting for admin API (attempt ${attempt}/${max_attempts})..."
+    sleep 10
+    attempt=$((attempt + 1))
+  done
+
   # Run Keycloak client configuration
   log_substep "🚀 Running Keycloak client configuration script..."
   local keycloak_dir="$GOK_ROOT/../../install_k8s/keycloak"
