@@ -989,6 +989,7 @@ fetch_client_secret() {
   local admin_password="$5"
 
   #show commands being run
+  echo "🔐 Fetching client secret for client '${client_id}' in realm '${realm}' from Keycloak at ${keycloak_url}"
   show_command_with_secrets \
     "curl -s -k -X POST \"${keycloak_url}/realms/master/protocol/openid-connect/token\" \
     -H \"Content-Type: application/x-www-form-urlencoded\" \
