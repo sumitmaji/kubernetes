@@ -36,6 +36,45 @@ gcurrent() {
     fi
 }
 
+# Extract data from Kubernetes secret
+# Usage: dataFromSecret <secret-name> <namespace> <key>
+dataFromSecret() {
+    local secret_name="$1"
+    local namespace="$2"
+    local key="$3"
+    
+    if [[ -z "$secret_name" || -z "$namespace" || -z "$key" ]]; then
+        log_error "Usage: dataFromSecret <secret-name> <namespace> <key>"
+        return 1
+    fi
+    
+    kubectl get secret "$secret_name" -n "$namespace" -o jsonpath="{['data']['$key']}" 2>/dev/null | base64 --decode 2>/dev/null
+}
+
+# Get full Keycloak URL
+# Usage: fullKeycloakUrl
+fullKeycloakUrl() {
+    echo "${KEYCLOAK}.${GOK_ROOT_DOMAIN}"
+}
+
+# Get full Registry URL
+# Usage: fullRegistryUrl
+fullRegistryUrl() {
+    echo "${REGISTRY}.${GOK_ROOT_DOMAIN}"
+}
+
+# Get full Vault URL
+# Usage: fullVaultUrl
+fullVaultUrl() {
+    echo "${VAULT}.${GOK_ROOT_DOMAIN}"
+}
+
+# Get full Default URL (subdomain)
+# Usage: fullDefaultUrl
+fullDefaultUrl() {
+    echo "${DEFAULT_SUBDOMAIN}.${GOK_ROOT_DOMAIN}"
+}
+
 # List all namespaces with details
 gns() {
     local format="${1:-table}"
@@ -581,7 +620,7 @@ waitForServiceAvailable() {
 }
 
 # Export utility functions
-export -f gkctl gcurrent gns gget gpods gcert gconfig
+export -f gkctl gcurrent dataFromSecret fullKeycloakUrl fullRegistryUrl fullVaultUrl fullDefaultUrl gns gget gpods gcert gconfig
 export -f gservice gingress gperf gstatus createLocalStorageClassAndPV
 export -f waitForServiceAvailable
 
