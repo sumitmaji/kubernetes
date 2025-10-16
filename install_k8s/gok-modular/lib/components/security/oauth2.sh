@@ -352,3 +352,5 @@ build_oauth2_with_progress() {
 
   rm -f "$temp_config_log" "$temp_config_error" "$temp_helm_log" "$temp_helm_error"
 }
+
+export -f oauth2Inst
