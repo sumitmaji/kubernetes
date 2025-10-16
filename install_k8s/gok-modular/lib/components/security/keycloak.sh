@@ -988,12 +988,6 @@ fetch_client_secret() {
   local admin_username="$4"
   local admin_password="$5"
 
-  #show commands being run
-  show_command_with_secrets \
-    "curl -s -k -X POST \"${keycloak_url}/realms/master/protocol/openid-connect/token\" \
-    -H \"Content-Type: application/x-www-form-urlencoded\" \
-    -d \"grant_type=password&client_id=admin-cli&username=${admin_username}&password=${admin_password}""
-
   # Get admin token
   local token_response=$(curl -s -k -X POST "${keycloak_url}/realms/master/protocol/openid-connect/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
