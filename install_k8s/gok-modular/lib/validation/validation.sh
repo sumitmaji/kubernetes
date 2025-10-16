@@ -263,3 +263,99 @@ check_component_dependencies() {
     
     return 0
 }
+
+# Validate OAuth2 Proxy installation
+validate_oauth2_installation() {
+  log_info "Validating OAuth2 Proxy installation with enhanced diagnostics..."
+  local validation_passed=true
+
+  log_step "1" "Checking OAuth2 Proxy namespace"
+  if kubectl get namespace oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy namespace found"
+  else
+    log_error "OAuth2 Proxy namespace not found"
+    return 1
+  fi
+
+  log_step "2" "Checking OAuth2 Proxy deployment status"
+  # Try different possible deployment names
+  local deployment_name=""
+  if kubectl get deployment oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get deployment oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2proxy"
+  elif kubectl get deployment oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    deployment_name="oauth2-proxy"
+  fi
+
+  if [[ -n "$deployment_name" ]]; then
+    if check_deployment_readiness "$deployment_name" "oauth2"; then
+      log_success "OAuth2 Proxy deployment ($deployment_name) is ready"
+    else
+      log_error "OAuth2 Proxy deployment ($deployment_name) has issues"
+      validation_passed=false
+    fi
+  else
+    log_error "OAuth2 Proxy deployment not found (checked multiple naming patterns)"
+    validation_passed=false
+  fi
+
+  log_step "3" "Checking OAuth2 Proxy pods with detailed diagnostics"
+  if ! wait_for_pods_ready "oauth2" "300" "oauth2-proxy"; then
+    log_error "OAuth2 Proxy pods not ready"
+    validation_passed=false
+  else
+    log_success "OAuth2 Proxy pods are ready"
+  fi
+
+  log_step "4" "Checking OAuth2 Proxy service connectivity"
+  local service_name=""
+  if kubectl get service oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    service_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get service oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    service_name="oauth2proxy"
+  elif kubectl get service oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    service_name="oauth2-proxy"
+  fi
+
+  if [[ -n "$service_name" ]]; then
+    if check_service_connectivity "$service_name" "oauth2"; then
+      log_success "OAuth2 Proxy service ($service_name) is accessible"
+    else
+      log_warning "OAuth2 Proxy service ($service_name) connectivity issues detected"
+    fi
+  else
+    log_warning "OAuth2 Proxy service not found (checked multiple naming patterns)"
+  fi
+
+  log_step "5" "Checking OAuth2 Proxy ingress configuration"
+  local ingress_name=""
+  if kubectl get ingress oauth2proxy-oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    ingress_name="oauth2proxy-oauth2-proxy"
+  elif kubectl get ingress oauth2proxy -n oauth2 >/dev/null 2>&1; then
+    ingress_name="oauth2proxy"
+  elif kubectl get ingress oauth2-proxy -n oauth2 >/dev/null 2>&1; then
+    ingress_name="oauth2-proxy"
+  fi
+
+  if [[ -n "$ingress_name" ]]; then
+    if check_ingress_status "$ingress_name" "oauth2"; then
+      log_success "OAuth2 Proxy ingress ($ingress_name) is configured and ready"
+    else
+      log_warning "OAuth2 Proxy ingress ($ingress_name) has configuration issues"
+    fi
+  else
+    log_info "OAuth2 Proxy ingress not found (may be using NodePort/LoadBalancer or configured separately)"
+  fi
+
+  log_step "6" "Checking OAuth2 Proxy configuration"
+  if kubectl get secret oauth2-proxy-config -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy configuration secret found"
+  elif kubectl get configmap oauth2-proxy-config -n oauth2 >/dev/null 2>&1; then
+    log_success "OAuth2 Proxy configuration configmap found"
+  else
+    log_warning "OAuth2 Proxy configuration not found (may use different naming)"
+  fi
+
+  return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}

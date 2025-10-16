@@ -412,7 +412,16 @@ installCmd() {
             fi
             ;;
         "oauth2")
-            oauth2Inst
+            if oauth2Inst; then
+                if validate_component_installation "oauth2" 60; then
+                    complete_component "oauth2" "OAuth2 installation completed with certificate management and integration"
+                else
+                    complete_component "oauth2" "OAuth2 installed but validation had warnings"
+                fi
+            else
+                fail_component "oauth2" "OAuth2 installation failed"
+                return 1
+            fi
             ;;
         "vault")
             vaultInstall
