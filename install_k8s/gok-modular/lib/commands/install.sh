@@ -411,7 +411,7 @@ installCmd() {
                 return 1
             fi
             ;;
-        "oauth2")
+        "oauth2-proxy"|"oauth2")
             if oauth2Inst; then
                 if validate_component_installation "oauth2" 60; then
                     complete_component "oauth2" "OAuth2 installation completed with certificate management and integration"
