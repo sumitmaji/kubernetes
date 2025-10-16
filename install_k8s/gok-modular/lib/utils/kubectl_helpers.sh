@@ -417,7 +417,8 @@ createLocalStorageClassAndPV() {
   local pvName=$2
   local volumePath=$3
 
-  if execute_with_suppression kubectl apply -f - << EOF
+  # Create storage class
+  cat << EOF | execute_with_suppression kubectl apply -f -
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
@@ -425,7 +426,8 @@ metadata:
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 EOF
-  then
+
+  if [[ $? -eq 0 ]]; then
     log_success "Storage class created (${storageClassName})"
   else
     log_error "Failed to create storage class"
@@ -439,7 +441,8 @@ EOF
     return 1
   fi
 
-  if execute_with_suppression kubectl apply -f - << EOF
+  # Create persistent volume
+  cat << EOF | execute_with_suppression kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolume
 metadata:
@@ -462,7 +465,8 @@ spec:
           values:
           - master.cloud.com
 EOF
-  then
+
+  if [[ $? -eq 0 ]]; then
     log_success "Persistent volume created (${pvName}, 10Gi)"
   else
     log_error "Failed to create persistent volume"

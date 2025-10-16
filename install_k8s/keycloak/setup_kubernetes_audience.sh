@@ -80,7 +80,9 @@ SCOPE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${KEYCLOAK_URL}
   -H "Content-Type: application/json" \
   -d "${SCOPE_CONFIG}")
 
-if [ "$SCOPE_RESPONSE" -ne 201 ]; then
+if [ "$SCOPE_RESPONSE" -eq 409 ]; then
+  echo "Client scope '${SCOPE_NAME}' already exists. Continuing..."
+elif [ "$SCOPE_RESPONSE" -ne 201 ]; then
   echo "Failed to create client scope. HTTP Response Code: $SCOPE_RESPONSE"
   exit 1
 fi
