@@ -898,6 +898,15 @@ oauth2Secret(){
   ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
   ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
 
+  #echo all
+  log_info "🔐 Setting up OAuth2 secrets for integration"
+  log_substep "Keycloak URL: ${COLOR_CYAN}${KEYCLOAK_URL}${COLOR_RESET}"
+  log_substep "Realm: ${COLOR_CYAN}${REALM}${COLOR_RESET}"
+  log_substep "Client ID: ${COLOR_CYAN}${CLIENT_ID}${COLOR_RESET}"
+  log_substep "Admin User: ${COLOR_CYAN}${ADMIN_USERNAME}${COLOR_RESET}"
+  log_substep "Admin Password: ${COLOR_CYAN}${ADMIN_PASSWORD}${COLOR_RESET}"
+
+  # Fetch client secret from Keycloak
   client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
 
   # Use environment variables with fallbacks to predefined Keycloak configuration
