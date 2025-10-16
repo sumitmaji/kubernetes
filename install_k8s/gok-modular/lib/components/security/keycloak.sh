@@ -898,14 +898,10 @@ oauth2Secret(){
   ADMIN_USERNAME=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{['data']['KEYCLOAK_ADMIN']}" | base64 --decode)
   ADMIN_PASSWORD=$(kubectl get secret keycloak-secrets -n keycloak -o jsonpath="{.data.KEYCLOAK_ADMIN_PASSWORD}" | base64 --decode)
 
-  #echo all
-  log_info "🔐 Setting up OAuth2 secrets for integration"
-  log_substep "Keycloak URL: ${COLOR_CYAN}${KEYCLOAK_URL}${COLOR_RESET}"
-  log_substep "Realm: ${COLOR_CYAN}${REALM}${COLOR_RESET}"
-  log_substep "Client ID: ${COLOR_CYAN}${CLIENT_ID}${COLOR_RESET}"
-  log_substep "Admin User: ${COLOR_CYAN}${ADMIN_USERNAME}${COLOR_RESET}"
-  log_substep "Admin Password: ${COLOR_CYAN}${ADMIN_PASSWORD}${COLOR_RESET}"
-
+  show_command_with_secrets \
+    "curl -s -k -X POST \"${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token\" \
+    -H \"Content-Type: application/x-www-form-urlencoded\" \
+    -d \"grant_type=password&client_id=admin-cli&username=${ADMIN_USERNAME}&password=${ADMIN_PASSWORD}\""
   # Fetch client secret from Keycloak
   client_secret=$(fetch_client_secret "$KEYCLOAK_URL" "$REALM" "$CLIENT_ID" "$ADMIN_USERNAME" "$ADMIN_PASSWORD")
 
@@ -998,7 +994,6 @@ fetch_client_secret() {
   local admin_password="$5"
 
   #show commands being run
-  echo "🔐 Fetching client secret for client '${client_id}' in realm '${realm}' from Keycloak at ${keycloak_url}"
   show_command_with_secrets \
     "curl -s -k -X POST \"${keycloak_url}/realms/master/protocol/openid-connect/token\" \
     -H \"Content-Type: application/x-www-form-urlencoded\" \
