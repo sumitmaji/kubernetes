@@ -1008,7 +1008,7 @@ fetch_client_secret() {
   fi
 
   # Get client secret
-  local client_response=$(curl -s -k -X GET "${keycloak_url}/admin/realms/${realm}/clients" \
+  local client_response=$(curl -s -k -X GET "https://${keycloak_url}/admin/realms/${realm}/clients" \
     -H "Authorization: Bearer ${access_token}" \
     -H "Content-Type: application/json")
 
@@ -1019,7 +1019,7 @@ fetch_client_secret() {
     return 1
   fi
 
-  local secret_response=$(curl -s -k -X GET "${keycloak_url}/admin/realms/${realm}/clients/${client_uuid}/client-secret" \
+  local secret_response=$(curl -s -k -X GET "https://${keycloak_url}/admin/realms/${realm}/clients/${client_uuid}/client-secret" \
     -H "Authorization: Bearer ${access_token}" \
     -H "Content-Type: application/json")
 
