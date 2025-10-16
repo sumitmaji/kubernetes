@@ -275,7 +275,7 @@ build_keycloak_with_progress() {
   local wait_count=0
 
   while [[ $wait_count -lt $max_wait ]]; do
-    if kubectl wait --for=condition=available --timeout=10s deployment/keycloak -n keycloak >/dev/null 2>&1; then
+    if kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=keycloak -n keycloak --timeout=10s >/dev/null 2>&1; then
       ready=true
       break
     fi
