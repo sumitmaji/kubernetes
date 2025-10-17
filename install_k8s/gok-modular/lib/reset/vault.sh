@@ -31,7 +31,7 @@ vault_reset() {
   # If nothing exists, inform user and exit
   if [[ "$vault_exists" == false && "$namespace_exists" == false ]]; then
     log_info "Vault appears to already be reset or was never installed"
-    return 0
+    # return 0
   fi
 
   log_step "2" "Uninstalling Vault helm release"
