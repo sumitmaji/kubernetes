@@ -359,3 +359,113 @@ validate_oauth2_installation() {
 
   return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
 }
+
+# Validate RabbitMQ installation
+validate_rabbitmq_installation() {
+  log_info "Validating RabbitMQ installation with enhanced diagnostics..."
+  local validation_passed=true
+
+  log_step "1" "Checking RabbitMQ namespace"
+  if kubectl get namespace rabbitmq >/dev/null 2>&1; then
+    log_success "RabbitMQ namespace found"
+  else
+    log_error "RabbitMQ namespace not found"
+    return 1
+  fi
+
+  log_step "2" "Checking RabbitMQ cluster status"
+  if kubectl get rabbitmqcluster rabbitmq -n rabbitmq >/dev/null 2>&1; then
+    log_success "RabbitMQ cluster resource found"
+
+    # Check if cluster is ready
+    local cluster_status=$(kubectl get rabbitmqcluster rabbitmq -n rabbitmq -o jsonpath='{.status.conditions[?(@.type=="AllReplicasReady")].status}' 2>/dev/null)
+    if [[ "$cluster_status" == "True" ]]; then
+      log_success "RabbitMQ cluster is ready (AllReplicasReady)"
+    else
+      log_error "RabbitMQ cluster is not ready (status: $cluster_status)"
+      validation_passed=false
+    fi
+  else
+    log_error "RabbitMQ cluster resource not found"
+    validation_passed=false
+  fi
+
+  log_step "3" "Checking RabbitMQ pods"
+  if kubectl get pods -l app.kubernetes.io/name=rabbitmq -n rabbitmq >/dev/null 2>&1; then
+    local pod_count=$(kubectl get pods -l app.kubernetes.io/name=rabbitmq -n rabbitmq --no-headers 2>/dev/null | wc -l)
+    local ready_count=$(kubectl get pods -l app.kubernetes.io/name=rabbitmq -n rabbitmq -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -c "True")
+
+    log_info "Found $pod_count RabbitMQ pod(s), $ready_count ready"
+
+    if [[ $ready_count -eq $pod_count && $pod_count -gt 0 ]]; then
+      log_success "All RabbitMQ pods are ready"
+    else
+      log_error "Not all RabbitMQ pods are ready ($ready_count/$pod_count)"
+      validation_passed=false
+    fi
+  else
+    log_error "No RabbitMQ pods found"
+    validation_passed=false
+  fi
+
+  log_step "4" "Checking RabbitMQ service"
+  if kubectl get service rabbitmq -n rabbitmq >/dev/null 2>&1; then
+    log_success "RabbitMQ service found"
+
+    # Check service endpoints
+    local endpoints=$(kubectl get endpoints rabbitmq -n rabbitmq -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null)
+    if [[ -n "$endpoints" ]]; then
+      log_success "RabbitMQ service has endpoints"
+    else
+      log_warning "RabbitMQ service has no endpoints"
+    fi
+  else
+    log_error "RabbitMQ service not found"
+    validation_passed=false
+  fi
+
+  log_step "5" "Checking RabbitMQ ingress"
+  if kubectl get ingress rabbitmq-management -n rabbitmq >/dev/null 2>&1; then
+    log_success "RabbitMQ management ingress found"
+
+    # Check ingress status
+    local ingress_hosts=$(kubectl get ingress rabbitmq-management -n rabbitmq -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)
+    if [[ -n "$ingress_hosts" ]]; then
+      log_success "RabbitMQ ingress configured for: $ingress_hosts"
+    fi
+  else
+    log_warning "RabbitMQ management ingress not found"
+  fi
+
+  log_step "6" "Checking RabbitMQ credentials"
+  if kubectl get secret rabbitmq-default-user -n rabbitmq >/dev/null 2>&1; then
+    log_success "RabbitMQ default user secret found"
+
+    # Try to decode credentials
+    local username=$(kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.username}' 2>/dev/null | base64 --decode 2>/dev/null)
+    local password=$(kubectl get secret rabbitmq-default-user -n rabbitmq -o jsonpath='{.data.password}' 2>/dev/null | base64 --decode 2>/dev/null)
+
+    if [[ -n "$username" && -n "$password" ]]; then
+      log_success "RabbitMQ credentials successfully retrieved"
+    else
+      log_warning "Could not decode RabbitMQ credentials"
+    fi
+  else
+    log_warning "RabbitMQ default user secret not found"
+  fi
+
+  log_step "7" "Checking RabbitMQ cluster operator"
+  if kubectl get deployment rabbitmq-cluster-operator -n rabbitmq-system >/dev/null 2>&1; then
+    local operator_status=$(kubectl get deployment rabbitmq-cluster-operator -n rabbitmq-system -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null)
+    if [[ "$operator_status" == "True" ]]; then
+      log_success "RabbitMQ cluster operator is available"
+    else
+      log_warning "RabbitMQ cluster operator status: $operator_status"
+    fi
+  else
+    log_error "RabbitMQ cluster operator not found"
+    validation_passed=false
+  fi
+
+  return $([[ "$validation_passed" == "true" ]] && echo 0 || echo 1)
+}

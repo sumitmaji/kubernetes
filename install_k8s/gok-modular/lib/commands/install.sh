@@ -506,7 +506,16 @@ installCmd() {
         
         # Messaging and Policy
         "rabbitmq")
-            rabbitmqInst
+            if rabbitmqInst; then
+                if validate_component_installation "rabbitmq" 120; then
+                    complete_component "rabbitmq" "RabbitMQ installation completed and validated"
+                else
+                    complete_component "rabbitmq" "RabbitMQ installed but validation had warnings"
+                fi
+            else
+                fail_component "rabbitmq" "RabbitMQ installation failed"
+                return 1
+            fi
             ;;
         "kyverno")
             kyvernoInst
