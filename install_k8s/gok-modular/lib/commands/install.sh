@@ -506,7 +506,7 @@ installCmd() {
         
         # Messaging and Policy
         "rabbitmq")
-            if rabbitmqInst; then
+            if rabbitmq_install; then
                 if validate_component_installation "rabbitmq" 120; then
                     complete_component "rabbitmq" "RabbitMQ installation completed and validated"
                 else

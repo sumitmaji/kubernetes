@@ -3,7 +3,7 @@
 # RabbitMQ Installation Module
 # Provides RabbitMQ message broker with cluster operator
 
-rabbitmqInst() {
+rabbitmq_install() {
   local start_time=$(date +%s)
 
   log_component_start "rabbitmq-install" "Installing RabbitMQ message broker with cluster operator"
@@ -244,4 +244,4 @@ EOF
   # show_rabbitmq_next_steps
 }
 
-export -f rabbitmqInst
+export -f rabbitmq_install
