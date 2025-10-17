@@ -183,12 +183,20 @@ build_vault_with_progress() {
     log_error "Vault configuration file not found"
     return 1
   fi
+    
+  # Store GOK modular registry URL before sourcing old config  
+  local gok_registry_url
+  if [[ -n "$REGISTRY" && -n "$GOK_ROOT_DOMAIN" ]]; then
+    gok_registry_url="${REGISTRY}.${GOK_ROOT_DOMAIN}"
+  else
+    gok_registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
+  fi
 
   source "$MOUNT_PATH/kubernetes/install_k8s/vault/configuration"
   source "$MOUNT_PATH/kubernetes/install_k8s/util" 2>/dev/null || true
 
   # Get registry and image information
-  local registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
+  local registry_url="${gok_registry_url}"
   local image_name="${IMAGE_NAME:-sumit/vault-with-tools}"
   local repo_name="${REPO_NAME:-vault-with-tools}"
   local full_image_url="${registry_url}/${repo_name}"
