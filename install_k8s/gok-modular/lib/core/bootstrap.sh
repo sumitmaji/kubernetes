@@ -99,12 +99,21 @@ load_utility_modules() {
     done
 }
 
-# Load validation modules (legacy - now integrated into utils)
+# Load validation modules
 load_validation_modules() {
-    # Validation modules are now loaded as part of utility modules
-    # This function is kept for backward compatibility
+    local validation_dir="${GOK_LIB_DIR}/validation"
+    if [[ -d "$validation_dir" ]]; then
+        for validation_file in "$validation_dir"/*.sh; do
+            if [[ -f "$validation_file" ]]; then
+                if ! source "$validation_file"; then
+                    echo "Warning: Failed to source $validation_file" >&2
+                fi
+            fi
+        done
+    fi
+
     if [[ "${GOK_DEBUG:-}" == "true" ]]; then
-        echo "[DEBUG] Validation modules loaded via utility modules system" >&2
+        echo "[DEBUG] Validation modules loaded from $validation_dir" >&2
     fi
 }
 

@@ -424,7 +424,16 @@ installCmd() {
             fi
             ;;
         "vault")
-            vaultInstall
+            if vaultInst; then
+                if validate_component_installation "vault" 120; then
+                    complete_component "vault" "Vault installation completed with certificate management and secret backend configuration"
+                else
+                    complete_component "vault" "Vault installed but validation had warnings"
+                fi
+            else
+                fail_component "vault" "Vault installation failed"
+                return 1
+            fi
             ;;
         "ldap")
             # LDAP installation with validation
