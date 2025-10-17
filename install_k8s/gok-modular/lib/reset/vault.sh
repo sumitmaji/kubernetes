@@ -7,11 +7,6 @@
 vault_reset() {
   log_info "Resetting HashiCorp Vault installation..."
 
-  # Confirm before proceeding
-  if ! confirm_action "This will remove Vault and all its secrets. Continue?"; then
-    log_info "Vault reset cancelled"
-    return 0
-  fi
 
   log_step "1" "Checking Vault installation status"
   local vault_exists=false
