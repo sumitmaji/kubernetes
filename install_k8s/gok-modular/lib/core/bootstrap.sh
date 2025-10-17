@@ -147,6 +147,8 @@ load_component_modules() {
         "storage"
         "ci-cd"
         "policy"
+        "messaging"
+        "registry"
     )
     
     for dir in "${component_dirs[@]}"; do
@@ -163,6 +165,28 @@ load_component_modules() {
     done
 }
 
+# Load modular support modules (reset, guidance, summaries)
+load_support_modules() {
+    local support_dirs=(
+        "reset"
+        "guidance"
+        "summaries"
+    )
+    
+    for dir in "${support_dirs[@]}"; do
+        local dir_path="${GOK_LIB_DIR}/${dir}"
+        if [[ -d "$dir_path" ]]; then
+            for support_file in "$dir_path"/*.sh; do
+                if [[ -f "$support_file" ]]; then
+                    if ! source "$support_file"; then
+                        echo "Warning: Failed to source $support_file" >&2
+                    fi
+                fi
+            done
+        fi
+    done
+}
+
 # Load dispatcher module
 load_dispatcher_module() {
     # Load modules first, then dispatcher
@@ -170,6 +194,7 @@ load_dispatcher_module() {
     load_validation_modules
     load_command_modules
     load_component_modules
+    load_support_modules
     
     local dispatcher_path="${GOK_LIB_DIR}/core/dispatcher.sh"
     
