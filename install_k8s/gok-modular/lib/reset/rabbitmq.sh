@@ -7,12 +7,6 @@
 rabbitmq_reset() {
   log_info "Resetting RabbitMQ installation..."
 
-  # Confirm before proceeding
-  if ! confirm_action "This will remove RabbitMQ cluster and all its data. Continue?"; then
-    log_info "RabbitMQ reset cancelled"
-    return 0
-  fi
-
   log_step "1" "Removing RabbitMQ namespace and all resources"
   kubectl delete namespace rabbitmq --ignore-not-found=true --timeout=300s
 
