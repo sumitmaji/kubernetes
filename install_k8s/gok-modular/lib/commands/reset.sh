@@ -80,7 +80,7 @@ resetCmd() {
             oauth2Reset
             ;;
         "vault")
-            vaultReset
+            vault_reset
             ;;
         "ldap")
             ldapReset
