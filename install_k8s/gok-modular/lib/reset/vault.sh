@@ -3,6 +3,11 @@
 # Vault Reset Module
 # This file contains reset/cleanup functions specific to Vault installation
 
+# Uninstall CSI Secrets Store driver
+csiDriverUnInstall(){
+  helm uninstall csi-secrets-store --namespace kube-system
+}
+
 # Reset Vault installation
 vault_reset() {
   log_info "Resetting HashiCorp Vault installation..."
@@ -110,3 +115,4 @@ vault_reset() {
 }
 
 export -f vault_reset
+export -f csiDriverUnInstall
