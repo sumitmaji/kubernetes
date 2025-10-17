@@ -150,7 +150,7 @@ EOF
   local end_time=$(date +%s)
   local duration=$((end_time - start_time))
 
-  show_installation_summary "oauth2-proxy" "oauth2" "Authentication proxy with Keycloak integration"
+  # show_installation_summary "oauth2-proxy" "oauth2" "Authentication proxy with Keycloak integration"
   log_component_success "oauth2-proxy-install" "OAuth2 Proxy authentication system installed successfully"
   log_success "OAuth2 Proxy installation completed in ${duration}s"
 

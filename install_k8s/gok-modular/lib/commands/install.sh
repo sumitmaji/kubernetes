@@ -537,7 +537,8 @@ installCmd() {
     esac
     
     local install_result=$?
-    
+
+    echo "Is component complete $(is_component_completed "$component")"
     # Post-installation handling for all components
     if [[ $install_result -eq 0 ]]; then
         if is_component_completed "$component"; then
