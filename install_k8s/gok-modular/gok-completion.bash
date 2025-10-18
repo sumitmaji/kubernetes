@@ -35,7 +35,7 @@ _gok_new_completion() {
     local security_components="cert-manager keycloak oauth2 oauth2-proxy vault ldap ldapclient kerberos kerberizedservices kyverno"
     
     # Development components
-    local development_components="jupyter jupyterhub dashboard ttyd eclipseche cloud-shell console devworkspace workspace che"
+    local development_components="jupyter jupyterhub dashboard ttyd eclipseche cloud-shell console controller gok-agent gok-controller devworkspace workspace che"
     
     # CI/CD components
     local cicd_components="argocd jenkins spinnaker gitlab cicd"

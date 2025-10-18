@@ -20,12 +20,12 @@ build_gok_controller_with_progress() {
         return 1
     fi
 
-    # Store GOK modular registry URL before sourcing old config
+        # Store GOK modular registry URL before sourcing old config  
     local gok_registry_url
     if [[ -n "$REGISTRY" && -n "$GOK_ROOT_DOMAIN" ]]; then
         gok_registry_url="${REGISTRY}.${GOK_ROOT_DOMAIN}"
     else
-        gok_registry_url="localhost:5000"
+        gok_registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
     fi
 
     # Source configuration files
