@@ -23,7 +23,7 @@ build_gok_controller_with_progress() {
     # Store GOK modular registry URL before sourcing old config  
     local gok_registry_url
     if [[ -n "$REGISTRY" && -n "$GOK_ROOT_DOMAIN" ]]; then
-        gok_registry_url="${REGISTRY}.${GOK_ROOT_DOMAIN}"
+        gok_registry_url="registry.${GOK_ROOT_DOMAIN}"
     else
         gok_registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
     fi
@@ -42,9 +42,9 @@ build_gok_controller_with_progress() {
     if [[ -f "config/config" ]]; then
         source config/config
     fi
-    # if [[ -f "configuration" ]]; then
-    #     source configuration
-    # fi
+    if [[ -f "configuration" ]]; then
+        source configuration
+    fi
     source "$MOUNT_PATH/kubernetes/install_k8s/util"
 
 
