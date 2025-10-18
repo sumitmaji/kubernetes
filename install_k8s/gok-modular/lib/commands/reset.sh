@@ -152,6 +152,12 @@ resetCmd() {
         "gok-controller")
             reset_gok_controller
             ;;
+        "che")
+            reset_che
+            ;;
+        "workspace")
+            reset_workspace
+            ;;
         "gok-login")
             gokLoginReset
             ;;

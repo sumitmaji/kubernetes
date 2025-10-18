@@ -340,6 +340,12 @@ validate_component_installation() {
         "gok-controller")
             validate_gok_controller_installation "$timeout"
             ;;
+        "che")
+            validate_che
+            ;;
+        "workspace")
+            validate_workspace
+            ;;
         "keycloak")
             validate_keycloak_installation "$timeout"
             ;;

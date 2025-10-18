@@ -39,6 +39,8 @@ suggest_and_install_next_module() {
     NEXT_MODULE_MAP["monitoring"]="argocd"
     NEXT_MODULE_MAP["argocd"]="gok-agent"
     NEXT_MODULE_MAP["gok-agent"]="gok-controller"
+    NEXT_MODULE_MAP["gok-controller"]="che"
+    NEXT_MODULE_MAP["che"]="workspace"
     
     # Define component descriptions
     declare -A MODULE_DESCRIPTIONS
@@ -60,6 +62,8 @@ suggest_and_install_next_module() {
     MODULE_DESCRIPTIONS["argocd"]="GitOps continuous delivery"
     MODULE_DESCRIPTIONS["gok-agent"]="GOK distributed system agent"
     MODULE_DESCRIPTIONS["gok-controller"]="GOK distributed system controller"
+    MODULE_DESCRIPTIONS["che"]="Eclipse Che cloud-based IDE"
+    MODULE_DESCRIPTIONS["workspace"]="DevWorkspace for cloud development"
     MODULE_DESCRIPTIONS["jenkins"]="CI/CD automation and pipeline management"
     MODULE_DESCRIPTIONS["jupyter"]="Interactive data science and development"
     MODULE_DESCRIPTIONS["dashboard"]="Kubernetes web-based management interface"
@@ -186,6 +190,13 @@ check_component_installed() {
             ;;
         "gok-controller"|"controller")
             kubectl get deployment -n gok-controller gok-controller >/dev/null 2>&1 && is_installed="true"
+            ;;
+        "che")
+            kubectl get checluster -n eclipse-che >/dev/null 2>&1 && is_installed="true"
+            ;;
+        "workspace")
+            kubectl get devworkspaces --all-namespaces >/dev/null 2>&1 && \
+            [[ $(kubectl get devworkspaces --all-namespaces --no-headers 2>/dev/null | wc -l) -gt 0 ]] && is_installed="true"
             ;;
         "docker")
             command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 && is_installed="true"
@@ -337,6 +348,22 @@ show_recommendation_rationale() {
             echo -e "  • Provides centralized platform management"
             echo -e "  • Enables workflow orchestration"
             echo -e "  • Complete the GOK platform installation"
+            ;;
+        "gok-controller -> che")
+            echo -e "${COLOR_YELLOW}📋 Why install che next?${COLOR_RESET}"
+            echo -e "  • Eclipse Che cloud-based IDE"
+            echo -e "  • Provides browser-based development environment"
+            echo -e "  • Integrates with OAuth/Keycloak for authentication"
+            echo -e "  • Enables collaborative development workflows"
+            echo -e "  • Foundation for creating DevWorkspaces"
+            ;;
+        "che -> workspace")
+            echo -e "${COLOR_YELLOW}📋 Why create workspace next?${COLOR_RESET}"
+            echo -e "  • DevWorkspace for actual development work"
+            echo -e "  • Isolated development environment per project/user"
+            echo -e "  • Pre-configured containers with development tools"
+            echo -e "  • Persistent storage for project files"
+            echo -e "  • Complete the development environment setup"
             ;;
         *)
             echo -e "${COLOR_YELLOW}📋 Why install $next_module?${COLOR_RESET}"

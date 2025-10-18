@@ -92,6 +92,12 @@ dispatch_command() {
         "next")
             nextCmd "$@"
             ;;
+        "create-workspace")
+            create_devworkspace "$@"
+            ;;
+        "delete-workspace")
+            delete_devworkspace "$@"
+            ;;
         "taint-node")
             taintNodeCmd "$@"
             ;;

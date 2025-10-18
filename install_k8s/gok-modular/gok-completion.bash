@@ -23,6 +23,7 @@ _gok_new_completion() {
         install reset start deploy patch create generate status
         desc describe logs bash shell exec remote completion
         cache show summary next taint-node checkDns checkCurl debug troubleshoot help
+        create-workspace delete-workspace
     "
 
     # Infrastructure components

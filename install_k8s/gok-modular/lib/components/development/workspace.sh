@@ -1,548 +1,139 @@
 #!/bin/bash
 
-# GOK Development Components Module - Jupyter, Console, TTYd, Eclipse Che, Cloud Shell
+# GOK DevWorkspace Management Module
+# Provides DevWorkspace creation and deletion for Eclipse Che
 
-# Install JupyterHub development environment
-jupyterInst() {
-    log_component_start "JupyterHub" "Installing multi-user Jupyter development environment"
-    start_component "jupyter"
+# Create DevWorkspace
+create_devworkspace() {
+    log_component_start "devworkspace" "Creating Che DevWorkspace"
     
-    local namespace="jupyter"
-    ensure_namespace "$namespace"
+    # Prompt for workspace details
+    local NAMESPACE=$(promptUserInput "Enter namespace (che-user): " "che-user")
+    local USERNAME=$(promptUserInput "Enter username (user1): " "user1")
+    local WORKSPACE=$(promptUserInput "Enter workspace name (devworkspace1): " "devworkspace1")
+    local MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path (devworkspace.yaml): " "devworkspace.yaml")
     
-    # Add JupyterHub Helm repository
-    log_info "Adding JupyterHub Helm repository"
-    execute_with_suppression helm repo add jupyterhub https://jupyterhub.github.io/helm-chart/
-    execute_with_suppression helm repo update
+    export CHE_USER_NAMESPACE="$NAMESPACE"
+    export CHE_USER_NAME="$USERNAME"
+    export CHE_WORKSPACE_NAME="$WORKSPACE"
+    export DW_FILE="$MANIFEST_FILE"
+    export DW_DELETE="false"
     
-    local values_file="${GOK_CONFIG_DIR}/jupyter-values.yaml"
-    if [[ ! -f "$values_file" ]]; then
-        cat > "$values_file" << 'EOF'
-hub:
-  config:
-    JupyterHub:
-      authenticator_class: dummy
-    DummyAuthenticator:
-      password: jupyter123
-  
-  service:
-    type: NodePort
-    nodePort: 30084
-
-proxy:
-  secretToken: "a-very-secret-token-goes-here"
-  
-singleuser:
-  image:
-    name: jupyter/datascience-notebook
-    tag: latest
-  
-  defaultUrl: "/lab"
-  
-  cpu:
-    limit: 2
-    guarantee: 0.5
-  memory:
-    limit: 2G
-    guarantee: 512M
-  
-  storage:
-    capacity: 10Gi
-    homeMountPath: /home/jovyan
-    dynamic:
-      storageClass: local-path
-
-ingress:
-  enabled: false
-  hosts:
-    - jupyter.local
-
-cull:
-  enabled: true
-  timeout: 3600
-  every: 600
-EOF
-    fi
+    log_substep "Workspace details:"
+    log_substep "  Namespace: ${COLOR_CYAN}${NAMESPACE}${COLOR_RESET}"
+    log_substep "  Username: ${COLOR_CYAN}${USERNAME}${COLOR_RESET}"
+    log_substep "  Workspace: ${COLOR_CYAN}${WORKSPACE}${COLOR_RESET}"
+    log_substep "  Manifest: ${COLOR_CYAN}${MANIFEST_FILE}${COLOR_RESET}"
     
-    helm_install_with_summary "jupyterhub" "jupyterhub/jupyterhub" \
-        "--namespace $namespace" \
-        "--values $values_file" \
-        "--wait --timeout=10m"
-    
-    if [[ $? -eq 0 ]]; then
-        log_success "JupyterHub installed successfully"
-        complete_component "jupyter"
-        
-        # Show comprehensive installation summary
-        show_component_summary "jupyter" "$namespace"
-    else
-        log_error "JupyterHub installation failed"
-        fail_component "jupyter" "Helm installation failed"
-        return 1
-    fi
-}
-
-# Install JupyterHub (alias for jupyterInst)
-jupyterhubInst() {
-    jupyterInst
-}
-
-# Install Kubernetes Dashboard
-dashboardInst() {
-    log_component_start "Dashboard" "Installing Kubernetes Dashboard"
-    start_component "dashboard"
-    
-    local namespace="kubernetes-dashboard"
-    ensure_namespace "$namespace"
-    
-    # Add Kubernetes Dashboard Helm repository
-    log_info "Adding Kubernetes Dashboard Helm repository"
-    execute_with_suppression helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-    execute_with_suppression helm repo update
-    
-    local values_file="${GOK_CONFIG_DIR}/dashboard-values.yaml"
-    if [[ ! -f "$values_file" ]]; then
-        cat > "$values_file" << 'EOF'
-service:
-  type: NodePort
-  nodePort: 30085
-
-protocolHttp: true
-
-extraArgs:
-  - --enable-skip-login
-  - --disable-settings-authorizer
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 200Mi
-  limits:
-    cpu: 500m
-    memory: 500Mi
-
-rbac:
-  create: true
-  clusterReadOnlyRole: true
-EOF
-    fi
-    
-    helm_install_with_summary "kubernetes-dashboard" "kubernetes-dashboard/kubernetes-dashboard" \
-        "--namespace $namespace" \
-        "--values $values_file" \
-        "--wait --timeout=5m"
-    
-    if [[ $? -eq 0 ]]; then
-        # Create admin service account
-        local admin_yaml="${GOK_CONFIG_DIR}/dashboard-admin.yaml"
-        if [[ ! -f "$admin_yaml" ]]; then
-            cat > "$admin_yaml" << 'EOF'
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: admin-user
-  namespace: kubernetes-dashboard
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: admin-user
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-- kind: ServiceAccount
-  name: admin-user
-  namespace: kubernetes-dashboard
-EOF
+    # Check Python dependencies
+    log_substep "Checking Python dependencies"
+    if ! python3 -c "import kubernetes" &>/dev/null; then
+        log_info "Installing python3-kubernetes"
+        if execute_with_suppression apt-get install -y python3-kubernetes; then
+            log_success "python3-kubernetes installed"
+        else
+            log_error "Failed to install python3-kubernetes"
+            return 1
         fi
-        
-        execute_with_suppression "kubectl apply -f $admin_yaml" "Creating dashboard admin user"
-        
-        log_success "Kubernetes Dashboard installed successfully"
-        log_info "Access Dashboard at: http://<node-ip>:30085"
-        log_info "Use 'Skip' option or get token with:"
-        log_info "kubectl -n kubernetes-dashboard create token admin-user"
-        complete_component "dashboard"
     else
-        log_error "Kubernetes Dashboard installation failed"
-        fail_component "dashboard" "Helm installation failed"
+        log_success "python3-kubernetes already installed"
+    fi
+    
+    if ! python3 -c "import yaml" &>/dev/null; then
+        log_info "Installing python3-yaml"
+        if execute_with_suppression apt-get install -y python3-yaml; then
+            log_success "python3-yaml installed"
+        else
+            log_error "Failed to install python3-yaml"
+            return 1
+        fi
+    else
+        log_success "python3-yaml already installed"
+    fi
+    
+    # Execute DevWorkspace creation
+    log_substep "Creating DevWorkspace"
+    local che_dir="$MOUNT_PATH/kubernetes/install_k8s/eclipseche"
+    
+    if [[ ! -d "$che_dir" ]]; then
+        log_error "Eclipse Che directory not found: $che_dir"
+        log_component_error "devworkspace" "Eclipse Che directory missing"
+        return 1
+    fi
+    
+    if execute_with_suppression pushd "$che_dir"; then
+        if execute_with_suppression python3 "$MOUNT_PATH/kubernetes/install_k8s/eclipseche/apply_devworkspace.py"; then
+            log_success "DevWorkspace created successfully"
+            execute_with_suppression popd
+            log_component_success "devworkspace" "DevWorkspace '$WORKSPACE' created in namespace '$NAMESPACE'"
+            return 0
+        else
+            log_error "DevWorkspace creation failed"
+            execute_with_suppression popd
+            log_component_error "devworkspace" "DevWorkspace creation failed"
+            return 1
+        fi
+    else
+        log_error "Failed to access Eclipse Che directory"
         return 1
     fi
 }
 
-# Install TTYd for terminal access
-ttydInst() {
-    log_component_start "TTYd" "Installing web-based terminal access"
-    start_component "ttyd"
+# Delete DevWorkspace
+delete_devworkspace() {
+    log_component_start "devworkspace" "Deleting Che DevWorkspace"
     
-    local namespace="ttyd"
-    ensure_namespace "$namespace"
+    # Prompt for workspace details
+    local NAMESPACE=$(promptUserInput "Enter namespace: " "che-user")
+    local USERNAME=$(promptUserInput "Enter username: " "user1")
+    local WORKSPACE=$(promptUserInput "Enter workspace name: " "devworkspace1")
+    local MANIFEST_FILE=$(promptUserInput "Enter devworkspace manifest file path: " "devworkspace.yaml")
     
-    local ttyd_yaml="${GOK_CONFIG_DIR}/ttyd.yaml"
-    if [[ ! -f "$ttyd_yaml" ]]; then
-        cat > "$ttyd_yaml" << 'EOF'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ttyd
-  namespace: ttyd
-  labels:
-    app: ttyd
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ttyd
-  template:
-    metadata:
-      labels:
-        app: ttyd
-    spec:
-      containers:
-      - name: ttyd
-        image: tsl0922/ttyd:latest
-        args:
-          - --port
-          - "7681"
-          - --credential
-          - "admin:admin123"
-          - bash
-        ports:
-        - containerPort: 7681
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
-        volumeMounts:
-        - name: kubectl-config
-          mountPath: /root/.kube
-          readOnly: true
-      volumes:
-      - name: kubectl-config
-        secret:
-          secretName: kubectl-config
-          optional: true
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ttyd
-  namespace: ttyd
-  labels:
-    app: ttyd
-spec:
-  selector:
-    app: ttyd
-  ports:
-  - port: 7681
-    targetPort: 7681
-    nodePort: 30086
-  type: NodePort
-EOF
+    export CHE_USER_NAMESPACE="$NAMESPACE"
+    export CHE_USER_NAME="$USERNAME"
+    export CHE_WORKSPACE_NAME="$WORKSPACE"
+    export DW_FILE="$MANIFEST_FILE"
+    export DW_DELETE="true"
+    
+    log_substep "Workspace details:"
+    log_substep "  Namespace: ${COLOR_CYAN}${NAMESPACE}${COLOR_RESET}"
+    log_substep "  Username: ${COLOR_CYAN}${USERNAME}${COLOR_RESET}"
+    log_substep "  Workspace: ${COLOR_CYAN}${WORKSPACE}${COLOR_RESET}"
+    
+    # Execute DevWorkspace deletion
+    log_substep "Deleting DevWorkspace"
+    local che_dir="$MOUNT_PATH/kubernetes/install_k8s/eclipseche"
+    
+    if [[ ! -d "$che_dir" ]]; then
+        log_error "Eclipse Che directory not found: $che_dir"
+        log_component_error "devworkspace" "Eclipse Che directory missing"
+        return 1
     fi
     
-    execute_with_suppression "kubectl apply -f $ttyd_yaml" "Installing TTYd terminal"
-    
-    if [[ $? -eq 0 ]]; then
-        log_success "TTYd installed successfully"
-        log_info "Credentials: admin / admin123"
-        log_info "Access terminal at: http://<node-ip>:30086"
-        complete_component "ttyd"
+    if execute_with_suppression pushd "$che_dir"; then
+        if execute_with_suppression python3 "$MOUNT_PATH/kubernetes/install_k8s/eclipseche/apply_devworkspace.py"; then
+            log_success "DevWorkspace deleted successfully"
+            execute_with_suppression popd
+            log_component_success "devworkspace" "DevWorkspace '$WORKSPACE' deleted from namespace '$NAMESPACE'"
+            return 0
+        else
+            log_error "DevWorkspace deletion failed"
+            execute_with_suppression popd
+            log_component_error "devworkspace" "DevWorkspace deletion failed"
+            return 1
+        fi
     else
-        log_error "TTYd installation failed"
-        fail_component "ttyd" "Kubernetes deployment failed"
+        log_error "Failed to access Eclipse Che directory"
         return 1
     fi
 }
 
-# Install Eclipse Che IDE
-eclipsecheInst() {
-    log_component_start "Eclipse Che" "Installing cloud IDE"
-    start_component "eclipseche"
-    
-    local namespace="eclipse-che"
-    ensure_namespace "$namespace"
-    
-    # Add Eclipse Che Helm repository
-    log_info "Adding Eclipse Che Helm repository"
-    execute_with_suppression helm repo add eclipse-che https://eclipse.github.io/che-operator/
-    execute_with_suppression helm repo update
-    
-    local values_file="${GOK_CONFIG_DIR}/eclipse-che-values.yaml"
-    if [[ ! -f "$values_file" ]]; then
-        cat > "$values_file" << 'EOF'
-cheCluster:
-  spec:
-    server:
-      cheHost: che.local
-      chePort: 8080
-      cheApiExternal: true
-      cheDebug: false
-      
-    database:
-      externalDb: false
-      chePostgresHostName: ''
-      chePostgresPort: ''
-      chePostgresUser: ''
-      chePostgresPassword: ''
-      chePostgresDb: ''
-      
-    auth:
-      openShiftoAuth: false
-      identityProviderType: keycloak
-      
-    storage:
-      pvcStrategy: per-workspace
-      pvcClaimSize: 1Gi
-      workspacePVCStorageClassName: local-path
-      
-    k8s:
-      ingressDomain: local
-      tlsSupport: false
-      
-    metrics:
-      enable: true
-EOF
-    fi
-    
-    # Install Che Operator first
-    execute_with_suppression \
-        "kubectl apply -f https://github.com/eclipse/che-operator/releases/latest/download/che-operator-crds.yaml" \
-        "Installing Che CRDs"
-    
-    helm_install_with_summary "che-operator" "eclipse-che/che-operator" \
-        "--namespace $namespace" \
-        "--values $values_file" \
-        "--wait --timeout=10m"
-    
-    if [[ $? -eq 0 ]]; then
-        log_success "Eclipse Che installed successfully"
-        log_info "Access Eclipse Che at: http://che.local (configure DNS or use port-forward)"
-        complete_component "eclipseche"
-    else
-        log_error "Eclipse Che installation failed"
-        fail_component "eclipseche" "Helm installation failed"
-        return 1
-    fi
+# Install workspace (alias for create_devworkspace)
+install_workspace() {
+    create_devworkspace
 }
 
-# Install Cloud Shell environment
-cloudshellInst() {
-    log_component_start "Cloud Shell" "Installing cloud shell development environment"
-    start_component "cloud-shell"
-    
-    local namespace="cloud-shell"
-    ensure_namespace "$namespace"
-    
-    local cloudshell_yaml="${GOK_CONFIG_DIR}/cloud-shell.yaml"
-    if [[ ! -f "$cloudshell_yaml" ]]; then
-        cat > "$cloudshell_yaml" << 'EOF'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cloud-shell
-  namespace: cloud-shell
-  labels:
-    app: cloud-shell
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cloud-shell
-  template:
-    metadata:
-      labels:
-        app: cloud-shell
-    spec:
-      containers:
-      - name: cloud-shell
-        image: google/cloud-sdk:slim
-        command: ["/bin/bash"]
-        args:
-          - -c
-          - |
-            apt-get update && apt-get install -y curl wget vim nano htop git
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl && mv kubectl /usr/local/bin/
-            curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-            chmod 700 get_helm.sh && ./get_helm.sh
-            exec tail -f /dev/null
-        ports:
-        - containerPort: 8080
-        resources:
-          requests:
-            cpu: 200m
-            memory: 512Mi
-          limits:
-            cpu: 1000m
-            memory: 2Gi
-        volumeMounts:
-        - name: workspace
-          mountPath: /workspace
-        - name: kubeconfig
-          mountPath: /root/.kube
-          readOnly: true
-        env:
-        - name: SHELL
-          value: "/bin/bash"
-      volumes:
-      - name: workspace
-        emptyDir: {}
-      - name: kubeconfig
-        secret:
-          secretName: kubeconfig
-          optional: true
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: cloud-shell
-  namespace: cloud-shell
-  labels:
-    app: cloud-shell
-spec:
-  selector:
-    app: cloud-shell
-  ports:
-  - port: 8080
-    targetPort: 8080
-    nodePort: 30087
-  type: NodePort
-EOF
-    fi
-    
-    execute_with_suppression "kubectl apply -f $cloudshell_yaml" "Installing Cloud Shell environment"
-    
-    if [[ $? -eq 0 ]]; then
-        log_success "Cloud Shell installed successfully"
-        log_info "Connect with: kubectl exec -it -n cloud-shell deployment/cloud-shell -- /bin/bash"
-        log_info "Or access via: http://<node-ip>:30087"
-        complete_component "cloud-shell"
-    else
-        log_error "Cloud Shell installation failed"
-        fail_component "cloud-shell" "Kubernetes deployment failed"
-        return 1
-    fi
-}
-
-# Install Console (web console)
-consoleInst() {
-    log_component_start "Console" "Installing web-based console"
-    start_component "console"
-    
-    local namespace="console"
-    ensure_namespace "$namespace"
-    
-    local console_yaml="${GOK_CONFIG_DIR}/console.yaml"
-    if [[ ! -f "$console_yaml" ]]; then
-        cat > "$console_yaml" << 'EOF'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: web-console
-  namespace: console
-  labels:
-    app: web-console
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: web-console
-  template:
-    metadata:
-      labels:
-        app: web-console
-    spec:
-      containers:
-      - name: wetty
-        image: wettyoss/wetty:latest
-        args:
-          - --host
-          - "0.0.0.0"
-          - --port
-          - "3000"
-          - --base
-          - "/"
-        ports:
-        - containerPort: 3000
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
-        env:
-        - name: REMOTE_SSH_SERVER
-          value: "localhost"
-        - name: REMOTE_SSH_PORT
-          value: "22"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: web-console
-  namespace: console
-  labels:
-    app: web-console
-spec:
-  selector:
-    app: web-console
-  ports:
-  - port: 3000
-    targetPort: 3000
-    nodePort: 30088
-  type: NodePort
-EOF
-    fi
-    
-    execute_with_suppression "kubectl apply -f $console_yaml" "Installing web console"
-    
-    if [[ $? -eq 0 ]]; then
-        log_success "Web Console installed successfully"
-        log_info "Access console at: http://<node-ip>:30088"
-        complete_component "console"
-    else
-        log_error "Web Console installation failed"
-        fail_component "console" "Kubernetes deployment failed"
-        return 1
-    fi
-}
-
-# Install development workspace (combination of tools)
-devworkspaceInst() {
-    log_component_start "Dev Workspace" "Installing development workspace bundle"
-    start_component "devworkspace"
-    
-    log_info "Installing development workspace components..."
-    
-    # Install core development tools
-    dashboardInst || return 1
-    jupyterInst || return 1
-    ttydInst || return 1
-    consoleInst || return 1
-    
-    log_success "Development workspace installed successfully"
-    log_info "Available development tools:"
-    log_info "  - Kubernetes Dashboard: http://<node-ip>:30085"
-    log_info "  - JupyterHub: http://<node-ip>:30084"
-    log_info "  - Terminal (TTYd): http://<node-ip>:30086"
-    log_info "  - Web Console: http://<node-ip>:30088"
-    
-    complete_component "devworkspace"
-}
-
-# Alias for devworkspaceInst
-workspaceInst() {
-    devworkspaceInst
-}
-
-# Alias for eclipsecheInst
-cheInst() {
-    eclipsecheInst
-}
+# Export functions
+export -f create_devworkspace
+export -f delete_devworkspace
+export -f install_workspace

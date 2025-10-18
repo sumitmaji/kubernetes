@@ -787,6 +787,14 @@ show_component_next_steps() {
             log_info "GOK distributed command execution platform is ready"
             ;;
             
+        "che")
+            show_che_guidance
+            ;;
+            
+        "workspace")
+            show_workspace_guidance
+            ;;
+            
         "istio")
             log_next_steps "Istio Service Mesh" \
                 "Enable automatic sidecar injection for namespaces" \

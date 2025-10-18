@@ -193,6 +193,28 @@ installCmd() {
                 return 1
             fi
             ;;
+            
+        "che")
+            if install_che; then
+                if validate_component_installation "che" 600; then
+                    complete_component "che" "Eclipse Che installation completed and validated"
+                else
+                    complete_component "che" "Eclipse Che installed but validation had warnings"
+                fi
+            else
+                fail_component "che" "Eclipse Che installation failed"
+                return 1
+            fi
+            ;;
+            
+        "workspace")
+            if install_workspace; then
+                complete_component "workspace" "DevWorkspace created successfully"
+            else
+                fail_component "workspace" "DevWorkspace creation failed"
+                return 1
+            fi
+            ;;
         
         # Infrastructure components
         "kubernetes")
@@ -584,6 +606,8 @@ installCmd() {
                 "opensearch") ns="opensearch" ;;
                 "argocd") ns="argocd" ;;
                 "gok-agent"|"gok-controller"|"controller") ns="gok-system" ;;
+                "che") ns="eclipse-che" ;;
+                "workspace") ns="che-user" ;;
                 "haproxy") ns="default" ;;
                 "ingress") ns="ingress-nginx" ;;
                 "keycloak") ns="keycloak" ;;

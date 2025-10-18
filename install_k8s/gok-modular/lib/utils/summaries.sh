@@ -101,6 +101,12 @@ show_component_summary() {
         "gok-controller")
             show_gok_controller_summary "$namespace"
             ;;
+        "che")
+            show_che_summary
+            ;;
+        "workspace")
+            show_workspace_summary
+            ;;
         "gok-login")
             show_gok_login_summary "$namespace"
             ;;
