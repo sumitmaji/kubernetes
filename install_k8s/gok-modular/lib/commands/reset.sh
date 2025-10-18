@@ -110,12 +110,6 @@ resetCmd() {
         "jupyter")
             jupyterReset
             ;;
-        "devworkspace")
-            devworkspaceReset
-            ;;
-        "workspace")
-            workspaceReset
-            ;;
         "che")
             resetEclipseChe
             ;;
