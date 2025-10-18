@@ -87,6 +87,7 @@ oauth2Inst() {
   log_substep "Creating OAuth2 Proxy ingress manually..."
 
   # Create the ingress resource manually since upstream chart ingress has bugs
+  local ingress_host="$(defaultSubdomain).$(rootDomain)"
   if execute_with_suppression kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -96,7 +97,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: $(defaultSubdomain).$(rootDomain)
+  - host: ${ingress_host}
     http:
       paths:
       - path: /oauth2
@@ -114,7 +115,9 @@ then
   fi
 
   log_substep "Configuring TLS for OAuth2 Proxy ingress..."
-  if execute_with_suppression kubectl patch ingress oauth2-proxy -n oauth2 --type=merge -p '{"spec":{"tls":[{"hosts":["'$(defaultSubdomain).$(rootDomain)'"],"secretName":"'$(defaultSubdomain)-$(sedRootDomain)-tls'"}]}}'; then
+  local tls_host="$(defaultSubdomain).$(rootDomain)"
+  local tls_secret="$(defaultSubdomain)-$(sedRootDomain)-tls"
+  if execute_with_suppression kubectl patch ingress oauth2-proxy -n oauth2 --type=merge -p '{"spec":{"tls":[{"hosts":["'${tls_host}'"],"secretName":"'${tls_secret}'"}]}}'; then
     log_success "OAuth2 Proxy TLS configured successfully"
   else
     log_warning "OAuth2 Proxy TLS configuration had issues but continuing"
@@ -128,7 +131,8 @@ then
   fi
 
   log_substep "Applying Let's Encrypt certificate configuration..."
-  if execute_with_suppression gok patch ingress oauth2-proxy oauth2 letsencrypt $(defaultSubdomain); then
+  local subdomain="$(defaultSubdomain)"
+  if execute_with_suppression gok patch ingress oauth2-proxy oauth2 letsencrypt "${subdomain}"; then
     log_success "OAuth2 Proxy Let's Encrypt configuration applied successfully"
   else
     log_warning "OAuth2 Proxy Let's Encrypt configuration had issues but installation may still work"
