@@ -33,23 +33,26 @@ install_che() {
     
     # Install Chectl
     log_substep "Installing chectl CLI tool"
-    local temp_install_script=$(mktemp)
     
-    if curl -sL https://che-incubator.github.io/chectl/install.sh -o "$temp_install_script" 2>/dev/null; then
-        chmod +x "$temp_install_script"
-        if execute_with_suppression "$temp_install_script"; then
+    # Check if chectl is already installed
+    if command -v chectl &>/dev/null; then
+        log_info "Chectl is already installed: $(chectl version 2>/dev/null | head -n1)"
+        log_success "Chectl CLI tool available"
+    else
+        # Install chectl directly with bash pipe (not through execute_with_suppression to avoid arg length issues)
+        if [[ "${GOK_VERBOSE:-false}" == "true" ]]; then
+            bash <(curl -sL https://che-incubator.github.io/chectl/install.sh)
+        else
+            bash <(curl -sL https://che-incubator.github.io/chectl/install.sh) >/dev/null 2>&1
+        fi
+        
+        if command -v chectl &>/dev/null; then
             log_success "Chectl installed successfully"
         else
             log_error "Chectl installation failed"
-            rm -f "$temp_install_script"
             log_component_error "che" "Chectl installation failed"
             return 1
         fi
-        rm -f "$temp_install_script"
-    else
-        log_error "Failed to download chectl installation script"
-        log_component_error "che" "Chectl download failed"
-        return 1
     fi
     
     # Create namespace
