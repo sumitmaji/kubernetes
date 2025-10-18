@@ -107,7 +107,7 @@ spec:
             port:
               number: 80
 EOF
-  then
+then
     log_success "OAuth2 Proxy ingress created successfully"
   else
     log_warning "OAuth2 Proxy ingress creation had issues but continuing"
