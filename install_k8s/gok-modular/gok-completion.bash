@@ -22,7 +22,7 @@ _gok_new_completion() {
     local main_commands="
         install reset start deploy patch create generate status
         desc describe logs bash shell exec remote completion
-        cache show summary taint-node checkDns checkCurl debug troubleshoot help
+        cache show summary next taint-node checkDns checkCurl debug troubleshoot help
     "
 
     # Infrastructure components
@@ -128,6 +128,9 @@ _gok_new_completion() {
                     COMPREPLY=($(compgen -W "configuration config" -- "$cur"))
                     ;;
                 "summary")
+                    COMPREPLY=($(compgen -W "$install_components" -- "$cur"))
+                    ;;
+                "next")
                     COMPREPLY=($(compgen -W "$install_components" -- "$cur"))
                     ;;
                 "desc"|"describe")

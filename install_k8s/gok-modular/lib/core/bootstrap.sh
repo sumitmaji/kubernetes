@@ -130,6 +130,7 @@ load_command_modules() {
         "completion"
         "show"
         "summary"
+        "next"
         "debug"
     )
     
