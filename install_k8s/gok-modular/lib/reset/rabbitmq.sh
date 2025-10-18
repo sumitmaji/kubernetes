@@ -42,7 +42,7 @@ rabbitmq_reset(){
   if [[ "$cluster_exists" == false && "$namespace_exists" == false && "$operator_exists" == false ]]; then
     log_info "RabbitMQ appears to already be reset or was never installed"
     log_component_success "rabbitmq-reset" "RabbitMQ reset completed (nothing to reset)"
-    return 0
+    # return 0
   fi
 
   log_step "2" "Removing RabbitMQ cluster"
