@@ -259,7 +259,7 @@ vaultInst() {
   local end_time=$(date +%s)
   local duration=$((end_time - start_time))
 
-  show_installation_summary "vault" "vault" "HashiCorp Vault secrets management"
+#   show_installation_summary "vault" "vault" "HashiCorp Vault secrets management"
   log_component_success "vault-install" "HashiCorp Vault installed successfully"
   log_success "Vault installation completed in ${duration}s"
 

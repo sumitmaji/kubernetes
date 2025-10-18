@@ -35,8 +35,12 @@ show_vault_summary() {
       local vault_pod=$(kubectl get pods -l app.kubernetes.io/name=vault -n vault -o jsonpath='{.items[0].metadata.name}')
 
       local init_status=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null | jq -r '.initialized // "unknown"' 2>/dev/null)
-      local seal_status=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null | jq -r '.sealed // "unknown"' 2>/dev/null)
-
+      # Check if Vault is unsealed
+      local seal_json=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null)
+      local seal_status="unknown"
+      if [[ -n "$seal_json" ]]; then
+        seal_status=$(echo "$seal_json" | jq -r '.sealed' 2>/dev/null || echo "unknown")
+      fi
       if [[ "$init_status" == "true" ]]; then
         log_success "✓ Vault is initialized"
       else
@@ -74,9 +78,9 @@ show_vault_summary() {
     fi
 
     # Check CSI driver
-    if kubectl get pods -l app=csi-secrets-store -n kube-system >/dev/null 2>&1; then
-      local csi_count=$(kubectl get pods -l app=csi-secrets-store -n kube-system --no-headers 2>/dev/null | wc -l)
-      local csi_ready=$(kubectl get pods -l app=csi-secrets-store -n kube-system -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -c "True")
+    if kubectl get pods -l app=secrets-store-csi-driver -n kube-system >/dev/null 2>&1; then
+      local csi_count=$(kubectl get pods -l app=secrets-store-csi-driver -n kube-system --no-headers 2>/dev/null | wc -l)
+      local csi_ready=$(kubectl get pods -l app=secrets-store-csi-driver -n kube-system -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -c "True")
       log_success "✓ CSI Secrets Store driver ready ($csi_ready/$csi_count pods)"
     fi
 
