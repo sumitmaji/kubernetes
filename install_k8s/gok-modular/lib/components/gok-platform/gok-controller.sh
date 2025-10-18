@@ -20,13 +20,23 @@ build_gok_controller_with_progress() {
         return 1
     fi
 
-        # Store GOK modular registry URL before sourcing old config  
+    # Store GOK modular registry URL before sourcing old config  
     local gok_registry_url
     if [[ -n "$REGISTRY" && -n "$GOK_ROOT_DOMAIN" ]]; then
         gok_registry_url="${REGISTRY}.${GOK_ROOT_DOMAIN}"
     else
         gok_registry_url=$(fullRegistryUrl 2>/dev/null || echo "localhost:5000")
     fi
+
+    # Get registry and image information
+    local registry_url="${gok_registry_url}"
+    local image_name="${IMAGE_NAME:-gok-controller}"
+    local repo_name="${REPO_NAME:-gok-controller}"
+    local full_image_url="${registry_url}/${repo_name}"
+
+    log_substep "Registry: ${COLOR_CYAN}${registry_url}${COLOR_RESET}"
+    log_substep "Image: ${COLOR_CYAN}${image_name}${COLOR_RESET}"
+    log_substep "Target: ${COLOR_CYAN}${full_image_url}${COLOR_RESET}"
 
     # Source configuration files
     if [[ -f "config/config" ]]; then
@@ -36,6 +46,7 @@ build_gok_controller_with_progress() {
         source configuration
     fi
     source "$MOUNT_PATH/kubernetes/install_k8s/util"
+
 
     # Start Docker build in background
     {
