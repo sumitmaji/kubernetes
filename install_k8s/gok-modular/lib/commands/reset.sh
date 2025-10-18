@@ -1210,7 +1210,7 @@ registryReset() {
 }
 gokAgentReset() { helm_component_reset "gok-agent" "gok-system"; }
 gokControllerReset() { helm_component_reset "gok-controller" "gok-system"; }
-gokLoginReset() { helm_component_reset "gok-login" "gok-login"; }
+gokLoginReset() { goklogin_reset; }
 chartReset() { helm_component_reset "chartmuseum" "chartmuseum"; }
 rabbitmqReset() { rabbitmq_reset; }
 kyvernoReset() { helm_component_reset "kyverno" "kyverno"; }
