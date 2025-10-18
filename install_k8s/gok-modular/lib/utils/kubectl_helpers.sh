@@ -734,6 +734,21 @@ emptyLocalFsStorage() {
   log_success "$service persistent storage cleanup completed"
 }
 
+patchOauth2Secure() {
+  NAME=$1
+  NS=$2
+  RD=$3
+  kubectl patch ing "$NAME" --patch "$(
+    cat <<EOF
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/auth-signin: https://$(defaultSubdomain).$(rootDomain)/oauth2/start?rd=${RD}
+    nginx.ingress.kubernetes.io/auth-url: https://$(defaultSubdomain).$(rootDomain)/oauth2/auth
+    nginx.ingress.kubernetes.io/auth-response-headers: Authorization
+EOF
+  )" -n "$NS"
+}
+
 # Show utilities on load if interactive
 if [[ $- == *i* ]] && [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     gutils

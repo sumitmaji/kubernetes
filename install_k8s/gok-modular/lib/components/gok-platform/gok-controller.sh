@@ -221,6 +221,10 @@ build_gok_controller_with_progress() {
     return 0
 }
 
+patchControllerWithOauth() {
+  patchOauth2Secure gok-controller gok-controller https://controller.$(rootDomain)
+}
+
 # Function to install gok-controller (copied from original install section)
 install_gok_controller() {
     log_component_start "gok-controller" "Installing gok-controller component with Docker image build and Kubernetes deployment"
