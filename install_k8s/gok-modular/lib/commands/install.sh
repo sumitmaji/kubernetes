@@ -169,7 +169,7 @@ installCmd() {
             ;;
             
         "gok-agent")
-            if gokAgentInstall; then
+            if gok_agent_install; then
                 if validate_component_installation "gok-agent" 180; then
                     complete_component "gok-agent" "GOK Agent installation completed and validated"
                 else
@@ -182,7 +182,7 @@ installCmd() {
             ;;
             
         "gok-controller")
-            if gokControllerInstall; then
+            if gok_controller_install; then
                 if validate_component_installation "gok-controller" 180; then
                     complete_component "gok-controller" "GOK Controller installation completed and validated"
                 else
@@ -583,7 +583,7 @@ installCmd() {
                 "fluentd") ns="logging" ;;
                 "opensearch") ns="opensearch" ;;
                 "argocd") ns="argocd" ;;
-                "gok-agent"|"gok-controller") ns="gok-system" ;;
+                "gok-agent"|"gok-controller"|"controller") ns="gok-system" ;;
                 "haproxy") ns="default" ;;
                 "ingress") ns="ingress-nginx" ;;
                 "keycloak") ns="keycloak" ;;

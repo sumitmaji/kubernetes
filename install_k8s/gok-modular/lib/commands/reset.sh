@@ -142,13 +142,15 @@ resetCmd() {
         "registry")
             registryReset
             ;;
-        
+        "controller")
+            reset_gok_controller && reset_gok_agent
+            ;;
         # GOK Platform components
         "gok-agent")
-            gokAgentReset
+            reset_gok_agent
             ;;
         "gok-controller")
-            gokControllerReset
+            reset_gok_controller
             ;;
         "gok-login")
             gokLoginReset
