@@ -103,6 +103,134 @@ vaultInst() {
     return 1
   fi
 
+  # Continue with Vault initialization
+  log_substep "Applying Vault unsealer Kubernetes role"
+  if execute_with_suppression kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-k8s-seal-role.yaml; then
+    log_success "Vault unsealer Kubernetes role applied"
+  else
+    log_warning "Vault unsealer role application had issues but continuing"
+  fi
+
+  log_substep "Waiting for Kyverno to propagate registry credentials to Vault namespace"
+  local wait_start=$(date +%s)
+  local timeout=60
+  local found_secret=false
+  
+  # Wait for Kyverno to copy the secret automatically
+  while [[ $(($(date +%s) - wait_start)) -lt $timeout ]]; do
+    if kubectl get secret regcred -n vault >/dev/null 2>&1; then
+      found_secret=true
+      break
+    fi
+    sleep 3
+  done
+  
+  if [[ "$found_secret" == "true" ]]; then
+    log_success "Registry credentials automatically propagated by Kyverno"
+  else
+    log_info "Kyverno auto-propagation timed out, attempting manual copy"
+    if execute_with_suppression copySecret regcred kube-system vault; then
+      log_success "Registry credentials manually copied to Vault namespace"
+    else
+      log_warning "Registry credentials not available - continuing without private registry access"
+    fi
+  fi
+
+  log_substep "Setting up Vault unsealer scripts"
+  if execute_with_suppression pushd $MOUNT_PATH/kubernetes/install_k8s/vault; then
+    if execute_with_suppression chmod +x *.sh; then
+      log_success "Vault scripts made executable"
+    else
+      log_warning "Script permissions setup had issues but continuing"
+    fi
+
+    log_substep "Running Vault CI pipeline"
+    local temp_ci_log=$(mktemp)
+    local temp_ci_error=$(mktemp)
+    
+    if ./ci.sh >"$temp_ci_log" 2>"$temp_ci_error"; then
+      log_success "Vault CI pipeline completed"
+    else
+      log_error "Vault CI pipeline failed - error details:"
+      if [[ -s "$temp_ci_error" ]]; then
+        cat "$temp_ci_error" >&2
+      fi
+      rm -f "$temp_ci_log" "$temp_ci_error"
+      execute_with_suppression popd
+      return 1
+    fi
+    
+    rm -f "$temp_ci_log" "$temp_ci_error"
+
+    execute_with_suppression popd
+  else
+    log_error "Could not access Vault directory for CI setup"
+    return 1
+  fi
+
+  log_substep "Patching Vault service account with image pull secrets"
+  if execute_with_suppression kubectl patch serviceaccount vault -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n vault; then
+    log_success "Vault service account patched with image pull secrets"
+  else
+    log_warning "Service account patching had issues but continuing"
+  fi
+
+  log_substep "Creating Vault keys directory"
+  if execute_with_suppression mkdir -p $MOUNT_PATH/vault-keys; then
+    log_success "Vault keys directory created"
+  else
+    log_warning "Vault keys directory creation had issues but continuing"
+  fi
+
+  log_substep "Applying Vault initialization job"
+  if execute_with_suppression kubectl apply -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml; then
+    log_success "Vault initialization job applied"
+  else
+    log_error "Failed to apply Vault initialization job"
+    return 1
+  fi
+
+  log_substep "Waiting for Vault initialization to complete"
+  if kubectl wait --for=condition=complete job.batch/vault-init-unseal -n vault --timeout=300s >/dev/null 2>&1; then
+    local status=$(kubectl get job vault-init-unseal -n vault -o jsonpath='{.status.succeeded}' 2>/dev/null)
+    if [[ "$status" -eq 1 ]]; then
+      log_success "Vault initialization and unseal completed successfully"
+      if execute_with_suppression kubectl delete -f $MOUNT_PATH/kubernetes/install_k8s/vault/vault-init-unseal-job.yaml; then
+        log_success "Vault initialization job cleaned up"
+      fi
+    else
+      log_error "Vault initialization job did not complete successfully"
+      return 1
+    fi
+  else
+    log_error "Vault initialization timed out"
+    return 1
+  fi
+
+  log_substep "Installing Vault unseal systemd service"
+  if execute_with_suppression pushd $MOUNT_PATH/kubernetes/install_k8s/vault; then
+    if execute_with_suppression chmod +x *.sh && ./install-vault-unseal-service.sh; then
+      log_success "Vault unseal systemd service installed"
+    else
+      log_warning "Vault unseal service installation had issues but continuing"
+    fi
+    execute_with_suppression popd
+  else
+    log_warning "Could not access Vault directory for service installation"
+  fi
+
+  log_substep "Waiting for Vault services to be ready"
+  if wait_for_pods_ready "vault" "300" "Vault"; then
+    log_success "All Vault services are now ready"
+  else
+    log_error "Vault services failed to become ready within timeout"
+    return 1
+  fi
+
+  local end_time=$(date +%s)
+  local duration=$((end_time - start_time))
+  log_success "Vault unsealer setup completed in ${duration}s"
+
   log_step "6" "Configuring Vault authentication and policies"
   log_substep "Creating Kubernetes authentication method"
   if execute_with_suppression kubectl create clusterrolebinding vault-auth-delegator --clusterrole=system:auth-delegator --serviceaccount=vault:vault; then
@@ -337,6 +465,7 @@ build_vault_with_progress() {
   local duration=$((end_time - start_time))
 
   log_success "Vault unsealer build and push completed in ${duration}s"
+
 }
 
 # Vault login helper function
