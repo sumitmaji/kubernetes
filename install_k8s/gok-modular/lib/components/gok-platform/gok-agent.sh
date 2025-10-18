@@ -42,9 +42,9 @@ build_gok_agent_with_progress() {
     if [[ -f "config/config" ]]; then
         source config/config
     fi
-    if [[ -f "configuration" ]]; then
-        source configuration
-    fi
+    # if [[ -f "configuration" ]]; then
+    #     source configuration
+    # fi
     source "$MOUNT_PATH/kubernetes/install_k8s/util"
 
     # Start Docker build in background
