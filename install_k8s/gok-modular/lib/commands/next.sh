@@ -41,6 +41,7 @@ suggest_and_install_next_module() {
     NEXT_MODULE_MAP["gok-agent"]="gok-controller"
     NEXT_MODULE_MAP["gok-controller"]="che"
     NEXT_MODULE_MAP["che"]="workspace"
+    NEXT_MODULE_MAP["workspace"]="workspacev2"
     
     # Define component descriptions
     declare -A MODULE_DESCRIPTIONS
@@ -64,6 +65,7 @@ suggest_and_install_next_module() {
     MODULE_DESCRIPTIONS["gok-controller"]="GOK distributed system controller"
     MODULE_DESCRIPTIONS["che"]="Eclipse Che cloud-based IDE"
     MODULE_DESCRIPTIONS["workspace"]="DevWorkspace for cloud development"
+    MODULE_DESCRIPTIONS["workspacev2"]="Template-based DevWorkspace with pre-configured environments"
     MODULE_DESCRIPTIONS["jenkins"]="CI/CD automation and pipeline management"
     MODULE_DESCRIPTIONS["jupyter"]="Interactive data science and development"
     MODULE_DESCRIPTIONS["dashboard"]="Kubernetes web-based management interface"
@@ -195,6 +197,11 @@ check_component_installed() {
             kubectl get checluster -n eclipse-che >/dev/null 2>&1 && is_installed="true"
             ;;
         "workspace")
+            kubectl get devworkspaces --all-namespaces >/dev/null 2>&1 && \
+            [[ $(kubectl get devworkspaces --all-namespaces --no-headers 2>/dev/null | wc -l) -gt 0 ]] && is_installed="true"
+            ;;
+        "workspacev2")
+            # WorkspaceV2 uses the same DevWorkspaces but with templates
             kubectl get devworkspaces --all-namespaces >/dev/null 2>&1 && \
             [[ $(kubectl get devworkspaces --all-namespaces --no-headers 2>/dev/null | wc -l) -gt 0 ]] && is_installed="true"
             ;;
@@ -364,6 +371,14 @@ show_recommendation_rationale() {
             echo -e "  • Pre-configured containers with development tools"
             echo -e "  • Persistent storage for project files"
             echo -e "  • Complete the development environment setup"
+            ;;
+        "workspace -> workspacev2")
+            echo -e "${COLOR_YELLOW}📋 Why create workspacev2 next?${COLOR_RESET}"
+            echo -e "  • Template-based workspace with pre-configured tools"
+            echo -e "  • 9 specialized templates (Java, Python, ML, Microservices, etc.)"
+            echo -e "  • Faster setup with ready-to-use development environments"
+            echo -e "  • Ideal for specific project types and technologies"
+            echo -e "  • Includes all necessary SDKs and dependencies"
             ;;
         *)
             echo -e "${COLOR_YELLOW}📋 Why install $next_module?${COLOR_RESET}"

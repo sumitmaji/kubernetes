@@ -215,6 +215,15 @@ installCmd() {
                 return 1
             fi
             ;;
+            
+        "workspacev2")
+            if install_workspacev2; then
+                complete_component "workspacev2" "DevWorkspace V2 created successfully"
+            else
+                fail_component "workspacev2" "DevWorkspace V2 creation failed"
+                return 1
+            fi
+            ;;
         
         # Infrastructure components
         "kubernetes")
@@ -608,6 +617,7 @@ installCmd() {
                 "gok-agent"|"gok-controller"|"controller") ns="gok-system" ;;
                 "che") ns="eclipse-che" ;;
                 "workspace") ns="che-user" ;;
+                "workspacev2") ns="che-user" ;;
                 "haproxy") ns="default" ;;
                 "ingress") ns="ingress-nginx" ;;
                 "keycloak") ns="keycloak" ;;

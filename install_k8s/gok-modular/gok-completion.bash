@@ -23,7 +23,7 @@ _gok_new_completion() {
         install reset start deploy patch create generate status
         desc describe logs bash shell exec remote completion
         cache show summary next taint-node checkDns checkCurl debug troubleshoot help
-        create-workspace delete-workspace
+        create-workspace delete-workspace create-workspace-v2 delete-workspace-v2
     "
 
     # Infrastructure components
@@ -36,7 +36,7 @@ _gok_new_completion() {
     local security_components="cert-manager keycloak oauth2 oauth2-proxy vault ldap ldapclient kerberos kerberizedservices kyverno"
     
     # Development components
-    local development_components="jupyter jupyterhub dashboard ttyd eclipseche cloud-shell console controller gok-agent gok-controller devworkspace workspace che"
+    local development_components="jupyter jupyterhub dashboard ttyd eclipseche cloud-shell console controller gok-agent gok-controller devworkspace workspace workspacev2 che"
     
     # CI/CD components
     local cicd_components="argocd jenkins spinnaker gitlab cicd"

@@ -158,6 +158,9 @@ resetCmd() {
         "workspace")
             reset_workspace
             ;;
+        "workspacev2")
+            reset_workspacev2
+            ;;
         "gok-login")
             gokLoginReset
             ;;

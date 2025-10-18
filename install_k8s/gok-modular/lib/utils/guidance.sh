@@ -795,6 +795,10 @@ show_component_next_steps() {
             show_workspace_guidance
             ;;
             
+        "workspacev2")
+            show_workspacev2_guidance
+            ;;
+            
         "istio")
             log_next_steps "Istio Service Mesh" \
                 "Enable automatic sidecar injection for namespaces" \

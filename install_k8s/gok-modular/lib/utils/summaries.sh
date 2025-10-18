@@ -107,6 +107,9 @@ show_component_summary() {
         "workspace")
             show_workspace_summary
             ;;
+        "workspacev2")
+            show_workspacev2_summary
+            ;;
         "gok-login")
             show_gok_login_summary "$namespace"
             ;;

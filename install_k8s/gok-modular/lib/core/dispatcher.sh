@@ -98,6 +98,12 @@ dispatch_command() {
         "delete-workspace")
             delete_devworkspace "$@"
             ;;
+        "create-workspace-v2")
+            create_devworkspace_v2 "$@"
+            ;;
+        "delete-workspace-v2")
+            delete_devworkspace_v2 "$@"
+            ;;
         "taint-node")
             taintNodeCmd "$@"
             ;;

@@ -346,6 +346,9 @@ validate_component_installation() {
         "workspace")
             validate_workspace
             ;;
+        "workspacev2")
+            validate_workspacev2
+            ;;
         "keycloak")
             validate_keycloak_installation "$timeout"
             ;;
