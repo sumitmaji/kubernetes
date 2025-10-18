@@ -287,7 +287,7 @@ build_oauth2_with_progress() {
     --set "extraArgs[2]=--keycloak-group=developers" \
     --set "extraArgs[3]=--allowed-group=administrators" \
     --set "extraArgs[4]=--allowed-group=developers" \
-    --set "extraArgs[5]=--scope=openid email profile groups sub offline_access" \
+    --set "extraArgs[5]=--scope=openid email profile offline_access" \
     --set "extraArgs[6]=--ssl-insecure-skip-verify=false" \
     --set "extraArgs[7]=--set-authorization-header=true" \
     --set "extraArgs[8]=--whitelist-domain=.gokcloud.com" \
