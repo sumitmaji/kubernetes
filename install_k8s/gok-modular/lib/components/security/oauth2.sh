@@ -87,7 +87,11 @@ oauth2Inst() {
   log_substep "Creating OAuth2 Proxy ingress manually..."
 
   # Create the ingress resource manually since upstream chart ingress has bugs
-  local ingress_host="$(defaultSubdomain).$(rootDomain)"
+  local default_subdomain
+  default_subdomain=$(defaultSubdomain 2>/dev/null || echo "kube")
+  local root_domain
+  root_domain=$(rootDomain 2>/dev/null || echo "gokcloud.com")
+  local ingress_host="${default_subdomain}.${root_domain}"
   if execute_with_suppression kubectl apply -f - <<EOF
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -115,8 +119,14 @@ then
   fi
 
   log_substep "Configuring TLS for OAuth2 Proxy ingress..."
-  local tls_host="$(defaultSubdomain).$(rootDomain)"
-  local tls_secret="$(defaultSubdomain)-$(sedRootDomain)-tls"
+  local tls_default_subdomain
+  tls_default_subdomain=$(defaultSubdomain 2>/dev/null || echo "kube")
+  local tls_root_domain
+  tls_root_domain=$(rootDomain 2>/dev/null || echo "gokcloud.com")
+  local tls_sed_root_domain
+  tls_sed_root_domain=$(sedRootDomain 2>/dev/null || echo "gokcloud-com")
+  local tls_host="${tls_default_subdomain}.${tls_root_domain}"
+  local tls_secret="${tls_default_subdomain}-${tls_sed_root_domain}-tls"
   if execute_with_suppression kubectl patch ingress oauth2-proxy -n oauth2 --type=merge -p '{"spec":{"tls":[{"hosts":["'${tls_host}'"],"secretName":"'${tls_secret}'"}]}}'; then
     log_success "OAuth2 Proxy TLS configured successfully"
   else
@@ -131,8 +141,9 @@ then
   fi
 
   log_substep "Applying Let's Encrypt certificate configuration..."
-  local subdomain="$(defaultSubdomain)"
-  if execute_with_suppression gok patch ingress oauth2-proxy oauth2 letsencrypt "${subdomain}"; then
+  local le_subdomain
+  le_subdomain=$(defaultSubdomain 2>/dev/null || echo "kube")
+  if execute_with_suppression gok patch ingress oauth2-proxy oauth2 letsencrypt "${le_subdomain}"; then
     log_success "OAuth2 Proxy Let's Encrypt configuration applied successfully"
   else
     log_warning "OAuth2 Proxy Let's Encrypt configuration had issues but installation may still work"
