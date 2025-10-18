@@ -158,6 +158,7 @@ load_component_modules() {
         "policy"
         "messaging"
         "registry"
+        "gok-platform"
     )
     
     for dir in "${component_dirs[@]}"; do

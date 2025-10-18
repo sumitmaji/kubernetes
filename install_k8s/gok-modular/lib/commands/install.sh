@@ -503,8 +503,17 @@ installCmd() {
         
         # GOK Platform components
         "controller")
-            gok-new install gok-agent
-            gok-new install gok-controller
+            if install_gok_agent && install_gok_controller; then
+                if validate_component_installation "gok-agent" 180 && validate_component_installation "gok-controller" 180; then
+                    complete_component "controller" "GOK Agent and Controller installation completed and validated"
+                else
+                    complete_component "controller" "GOK Agent and Controller installed but validation had warnings"
+                fi
+            else
+                fail_component "controller" "GOK Agent / Controller installation failed"
+                return 1
+            fi
+            
             ;;
         "gok-login")
             gokLoginInst
