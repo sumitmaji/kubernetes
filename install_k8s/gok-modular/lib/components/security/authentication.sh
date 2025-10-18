@@ -313,6 +313,53 @@ EOYAML
   else
     log_warning "Failed to restart kubelet - certificates may not be fully effective"
   fi
+
+  log_step "4a" "Updating kube-apiserver manifest to add OIDC CA file"
+  if execute_with_suppression bash -c "sed -i '/--oidc-username-claim/a\\    - --oidc-ca-file=${CA_CERT_PATH}' \"${API_SERVER_MANIFEST}\""; then
+    log_success "kube-apiserver manifest updated with --oidc-ca-file"
+  else
+    log_error "Failed to update kube-apiserver manifest"
+  fi
+
+  log_step "4b" "Waiting 30s for kube-apiserver static pod to restart"
+
+  local wait_time=30
+  local start_ts=$(date +%s)
+  local end_ts=$((start_ts + wait_time))
+  local spinner=( '|' '/' '-' "\\" )
+
+  # hide cursor, ensure it is restored on exit
+  tput civis 2>/dev/null || true
+  trap 'tput cnorm 2>/dev/null || true; printf "\n"' EXIT
+
+  while [ "$(date +%s)" -lt "$end_ts" ]; do
+    for c in "${spinner[@]}"; do
+      now=$(date +%s)
+      rem=$(( end_ts - now ))
+      if [ "$rem" -lt 0 ]; then rem=0; fi
+      printf "\rWaiting for kube-apiserver static pod to restart... [%s] %2ds remaining" "$c" "$rem"
+      sleep 0.1
+      [ "$(date +%s)" -ge "$end_ts" ] && break
+    done
+  done
+
+  printf "\r\033[K"
+  tput cnorm 2>/dev/null || true
+  log_success "kube-apiserver static pod restart wait completed"
+
+  # Wait for kube-apiserver pods to become Ready
+  APISERVER_PODS=$(kubectl get pods -n kube-system --no-headers 2>/dev/null | awk '/kube-apiserver/ {print $1}')
+  if [[ -z "$APISERVER_PODS" ]]; then
+    log_warning "No kube-apiserver pods found in kube-system to wait for"
+  else
+    for pod in $APISERVER_PODS; do
+      if execute_with_suppression kubectl wait --for=condition=Ready --timeout=60s -n kube-system pod/"$pod"; then
+        log_success "kube-apiserver pod $pod is Ready"
+      else
+        log_warning "kube-apiserver pod $pod did not become Ready within timeout"
+      fi
+    done
+  fi
   
   # Wait for kubelet to be ready
   log_info "⏳ Waiting for kubelet to become ready..."

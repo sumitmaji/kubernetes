@@ -18,6 +18,31 @@ KEYCLOAK_REALM="https://keycloak.gokcloud.com/realms/GokDevelopers"
 CA_CERT_PATH="/usr/local/share/ca-certificates/issuer.crt"
 API_SERVER_MANIFEST="/etc/kubernetes/manifests/kube-apiserver.yaml"
 
+# Parse command line arguments
+USER_TOKEN=""
+COMMAND="diagnose"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --token)
+            USER_TOKEN="$2"
+            shift 2
+            ;;
+        --token=*)
+            USER_TOKEN="${1#*=}"
+            shift
+            ;;
+        -h|--help|help)
+            COMMAND="help"
+            shift
+            ;;
+        *)
+            COMMAND="$1"
+            shift
+            ;;
+    esac
+done
+
 # Logging functions
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -39,6 +64,77 @@ log_header() {
     echo -e "${BLUE}================================================${NC}"
     echo -e "${BLUE}$1${NC}"
     echo -e "${BLUE}================================================${NC}"
+}
+
+# Extract JWT token from kubeconfig
+extract_token_from_kubeconfig() {
+    local kubeconfig="${KUBECONFIG:-$HOME/.kube/config}"
+
+    if [[ ! -f "$kubeconfig" ]]; then
+        log_warning "Kubeconfig file not found: $kubeconfig"
+        return 1
+    fi
+
+    log_info "Extracting token from kubeconfig: $kubeconfig"
+
+    # Get current context
+    local current_context
+    current_context=$(kubectl config current-context 2>/dev/null)
+    if [[ -z "$current_context" ]]; then
+        log_warning "No current context found in kubeconfig"
+        return 1
+    fi
+
+    # Get user for current context
+    local current_user
+    current_user=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$current_context')].context.user}" 2>/dev/null)
+    if [[ -z "$current_user" ]]; then
+        log_warning "No user found for current context: $current_context"
+        return 1
+    fi
+
+    # Extract token from user using grep/sed to parse YAML directly
+    local token
+    token=$(grep -A 10 "name: $current_user" "$kubeconfig" | grep "token:" | head -1 | sed 's/.*token: //' | tr -d '\n\r')
+
+    if [[ -z "$token" ]]; then
+        log_warning "No token found for user: $current_user"
+        return 1
+    fi
+
+    # Validate token format (basic JWT check)
+    if [[ "$token" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$ ]]; then
+        log_success "Successfully extracted JWT token from kubeconfig"
+        echo "$token"
+        return 0
+    else
+        log_warning "Token found but doesn't appear to be a valid JWT"
+        return 1
+    fi
+}
+
+# Get token with fallback logic
+get_token() {
+    local provided_token="$1"
+
+    # Priority 1: Extract from kubeconfig
+    local kubeconfig_token
+    if kubeconfig_token=$(extract_token_from_kubeconfig 2>/dev/null); then
+        echo "$kubeconfig_token"
+        return 0
+    fi
+
+    # Priority 2: User provided token
+    if [[ -n "$provided_token" ]]; then
+        log_info "Using user-provided token"
+        echo "$provided_token"
+        return 0
+    fi
+
+    # Priority 3: Hardcoded token (fallback)
+    log_warning "Using hardcoded token as fallback"
+    echo "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJhUEFJNEJXdy1wU2V3MzRkTkhyYkR0MTdqN3ZuWGFqbmJyaGpfNHdFeFdRIn0.eyJleHAiOjE3NjA3OTMxMzAsImlhdCI6MTc2MDc1NzEzMCwianRpIjoiMDQ2NzRjOGItODA5Ni00ZmJhLTg0ZmMtMDA4MWZiYjYyYjE5IiwiaXNzIjoiaHR0cHM6Ly9rZXljbG9hay5nb2tjbG91ZC5jb20vcmVhbG1zL0dva0RldmVsb3BlcnMiLCJhdWQiOlsiZ29rLWRldmVsb3BlcnMtY2xpZW50IiwiYWNjb3VudCJdLCJzdWIiOiJjNWRhMjJkYS05MmU0LTRiNzktYTU0Ni1jZDgyMTA2YTBmY2EiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJnb2stZGV2ZWxvcGVycy1jbGllbnQiLCJzaWQiOiI1YTNiMTkwNC0xOWQwLTRhYmUtYjM5Mi0xNjAyZWNkNmIyZmYiLCJhY3IiOiIxIiwiYWxsb3dlZC1vcmlnaW5zIjpbImh0dHBzOi8vbG9jYWxob3N0IiwiaHR0cHM6Ly9rdWJlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vYXJnb2NkLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vc3Bpbi1nYXRlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vY2hlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vamVua2lucy5nb2tjbG91ZC5jb20iLCJodHRwczovL2p1cHl0ZXJodWIuZ29rY2xvdWQuY29tIiwiaHR0cHM6Ly9nb2stbG9naW4uZ29rY2xvdWQuY29tIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJvZmZsaW5lX2FjY2VzcyIsImRlZmF1bHQtcm9sZXMtZ29rZGV2ZWxvcGVycyIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJ1bnRydXN0ZWQtYXVkaWVuY2UgZW1haWwgZ3JvdXBzIHByb2ZpbGUiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IlN1bWl0IE1hamkiLCJncm91cHMiOlsiYWRtaW5pc3RyYXRvcnMiLCJkZXZlbG9wZXJzIl0sInByZWZlcnJlZF91c2VybmFtZSI6InNrbWFqaTEiLCJnaXZlbl9uYW1lIjoiU3VtaXQiLCJmYW1pbHlfbmFtZSI6Ik1hamkiLCJlbWFpbCI6InNrbWFqaTFAb3V0bG9vay5jb20ifQ.ae-WFfDFSqRCCv6ZsaSA2DEihvkyEHJNxUo-rW8S-ezTOZRZUZ1CAZBz4r1azwtHIWMbYD0yGc22lTpmhoSTAUKNPNkJzt_g9LkcOaVDrTNk3ZCoi7LGbGnVfFYdo5qqVZzxZR4NS4ZFqxUGHsWp-cfYjNzM1N_huh-XFuJLwZnKhhZ7BcIQZBgenrZgNjvocL6OWLXkU8QSrXYGO4KIIuD7b1ryxxx_XtyYNoaHq5vvIqbZ1lmqkngbiGsiECDlJPDt3dlQBEHqtIHyesqDi1_t_nLHsJ2aJ_BQ2pPHb_yRSk_mN-jDQBbLX3RDfX1WnfcMeogHDJwA8wodCRCGoA"
+    return 0
 }
 
 # Remote execution function
@@ -100,7 +196,8 @@ check_certificates() {
 test_oidc_authentication() {
     log_header "Testing OIDC Authentication"
 
-    local test_token="eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJhUEFJNEJXdy1wU2V3MzRkTkhyYkR0MTdqN3ZuWGFqbmJyaGpfNHdFeFdRIn0.eyJleHAiOjE3NjA3OTMxMzAsImlhdCI6MTc2MDc1NzEzMCwianRpIjoiMDQ2NzRjOGItODA5Ni00ZmJhLTg0ZmMtMDA4MWZiYjYyYjE5IiwiaXNzIjoiaHR0cHM6Ly9rZXljbG9hay5nb2tjbG91ZC5jb20vcmVhbG1zL0dva0RldmVsb3BlcnMiLCJhdWQiOlsiZ29rLWRldmVsb3BlcnMtY2xpZW50IiwiYWNjb3VudCJdLCJzdWIiOiJjNWRhMjJkYS05MmU0LTRiNzktYTU0Ni1jZDgyMTA2YTBmY2EiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJnb2stZGV2ZWxvcGVycy1jbGllbnQiLCJzaWQiOiI1YTNiMTkwNC0xOWQwLTRhYmUtYjM5Mi0xNjAyZWNkNmIyZmYiLCJhY3IiOiIxIiwiYWxsb3dlZC1vcmlnaW5zIjpbImh0dHBzOi8vbG9jYWxob3N0IiwiaHR0cHM6Ly9rdWJlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vYXJnb2NkLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vc3Bpbi1nYXRlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vY2hlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vamVua2lucy5nb2tjbG91ZC5jb20iLCJodHRwczovL2p1cHl0ZXJodWIuZ29rY2xvdWQuY29tIiwiaHR0cHM6Ly9nb2stbG9naW4uZ29rY2xvdWQuY29tIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJvZmZsaW5lX2FjY2VzcyIsImRlZmF1bHQtcm9sZXMtZ29rZGV2ZWxvcGVycyIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJ1bnRydXN0ZWQtYXVkaWVuY2UgZW1haWwgZ3JvdXBzIHByb2ZpbGUiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IlN1bWl0IE1hamkiLCJncm91cHMiOlsiYWRtaW5pc3RyYXRvcnMiLCJkZXZlbG9wZXJzIl0sInByZWZlcnJlZF91c2VybmFtZSI6InNrbWFqaTEiLCJnaXZlbl9uYW1lIjoiU3VtaXQiLCJmYW1pbHlfbmFtZSI6Ik1hamkiLCJlbWFpbCI6InNrbWFqaTFAb3V0bG9vay5jb20ifQ.ae-WFfDFSqRCCv6ZsaSA2DEihvkyEHJNxUo-rW8S-ezTOZRZUZ1CAZBz4r1azwtHIWMbYD0yGc22lTpmhoSTAUKNPNkJzt_g9LkcOaVDrTNk3ZCoi7LGbGnVfFYdo5qqVZzxZR4NS4ZFqxUGHsWp-cfYjNzM1N_huh-XFuJLwZnKhhZ7BcIQZBgenrZgNjvocL6OWLXkU8QSrXYGO4KIIuD7b1ryxxx_XtyYNoaHq5vvIqbZ1lmqkngbiGsiECDlJPDt3dlQBEHqtIHyesqDi1_t_nLHsJ2aJ_BQ2pPHb_yRSk_mN-jDQBbLX3RDfX1WnfcMeogHDJwA8wodCRCGoA"
+    local test_token
+    test_token=$(get_token "$USER_TOKEN")
 
     log_info "Testing direct API call with JWT token..."
     local api_test=$(remote_exec "curl -k -s -H 'Authorization: Bearer $test_token' $KUBERNETES_API_SERVER/api/v1/namespaces/default/pods | head -5")
@@ -121,7 +218,8 @@ test_oidc_authentication() {
 test_kubectl_authentication() {
     log_header "Testing kubectl Authentication"
 
-    local test_token="eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJhUEFJNEJXdy1wU2V3MzRkTkhyYkR0MTdqN3ZuWGFqbmJyaGpfNHdFeFdRIn0.eyJleHAiOjE3NjA3OTMxMzAsImlhdCI6MTc2MDc1NzEzMCwianRpIjoiMDQ2NzRjOGItODA5Ni00ZmJhLTg0ZmMtMDA4MWZiYjYyYjE5IiwiaXNzIjoiaHR0cHM6Ly9rZXljbG9hay5nb2tjbG91ZC5jb20vcmVhbG1zL0dva0RldmVsb3BlcnMiLCJhdWQiOlsiZ29rLWRldmVsb3BlcnMtY2xpZW50IiwiYWNjb3VudCJdLCJzdWIiOiJjNWRhMjJkYS05MmU0LTRiNzktYTU0Ni1jZDgyMTA2YTBmY2EiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJnb2stZGV2ZWxvcGVycy1jbGllbnQiLCJzaWQiOiI1YTNiMTkwNC0xOWQwLTRhYmUtYjM5Mi0xNjAyZWNkNmIyZmYiLCJhY3IiOiIxIiwiYWxsb3dlZC1vcmlnaW5zIjpbImh0dHBzOi8vbG9jYWxob3N0IiwiaHR0cHM6Ly9rdWJlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vYXJnb2NkLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vc3Bpbi1nYXRlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vY2hlLmdva2Nsb3VkLmNvbSIsImh0dHBzOi8vamVua2lucy5nb2tjbG91ZC5jb20iLCJodHRwczovL2p1cHl0ZXJodWIuZ29rY2xvdWQuY29tIiwiaHR0cHM6Ly9nb2stbG9naW4uZ29rY2xvdWQuY29tIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJvZmZsaW5lX2FjY2VzcyIsImRlZmF1bHQtcm9sZXMtZ29rZGV2ZWxvcGVycyIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJ1bnRydXN0ZWQtYXVkaWVuY2UgZW1haWwgZ3JvdXBzIHByb2ZpbGUiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IlN1bWl0IE1hamkiLCJncm91cHMiOlsiYWRtaW5pc3RyYXRvcnMiLCJkZXZlbG9wZXJzIl0sInByZWZlcnJlZF91c2VybmFtZSI6InNrbWFqaTEiLCJnaXZlbl9uYW1lIjoiU3VtaXQiLCJmYW1pbHlfbmFtZSI6Ik1hamkiLCJlbWFpbCI6InNrbWFqaTFAb3V0bG9vay5jb20ifQ.ae-WFfDFSqRCCv6ZsaSA2DEihvkyEHJNxUo-rW8S-ezTOZRZUZ1CAZBz4r1azwtHIWMbYD0yGc22lTpmhoSTAUKNPNkJzt_g9LkcOaVDrTNk3ZCoi7LGbGnVfFYdo5qqVZzxZR4NS4ZFqxUGHsWp-cfYjNzM1N_huh-XFuJLwZnKhhZ7BcIQZBgenrZgNjvocL6OWLXkU8QSrXYGO4KIIuD7b1ryxxx_XtyYNoaHq5vvIqbZ1lmqkngbiGsiECDlJPDt3dlQBEHqtIHyesqDi1_t_nLHsJ2aJ_BQ2pPHb_yRSk_mN-jDQBbLX3RDfX1WnfcMeogHDJwA8wodCRCGoA"
+    local test_token
+    test_token=$(get_token "$USER_TOKEN")
 
     log_info "Testing kubectl with JWT token..."
     if remote_exec "kubectl --token='$test_token' --server=$KUBERNETES_API_SERVER --insecure-skip-tls-verify=true get pods -n default --request-timeout=10s | head -5" >/dev/null 2>&1; then
@@ -239,7 +337,7 @@ run_oidc_diagnostics() {
 }
 
 # Main execution
-case "${1:-diagnose}" in
+case "$COMMAND" in
     "diagnose")
         run_oidc_diagnostics
         ;;
@@ -267,18 +365,22 @@ case "${1:-diagnose}" in
     "help"|"-h"|"--help")
         echo "GOK OIDC Diagnostic Script"
         echo
-        echo "Usage: $0 [command]"
+        echo "Usage: $0 [options] [command]"
+        echo
+        echo "Options:"
+        echo "  --token TOKEN    Use specific JWT token for authentication tests"
+        echo "  -h, --help       Show this help message"
         echo
         echo "Commands:"
-        echo "  diagnose     - Run full diagnostic suite (default)"
-        echo "  check-rbac   - Check cluster role bindings"
-        echo "  check-config - Check API server OIDC configuration"
-        echo "  check-logs   - Check API server logs for OIDC issues"
-        echo "  check-certs  - Check certificates"
-        echo "  test-api     - Test API authentication with JWT token"
-        echo "  test-kubectl - Test kubectl authentication with JWT token"
-        echo "  fix-ca       - Fix OIDC CA file configuration"
-        echo "  help         - Show this help message"
+        echo "  diagnose         - Run full diagnostic suite (default)"
+        echo "  check-rbac       - Check cluster role bindings"
+        echo "  check-config     - Check API server OIDC configuration"
+        echo "  check-logs       - Check API server logs for OIDC issues"
+        echo "  check-certs      - Check certificates"
+        echo "  test-api         - Test API authentication with JWT token"
+        echo "  test-kubectl     - Test kubectl authentication with JWT token"
+        echo "  fix-ca           - Fix OIDC CA file configuration"
+        echo "  help             - Show this help message"
         ;;
     *)
         log_error "Unknown command: $1"
