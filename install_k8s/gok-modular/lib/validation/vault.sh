@@ -71,7 +71,11 @@ validate_vault_installation() {
     local vault_pod=$(kubectl get pods -l app.kubernetes.io/name=vault -n vault -o jsonpath='{.items[0].metadata.name}')
 
     # Check if Vault is initialized
-    local init_status=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null | jq -r '.initialized // "unknown"' 2>/dev/null)
+    local init_json=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null)
+    local init_status="unknown"
+    if [[ -n "$init_json" ]]; then
+      init_status=$(echo "$init_json" | jq -r '.initialized' 2>/dev/null || echo "unknown")
+    fi
     if [[ "$init_status" == "true" ]]; then
       log_success "Vault is initialized"
     else
@@ -80,7 +84,11 @@ validate_vault_installation() {
     fi
 
     # Check if Vault is unsealed
-    local seal_status=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null | jq -r '.sealed // "unknown"' 2>/dev/null)
+    local seal_json=$(kubectl exec -n vault $vault_pod -- vault status -format=json 2>/dev/null)
+    local seal_status="unknown"
+    if [[ -n "$seal_json" ]]; then
+      seal_status=$(echo "$seal_json" | jq -r '.sealed' 2>/dev/null || echo "unknown")
+    fi
     if [[ "$seal_status" == "false" ]]; then
       log_success "Vault is unsealed and ready"
     elif [[ "$seal_status" == "true" ]]; then
@@ -99,7 +107,7 @@ validate_vault_installation() {
     local vault_pod=$(kubectl get pods -l app.kubernetes.io/name=vault -n vault -o jsonpath='{.items[0].metadata.name}')
 
     # Check KV secrets engine
-    local kv_enabled=$(kubectl exec -n vault $vault_pod -- vault secrets list -format=json 2>/dev/null | jq -r '.secret // "not found"' 2>/dev/null)
+    local kv_enabled=$(kubectl exec -n vault $vault_pod -- vault secrets list -format=json 2>/dev/null | jq -r '.["secret/"] // "not found"' 2>/dev/null)
     if [[ "$kv_enabled" != "not found" && "$kv_enabled" != "null" ]]; then
       log_success "KV secrets engine is enabled"
     else
@@ -112,7 +120,7 @@ validate_vault_installation() {
     local vault_pod=$(kubectl get pods -l app.kubernetes.io/name=vault -n vault -o jsonpath='{.items[0].metadata.name}')
 
     # Check Kubernetes auth method
-    local k8s_auth=$(kubectl exec -n vault $vault_pod -- vault auth list -format=json 2>/dev/null | jq -r '.kubernetes // "not found"' 2>/dev/null)
+    local k8s_auth=$(kubectl exec -n vault $vault_pod -- vault auth list -format=json 2>/dev/null | jq -r '.["kubernetes/"] // "not found"' 2>/dev/null)
     if [[ "$k8s_auth" != "not found" && "$k8s_auth" != "null" ]]; then
       log_success "Kubernetes authentication method is enabled"
     else
@@ -129,9 +137,9 @@ validate_vault_installation() {
   fi
 
   log_step "9" "Checking CSI Secrets Store driver"
-  if kubectl get pods -l app=csi-secrets-store -n kube-system >/dev/null 2>&1; then
-    local csi_count=$(kubectl get pods -l app=csi-secrets-store -n kube-system --no-headers 2>/dev/null | wc -l)
-    local csi_ready=$(kubectl get pods -l app=csi-secrets-store -n kube-system -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -c "True")
+  if kubectl get pods -l app=secrets-store-csi-driver -n kube-system >/dev/null 2>&1; then
+    local csi_count=$(kubectl get pods -l app=secrets-store-csi-driver -n kube-system --no-headers 2>/dev/null | wc -l)
+    local csi_ready=$(kubectl get pods -l app=secrets-store-csi-driver -n kube-system -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -c "True")
 
     if [[ $csi_ready -eq $csi_count && $csi_count -gt 0 ]]; then
       log_success "CSI Secrets Store driver is ready ($csi_ready/$csi_count pods)"
