@@ -136,37 +136,6 @@ vaultInst() {
     fi
   fi
 
-  log_substep "Setting up Vault unsealer scripts"
-  if execute_with_suppression pushd $MOUNT_PATH/kubernetes/install_k8s/vault; then
-    if execute_with_suppression chmod +x *.sh; then
-      log_success "Vault scripts made executable"
-    else
-      log_warning "Script permissions setup had issues but continuing"
-    fi
-
-    log_substep "Running Vault CI pipeline"
-    local temp_ci_log=$(mktemp)
-    local temp_ci_error=$(mktemp)
-    
-    if ./ci.sh >"$temp_ci_log" 2>"$temp_ci_error"; then
-      log_success "Vault CI pipeline completed"
-    else
-      log_error "Vault CI pipeline failed - error details:"
-      if [[ -s "$temp_ci_error" ]]; then
-        cat "$temp_ci_error" >&2
-      fi
-      rm -f "$temp_ci_log" "$temp_ci_error"
-      execute_with_suppression popd
-      return 1
-    fi
-    
-    rm -f "$temp_ci_log" "$temp_ci_error"
-
-    execute_with_suppression popd
-  else
-    log_error "Could not access Vault directory for CI setup"
-    return 1
-  fi
 
   log_substep "Patching Vault service account with image pull secrets"
   if execute_with_suppression kubectl patch serviceaccount vault -p '{"imagePullSecrets": [{"name": "regcred"}]}' -n vault; then
