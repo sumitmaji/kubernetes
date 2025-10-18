@@ -13,6 +13,7 @@ apiServer:
     oidc-client-id: ${OIDC_CLIENT_ID}
     oidc-username-claim: ${OIDC_USERNAME_CLAIM}
     oidc-groups-claim: ${OIDC_GROUPS_CLAIM}
+    oidc-ca-file: /usr/local/share/ca-certificates/issuer.crt
 #    enable-swagger-ui: "true"
   timeoutForControlPlane: 4m0s
 controllerManager:
